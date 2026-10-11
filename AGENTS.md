@@ -95,7 +95,7 @@ a local PostgreSQL 18 on the same machine; CI uses a Postgres 18 container), alw
 dropped at the end. The tooling refuses a production database (Safety).
 
 - `npm run test:unit` (Vitest, `tests/components` included): after every logic change. About 2 minutes in full against a
-  local database or CI's container, about 8 minutes over the network to Neon.
+  local database or CI's container, much longer over the network to Neon.
 - `npm run test:e2e` (Playwright, `android-chrome` and `iphone-webkit`; it builds the app and starts its servers): before
   every commit that touches `src/`, `server/`, `vite.config.js` or the PWA files, and before a release. `npm test` runs
   both, unit first: before a release.
@@ -112,8 +112,8 @@ dropped at the end. The tooling refuses a production database (Safety).
   Check them by hand with `docs/manual-ios-checklist.md` before a release that touches the PWA files, the layout or the
   location flow.
 
-`docs/testing.md`: read it before you run, write or debug an E2E test, or change the icons, the accessibility baseline
-(`e2e/a11y-baseline.js`), CI or the smoke workflow.
+`docs/testing.md`: read it before you run, write or debug an E2E test, add a screen or a dialog (each one gets an
+accessibility scan), or change the icons, the accessibility baseline (`e2e/a11y-baseline.js`), CI or the smoke workflow.
 
 ## Database and API changes
 
@@ -125,7 +125,7 @@ it during the build (`master` here, often `main` in a copy), never a value from 
 
 Not every merge is deployed: `scripts/vercel-ignore.mjs` skips the build of a merge whose every changed file is on its
 short list (documents, tests, CI), so production serves an older commit than `master` until the next merge that changes
-the app, and that merge has no smoke test. A file that is not on the list is always deployed, and so is every migration;
+the app, and the skipped merge has no smoke test. A file that is not on the list is always deployed, and so is every migration;
 any doubt builds (`docs/runbooks/deploy-and-rollback.md`).
 
 When a release is deployed, the old deployment keeps serving while the new one builds and while its migration runs. And
