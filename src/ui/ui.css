@@ -88,7 +88,9 @@
   padding-block-end: max(24px, env(safe-area-inset-bottom));
 }
 
-.w-app *, .w-app *::before, .w-app *::after, .a-app *, .a-app *::before, .a-app *::after { box-sizing: border-box; }
+/* The two roots are in the list as well as everything inside them: .w-app has padding, and in the default box model its
+   `min-height: 100dvh` came out as 100dvh plus that padding, so every screen of the provider app was taller than the phone. */
+.w-app, .a-app, .w-app *, .w-app *::before, .w-app *::after, .a-app *, .a-app *::before, .a-app *::after { box-sizing: border-box; }
 .w-app h1, .w-app h2, .w-app h3, .w-app p, .a-app h1, .a-app h2, .a-app h3, .a-app p { margin: 0; padding: 0; border: 0; }
 /* Controls start from the surrounding type and colour. :where() gives this reset no specificity, so every class rule
    below (a button's weight, size and colour, a nav item's, a field's) applies as written. With the plain selectors it

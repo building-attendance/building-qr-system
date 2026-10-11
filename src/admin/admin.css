@@ -98,11 +98,15 @@
 .a-card.is-off .a-card__title { color: var(--w-text-2); }
 /* A card that holds one short form (the building's address), set under a list of cards: it does not stretch across a wide screen. */
 .a-card--form { margin-block-start: 24px; max-width: 640px; }
-.a-card__top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
-.a-card__top > :first-child { flex: 1; min-width: 0; }
+/* The title and the actions are on one row while the title fits on one line beside them (its flex-basis is its own width). A longer
+   title, or a name with a long word, would be squeezed into the few pixels that four or five icons leave on a phone and cut in the
+   middle of a word, so then the actions wrap below it, at the end of the row, and the title gets the whole width. */
+.a-card__top { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.a-card__top > :first-child { flex: 1 1 auto; min-width: 0; }
 /* The tile's actions live in its header, as icons, so the tile has no row of buttons at the bottom. The negative margins
-   line the icons' glyphs up with the card padding (each icon sits inside a 44px touch target). */
-.a-card__tools { display: flex; align-items: center; flex: none; margin-block: -9px -9px; margin-inline: 0 -10px; }
+   line the icons' glyphs up with the card padding (each icon sits inside a 44px touch target). The auto margin at the start keeps
+   them at the end of the row when they wrap below the title. */
+.a-card__tools { display: flex; align-items: center; flex: none; margin-block: -9px -9px; margin-inline: auto -10px; }
 .a-card__title { font-size: 1.1875rem; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
 .a-card__sub { color: var(--w-text-2); font-size: 0.9375rem; overflow-wrap: anywhere; }
 .a-meta { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -229,6 +233,10 @@ select.a-input {
 .a-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; background: var(--w-overlay); }
 .a-modal { width: 100%; max-height: 92vh; max-height: 92dvh; display: flex; flex-direction: column; background: var(--w-surface); border: 1px solid var(--w-border); border-radius: 24px 24px 0 0; outline: none; color: var(--w-text); }
 .a-modal__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px 6px; padding-inline: 20px 12px; }
+/* The close button stays at the top of the head when the title wraps onto several lines (the head centres its two children, so
+   the button sat beside the middle of the title). A one-line title is as tall as the button or shorter, so the head is as tall
+   as the button and nothing moves. */
+.a-modal__head .a-icon-btn { align-self: flex-start; }
 /* The title holds the name of the point or the person, which can be one long word: it wraps inside the head (T2). */
 .a-modal__head h2 { font-size: 1.25rem; font-weight: var(--w-weight-bold); min-width: 0; overflow-wrap: anywhere; }
 .a-modal__body { padding: 8px 20px 20px; overflow: auto; display: flex; flex-direction: column; gap: 16px; }
