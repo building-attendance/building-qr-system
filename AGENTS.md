@@ -32,7 +32,7 @@ Map of the repository (`CONTRIBUTING.md` has the structure, `README.md` the arch
 - `shared/`: code for the browser and the server. `datetime.js` writes every date and time a person sees, `contract.js`
   holds the values the phone and the server must agree on, `types.js` the shapes they exchange, `secretLike.js` tells a
   string that looks like a key, a hash or a token (the audit screen and the agent never show one).
-- `tests/`, `e2e/`, `scripts/` (tooling and CI guards), `docs/` (start at `testing.md` and `agent-loop.md`),
+- `tests/`, `e2e/`, `scripts/` (tooling and CI guards), `docs/` (start at `testing.md`, `agent-loop.md` and `design.md`),
   `legacy-redirect/` (the redirect site for the old printed QR codes).
 
 ## Commands
@@ -59,6 +59,10 @@ The scripts are the `scripts` of `package.json`, and `CONTRIBUTING.md` says what
   exception is a UI label quoted in parentheses and double quotes, so that a person can find a button).
 - Never use an em dash (the long dash) anywhere: code, comments, UI text, docs. Use a regular hyphen. `tests/no-em-dash.test.js` fails if one appears.
 - The app is used on a phone and on a computer. Change both layouts together and check both.
+- A change to what a person sees (a screen, a form, a dialog, a style, a text) follows `docs/design.md`: read it first.
+  Each rule there has its reason, its source and its check, and `docs/design/sources.md` says which sources are used and
+  which were rejected, and why. A UI change starts from a finding (an issue, a rule, a session with users), never from
+  taste: a component that works is not restyled on the way.
 - Dates and times that a person sees (on a screen, in the committee's CSV) are always DD/MM/YYYY and HH:MM (24 hours,
   the building's time), written only by `shared/datetime.js`: never a month name, a weekday, the browser's own date
   field or the device's locale. The API and the agent keep ISO dates on purpose (a machine must not guess day-month or
@@ -371,6 +375,9 @@ reviewing agent should apply it too.
   loosened.
 - A budget in `scripts/check-bundle-size.json` raised without a reason in the pull request, or a measured file dropped
   from the check.
+- A budget in `tests/design-budget.json` raised, or an exception added to it, without a reason in the pull request.
+- A visual baseline (a PNG of the screenshot tests under `e2e/`) added, changed or deleted in a pull request that does
+  not show the change and say why.
 - A change to `scripts/vercel-ignore.mjs` or to the `ignoreCommand` of `vercel.json` that lets a change to the app, the
   server, the shared code, a migration, the build or its configuration skip the deployment (a path like that added to
   its list), or that skips the build when it cannot tell.
@@ -382,6 +389,7 @@ reviewing agent should apply it too.
   (the committee app's Hebrew lives in `src/admin/` and `src/pages/AdminApp.jsx` for now).
 - A committee tile or row whose actions break the order (screen actions, edit, switch off / on, red trash can last).
 - A layout change made for only one of phone and computer.
+- A change to what a person sees that breaks a rule of `docs/design.md`.
 
 **Do not report:** style preferences that the codebase does not follow, or anything that the CI guards already check by
 themselves, unless the change weakens the guard.
