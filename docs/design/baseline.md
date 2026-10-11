@@ -32,10 +32,12 @@ Measure again after an iteration of design work and add a dated section below th
 
 ### Friction in production
 
-**Not measured yet.** The owner asks the committee's agent, which reads the read-only agent API, for the last 30 days:
-- the visits that were not counted, by reason (`/refusals`);
-- the visits counted per day (`/counts`);
-- how many phones held a visit that was waiting to be sent (phone health in `/providers`).
+**Not measured yet.** The owner asks the committee's agent, which reads the read-only agent API:
+- for the last 30 days, the visits that were not counted, by reason (`/refusals`, which lists them page by page);
+- for the last 30 days, the visits counted per day (`/counts`);
+- as they are now, the phone health of each provider (`/providers`): the visits waiting on its phones (`waiting`), the
+  phones on an old version (`outdated_devices`), and the visits that its phones dropped (`not_accepted_total`,
+  `overflow_total`). These are current values and totals since each phone signed in, not a history of 30 days.
 
 The answer goes here as numbers only: no names, no dates of a single visit.
 
