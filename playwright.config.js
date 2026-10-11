@@ -43,6 +43,11 @@ export default defineConfig({
     : [['list'], ['html', { open: 'never', outputFolder: paths.reportDir }]],
   globalTeardown: './e2e/global-teardown.js',
   outputDir: paths.outputDir,
+  // Where the baseline images of e2e/visual.spec.js live: e2e/__screenshots__/visual.spec.js/<name>.png. Playwright's default
+  // adds the platform and the project to the name (-chromium-linux), but only one of each ever makes a baseline here: Linux,
+  // in the android-chrome project, on the CI runner (docs/testing.md, "Visual regression"). Another system renders text
+  // differently, so it would never match, and the spec skips itself there. No other spec takes a snapshot.
+  snapshotPathTemplate: '{testDir}/__screenshots__/{testFilePath}/{arg}{ext}',
   use: {
     baseURL: `http://localhost:${APP_PORT}`,
     timezoneId: 'Asia/Jerusalem',
