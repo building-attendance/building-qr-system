@@ -81,19 +81,43 @@ const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:n
 // Open dialogs, oldest first. Only the top one reacts to the keyboard, so Esc on a confirmation that sits on top
 // of another dialog closes just the confirmation.
 const modalStack = []
+let bodyOverflow = '' // what the page's scroll was before the first dialog locked it
 
-/** Accessible dialog: focus moves in and is trapped, Esc / backdrop close it, focus returns, page scroll locks. */
-export function Modal({ title, onClose, children, footer, size = 'md' }) {
+/**
+ * `useDirty(value)` is true once `value` is no longer what it was on the first render: a form passes the object that it
+ * keeps its fields in, and the dialog it sits in (`<Modal dirty>`) then asks before Esc or a tap outside closes it (F4).
+ * Compared as JSON, so changing a field and changing it back is not "unsaved".
+ */
+export function useDirty(value) {
+  const [first] = useState(() => JSON.stringify(value))
+  return JSON.stringify(value) !== first
+}
+
+/**
+ * Accessible dialog: focus moves in and is trapped, Esc / backdrop close it, focus returns, page scroll locks.
+ *
+ * `dirty` says that the person has typed or changed something that is not saved yet (design rule F4). Then Esc and a tap
+ * outside the dialog, the two ways to close it by accident, ask first and close it only when the answer is "close without
+ * saving"; the question puts the person back in the form otherwise, with everything as it was. The close button and the
+ * dialog's own Cancel button are chosen on purpose, so they call `onClose` at once.
+ */
+export function Modal({ title, onClose, dirty = false, children, footer, size = 'md' }) {
   const ref = useRef(null)
   const titleId = useId()
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+  const [asking, setAsking] = useState(false)
+  // Esc and a tap outside. (Read through a ref: the key listener below is added once.)
+  const dismissRef = useRef(null)
+  dismissRef.current = () => (dirtyRef.current ? setAsking(true) : closeRef.current())
 
   useEffect(() => {
     const me = Symbol('modal')
+    if (!modalStack.length) bodyOverflow = document.body.style.overflow
     modalStack.push(me)
     const opener = document.activeElement
-    const scrollLock = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     const el = ref.current
     const items = () => [...el.querySelectorAll(FOCUSABLE)]
@@ -104,7 +128,7 @@ export function Modal({ title, onClose, children, footer, size = 'md' }) {
       if (modalStack[modalStack.length - 1] !== me) return
       if (e.key === 'Escape') {
         e.stopPropagation()
-        closeRef.current()
+        dismissRef.current()
       } else if (e.key === 'Tab') {
         const list = items()
         if (!list.length) return e.preventDefault()
@@ -123,25 +147,45 @@ export function Modal({ title, onClose, children, footer, size = 'md' }) {
     return () => {
       document.removeEventListener('keydown', onKey)
       modalStack.splice(modalStack.indexOf(me), 1)
-      document.body.style.overflow = scrollLock
+      if (!modalStack.length) document.body.style.overflow = bodyOverflow
       opener?.focus?.()
     }
   }, [])
 
-  return createPortal(
-    <div className="a-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`a-modal a-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
-        {/* Plain <div>s, not <header> and <footer>: inside a role="dialog" (which is not sectioning content) those two
-            become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}
-        <div className="a-modal__head">
-          <h2 id={titleId}>{title}</h2>
-          <IconButton icon={IconX} label="סגירה" onClick={onClose} />
-        </div>
-        <div className="a-modal__body">{children}</div>
-        {footer && <div className="a-modal__foot">{footer}</div>}
-      </div>
-    </div>,
-    appRoot(),
+  const onOverlayMouseDown = (e) => {
+    if (e.target !== e.currentTarget) return
+    e.preventDefault() // a tap outside must not take the focus out of the field that the person was typing in
+    dismissRef.current()
+  }
+
+  return (
+    <>
+      {createPortal(
+        <div className="a-overlay" onMouseDown={onOverlayMouseDown}>
+          <div className={`a-modal a-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
+            {/* Plain <div>s, not <header> and <footer>: inside a role="dialog" (which is not sectioning content) those two
+                become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}
+            <div className="a-modal__head">
+              <h2 id={titleId}>{title}</h2>
+              <IconButton icon={IconX} label="סגירה" onClick={onClose} />
+            </div>
+            <div className="a-modal__body">{children}</div>
+            {footer && <div className="a-modal__foot">{footer}</div>}
+          </div>
+        </div>,
+        appRoot(),
+      )}
+      {asking && (
+        <ConfirmDialog
+          title="לסגור בלי לשמור?"
+          body="מה שהקלדתם עדיין לא נשמר. אם תסגרו עכשיו, הוא יאבד."
+          confirmLabel="סגירה בלי לשמור"
+          cancelLabel="חזרה לעריכה"
+          danger
+          onAnswer={(discard) => { setAsking(false); if (discard) closeRef.current() }}
+        />
+      )}
+    </>
   )
 }
 
@@ -178,7 +222,29 @@ export const useToast = () => useContext(ToastContext)
 
 const ConfirmContext = createContext(null)
 
-/** `await confirm({ title, body, confirmLabel, danger })` → true / false. Replaces window.confirm. */
+/**
+ * A question with two answers, drawn on top of whatever is open. Closing it any other way (Esc, a tap outside, the close
+ * button) is the cancel answer, so the safe choice is the one that needs no decision. `onAnswer(true | false)`.
+ */
+function ConfirmDialog({ title, body, confirmLabel = 'אישור', cancelLabel = 'ביטול', danger, onAnswer }) {
+  return (
+    <Modal
+      size="sm"
+      title={title}
+      onClose={() => onAnswer(false)}
+      footer={(
+        <>
+          <button className="w-btn w-btn--quiet w-btn--small" onClick={() => onAnswer(false)}>{cancelLabel}</button>
+          <button className={`w-btn w-btn--small${danger ? ' w-btn--danger' : ''}`} onClick={() => onAnswer(true)}>{confirmLabel}</button>
+        </>
+      )}
+    >
+      <p className="w-lead">{body}</p>
+    </Modal>
+  )
+}
+
+/** `await confirm({ title, body, confirmLabel, cancelLabel, danger })` → true / false. Replaces window.confirm. */
 export function ConfirmProvider({ children }) {
   const [dialog, setDialog] = useState(null)
   const confirm = useCallback((opts) => new Promise((resolve) => {
@@ -196,21 +262,10 @@ export function ConfirmProvider({ children }) {
     <ConfirmContext.Provider value={confirm}>
       {children}
       {dialog && (
-        <Modal
-          size="sm"
-          title={dialog.title}
-          onClose={() => close(false)}
-          footer={(
-            <>
-              <button className="w-btn w-btn--quiet w-btn--small" onClick={() => close(false)}>ביטול</button>
-              <button className={`w-btn w-btn--small${dialog.danger ? ' w-btn--danger' : ''}`} onClick={() => close(true)}>
-                {dialog.confirmLabel ?? 'אישור'}
-              </button>
-            </>
-          )}
-        >
-          <p className="w-lead">{dialog.body}</p>
-        </Modal>
+        <ConfirmDialog
+          title={dialog.title} body={dialog.body} confirmLabel={dialog.confirmLabel} cancelLabel={dialog.cancelLabel}
+          danger={dialog.danger} onAnswer={close}
+        />
       )}
     </ConfirmContext.Provider>
   )

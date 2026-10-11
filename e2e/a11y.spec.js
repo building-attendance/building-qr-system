@@ -482,6 +482,15 @@ test.describe('committee app with the sample data filled in', () => {
       await page.keyboard.press('Escape')
       await expect(page.getByRole('dialog', { name })).toHaveCount(0)
     },
+    // A form that holds something typed asks before Esc closes it (F4): `scan` looks at the question, then "close without saving" ends it.
+    discardWithEscape: async (name, scan) => {
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('dialog', { name: 'לסגור בלי לשמור?' })).toBeVisible()
+      await scan()
+      await page.getByRole('dialog', { name: 'לסגור בלי לשמור?' }).getByRole('button', { name: 'סגירה בלי לשמור' }).click()
+      await expect(page.getByRole('dialog')).toHaveCount(0)
+      await expect(page.getByRole('dialog', { name })).toHaveCount(0)
+    },
   })
 
   test('the five tabs, on a phone and on a computer', async ({ page }) => {
@@ -580,7 +589,7 @@ test.describe('committee app with the sample data filled in', () => {
     })
     await adminSignIn(page)
     await signedIn(page)
-    const { dialog, closeWithEscape } = dialogs(page)
+    const { dialog, closeWithEscape, discardWithEscape } = dialogs(page)
 
     // the form with the map, with an error, the QR dialog, and the questions
     const lobby = page.getByRole('article').filter({ hasText: 'לובי' })
@@ -592,7 +601,7 @@ test.describe('committee app with the sample data filled in', () => {
     await form.getByRole('button', { name: 'שמירה' }).click()
     await expect(form.getByText('צריך שם לנקודה.')).toBeVisible()
     await scanBothThemes(page, 'committee phone: point form with an error')
-    await closeWithEscape('עריכת נקודה: לובי')
+    await discardWithEscape('עריכת נקודה: לובי', () => scanBothThemes(page, 'committee phone: the question before a form with typed changes is closed'))
 
     await lobby.getByRole('button', { name: 'QR והדפסה' }).click()
     const qr = dialog('QR: לובי')
@@ -673,7 +682,7 @@ test.describe('committee app with the sample data filled in', () => {
     allowConsoleErrors(page, /status of 401/) // the first load of /admin, before the sign-in
     await adminSignIn(page)
     await signedIn(page)
-    const { dialog, closeWithEscape } = dialogs(page)
+    const { dialog, closeWithEscape, discardWithEscape } = dialogs(page)
 
     // history: cancelling a visit, deleting one
     await openTab(page, 'history', 'היסטוריית נוכחות')
@@ -712,7 +721,7 @@ test.describe('committee app with the sample data filled in', () => {
     await add.getByRole('button', { name: 'הוספה' }).click()
     await expect(add.getByText('כתובת מייל לא תקינה.')).toBeVisible()
     await scanBothThemes(page, 'committee phone: new member with an error')
-    await closeWithEscape('חבר ועד חדש')
+    await discardWithEscape('חבר ועד חדש', () => scanBothThemes(page, 'committee phone: the question before a new member with a typed address is closed'))
     await page.getByRole('article').filter({ hasText: committee.member.name }).getByRole('button', { name: 'הסרת גישה' }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
     await scanBothThemes(page, 'committee phone: confirm, remove an access')

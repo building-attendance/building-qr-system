@@ -594,6 +594,48 @@ test('the provider form and card have no language: each person chooses theirs on
   await expect(dialog.getByRole('option', { name: 'Русский' })).toHaveCount(0)
 })
 
+// F4 (docs/design.md): typed input is never lost. A tap beside a dialog or an Esc by accident must not throw away a form that was
+// filled in; a form that holds nothing new still closes at once, and the question is answered by Esc too ("keep editing").
+test('a form that was filled in asks before a tap outside or Esc closes it, and an untouched one closes at once, on a phone and on a computer', async ({ page }) => {
+  const writes = []
+  page.on('request', (request) => {
+    if (request.method() !== 'GET' && request.url().includes('/api/admin/points')) writes.push(request.url())
+  })
+  await adminSignIn(page)
+  for (const size of [null, COMPUTER]) {
+    if (size) await page.setViewportSize(size)
+    const form = page.getByRole('dialog', { name: 'נקודה חדשה' })
+    const question = page.getByRole('dialog', { name: 'לסגור בלי לשמור?' })
+    const name = form.getByLabel('שם הנקודה')
+
+    await page.getByRole('button', { name: 'נקודה חדשה' }).click()
+    await expect(form).toBeVisible()
+    await page.keyboard.press('Escape') // nothing typed yet: it closes at once
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    await page.getByRole('button', { name: 'נקודה חדשה' }).click()
+    await name.fill('חדר אשפה')
+    await page.mouse.click(4, 4) // a tap outside the dialog, on the dimmed page
+    await expect(question).toBeVisible()
+    await expect(question.getByRole('button', { name: 'חזרה לעריכה' })).toBeFocused() // the safe answer is the one in reach
+    await question.getByRole('button', { name: 'חזרה לעריכה' }).click()
+    await expect(question).toHaveCount(0)
+    await expect(name).toHaveValue('חדר אשפה')
+    await expect(name).toBeFocused() // and the cursor is where it was
+
+    await page.keyboard.press('Escape')
+    await expect(question).toBeVisible()
+    await page.keyboard.press('Escape') // Esc on the question is "keep editing": it does not reach the form under it
+    await expect(question).toHaveCount(0)
+    await expect(name).toHaveValue('חדר אשפה')
+
+    await page.keyboard.press('Escape')
+    await question.getByRole('button', { name: 'סגירה בלי לשמור' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  }
+  expect(writes, 'nothing was saved').toEqual([])
+})
+
 // ---- dates and times: DD/MM/YYYY and HH:MM everywhere ---------------------------------------------------------------
 
 test.describe('dates on the committee screens', () => {

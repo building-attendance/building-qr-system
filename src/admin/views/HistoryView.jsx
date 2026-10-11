@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { adminApi, errorText, scanRefusals } from '../api.js'
 import { useLoad, LOAD_KEY } from '../hooks.js'
 import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, DateInput, useToast, useConfirm, useAction } from '../ui.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, DateInput, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash } from '../icons.jsx'
 import { formatDay, formatDateTime, formatTime, isoDay } from '../../../shared/datetime.js'
 import {
@@ -112,13 +112,14 @@ function VoidDialog({ scan, onClose, onDone }) {
   const toast = useToast()
   const [reason, setReason] = useState('')
   const [busy, run] = useAction(toast, errorText)
+  const dirty = useDirty(reason)
   const submit = async (e) => {
     e.preventDefault()
     const res = await run(() => adminApi(`/scans/${scan.id}/void`, { method: 'POST', body: { reason } }), 'הנוכחות בוטלה')
     if (res) onDone(res.scan)
   }
   return (
-    <Modal title="ביטול נוכחות" onClose={onClose} size="sm"
+    <Modal title="ביטול נוכחות" onClose={onClose} dirty={dirty} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>חזרה</button>
