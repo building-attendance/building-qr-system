@@ -38,7 +38,8 @@ The offline tests run on `android-chrome` only: Playwright's WebKit cannot take 
 
 ## Accessibility
 
-`e2e/a11y.spec.js` scans the screens of both apps with axe (WCAG 2.1 A and AA and axe's best practices, light and dark)
+`e2e/a11y.spec.js` scans the screens of both apps with axe (WCAG 2.1 A and AA, the WCAG 2.2 AA target size, rule T1 of
+`docs/design.md`, and axe's best practices, light and dark)
 through `expectNoA11yViolations` in `e2e/fixtures.js`. A new screen or dialog gets a scan there. A problem that is a design
 decision goes in `e2e/a11y-baseline.js` with its reason, matched exactly (screen, rule, element); an entry that no longer
 occurs, or names a screen that is not scanned, fails. Fix a violation rather than baseline it.
