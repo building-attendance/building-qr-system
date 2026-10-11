@@ -9,6 +9,14 @@ and the branch must be up to date with the default branch with all four CI check
 and `e2e (iphone-webkit)` (the job names in `.github/workflows/ci.yml`). Each check is bound to GitHub Actions
 (`integration_id` 15368 is the GitHub Actions app), so nothing else can report a status under the same name.
 
+It also requires every review conversation of the pull request to be resolved before it merges
+(`required_review_thread_resolution`). A conversation is what an inline review comment opens, such as a finding of the
+Codex review: whoever answers the finding (a fix, or a short reply that says why no change is needed) then marks the
+conversation resolved, and only then can the pull request merge. It is here, with no bypass, because on 11/10/2026
+four pull requests merged with a finding that had arrived 4 to 34 minutes before the merge and was not handled yet
+(#172, #177, #182, #184), and each one cost a follow-up pull request. It cannot catch a finding that arrives after the
+merge, so the owner still waits for the review.
+
 `master-approval.json` adds a second person: one approving review is required, it must come from a code owner
 (`.github/CODEOWNERS`), and it does not survive a push made after it (stale reviews are dismissed). The repository admin
 role may bypass it on a pull request, and that is every repository administrator, not only the owner. GitHub cannot tell
