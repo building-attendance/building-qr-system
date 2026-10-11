@@ -83,14 +83,25 @@ const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:n
 const modalStack = []
 let bodyOverflow = '' // what the page's scroll was before the first dialog locked it
 
+// What two values of a field are compared as. The database gives a coordinate as a number and a field gives text once it is typed
+// over; a name can be missing there and empty here; a list of choices (ids) is in the order they were chosen in. None of those is a
+// change the person made, so each is written in one way before the comparison. A false, a 0 and a space still differ from nothing.
+const plain = (_key, value) => {
+  if (typeof value === 'number') return String(value)
+  if (value === null || value === undefined) return ''
+  if (Array.isArray(value)) return value.map(String).sort()
+  return value
+}
+const snapshot = (value) => JSON.stringify(value, plain)
+
 /**
  * `useDirty(value)` is true once `value` is no longer what it was on the first render: a form passes the object that it
  * keeps its fields in, and the dialog it sits in (`<Modal dirty>`) then asks before Esc or a tap outside closes it (F4).
- * Compared as JSON, so changing a field and changing it back is not "unsaved".
+ * Compared by what the person would call the same (see `plain`), so changing a field and putting it back is not "unsaved".
  */
 export function useDirty(value) {
-  const [first] = useState(() => JSON.stringify(value))
-  return JSON.stringify(value) !== first
+  const [first] = useState(() => snapshot(value))
+  return snapshot(value) !== first
 }
 
 /**
@@ -100,18 +111,28 @@ export function useDirty(value) {
  * outside the dialog, the two ways to close it by accident, ask first and close it only when the answer is "close without
  * saving"; the question puts the person back in the form otherwise, with everything as it was. The close button and the
  * dialog's own Cancel button are chosen on purpose, so they call `onClose` at once.
+ *
+ * `busy` says that the form's save is on its way: Esc and a tap outside then do nothing at all. The save closes the dialog
+ * itself when it works, and leaves the form as it was typed when it fails; a dialog that closed meanwhile would lose the
+ * answer (the key that is shown only once) or let the change be saved after the person was told it was discarded.
  */
-export function Modal({ title, onClose, dirty = false, children, footer, size = 'md' }) {
+export function Modal({ title, onClose, dirty = false, busy = false, children, footer, size = 'md' }) {
   const ref = useRef(null)
   const titleId = useId()
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
+  const busyRef = useRef(busy)
+  busyRef.current = busy
   const [asking, setAsking] = useState(false)
   // Esc and a tap outside. (Read through a ref: the key listener below is added once.)
   const dismissRef = useRef(null)
-  dismissRef.current = () => (dirtyRef.current ? setAsking(true) : closeRef.current())
+  dismissRef.current = () => {
+    if (busyRef.current) return
+    if (dirtyRef.current) setAsking(true)
+    else closeRef.current()
+  }
 
   useEffect(() => {
     const me = Symbol('modal')
@@ -162,7 +183,7 @@ export function Modal({ title, onClose, dirty = false, children, footer, size = 
     <>
       {createPortal(
         <div className="a-overlay" onMouseDown={onOverlayMouseDown}>
-          <div className={`a-modal a-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
+          <div className={`a-modal a-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1} inert={asking}>
             {/* Plain <div>s, not <header> and <footer>: inside a role="dialog" (which is not sectioning content) those two
                 become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}
             <div className="a-modal__head">

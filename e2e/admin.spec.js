@@ -618,8 +618,10 @@ test('a form that was filled in asks before a tap outside or Esc closes it, and 
     await page.mouse.click(4, 4) // a tap outside the dialog, on the dimmed page
     await expect(question).toBeVisible()
     await expect(question.getByRole('button', { name: 'חזרה לעריכה' })).toBeFocused() // the safe answer is the one in reach
+    await expect(page.locator('[inert]')).toHaveCount(1) // the form under the question cannot be reached, by a screen reader either
     await question.getByRole('button', { name: 'חזרה לעריכה' }).click()
     await expect(question).toHaveCount(0)
+    await expect(page.locator('[inert]')).toHaveCount(0)
     await expect(name).toHaveValue('חדר אשפה')
     await expect(name).toBeFocused() // and the cursor is where it was
 

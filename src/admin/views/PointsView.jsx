@@ -91,6 +91,7 @@ function PointForm({ point, providers, onClose, onSaved }) {
       title={point ? `עריכת נקודה: ${point.name}` : 'נקודה חדשה'}
       onClose={onClose}
       dirty={dirty}
+      busy={busy}
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>
