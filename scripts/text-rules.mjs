@@ -5,36 +5,94 @@
 //   - a date or time that a person sees is written only by shared/datetime.js (DD/MM/YYYY and HH:MM), so the code in
 //     src/, server/ and shared/ must not use another way of writing one.
 //
-// Two things read these rules, so that they cannot drift apart:
-//   - tests/no-em-dash.test.js and tests/dates.test.js, which fail `npm run test:unit` on a violation;
+// Three things read these rules, so that they cannot drift apart:
+//   - tests/no-em-dash.test.js, tests/english-docs.test.js and tests/dates.test.js, which fail `npm run test:unit` on a
+//     violation (the first two walk the repository with listProjectFiles below);
 //   - scripts/hooks/check-edit.mjs, the Claude Code hook that tells the agent right after it edits a file.
 // To change a rule, change it here. Do not copy a pattern into another file.
+import fs from 'node:fs'
+import path from 'node:path'
 
 // Built from its code point, so that this file does not contain the character either.
 export const EM_DASH = String.fromCharCode(0x2014)
 
-// Folders that are not part of the project. .claude is the assistant tooling's own workspace (personal notes and
-// settings it writes for itself). playwright-report, test-results and blob-report are what Playwright generates (its
-// report is a bundle of its own code).
+// ---- which files -------------------------------------------------------------------------------------------------
+
+// Folders that are not part of the project, wherever they are. .claude is the assistant tooling's own workspace
+// (personal settings, worktrees/ with full copies of the repository, notes and caches it writes for itself), with one
+// exception: see SKILLS_DIR. playwright-report, test-results and blob-report are what Playwright generates (its report
+// is a bundle of its own code).
 export const SKIP_DIRS = new Set([
   'node_modules', 'dist', '.git', '.vercel', '.claude', 'coverage', 'playwright-report', 'test-results', 'blob-report',
 ])
 // The files that are text of the project. package-lock.json is text, but generated.
 export const TEXT = /\.(js|jsx|mjs|cjs|css|html|md|json|sql|txt|yml|yaml)$|^\.env\.example$|^\.gitignore$/
 export const SKIP_FILES = new Set(['package-lock.json'])
+// The one folder inside .claude that is part of the project: its skills are committed (AGENTS.md, CLAUDE.md), so they
+// are text of the project like any document. Only this exact folder at the project root: the rest of .claude/
+// (settings.local.json, worktrees/, ...) stays out, and so does a .claude folder anywhere else.
+export const SKILLS_DIR = '.claude/skills'
 
 const norm = (relativePath) => String(relativePath).replace(/\\/g, '/')
+const split = (relativePath) => norm(relativePath).split('/').filter(Boolean)
+
+/** True when a file in these folders (names from the project root) is inside a skipped folder. */
+function insideSkippedDir(dirs) {
+  const skills = SKILLS_DIR.split('/')
+  const below = skills.every((name, i) => dirs[i] === name) ? dirs.slice(skills.length) : dirs
+  return below.some((dir) => SKIP_DIRS.has(dir))
+}
+
+/**
+ * True when a walk of the project must not go into this folder: nothing in it is project text.
+ * @param relativeDir  the folder's path from the project root, with / or \ as the separator
+ */
+export function isSkippedDir(relativeDir) {
+  const dirs = split(relativeDir)
+  if (dirs.length === 1 && SKILLS_DIR.startsWith(`${dirs[0]}/`)) return false // .claude itself: entered only to reach skills/
+  return insideSkippedDir(dirs)
+}
+
+/**
+ * True when this file is in the part of the repository that the text rules cover, whatever kind of file it is.
+ * @param relativePath  the path from the project root, with / or \ as the separator
+ */
+export function isProjectFile(relativePath) {
+  const parts = split(relativePath)
+  return parts.length > 0 && !insideSkippedDir(parts.slice(0, -1))
+}
 
 /**
  * True when the em dash rule applies to this file: a text file of the project that is not inside a skipped folder.
  * @param relativePath  the path from the project root, with / or \ as the separator
  */
 export function isTextFileToCheck(relativePath) {
-  const parts = norm(relativePath).split('/').filter(Boolean)
-  const name = parts[parts.length - 1]
-  if (!name || parts.slice(0, -1).some((dir) => SKIP_DIRS.has(dir))) return false
-  return TEXT.test(name) && !SKIP_FILES.has(name)
+  const name = split(relativePath).pop()
+  return Boolean(name) && isProjectFile(relativePath) && TEXT.test(name) && !SKIP_FILES.has(name)
 }
+
+/**
+ * Every file of the project under `root`, as a path from the root with / as the separator. The tests walk the
+ * repository with this, so that they and the edit hook cover the same files; a skipped folder is not entered.
+ * @param root  the absolute path of the project folder
+ */
+export function listProjectFiles(root) {
+  const found = []
+  const visit = (relativeDir) => {
+    for (const entry of fs.readdirSync(path.join(root, relativeDir), { withFileTypes: true })) {
+      const relative = relativeDir ? `${relativeDir}/${entry.name}` : entry.name
+      if (entry.isDirectory()) {
+        if (!isSkippedDir(relative)) visit(relative)
+      } else if (isProjectFile(relative)) {
+        found.push(relative)
+      }
+    }
+  }
+  visit('')
+  return found
+}
+
+// ---- the em dash -------------------------------------------------------------------------------------------------
 
 /** The lines of `text` that hold an em dash: [{ line (1-based), text (the trimmed line) }]. */
 export function findEmDashLines(text) {

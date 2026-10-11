@@ -24,10 +24,15 @@ ui-debug.log
 .DS_Store
 Thumbs.db
 
-# Claude Code: the shared project settings are committed; everything else in .claude/ is personal or generated
+# Claude Code: the shared project settings (settings.json) and the project's skills (skills/) are committed; everything
+# else in .claude/ is personal or generated: settings.local.json, launch.json, worktrees/ (full copies of the repository,
+# never to be committed), cc10x/ and the like
 .claude/*
 !.claude/settings.json
-# Agent skills installed locally by a vendor CLI (for example `npx neon@latest skills`): personal, not part of the project
+!.claude/skills/
+# The lock file of the vendor CLI that installs skills (`npx skills`, `neon skills`). Not tracked, on purpose: it pins no
+# commit (an install from it fetches the latest version), and its hashes are of the bytes on one machine (CRLF on Windows),
+# which are not the bytes in git. The pin of each skill is its SOURCE.md in .claude/skills/<name>/.
 skills-lock.json
 
 .vercel
