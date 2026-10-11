@@ -46,7 +46,8 @@ A committee member, on a computer or a phone:
 ## Writing it into the baseline
 
 In `../baseline.md`, under the date of the sessions, one line per task:
-- how many of the five completed it alone;
+- how many of the people who attempted it completed it alone, out of how many (each task is done by one role only, for
+  example "2 of 3 providers");
 - the median time;
 - the median ease;
 - the most common hesitation.
