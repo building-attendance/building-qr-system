@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction } from '../ui.jsx'
+import { Modal, Field, Badge, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconPlus, IconKey, IconCopy, IconBan, IconAlert, IconInfo, IconTrash } from '../icons.jsx'
 import { KEY_NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { agentPrompt } from '../agentPrompt.js'
@@ -12,6 +12,7 @@ function NewKeyDialog({ onClose, onCreated }) {
   const [error, setError] = useState('')
   const [created, setCreated] = useState(null)
   const [busy, run] = useAction(toast, errorText)
+  const dirty = useDirty(name)
 
   const submit = async (e) => {
     e.preventDefault()
@@ -34,7 +35,7 @@ function NewKeyDialog({ onClose, onCreated }) {
     )
   }
   return (
-    <Modal key="form" title="מפתח גישה חדש" onClose={onClose} size="sm"
+    <Modal key="form" title="מפתח גישה חדש" onClose={onClose} dirty={dirty} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>

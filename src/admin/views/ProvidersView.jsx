@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { adminApi, errorText, copyText, providerDevices } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction } from '../ui.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconPlus, IconEdit, IconKey, IconDevice, IconBan, IconCheck, IconCopy, IconRefresh, IconUsers, IconAlert, IconTrash } from '../icons.jsx'
 import { generatePassword } from '../password.js'
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
@@ -41,6 +41,7 @@ function ProviderForm({ provider, onClose, onSaved }) {
     : { company: '', contact_name: '', service_type: '', password: generatePassword(), is_demo: false, is_active: true })
   const [errors, setErrors] = useState({})
   const [busy, run] = useAction(toast, errorText)
+  const dirty = useDirty(form)
   const set = (k, v) => { setForm((f) => ({ ...f, [k]: v })); setErrors((e) => ({ ...e, [k]: undefined })) }
 
   const submit = async (e) => {
@@ -67,6 +68,7 @@ function ProviderForm({ provider, onClose, onSaved }) {
     <Modal
       title={provider ? `עריכה: ${provider.contact_name || provider.company}` : 'נותן שירות חדש'}
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>
@@ -108,6 +110,7 @@ function PasswordDialog({ provider, onClose, onSaved }) {
   const [password, setPassword] = useState(generatePassword)
   const [error, setError] = useState('')
   const [busy, run] = useAction(toast, errorText)
+  const dirty = useDirty(password)
   const submit = async (e) => {
     e.preventDefault()
     if (password.length < PASSWORD_MIN_LENGTH) return setError(`סיסמה של ${PASSWORD_MIN_LENGTH} תווים לפחות.`)
@@ -115,7 +118,7 @@ function PasswordDialog({ provider, onClose, onSaved }) {
     if (res) onSaved(res.provider, password)
   }
   return (
-    <Modal title={`סיסמה חדשה: ${provider.contact_name || provider.company}`} onClose={onClose} size="sm"
+    <Modal title={`סיסמה חדשה: ${provider.contact_name || provider.company}`} onClose={onClose} dirty={dirty} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>

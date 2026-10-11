@@ -59,7 +59,9 @@ and never clears what was typed.**
 - **Source:** GOV.UK error message, as in F3 (research); Impeccable
   [`harden`](https://github.com/pbakaus/impeccable/blob/main/skill/reference/harden.md), "Preserve user input on
   error"; Vercel, Forms, "Warn on unsaved changes before navigation" (expert opinion).
-- **Check:** `planned: dialog unsaved-changes component test`.
+- **Check:** `tests/components/dialog-unsaved-changes.test.jsx` (the dialog and every form of the committee app that has one),
+  and the tap outside and Esc in a real browser in `e2e/admin.spec.js`. The dialog asks only when a form passes `dirty` to
+  `Modal` (`useDirty` in `src/admin/ui.jsx`), so a new form with fields does the same and adds its case to that test.
 
 **F5. Text inputs are at least 16px on phones, so that iOS does not zoom.**
 - **Why:** iOS Safari zooms into a field under 16px and stays zoomed, which leaves the form cropped. The cure is the
