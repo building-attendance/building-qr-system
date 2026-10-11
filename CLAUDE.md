@@ -13,6 +13,8 @@
   for an em dash and, in `src/`, `server/` and `shared/`, for a date that `shared/datetime.js` did not write. The rules
   are in `scripts/text-rules.mjs`. If the hook reports a problem, fix it before moving on: the edit is already saved.
 - Personal settings go in `.claude/settings.local.json`. It is ignored by git, like everything else in `.claude/`
-  except `settings.json`.
+  except `settings.json` and `skills/`. The project's skills live in `.claude/skills/`, each with its `LICENSE` and a
+  `SOURCE.md` (where it came from, the pinned commit, any local change): a skill changes only in a pull request, like the
+  code, and the agent loop never changes one (`.claude/` is a path it may not touch).
 - The working split: plan with Opus, execute with Sonnet, and the reviewer is Codex (ADR 0003,
   `docs/adr/0003-the-reviewer-is-from-another-vendor.md`).
