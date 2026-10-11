@@ -2,7 +2,8 @@
 // templates, the community files and the workflows. Another language belongs only to text that a person sees in the app
 // (src/i18n/*.js, and for now the Hebrew of the committee app in src/admin/) and to the tests that check that text (see
 // AGENTS.md, "Rules for every change"). This test covers the documents: every .md, .yml and .yaml file of the project
-// holds no Hebrew letter (U+0590 to U+05FF). The folders to skip come from scripts/text-rules.mjs.
+// holds no Hebrew letter (U+0590 to U+05FF). The folders to skip come from scripts/text-rules.mjs; the project's skills
+// (.claude/skills/) are covered, the rest of .claude/ is not (tests/text-rules-scope.test.js).
 //
 // The only exception is a UI label that a person needs in order to find a button, for example the committee app's
 // Hebrew tab names. It is allowed only when it is short, made of Hebrew letters alone, and quoted in double quotes
@@ -11,7 +12,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { SKIP_DIRS } from '../scripts/text-rules.mjs'
+import { SKIP_DIRS, listProjectFiles } from '../scripts/text-rules.mjs'
 
 const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 
@@ -30,12 +31,8 @@ function findHebrewLines(text) {
   return found
 }
 
-function walk(dir) {
-  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
-    if (entry.isDirectory()) return SKIP_DIRS.has(entry.name) ? [] : walk(path.join(dir, entry.name))
-    return DOCUMENT.test(entry.name) ? [path.join(dir, entry.name)] : []
-  })
-}
+/** The documents of the project, as paths from the root with / as the separator. */
+const documents = () => listProjectFiles(root).filter((file) => DOCUMENT.test(file))
 
 // The Hebrew word for "committee" (the Committee tab), as escapes.
 const COMMITTEE = '\u05D5\u05E2\u05D3'
@@ -44,19 +41,19 @@ const SENTENCE = '\u05D1\u05E8\u05D5\u05DB\u05D9\u05DD \u05D4\u05D1\u05D0\u05D9\
 
 describe('the documents are written in English', () => {
   it('no .md, .yml or .yaml file of the repository holds a Hebrew letter, apart from a quoted UI label', () => {
-    const files = walk(root)
+    const files = documents()
     expect(files.length).toBeGreaterThan(10) // the walk really covers the documents
     const offenders = []
     for (const file of files) {
-      for (const { line, text } of findHebrewLines(fs.readFileSync(file, 'utf8'))) {
-        offenders.push(`${path.relative(root, file).replace(/\\/g, '/')}:${line}: ${text.slice(0, 80)}`)
+      for (const { line, text } of findHebrewLines(fs.readFileSync(path.join(root, file), 'utf8'))) {
+        offenders.push(`${file}:${line}: ${text.slice(0, 80)}`)
       }
     }
     expect(offenders, `Hebrew found in a document (write it in English):\n${offenders.join('\n')}`).toEqual([])
   })
 
-  it('the walk includes the README, the docs, the community files and the issue templates', () => {
-    const relative = new Set(walk(root).map((file) => path.relative(root, file).replace(/\\/g, '/')))
+  it('the walk includes the README, the docs, the community files, the issue templates and the skills', () => {
+    const relative = new Set(documents())
     for (const expected of [
       'README.md',
       'AGENTS.md',
@@ -69,14 +66,21 @@ describe('the documents are written in English', () => {
       '.github/ISSUE_TEMPLATE/bug.yml',
       '.github/ISSUE_TEMPLATE/feature.yml',
       '.github/pull_request_template.md',
+      '.claude/skills/writing-for-agents/SKILL.md',
     ]) {
       expect(relative.has(expected), expected).toBe(true)
     }
   })
 
   it('the walk skips the folders that are not part of the project', () => {
-    const relative = walk(root).map((file) => path.relative(root, file).replace(/\\/g, '/'))
-    expect(relative.filter((file) => file.split('/').some((part) => SKIP_DIRS.has(part)))).toEqual([])
+    const relative = documents()
+    // Under .claude only skills/ is walked, and inside it the skipped folders (node_modules, ...) are still skipped.
+    const inSkippedFolder = (file) => {
+      const dirs = file.split('/').slice(0, -1)
+      return (file.startsWith('.claude/skills/') ? dirs.slice(2) : dirs).some((part) => SKIP_DIRS.has(part))
+    }
+    expect(relative.filter(inSkippedFolder)).toEqual([])
+    expect(relative.filter((file) => file.startsWith('.claude/') && !file.startsWith('.claude/skills/'))).toEqual([])
   })
 })
 
