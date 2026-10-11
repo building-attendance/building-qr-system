@@ -62,6 +62,16 @@ npm run dev                          # the app (port 3000), which forwards /api 
 The sample users are defined in `scripts/dev-seed.mjs`. They have development passwords only, and they exist only in the
 `dev_ui` schema.
 
+The other scripts (the full list is the `scripts` of `package.json`):
+
+```bash
+npm run db:migrate                   # applies the new migrations to the database in DATABASE_URL (refuses production)
+npm run db:create-admin -- <google-email> [name]   # adds a committee member to the database in DATABASE_URL, and prints which one
+npm run db:backup -- --out <dir> --neon-project <id>   # dumps the database to <dir> (kept 30 days, never in the repository), see docs/runbooks/restore.md
+npm run icons                        # makes the PNG icons in public/ from public/pwa-512x512.svg
+npm run size                         # builds the app and checks it against the size budget (scripts/check-bundle-size.json); CI runs it in the guards check
+```
+
 ## Tests
 
 ```bash
