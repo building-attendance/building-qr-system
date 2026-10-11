@@ -16,7 +16,10 @@
 //     time that a person reads, the date fields of the History tab, the build label, and the codes of
 //     the Agent tab (a random key prefix, the address of the server, the prompt that quotes it). `dynamicRegions` lists them.
 //   - The map's tiles are one fixed picture that this file draws, not OpenStreetMap's.
-//   - The committee tests start from a known state (`prepareCommittee`), not from whatever an earlier spec left behind.
+//   - The committee tests start from a known state (`prepareCommittee`), not from whatever an earlier spec left behind, and the
+//     visits that the History tab lists are a fixed list (`stubHistory`): no provider signs in for them, and their time is not real.
+//   - Signing in is rationed: the server counts every sign-in of the run from one address (60 in 15 minutes), the other specs use most
+//     of that, and a failing screen restarts the worker and with it the setup of the next test. So the spec signs in once.
 //   - Animations and transitions are off (`animations: 'disabled'`, and the browser is told to reduce motion), the caret is
 //     hidden, the fonts are loaded, and every request of the screen has been answered before the picture is taken.
 //   - The service worker is blocked: this spec answers the map's tiles itself (page.route), which a worker would bypass.
@@ -24,10 +27,9 @@
 // The size of the images: about 150 KB at most each (`scale: 'css'`, one pixel per CSS pixel, a plain screen compresses well).
 // The thresholds are Playwright's own defaults: no pixel may differ.
 import { deflateSync, crc32 } from 'node:zlib'
-import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
 import {
-  test, expect, he, en, SAMPLE_POINT, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, clearScans, pageSettled, signIn,
+  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, clearScans, pageSettled, signIn,
 } from './fixtures.js'
 
 // ---- where and when it runs ----------------------------------------------------------------------------------------------------
@@ -197,16 +199,38 @@ async function signInListShown(page, title) {
   await expect(page.getByRole('banner').getByText(BUILDING_NAME)).toBeVisible()
 }
 
+/** Picks a language in the picker of the top bar; `from` is the dictionary of the language the screen is in now (it names the picker). */
+const pickLanguage = (page, from, code) => page.getByLabel(from['lang.label']).selectOption(code)
+
+// Every sign-in of the run counts against the address's limit (server/auth.js: 60 in 15 minutes, a correct password included), and
+// the other specs of the job use most of it (48 of the 60 on 11/10/2026). So the whole spec signs in ONCE, in the second test below,
+// and switches the language on the screens instead of signing in again. A failed run starts that test again (a retry): two at most.
 test.describe('provider app', () => {
   test.use(PROVIDER_PHONE)
 
-  test('in Hebrew: the sign-in list, the password, home with a visit, recorded, and too far', async ({ page, context, request }) => {
+  // One left-to-right language and one right-to-left language besides Hebrew.
+  test('the sign-in list in Hebrew, English and Arabic', async ({ page }) => {
     await stopClock(page)
-    await clearScans(request) // a visit still on record would answer "already recorded"
     await page.goto('/')
     await signInListShown(page, he['login.title'])
     await shotBothThemes(page, 'provider-he-sign-in-list')
 
+    await pickLanguage(page, he, 'en') // the person picks it on the phone; nobody sets it for them
+    await signInListShown(page, en['login.title'])
+    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr')
+    await shotBothThemes(page, 'provider-en-sign-in-list')
+
+    await pickLanguage(page, en, 'ar')
+    await signInListShown(page, ar['login.title'])
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl')
+    await shotBothThemes(page, 'provider-ar-sign-in-list')
+  })
+
+  test('in Hebrew: the password, recorded, home with a visit and too far, and the home in English and Arabic', async ({ page, context, request }) => {
+    await stopClock(page)
+    await clearScans(request) // a visit still on record would answer "already recorded"
+    await page.goto('/')
+    await signInListShown(page, he['login.title'])
     await page.getByRole('button', { name: new RegExp(PEOPLE.ploni.name) }).click()
     await expect(page.getByLabel(he['login.passwordLabel'], { exact: true })).toBeFocused()
     await shotBothThemes(page, 'provider-he-password')
@@ -221,85 +245,105 @@ test.describe('provider app', () => {
     await expect(page.getByRole('list').getByText('לובי')).toBeVisible()
     await shotBothThemes(page, 'provider-he-home')
 
+    // the same home screen in the other two languages: the same person, the same visit
+    await pickLanguage(page, he, 'en')
+    await expect(page.getByRole('heading', { name: /Hello/ })).toContainText(PEOPLE.ploni.name)
+    await expect(page.locator('html')).toHaveAttribute('dir', 'ltr')
+    await shotBothThemes(page, 'provider-en-home')
+    await pickLanguage(page, en, 'ar')
+    await expect(page.locator('html')).toHaveAttribute('dir', 'rtl')
+    await expect(page.getByRole('list').getByText('לובי')).toBeVisible()
+    await shotBothThemes(page, 'provider-ar-home')
+    await pickLanguage(page, ar, 'he')
+    await expect(page.getByRole('heading', { name: /שלום/ })).toBeVisible()
+
     await context.setGeolocation(FAR)
     await page.goto(`/scan?code=${POINTS.gym}`) // the gym requires the location, and this phone is 5.5 km away
     await expect(page.getByRole('heading', { name: he['checkin.far.title'] })).toBeVisible()
     await shotBothThemes(page, 'provider-he-too-far')
   })
-
-  // One left-to-right language and one right-to-left language besides Hebrew: the sign-in list, and home with a visit.
-  for (const [code, words, lang, hello] of [['en', en, 'en', /Hello/], ['ar', ar, 'ar', null]]) {
-    test(`in ${lang}: the sign-in list and home with a visit`, async ({ page, request }) => {
-      await stopClock(page)
-      await clearScans(request)
-      await page.goto('/')
-      await expect(page.getByRole('list').getByRole('button')).toHaveCount(5)
-      await page.getByLabel(he['lang.label']).selectOption(code) // the person picks it on the phone; nobody sets it for them
-      await signInListShown(page, words['login.title'])
-      await expect(page.locator('html')).toHaveAttribute('dir', code === 'ar' ? 'rtl' : 'ltr')
-      await shotBothThemes(page, `provider-${lang}-sign-in-list`)
-
-      await page.goto(`/scan?code=${POINTS.lobby}`)
-      await signIn(page, PEOPLE.john, words)
-      await expect(page.getByRole('heading', { name: words['checkin.success.title'] })).toBeVisible()
-      await page.getByRole('button', { name: words['checkin.done'] }).click()
-      if (hello) await expect(page.getByRole('heading', { name: hello })).toContainText(PEOPLE.john.name)
-      await expect(page.getByRole('list').getByText('לובי')).toBeVisible()
-      await shotBothThemes(page, `provider-${lang}-home`)
-    })
-  }
 })
 
 // ---- the committee app ---------------------------------------------------------------------------------------------------------
 
 /**
  * Puts the scratch schema in the state that the committee's screens are drawn from, whatever an earlier spec left behind:
- * no visits but the ones made here, no agent key but one, no phone signed in but one, nobody else on the committee. Everything
- * is done through the API, the way the dev tools of the other specs do it. Returns what `clean` removes again.
+ * no visits, no phone signed in, no agent key but one, nobody else on the committee. Everything is done through the committee's
+ * API, the way the dev tools of the other specs do it, and nothing signs a provider in (see the note above the provider tests).
+ * Returns `clean`, which removes it again.
  */
 async function prepareCommittee(playwright, baseURL) {
   const admin = await playwright.request.newContext({ baseURL })
-  const phone = await playwright.request.newContext({ baseURL })
   const login = await admin.post('/api/admin/dev-login', { data: { email: ADMIN_EMAIL } })
   expect(login.ok(), 'dev admin sign-in').toBeTruthy()
-  const send = async (client, url, data = {}, token) => {
-    const response = await client.post(url, { data, headers: token ? { authorization: `Bearer ${token}` } : {} })
-    expect(response.ok(), `POST ${url}`).toBeTruthy()
+  // What a refused call says: the status and the error code of the answer, so that a failure names its cause.
+  const refusal = async (response) => (response.ok() ? '' : ` answered ${response.status()} ${(await response.json().catch(() => null))?.error?.code ?? ''}`)
+  const send = async (url, data = {}) => {
+    const response = await admin.post(url, { data })
+    expect(response.ok(), `POST ${url}${await refusal(response)}`).toBeTruthy()
     return response.json()
   }
   const get = async (url) => {
     const response = await admin.get(url)
-    expect(response.ok(), `GET ${url}`).toBeTruthy()
+    expect(response.ok(), `GET ${url}${await refusal(response)}`).toBeTruthy()
     return response.json()
   }
-  const remove = async (url) => expect((await admin.delete(url, { data: {} })).ok(), `DELETE ${url}`).toBeTruthy()
-
-  const AT_THE_POINT = { lat: SAMPLE_POINT.lat, lng: SAMPLE_POINT.lng, accuracy: 10 }
-  await clearScans(admin)
-  const providers = (await get('/api/admin/providers')).providers
-  for (const p of providers) await send(admin, `/api/admin/providers/${p.id}/revoke-devices`) // no phone signed in
-  for (const key of (await get('/api/admin/api-keys')).api_keys) await remove(`/api/admin/api-keys/${key.id}`)
-  for (const member of (await get('/api/admin/admins')).admins) if (member.email !== ADMIN_EMAIL) await remove(`/api/admin/admins/${member.id}`)
-
-  // Three people have visited, one after the other (the history lists the latest first): Ploni with a position, John and Ivan
-  // without. Ploni's phone stays signed in, so that his card says "1 connected phone".
-  const visit = async (name, password, code, gps) => {
-    const found = providers.find((p) => p.contact_name === name)
-    const { token } = await send(phone, '/api/session', { provider_id: found.id, password })
-    await send(phone, '/api/scan', { id: randomUUID(), code, gps }, token)
+  const remove = async (url) => {
+    const response = await admin.delete(url, { data: {} })
+    expect(response.ok(), `DELETE ${url}${await refusal(response)}`).toBeTruthy()
   }
-  await visit('Иван', 'dev-pass-3', POINTS.basement, null)
-  await visit(PEOPLE.john.name, PEOPLE.john.password, POINTS.lobby, null)
-  await visit(PEOPLE.ploni.name, PEOPLE.ploni.password, POINTS.lobby, AT_THE_POINT)
-  await send(admin, '/api/admin/api-keys', { name: 'האייג\'נט של הוועד' })
-
-  const clean = async () => {
+  const reset = async () => {
     await clearScans(admin)
-    for (const p of (await get('/api/admin/providers')).providers) await send(admin, `/api/admin/providers/${p.id}/revoke-devices`)
+    for (const p of (await get('/api/admin/providers')).providers) await send(`/api/admin/providers/${p.id}/revoke-devices`) // no phone signed in
     for (const key of (await get('/api/admin/api-keys')).api_keys) await remove(`/api/admin/api-keys/${key.id}`)
-    await Promise.all([admin.dispose(), phone.dispose()])
   }
-  return { clean }
+
+  await reset()
+  for (const member of (await get('/api/admin/admins')).admins) if (member.email !== ADMIN_EMAIL) await remove(`/api/admin/admins/${member.id}`)
+  await send('/api/admin/api-keys', { name: "האייג'נט של הוועד" })
+  return {
+    clean: async () => {
+      await reset()
+      await admin.dispose()
+    },
+  }
+}
+
+/**
+ * The visits that the History tab lists: three people at three points on one day, answered in place of the server's list of accepted
+ * visits (the shape is `scanJson` in server/scans.js). A real visit means a provider signing in, which the throttle allows only a few
+ * times in a run, and its time would be the real one. These carry a fixed day and time, and show the three kinds of badge (a
+ * distance, an unverified location, none).
+ */
+const HISTORY_ROWS = [
+  { time: '2026-03-02T10:40:00.000Z', point: 'גימבורי', who: 'ניקיון – פלוני', distance_m: 3, accuracy: 10, flags: [] },
+  { time: '2026-03-02T09:15:00.000Z', point: 'לובי', who: 'Cleaning Co – John', distance_m: null, accuracy: null, flags: ['location_unverified'] },
+  { time: '2026-03-02T07:05:00.000Z', point: 'מינוס 1', who: 'Уборка – Иван', distance_m: null, accuracy: null, flags: [] },
+].map((r, i) => ({
+  id: `00000000-0000-4000-8000-00000000000${i + 1}`,
+  checked_in_at: r.time,
+  checked_in_local: r.time,
+  local_date: '2026-03-02',
+  point_id: `00000000-0000-4000-8000-0000000001${i + 1}0`,
+  point_name: r.point,
+  provider_id: `00000000-0000-4000-8000-0000000002${i + 1}0`,
+  provider_name: r.who,
+  service_type: 'cleaning',
+  source: 'online',
+  outcome: 'accepted',
+  distance_m: r.distance_m,
+  gps_accuracy_m: r.accuracy,
+  flags: r.flags,
+  voided: false,
+  void_reason: null,
+}))
+
+/** Answers the History tab's list of visits with HISTORY_ROWS (its CSV export is a link, not a request of the page, and is left alone). */
+async function stubHistory(page) {
+  await page.route(/\/api\/admin\/scans\?/, (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    return route.fulfill({ json: { scans: HISTORY_ROWS, next_cursor: null } })
+  })
 }
 
 const TABS = [
@@ -333,11 +377,12 @@ async function openTab(page, tab, title) {
 function committeeScreens(width) {
   test('the five tabs', async ({ page }) => {
     await stopClock(page)
+    await stubHistory(page)
     await committeeSignedIn(page)
     for (const [tab, title] of TABS) {
       await openTab(page, tab, title)
       if (tab === 'points') await expect(page.getByRole('article').filter({ hasText: 'לובי' })).toBeVisible()
-      if (tab === 'history') await expect(page.getByRole('listitem').filter({ hasText: 'מינוס 1' }).first()).toBeVisible()
+      if (tab === 'history') await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
       if (tab === 'agent') await expect(page.getByRole('article').filter({ hasText: 'האייג\'נט של הוועד' })).toBeVisible()
       if (tab === 'committee') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
       await shotBothThemes(page, `committee-${width}-${tab}`)

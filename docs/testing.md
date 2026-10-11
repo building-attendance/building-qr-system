@@ -70,6 +70,12 @@ the History tab, the build label, and the codes of the Agent tab. A new screen w
 its own (the text pattern finds it); a new kind of changing text does, in `dynamicRegions`. The thresholds are Playwright's
 defaults (no pixel may differ). Keep each image under about 150 KB.
 
+**Sign in as little as possible in this spec.** The server counts every sign-in of a run from one address, a correct password
+included (`guardLogin` in `server/auth.js`: 60 in 15 minutes), and the other specs of the job use 48 of them. A failing
+picture also restarts the worker, and with it the setup of the tests after it. So the spec signs a provider in once, switches
+the language on the screen instead of signing in again, and sets the committee's screens up through the API (the visits of the
+History tab are a fixed list, `stubHistory`). A test that signs in again can push the run into `429 too_many_attempts`.
+
 **After an intended change to a screen**, CI fails on the pictures that changed (and on a screen with no baseline yet), and
 keeps what it took:
 
