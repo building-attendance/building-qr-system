@@ -20,7 +20,9 @@ test.beforeEach(async ({ page, request }) => {
   await clearScans(request)
 })
 
-const noHorizontalScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+// Compared with the width of the viewport that was set, not with window.innerWidth: Chromium's mobile emulation widens the layout
+// viewport to the width of the content, so a page that scrolls sideways still has scrollWidth <= innerWidth there (e2e/reflow.spec.js).
+const noHorizontalScroll = (page) => page.evaluate((width) => document.documentElement.scrollWidth <= width, page.viewportSize().width)
 
 test('the point tiles offer their actions as icons that have names, and no text buttons', async ({ page }) => {
   await adminSignIn(page)
@@ -353,6 +355,83 @@ test('every screen has its actions in the same order and places, with the red tr
     await phone.dispose()
     await page.request.delete(`/api/admin/admins/${member.id}`)
     for (const key of [live, dead]) await page.request.delete(`/api/admin/api-keys/${key.id}`)
+  }
+})
+
+// ---- a long name in a tile and in the head of a dialog ---------------------------------------------------------------------
+
+// On a phone, the four icons of a point's tile left its title a column of about 100 px, and a long word of the name (an English
+// "Maintenance" or a Russian word) was cut in the middle. Now the icons wrap below the title, at the end of the row, when the title
+// does not fit on one line beside them, and the title gets the whole width. The same name in the head of a dialog wraps over several
+// lines, and the close button stays at the top of the head instead of the middle of it. 360 px is the narrowest phone in use (the
+// two E2E devices are 390 and 412 wide), and the computer shows the tile in a column of its own width.
+test('a long point name is readable in its tile and in the head of a dialog: no word is cut across lines, the icons keep their order and end of the row, and the close button is at the top', async ({ page }) => {
+  await page.setViewportSize({ width: 360, height: 740 })
+  await adminSignIn(page)
+  const name = `Maintenance switchboard room north ${randomUUID().slice(0, 6)}`
+  const created = await page.request.post('/api/admin/points', { data: { name, lat: SAMPLE_POINT.lat, lng: SAMPLE_POINT.lng, gps_mode: 'none' } })
+  expect(created.ok(), 'the long point was created').toBeTruthy()
+  const point = (await created.json()).point
+  await page.reload() // the list was loaded before the point existed
+  /** The words of a text that a line break cuts in the middle (a break at a space is not one). */
+  const cutWords = (heading) => heading.evaluate((el) => {
+    const node = el.firstChild
+    const cut = []
+    for (const match of node.textContent.matchAll(/\S+/g)) {
+      const range = document.createRange()
+      range.setStart(node, match.index)
+      range.setEnd(node, match.index + match[0].length)
+      if (new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size > 1) cut.push(match[0])
+    }
+    return cut
+  })
+  try {
+    for (const size of [null, COMPUTER]) {
+      if (size) await page.setViewportSize(size)
+      const where = size ? 'computer' : 'phone'
+      await page.goto('/admin#points')
+      await loaded(page, 'נקודות סריקה')
+      const tile = page.getByRole('article').filter({ hasText: name })
+      const title = tile.getByRole('heading', { name })
+      expect(await cutWords(title), `${where}: words of the title that are cut across lines`).toEqual([])
+      // the order of the icons and the end of the row: the trash can is the last icon, and at the same distance from the end of the tile
+      // as on a tile with a short name (the text runs right to left, so the end of a tile is its left edge)
+      const edgeOf = async (article) => {
+        const buttons = article.getByRole('button')
+        await expect(buttons.last(), `${where}: the trash can is the last action`).toHaveAccessibleName('מחיקת הנקודה')
+        const boxes = await Promise.all((await buttons.all()).map((b) => b.boundingBox()))
+        expect(boxes.map((b) => b.x), `${where}: each icon is to the left of the one before it`).toEqual([...boxes.map((b) => b.x)].sort((a, b) => b - a))
+        return boxes[boxes.length - 1].x - (await article.boundingBox()).x
+      }
+      near([await edgeOf(tile), await edgeOf(page.getByRole('article').filter({ hasText: 'לובי' }).first())], 1, `${where}: the trash can is in the same place on a long and on a short tile`)
+      expect(await noHorizontalScroll(page), `${where}: the points do not scroll sideways`).toBe(true)
+
+      // the dialog: its title is "QR: " and the name, which wraps over several lines on a phone
+      await tile.getByRole('button', { name: 'QR והדפסה' }).click()
+      const dialog = page.getByRole('dialog')
+      const head = dialog.getByRole('heading', { level: 2 })
+      await expect(head).toContainText(name)
+      expect(await cutWords(head), `${where}: words of the dialog title that are cut across lines`).toEqual([])
+      const close = dialog.getByTitle('סגירה') // the icon in the head (the button of the footer has the same name but no title)
+      const [headBox, closeBox] = await Promise.all([head.boundingBox(), close.boundingBox()])
+      if (headBox.height > closeBox.height + 1) {
+        expect(closeBox.y, `${where}: a title of several lines has the close button at its top`).toBeCloseTo(headBox.y, 0)
+      } else {
+        expect(closeBox.y + closeBox.height / 2, `${where}: a title of one line is centred against the close button`).toBeCloseTo(headBox.y + headBox.height / 2, 0)
+      }
+      if (!size) expect(headBox.height, 'the title wraps over several lines on a phone, so the case above is the one that was measured').toBeGreaterThan(closeBox.height)
+      await page.keyboard.press('Escape')
+      await expect(dialog).toHaveCount(0)
+    }
+    // a title of one line stays where it was: centred against the close button
+    await page.getByRole('article').filter({ hasText: 'לובי' }).first().getByRole('button', { name: 'QR והדפסה' }).click()
+    const shortHead = page.getByRole('dialog').getByRole('heading', { level: 2 })
+    const [shortBox, shortClose] = await Promise.all([shortHead.boundingBox(), page.getByRole('dialog').getByTitle('סגירה').boundingBox()])
+    expect(shortBox.height, 'the title of the lobby is one line').toBeLessThan(shortClose.height)
+    expect(shortClose.y + shortClose.height / 2, 'a title of one line is centred against the close button').toBeCloseTo(shortBox.y + shortBox.height / 2, 0)
+    await page.keyboard.press('Escape')
+  } finally {
+    await page.request.delete(`/api/admin/points/${point.id}`, { data: {} })
   }
 })
 
