@@ -7,7 +7,7 @@
 // the test and the map (Leaflet, which needs a real layout) replaced by a stub.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { useState } from 'react'
-import { render, screen, within, fireEvent, waitFor, cleanup } from '@testing-library/react'
+import { render, renderHook, screen, within, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { Modal, useDirty, ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
 import PointsView from '../../src/admin/views/PointsView.jsx'
 import ProvidersView from '../../src/admin/views/ProvidersView.jsx'
@@ -34,6 +34,13 @@ const tapOutside = (dialog) => fireEvent.mouseDown(dialog.parentElement)
 const dialogNamed = (name) => screen.getByRole('dialog', { name })
 const noDialog = (name) => expect(screen.queryByRole('dialog', { name })).toBeNull()
 const type = (scope, label, value) => fireEvent.change(within(scope).getByLabelText(label), { target: { value } })
+/** A promise that the test settles when it wants: a request that is still on its way. */
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
+}
 
 beforeEach(() => {
   clearLoadCache() // every test stands for a new page load: the screens keep their last answer in memory otherwise
@@ -47,14 +54,14 @@ afterEach(() => {
 /* ------------------------------------------------------------- the dialog */
 
 /** A dialog with one field, the way a form uses it. `onClose` is what the screen does to close it. */
-function Harness({ onClose, start = '' }) {
+function Harness({ onClose, start = '', busy = false }) {
   const [open, setOpen] = useState(true)
   const [text, setText] = useState(start)
   const dirty = useDirty(text)
   const close = () => { setOpen(false); onClose() }
   if (!open) return <p>closed</p>
   return (
-    <Modal title="טופס" onClose={close} dirty={dirty} footer={<button type="button" onClick={close}>ביטול</button>}>
+    <Modal title="טופס" onClose={close} dirty={dirty} busy={busy} footer={<button type="button" onClick={close}>ביטול</button>}>
       <label>שם<input value={text} onChange={(e) => setText(e.target.value)} /></label>
     </Modal>
   )
@@ -187,6 +194,71 @@ describe('a dialog with something typed in it', () => {
   })
 })
 
+describe('the form under the question', () => {
+  it('is inert while the question is open, so that nothing can reach it, and is not after the answer', () => {
+    render(<Harness onClose={vi.fn()} />)
+    type(dialogNamed('טופס'), 'שם', 'חדר אשפה')
+    expect(dialogNamed('טופס').hasAttribute('inert'), 'not before the question').toBe(false)
+
+    esc()
+    expect(dialogNamed(QUESTION).hasAttribute('inert'), 'the question itself is the one that works').toBe(false)
+    expect(dialogNamed('טופס').hasAttribute('inert'), 'the form under it').toBe(true)
+
+    fireEvent.click(within(dialogNamed(QUESTION)).getByRole('button', { name: KEEP }))
+    expect(dialogNamed('טופס').hasAttribute('inert')).toBe(false)
+  })
+})
+
+describe('a dialog while its save is on its way', () => {
+  it('does nothing on Esc or a tap outside, whether something was typed or not', () => {
+    for (const start of ['', 'חדר אשפה']) {
+      const onClose = vi.fn()
+      const { rerender } = render(<Harness onClose={onClose} start={start} busy />)
+      esc()
+      tapOutside(dialogNamed('טופס'))
+      expect(onClose, `start "${start}"`).not.toHaveBeenCalled()
+      expect(screen.queryByRole('dialog', { name: QUESTION })).toBeNull()
+
+      rerender(<Harness onClose={onClose} start={start} busy={false} />) // the save is over: the dialog answers again
+      esc()
+      expect(onClose).toHaveBeenCalledTimes(1)
+      cleanup()
+    }
+  })
+})
+
+describe('what counts as typed (useDirty)', () => {
+  const dirtyAfter = (before, after) => {
+    const { result, rerender } = renderHook(({ value }) => useDirty(value), { initialProps: { value: before } })
+    rerender({ value: after })
+    return result.current
+  }
+
+  it('does not tell a number from the same number typed as text: a coordinate comes from the database as a number and from a field as text', () => {
+    expect(dirtyAfter({ lat: 32.0853 }, { lat: '32.0853' })).toBe(false)
+    expect(dirtyAfter({ lat: '' }, { lat: '' })).toBe(false)
+    expect(dirtyAfter({ lat: 32.0853 }, { lat: '32.09' })).toBe(true)
+    expect(dirtyAfter({ lat: 32.0853 }, { lat: '' }), 'a coordinate that was emptied').toBe(true)
+  })
+
+  it('does not tell a missing value from an empty one', () => {
+    expect(dirtyAfter({ name: null }, { name: '' })).toBe(false)
+    expect(dirtyAfter({ name: undefined }, { name: '' })).toBe(false)
+    expect(dirtyAfter({ name: null }, { name: 'דנה' })).toBe(true)
+  })
+
+  it('compares a list of choices as a set: chosen, taken off and chosen again is the same choice in another order', () => {
+    expect(dirtyAfter({ ids: ['a', 'b'] }, { ids: ['b', 'a'] })).toBe(false)
+    expect(dirtyAfter({ ids: ['a', 'b'] }, { ids: ['b'] })).toBe(true)
+  })
+
+  it('does not count a number that is false, zero or a space as the same as nothing', () => {
+    expect(dirtyAfter({ n: 0 }, { n: '' })).toBe(true)
+    expect(dirtyAfter({ on: false }, { on: '' })).toBe(true)
+    expect(dirtyAfter({ name: '' }, { name: ' ' })).toBe(true)
+  })
+})
+
 /* ------------------------------------------------------------ the forms */
 
 /** The calls that wrote something (POST, PATCH, DELETE), as `[path, options]`. */
@@ -216,11 +288,15 @@ describe('the point form', () => {
     id: 'p-lobby', name: 'לובי', description: null, is_active: true, gps_mode: 'required', lat: 32.0853, lng: 34.7818,
     radius_m: 40, service_type: null, scan_count: 0, provider_ids: [], qr_url: 'https://example.test/scan?code=x',
   }
-  async function show(points = [], { failSave = false } = {}) {
+  const cleaner = { id: 'pr-1', company: 'ניקיון', contact_name: 'פלוני', is_active: true, is_demo: false }
+  const gardener = { id: 'pr-2', company: 'גינון', contact_name: 'אלמוני', is_active: true, is_demo: false }
+  /** `post` answers the saving of a new point, instead of the server that works. */
+  async function show(points = [], { failSave = false, post = null, providers = [] } = {}) {
     api.mockImplementation(async (path, options = {}) => {
       if (path === '/admin/points' && !options.method) return { points }
-      if (path === '/admin/providers') return { providers: [] }
+      if (path === '/admin/providers') return { providers }
       if (path === '/admin/points' && options.method === 'POST') {
+        if (post) return post(options)
         if (failSave) throw Object.assign(new Error('boom'), { status: 500, code: 'server_error' })
         return { point: { ...point, ...options.body, id: 'p-new' } }
       }
@@ -247,6 +323,80 @@ describe('the point form', () => {
 
     edit()
     expectItAsksBeforeLosingWhatWasTyped('עריכת נקודה: לובי', 'רדיוס (מטרים)', '75')
+  })
+
+  const editLobby = () => fireEvent.click(within(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article')).getByRole('button', { name: 'עריכה' }))
+
+  it('does not count a coordinate that was typed over and put back exactly as the database had it (a number there, text in the field)', async () => {
+    await show([point])
+    editLobby()
+    type(dialogNamed('עריכת נקודה: לובי'), 'קו רוחב', '33')
+    type(dialogNamed('עריכת נקודה: לובי'), 'קו אורך', '35')
+    type(dialogNamed('עריכת נקודה: לובי'), 'קו רוחב', '32.0853')
+    type(dialogNamed('עריכת נקודה: לובי'), 'קו אורך', '34.7818')
+    esc()
+    expect(screen.queryByRole('dialog'), 'nothing is different from what was saved: closed at once, no question').toBeNull()
+
+    editLobby()
+    type(dialogNamed('עריכת נקודה: לובי'), 'קו רוחב', '32.0854') // a real difference, in the last digit
+    esc()
+    expect(dialogNamed(QUESTION)).toBeTruthy()
+  })
+
+  it('does not count the providers of a point that were taken off and chosen again, which puts them in another order', async () => {
+    await show([{ ...point, provider_ids: ['pr-1', 'pr-2'] }], { providers: [cleaner, gardener] })
+    editLobby()
+    const form = () => within(dialogNamed('עריכת נקודה: לובי'))
+    const first = () => form().getByRole('checkbox', { name: /פלוני/ })
+    fireEvent.click(first()) // taken off
+    fireEvent.click(first()) // chosen again: the list now reads pr-2, pr-1
+    esc()
+    expect(screen.queryByRole('dialog'), 'the same two providers: closed at once').toBeNull()
+
+    editLobby()
+    fireEvent.click(form().getByRole('checkbox', { name: /פלוני/ }))
+    esc()
+    expect(dialogNamed(QUESTION), 'one provider fewer').toBeTruthy()
+  })
+
+  it('does nothing on Esc or a tap outside while the save is on its way, and closes by itself, without a question, when it is saved', async () => {
+    const save = deferred()
+    await show([], { post: () => save.promise })
+    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    const form = () => dialogNamed('נקודה חדשה')
+    type(form(), 'שם הנקודה', 'חדר אשפה')
+    fireEvent.click(within(form()).getByRole('button', { name: 'סימון במפה' }))
+    fireEvent.click(within(form()).getByRole('button', { name: 'שמירה' }))
+    await waitFor(() => expect(writes()).toHaveLength(1), WAIT)
+
+    esc()
+    tapOutside(form())
+    expect(screen.queryByRole('dialog', { name: QUESTION }), 'no question while the request is out').toBeNull()
+    expect(form(), 'and the form is still there').toBeTruthy()
+    expect(writes(), 'one request, not two').toHaveLength(1)
+
+    save.resolve({ point: { ...point, name: 'חדר אשפה', id: 'p-new' } })
+    await waitFor(() => noDialog('נקודה חדשה'), WAIT)
+    noDialog(QUESTION)
+  })
+
+  it('keeps the form, as typed, when the save that was on its way fails, and then asks again as before', async () => {
+    const save = deferred()
+    await show([], { post: () => save.promise })
+    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    const form = () => dialogNamed('נקודה חדשה')
+    type(form(), 'שם הנקודה', 'חדר אשפה')
+    fireEvent.click(within(form()).getByRole('button', { name: 'סימון במפה' }))
+    fireEvent.click(within(form()).getByRole('button', { name: 'שמירה' }))
+    await waitFor(() => expect(writes()).toHaveLength(1), WAIT)
+    esc()
+    expect(screen.queryByRole('dialog', { name: QUESTION })).toBeNull()
+
+    save.reject(Object.assign(new Error('boom'), { status: 500, code: 'server_error' }))
+    await within(form()).findByRole('button', { name: 'שמירה' }) // the busy label is gone
+    expect(within(form()).getByLabelText('שם הנקודה').value).toBe('חדר אשפה')
+    esc()
+    expect(dialogNamed(QUESTION)).toBeTruthy()
   })
 
   it('counts a pin put on the map and the providers chosen as typed too', async () => {
@@ -339,6 +489,31 @@ describe('the agent key form', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'מפתח חדש' })[0])
     expectItAsksBeforeLosingWhatWasTyped('מפתח גישה חדש', 'שם המפתח', 'הסוכן של הוועד')
+  })
+})
+
+describe('the agent key form while the key is made', () => {
+  it('does not let Esc or a tap outside close it, so that the key, which is shown once, is never lost', async () => {
+    const created = deferred()
+    api.mockImplementation(async (path, options = {}) => {
+      if (path === '/admin/api-keys' && options.method === 'POST') return created.promise
+      if (path === '/admin/api-keys') return { api_keys: [] }
+      throw new Error(`the test does not expect ${options.method ?? 'GET'} ${path}`)
+    })
+    render(<ToastProvider><ConfirmProvider><AgentView /></ConfirmProvider></ToastProvider>)
+    fireEvent.click((await screen.findAllByRole('button', { name: 'מפתח חדש' }, WAIT))[0])
+    type(dialogNamed('מפתח גישה חדש'), 'שם המפתח', 'הסוכן של הוועד')
+    fireEvent.click(within(dialogNamed('מפתח גישה חדש')).getByRole('button', { name: 'יצירה' }))
+    await waitFor(() => expect(writes()).toHaveLength(1), WAIT)
+
+    esc()
+    tapOutside(dialogNamed('מפתח גישה חדש'))
+    expect(screen.queryByRole('dialog', { name: QUESTION })).toBeNull()
+    expect(dialogNamed('מפתח גישה חדש'), 'the form is still there to receive the key').toBeTruthy()
+
+    created.resolve({ key: 'qrk_sample_key_shown_once', api_key: { id: 'k1', name: 'הסוכן של הוועד' } })
+    expect((await screen.findByTestId('new-key', {}, WAIT)).textContent).toBe('qrk_sample_key_shown_once')
+    expect(dialogNamed('המפתח נוצר')).toBeTruthy()
   })
 })
 

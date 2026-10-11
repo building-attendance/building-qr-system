@@ -167,7 +167,7 @@ function AddDialog({ onClose, onAdded }) {
     if (res) onAdded()
   }
   return (
-    <Modal title="חבר ועד חדש" onClose={onClose} dirty={dirty} size="sm"
+    <Modal title="חבר ועד חדש" onClose={onClose} dirty={dirty} busy={busy} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>

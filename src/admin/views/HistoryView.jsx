@@ -119,7 +119,7 @@ function VoidDialog({ scan, onClose, onDone }) {
     if (res) onDone(res.scan)
   }
   return (
-    <Modal title="ביטול נוכחות" onClose={onClose} dirty={dirty} size="sm"
+    <Modal title="ביטול נוכחות" onClose={onClose} dirty={dirty} busy={busy} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>חזרה</button>

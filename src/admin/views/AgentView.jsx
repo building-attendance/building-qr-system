@@ -35,7 +35,7 @@ function NewKeyDialog({ onClose, onCreated }) {
     )
   }
   return (
-    <Modal key="form" title="מפתח גישה חדש" onClose={onClose} dirty={dirty} size="sm"
+    <Modal key="form" title="מפתח גישה חדש" onClose={onClose} dirty={dirty} busy={busy} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>

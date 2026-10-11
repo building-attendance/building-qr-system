@@ -69,6 +69,7 @@ function ProviderForm({ provider, onClose, onSaved }) {
       title={provider ? `עריכה: ${provider.contact_name || provider.company}` : 'נותן שירות חדש'}
       onClose={onClose}
       dirty={dirty}
+      busy={busy}
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>
@@ -118,7 +119,7 @@ function PasswordDialog({ provider, onClose, onSaved }) {
     if (res) onSaved(res.provider, password)
   }
   return (
-    <Modal title={`סיסמה חדשה: ${provider.contact_name || provider.company}`} onClose={onClose} dirty={dirty} size="sm"
+    <Modal title={`סיסמה חדשה: ${provider.contact_name || provider.company}`} onClose={onClose} dirty={dirty} busy={busy} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>
