@@ -2,7 +2,8 @@
 
 The rules for what a person sees and touches. The visual identity stays as it is (Heebo, the current colours): the
 focus is UX, forms, errors, states, right-to-left layout and consistency. Where every source comes from, and which ones
-were turned down: [`design/sources.md`](design/sources.md).
+were turned down: [`design/sources.md`](design/sources.md). What the apps measure today, and the pilots and sessions with
+users: [`design/baseline.md`](design/baseline.md) and [`design/research/`](design/research/).
 
 - **Scope:** every change to a screen, form, dialog, style or text a person sees, in both apps.
 - **Precedence when sources disagree:** `AGENTS.md` > WCAG > research (GOV.UK) > platform guidance (Apple HIG) > expert
