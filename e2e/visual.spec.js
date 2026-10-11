@@ -67,9 +67,10 @@ test.describe.configure({ timeout: 120_000 })
  *   - the date fields of the History tab (a field's value is not text, so the pattern above does not see it).
  *   - the build label of both apps (BuildLabel: `.w-build`, `.a-build`). It is "dev" in a test build, but the label is the one
  *     place that names a version, so a change of the build must never move a baseline.
- *   - the codes (`.a-code`) of the Agent tab: the prefix of an agent key (random), the address of the API and the prompt for the
+ *   - the codes of the Agent tab (`.a-code`): the prefix of an agent key (random), the address of the API and the prompt for the
  *     agent (both carry the host of the server). The prompt is ten kilobytes of text, which tests/agent-prompt.test.js pins, and
- *     which would make the picture of that tab four times the size of the others.
+ *     which would make the picture of that tab four times the size of the others. (Only those three: the password field of the
+ *     provider's dialog has the same class, and its look is what the picture is for.)
  */
 function dynamicRegions(page) {
   return [
@@ -77,7 +78,7 @@ function dynamicRegions(page) {
     page.getByLabel('מתאריך'),
     page.getByLabel('עד תאריך'),
     page.locator('.w-build, .a-build'),
-    page.locator('.a-code'),
+    page.locator('.a-facts .a-code, p .a-code, pre.a-code'),
   ]
 }
 
@@ -385,7 +386,8 @@ function committeeScreens(width) {
       if (tab === 'history') await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
       if (tab === 'agent') await expect(page.getByRole('article').filter({ hasText: 'האייג\'נט של הוועד' })).toBeVisible()
       if (tab === 'committee') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
-      await shotBothThemes(page, `committee-${width}-${tab}`)
+      // The Agent tab ends in the prompt, a block of text that is masked and as long as nine phone screens: its top is the picture.
+      await shotBothThemes(page, `committee-${width}-${tab}`, { whole: tab !== 'agent' })
     }
   })
 
