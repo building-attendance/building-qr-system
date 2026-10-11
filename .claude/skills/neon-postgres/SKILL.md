@@ -15,7 +15,7 @@ metadata:
   source: https://github.com/neondatabase/agent-skills/tree/main/skills/neon-postgres
 ---
 
-<!-- Changed from the upstream file (Apache License 2.0, section 4(b)): each em dash was replaced by a colon, a comma or parentheses. Nothing else differs. See SOURCE.md in this folder. -->
+<!-- Changed from the upstream file (Apache License 2.0, section 4(b)): each em dash was replaced by a colon, a comma or parentheses, and two instructions were replaced to follow this project's safety rules (getting the connection string, testing a migration). See SOURCE.md in this folder. -->
 
 **FIRST**: Use the parent `neon` skill for a Neon overview, getting started with Neon, Neon development best practices, and more.
 
@@ -45,7 +45,7 @@ Otherwise use the CLI (default) or MCP server to list organizations and projects
 
 If a `DATABASE_URL` is already supplied, use it. Do not fetch another through the CLI or MCP.
 
-Otherwise use the CLI (default), `neon env pull`, or the MCP server to get the connection string. Store it in `.env` as `DATABASE_URL`. Read the file first before modifying it, to avoid overwriting existing values.
+Otherwise do not fetch one. In this project the owner fills `.env.local` from `.env.example` with the non-production database, and an agent never reads, writes or prints an env file or a connection string (AGENTS.md, Safety): ask the owner, and read only `.env.example` for the names of the variables.
 
 #### When to use pooled vs direct connections
 
@@ -96,7 +96,7 @@ neon skills -s neon-postgres-branches -y
 
 ## Migrations
 
-Test a migration on a branch of production, against production-like data, before applying it to production.
+Test a migration in a throwaway schema of the non-production database (the unit tests do it), never against production or a branch of it: local tooling never reads production, and production is migrated only by the Vercel build of a merge (AGENTS.md, Safety and Database and API changes; ADR 0002).
 
 Use a **direct (non-pooled)** connection string when you run the migration, not a pooled one. `neon connection-string` returns the direct string by default; make sure the hostname does not include the `-pooler` suffix.
 

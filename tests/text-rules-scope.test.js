@@ -18,9 +18,10 @@ const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace
 const HOOK = path.join(root, 'scripts', 'hooks', 'check-edit.mjs')
 const DASHED = `a line ${EM_DASH} with an em dash\n`
 
-// Every file below holds an em dash. The first is the only one that the rules must catch.
+// Every file below holds an em dash. The rules must catch the skill's three files and the plain document, and no other.
 const SKILL = '.claude/skills/demo/SKILL.md'
 const SKILL_REFERENCE = '.claude/skills/demo/references/notes.md'
+const SKILL_SCRIPT = '.claude/skills/demo/scripts/run.sh' // a skill's shell script is text of the project too
 const WORKTREE_COPY = '.claude/worktrees/feature/docs/copy.md'
 const WORKTREE_SKILL = '.claude/worktrees/feature/.claude/skills/demo/SKILL.md'
 const LOCAL_SETTINGS = '.claude/settings.local.json'
@@ -36,7 +37,7 @@ let project // a temporary project folder
 beforeAll(() => {
   project = fs.mkdtempSync(path.join(os.tmpdir(), 'text-rules-scope-'))
   for (const file of [
-    SKILL, SKILL_REFERENCE, WORKTREE_COPY, WORKTREE_SKILL, LOCAL_SETTINGS, SHARED_SETTINGS, CACHE, NESTED_CLAUDE,
+    SKILL, SKILL_REFERENCE, SKILL_SCRIPT, WORKTREE_COPY, WORKTREE_SKILL, LOCAL_SETTINGS, SHARED_SETTINGS, CACHE, NESTED_CLAUDE,
     SKILL_DEPENDENCY, PACKAGE_DOC, DOC,
   ]) {
     const full = path.join(project, ...file.split('/'))
@@ -86,7 +87,7 @@ describe('the scope of the text rules: the paths', () => {
   it('nothing else changed: the project text is checked, other kinds of file are not', () => {
     expect(isTextFileToCheck(DOC)).toBe(true)
     expect(isTextFileToCheck('README.md')).toBe(true)
-    expect(isTextFileToCheck('.claude/skills/demo/scripts/run.sh')).toBe(false) // a shell script is not text of the project
+    expect(isTextFileToCheck(SKILL_SCRIPT)).toBe(true) // a shell script is text of the project (two skills carry one)
     expect(isTextFileToCheck('.claude/skills/demo/LICENSE')).toBe(false) // no extension
     expect(isTextFileToCheck('package-lock.json')).toBe(false)
   })
@@ -109,6 +110,7 @@ describe('the scope of the text rules: the three readers agree', () => {
     const files = listProjectFiles(project).sort()
     expect(files).toContain(SKILL)
     expect(files).toContain(SKILL_REFERENCE)
+    expect(files).toContain(SKILL_SCRIPT)
     expect(files).toContain(DOC)
     for (const left of [WORKTREE_COPY, WORKTREE_SKILL, LOCAL_SETTINGS, SHARED_SETTINGS, CACHE, NESTED_CLAUDE, SKILL_DEPENDENCY, PACKAGE_DOC]) {
       expect(files, left).not.toContain(left)
@@ -119,7 +121,7 @@ describe('the scope of the text rules: the three readers agree', () => {
     const offenders = listProjectFiles(project)
       .filter(isTextFileToCheck)
       .filter((file) => findEmDashLines(fs.readFileSync(path.join(project, ...file.split('/')), 'utf8')).length > 0)
-    expect(offenders.sort()).toEqual([SKILL_REFERENCE, DOC, SKILL].sort())
+    expect(offenders.sort()).toEqual([SKILL_REFERENCE, SKILL_SCRIPT, DOC, SKILL].sort())
   })
 
   it('the edit hook stops on the skill (exit 2) and says nothing about the worktree copy or settings.local.json (exit 0)', () => {

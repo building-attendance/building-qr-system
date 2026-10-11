@@ -26,7 +26,7 @@ export const SKIP_DIRS = new Set([
   'node_modules', 'dist', '.git', '.vercel', '.claude', 'coverage', 'playwright-report', 'test-results', 'blob-report',
 ])
 // The files that are text of the project. package-lock.json is text, but generated.
-export const TEXT = /\.(js|jsx|mjs|cjs|css|html|md|json|sql|txt|yml|yaml)$|^\.env\.example$|^\.gitignore$/
+export const TEXT = /\.(js|jsx|mjs|cjs|css|html|md|json|sql|txt|yml|yaml|sh)$|^\.env\.example$|^\.gitignore$/
 export const SKIP_FILES = new Set(['package-lock.json'])
 // The one folder inside .claude that is part of the project: its skills are committed (AGENTS.md, CLAUDE.md), so they
 // are text of the project like any document. Only this exact folder at the project root: the rest of .claude/
