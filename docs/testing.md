@@ -8,7 +8,8 @@ icons, CI or the smoke test.
 
 Contents: [Setup](#one-time-setup-on-a-new-machine) | [How an E2E run is set up](#how-an-e2e-run-is-set-up) |
 [Running one spec, and reading a failure](#running-one-spec-or-one-project-and-reading-a-failure) |
-[Offline tests](#offline-tests) | [Accessibility](#accessibility) | [Two E2E runs on one machine](#two-e2e-runs-on-one-machine) |
+[Offline tests](#offline-tests) | [Accessibility](#accessibility) | [Visual regression](#visual-regression) |
+[Two E2E runs on one machine](#two-e2e-runs-on-one-machine) |
 [The icons](#the-icons) | [CI](#ci) | [The smoke test](#the-smoke-test) | [What is not automated](#what-is-not-automated)
 
 ## One-time setup on a new machine
@@ -43,6 +44,49 @@ The offline tests run on `android-chrome` only: Playwright's WebKit cannot take 
 through `expectNoA11yViolations` in `e2e/fixtures.js`. A new screen or dialog gets a scan there. A problem that is a design
 decision goes in `e2e/a11y-baseline.js` with its reason, matched exactly (screen, rule, element); an entry that no longer
 occurs, or names a screen that is not scanned, fails. Fix a violation rather than baseline it.
+
+## Visual regression
+
+`e2e/visual.spec.js` takes a picture of the key screens and compares it with the baseline image in
+`e2e/__screenshots__/visual.spec.js/` (`name.png`; 46 files, about 70 KB at most each). It is there to catch design drift
+that no behaviour test sees, and to show the owner the exact image diff of every intended change to a screen. It covers,
+each in the light and the dark theme:
+
+- the provider app in Hebrew: the sign-in list, the password screen, home with a visit, "recorded" and "too far", and in
+  English (left to right) and Arabic (right to left): the sign-in list and home, on a 390 px phone;
+- the committee app in Hebrew, at 360 px and at 1280 px: the five tabs, the dialog of a point (with the map) and the dialog
+  of a provider.
+
+**It runs in CI only.** The baselines are made on the Linux runner, in Chromium (the `android-chrome` project): another
+system draws text a little differently, so a baseline from a laptop would never match. On anything else (WebKit, Windows,
+macOS) the spec skips itself, and `snapshotPathTemplate` in `playwright.config.js` leaves the platform out of the file names
+for that reason. `VISUAL_ANY_OS=1` lifts the condition, to check that the spec itself still runs on another system: what it
+writes there is not a baseline, so delete it and never commit it.
+
+**What keeps the pictures the same** is written at the top of the spec. The clock stands still, animations are off, the
+map's tiles are one fixed picture, the committee screens start from a known state (`prepareCommittee`), and everything that
+depends on the real date, the real time or the build is masked (the pink boxes): every date and time, the date fields of
+the History tab, the build label, and the codes of the Agent tab. A new screen with a date or a time on it needs no mask of
+its own (the text pattern finds it); a new kind of changing text does, in `dynamicRegions`. The thresholds are Playwright's
+defaults (no pixel may differ). Keep each image under about 150 KB.
+
+**Sign in as little as possible in this spec.** The server counts every sign-in of a run from one address, a correct password
+included (`guardLogin` in `server/auth.js`: 60 in 15 minutes), and the other specs of the job use 48 of them. A failing
+picture also restarts the worker, and with it the setup of the tests after it. So the spec signs a provider in once, switches
+the language on the screen instead of signing in again, and sets the committee's screens up through the API (the visits of the
+History tab are a fixed list, `stubHistory`). A test that signs in again can push the run into `429 too_many_attempts`.
+
+**After an intended change to a screen**, CI fails on the pictures that changed (and on a screen with no baseline yet), and
+keeps what it took:
+
+1. `gh run download <run-id> -n playwright-android-chrome -D <a new empty folder>`. The `*-actual.png` files are in
+   `test-results/`, one folder per test.
+2. Copy each `<name>-actual.png` that you meant to change over `e2e/__screenshots__/visual.spec.js/<name>.png`, and
+   commit. A picture that changed and that you did not mean to change is the bug that this test found.
+3. The owner reviews the image diff of every changed baseline in the pull request (GitHub shows PNG files side by side
+   and as a swipe). So the description says which screens changed and why: a baseline that is added, changed or deleted
+   without that is a P1 finding in the code review (`AGENTS.md`, Code Review Rules). Check that each new image shows the
+   whole screen (no spinner, nothing half loaded) before you commit it.
 
 ## Two E2E runs on one machine
 
