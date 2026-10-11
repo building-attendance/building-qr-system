@@ -72,7 +72,7 @@ function ProviderForm({ provider, onClose, onSaved }) {
       busy={busy}
       footer={(
         <>
-          <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>
+          <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose} disabled={busy}>ביטול</button>
           <button type="submit" form="provider-form" className="w-btn w-btn--small" disabled={busy}>{busy ? 'שומר…' : 'שמירה'}</button>
         </>
       )}
@@ -122,7 +122,7 @@ function PasswordDialog({ provider, onClose, onSaved }) {
     <Modal title={`סיסמה חדשה: ${provider.contact_name || provider.company}`} onClose={onClose} dirty={dirty} busy={busy} size="sm"
       footer={(
         <>
-          <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>
+          <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose} disabled={busy}>ביטול</button>
           <button type="submit" form="password-form" className="w-btn w-btn--small" disabled={busy}>{busy ? 'שומר…' : 'שמירה וניתוק מכשירים'}</button>
         </>
       )}>

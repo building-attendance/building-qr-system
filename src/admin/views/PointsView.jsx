@@ -94,7 +94,7 @@ function PointForm({ point, providers, onClose, onSaved }) {
       busy={busy}
       footer={(
         <>
-          <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>
+          <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose} disabled={busy}>ביטול</button>
           <button type="submit" form="point-form" className="w-btn w-btn--small" disabled={busy}>{busy ? 'שומר…' : 'שמירה'}</button>
         </>
       )}

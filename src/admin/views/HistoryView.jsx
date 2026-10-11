@@ -122,7 +122,7 @@ function VoidDialog({ scan, onClose, onDone }) {
     <Modal title="ביטול נוכחות" onClose={onClose} dirty={dirty} busy={busy} size="sm"
       footer={(
         <>
-          <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>חזרה</button>
+          <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose} disabled={busy}>חזרה</button>
           <button type="submit" form="void-form" className="w-btn w-btn--danger w-btn--small" disabled={busy}>{busy ? 'מבטל…' : 'ביטול הנוכחות'}</button>
         </>
       )}>
