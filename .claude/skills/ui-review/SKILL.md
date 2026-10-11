@@ -24,7 +24,8 @@ fixed (Heebo, the colour and weight tokens): no new colour, size, font or librar
    Done when each command exits 0, or each failure is written down as a finding.
 
 3. **Look.** Take a picture of every screen and state of step 1: the provider app at 390 px, the committee app at 360 px
-   and at 1280 px; light and dark; Hebrew, and for the provider app also English (left to right) and Arabic. Use the
+   and at 1280 px; light and dark; Hebrew, and for the provider app all four languages (Russian runs longest, English is
+   left to right, Arabic right to left in another script). Use the
    worst-case data of the `break-ui` skill (long names, one long word, empty lists) through the dev seed or a test's own
    fixture, never through a toggle in the app. Use a scratch Playwright script outside the repository, or the browser
    pane when the session has one. Keep the pictures in the scratchpad: they are not baselines and are never committed.
