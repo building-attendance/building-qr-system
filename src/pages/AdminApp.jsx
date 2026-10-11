@@ -128,7 +128,7 @@ function Shell({ admin, onSignedOut }) {
 
       <main className="a-main" ref={mainRef} tabIndex={-1} style={{ outline: 'none' }}>
         {updateReady && (
-          <div className="w-banner" role="status" style={{ marginBlockEnd: 16 }}>
+          <div className="w-banner" role="status" style={{ marginBlockEnd: 'var(--w-space-4)' }}>
             <IconRefresh />
             <div className="w-banner__body">יש גרסה חדשה של המערכת.</div>
             <button className="w-btn w-btn--small w-btn--quiet" onClick={applyUpdate}>עדכון</button>
@@ -203,7 +203,7 @@ export default function AdminApp() {
   } else if (!boot.admin) {
     content = (
       <>
-        {notice && <div className="w-banner w-banner--warn" role="status" style={{ margin: '16px auto 0', maxWidth: 440 }}><IconAlert /><div className="w-banner__body">{notice}</div></div>}
+        {notice && <div className="w-banner w-banner--warn" role="status" style={{ margin: 'var(--w-space-4) auto 0', maxWidth: 440 }}><IconAlert /><div className="w-banner__body">{notice}</div></div>}
         <LoginScreen config={boot.config} onSignedIn={(admin) => { clearLoadCache(); setNotice(''); setBoot((b) => ({ ...b, admin })) }} />
       </>
     )

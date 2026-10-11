@@ -139,16 +139,16 @@ function PointForm({ point, providers, onClose, onSaved }) {
         </div>
 
         <fieldset style={{ border: 0, padding: 0, margin: 0 }}>
-          <legend className="w-label" style={{ marginBlockEnd: 6 }}>מי רשאי לסרוק כאן</legend>
+          <legend className="w-label" style={{ marginBlockEnd: 'var(--w-space-1-5)' }}>מי רשאי לסרוק כאן</legend>
           <div className="a-check-list">
-            {assignable.length === 0 && <p className="w-small" style={{ padding: 8 }}>עוד אין נותני שירות.</p>}
+            {assignable.length === 0 && <p className="w-small" style={{ padding: 'var(--w-space-2)' }}>עוד אין נותני שירות.</p>}
             {assignable.map((p) => (
               <Switch key={p.id} checked={form.provider_ids.includes(p.id)} onChange={(on) => toggleProvider(p.id, on)}
                 label={`${p.contact_name || p.company}${p.contact_name ? ` · ${p.company}` : ''}${p.is_active ? '' : ' (מושבת)'}`} />
             ))}
           </div>
-          <p className="w-small" style={{ marginBlockStart: 6 }}>{!form.provider_ids.some((id) => assignable.some((p) => p.id === id)) ? 'לא נבחר אף אחד: כל נותני השירות רשאים לסרוק.' : 'רק הנבחרים רשאים לסרוק בנקודה הזו.'}</p>
-          {hasDemo && <p className="w-small" style={{ marginBlockStart: 4 }}>חשבון הדמו מורשה לסרוק בכל הנקודות, ולכן אינו מופיע ברשימה.</p>}
+          <p className="w-small" style={{ marginBlockStart: 'var(--w-space-1-5)' }}>{!form.provider_ids.some((id) => assignable.some((p) => p.id === id)) ? 'לא נבחר אף אחד: כל נותני השירות רשאים לסרוק.' : 'רק הנבחרים רשאים לסרוק בנקודה הזו.'}</p>
+          {hasDemo && <p className="w-small" style={{ marginBlockStart: 'var(--w-space-1)' }}>חשבון הדמו מורשה לסרוק בכל הנקודות, ולכן אינו מופיע ברשימה.</p>}
         </fieldset>
 
         {point && (

@@ -81,7 +81,7 @@ export default function MapPicker({ lat, lng, radius, onPick, hint }) {
   return (
     <div>
       <div className="a-map" ref={box} role="application" aria-label="מפה לסימון מיקום הנקודה" />
-      {hint && <p className="w-small" style={{ marginBlockStart: 6 }}>{hint}</p>}
+      {hint && <p className="w-small" style={{ marginBlockStart: 'var(--w-space-1-5)' }}>{hint}</p>}
     </div>
   )
 }

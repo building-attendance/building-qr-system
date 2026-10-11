@@ -123,7 +123,9 @@ describe('the build line is quiet, and stays on a colour that is held to AA', ()
   it('uses the third text colour (tests/contrast.test.js checks it on every surface in both themes) and a small size', () => {
     const body = rule(css('../src/ui/ui.css'), '.w-build')
     expect(body).toContain('color: var(--w-text-3)')
-    expect(body).toMatch(/font-size:\s*0\.8125rem/)
+    // the small size is a font-size token now (src/ui/base.css); it still has to resolve to 0.8125rem
+    expect(body).toMatch(/font-size:\s*var\(--w-font-xs\)/)
+    expect(css('../src/ui/base.css')).toMatch(/--w-font-xs:\s*0\.8125rem/)
   })
 
   it('is never hidden on a phone or on a computer', () => {
