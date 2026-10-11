@@ -225,6 +225,18 @@ describe('a dialog while its save is on its way', () => {
       cleanup()
     }
   })
+
+  it('disables its close button, and enables it again when the save is over', () => {
+    const onClose = vi.fn()
+    const { rerender } = render(<Harness onClose={onClose} start="חדר אשפה" busy />)
+    const closeButton = within(dialogNamed('טופס')).getByRole('button', { name: 'סגירה' })
+    expect(closeButton.disabled).toBe(true)
+    fireEvent.click(closeButton)
+    expect(onClose).not.toHaveBeenCalled()
+
+    rerender(<Harness onClose={onClose} start="חדר אשפה" busy={false} />)
+    expect(within(dialogNamed('טופס')).getByRole('button', { name: 'סגירה' }).disabled).toBe(false)
+  })
 })
 
 describe('what counts as typed (useDirty)', () => {
@@ -509,6 +521,11 @@ describe('the agent key form while the key is made', () => {
     esc()
     tapOutside(dialogNamed('מפתח גישה חדש'))
     expect(screen.queryByRole('dialog', { name: QUESTION })).toBeNull()
+    // The two buttons that close it on purpose are disabled too: a tap on them would lose the key all the same.
+    const form = dialogNamed('מפתח גישה חדש')
+    expect(within(form).getByRole('button', { name: 'סגירה' }).disabled).toBe(true)
+    expect(within(form).getByRole('button', { name: 'ביטול' }).disabled).toBe(true)
+    fireEvent.click(within(form).getByRole('button', { name: 'סגירה' }))
     expect(dialogNamed('מפתח גישה חדש'), 'the form is still there to receive the key').toBeTruthy()
 
     created.resolve({ key: 'qrk_sample_key_shown_once', api_key: { id: 'k1', name: 'הסוכן של הוועד' } })

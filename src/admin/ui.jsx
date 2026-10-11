@@ -112,9 +112,10 @@ export function useDirty(value) {
  * saving"; the question puts the person back in the form otherwise, with everything as it was. The close button and the
  * dialog's own Cancel button are chosen on purpose, so they call `onClose` at once.
  *
- * `busy` says that the form's save is on its way: Esc and a tap outside then do nothing at all. The save closes the dialog
- * itself when it works, and leaves the form as it was typed when it fails; a dialog that closed meanwhile would lose the
- * answer (the key that is shown only once) or let the change be saved after the person was told it was discarded.
+ * `busy` says that the form's save is on its way: Esc and a tap outside then do nothing at all, and the close button is
+ * disabled (a form disables its own Cancel the same way). The save closes the dialog itself when it works, and leaves the
+ * form as it was typed when it fails; a dialog that closed meanwhile would lose the answer (the key that is shown only
+ * once) or let the change be saved after the person was told it was discarded.
  */
 export function Modal({ title, onClose, dirty = false, busy = false, children, footer, size = 'md' }) {
   const ref = useRef(null)
@@ -188,7 +189,7 @@ export function Modal({ title, onClose, dirty = false, busy = false, children, f
                 become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}
             <div className="a-modal__head">
               <h2 id={titleId}>{title}</h2>
-              <IconButton icon={IconX} label="סגירה" onClick={onClose} />
+              <IconButton icon={IconX} label="סגירה" onClick={onClose} disabled={busy} />
             </div>
             <div className="a-modal__body">{children}</div>
             {footer && <div className="a-modal__foot">{footer}</div>}
