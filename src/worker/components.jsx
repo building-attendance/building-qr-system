@@ -363,7 +363,7 @@ export function ResultView({ result, pointName, provider, onDone, onRetry }) {
         <span className="w-chip"><IconPin size={18} />{point}</span>
       )}
       {/* On every outcome: on a shared phone, or after a refusal, the first question is "who am I signed in as?" */}
-      {provider && <p className="w-who"><IconUser size={18} />{t('checkin.asUser', { name: providerLabel(provider) })}</p>}
+      {provider && <p className="w-who"><IconUser size={18} /><span>{t('checkin.asUser', { name: providerLabel(provider) })}</span></p>}
       <div className="w-actions">
         {v.retry && <button className="w-btn" onClick={onRetry}>{t('checkin.retry')}</button>}
         <button className={`w-btn${v.retry ? ' w-btn--quiet' : ''}`} onClick={onDone}>{t('checkin.done')}</button>

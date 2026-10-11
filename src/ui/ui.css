@@ -139,7 +139,7 @@
 .w-main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding-block: 8px 16px; }
 
 /* ----- text ----- */
-.w-h1 { font-size: 1.75rem; line-height: 1.2; font-weight: var(--w-weight-bold); }
+.w-h1 { font-size: 1.75rem; line-height: 1.2; font-weight: var(--w-weight-bold); overflow-wrap: anywhere; } /* it greets a person by name, which can be one long word (T2) */
 .w-lead { color: var(--w-text-2); font-size: 1.0625rem; }
 .w-small { color: var(--w-text-3); font-size: 0.875rem; line-height: 1.5; }
 /* The build id line (src/ui/BuildLabel.jsx): as quiet as the small text, on the same colour that tests/contrast.test.js holds
@@ -184,7 +184,7 @@
 .w-banner--warn svg { color: var(--w-warn); }
 .w-banner--ok { background: var(--w-success-bg); border-color: var(--w-success-line); }
 .w-banner--ok svg { color: var(--w-success); }
-.w-banner__body { flex: 1; min-width: 0; }
+.w-banner__body { flex: 1; min-width: 0; overflow-wrap: anywhere; } /* the banner that names the point: one long word wraps inside it (T2) */
 
 /* ----- provider list ----- */
 .w-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -223,7 +223,7 @@
 .w-error svg { flex: none; margin-block-start: 2px; }
 .w-switch { display: flex; gap: 14px; align-items: flex-start; cursor: pointer; padding-block: 10px; min-height: 48px; }
 .w-switch input { width: 24px; height: 24px; margin-block-start: 2px; accent-color: var(--w-primary); flex: none; }
-.w-switch__text { display: flex; flex-direction: column; gap: 2px; }
+.w-switch__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; } /* a label that is one long word wraps (T2) */
 
 /* ----- pending / today ----- */
 .w-visits { list-style: none; margin: 0; padding: 0; }
@@ -244,10 +244,16 @@
 .w-result--danger { color: var(--w-danger); } .w-result--danger .w-ring { background: var(--w-danger-bg); }
 .w-result h1 { color: var(--w-text); font-size: 1.875rem; font-weight: var(--w-weight-bold); line-height: 1.2; }
 .w-result h1:focus { outline: none; }
-.w-result__body { color: var(--w-text-2); font-size: 1.1875rem; max-width: 22em; }
+/* max-width: min(22em, 100%): this line holds the point name inside first-strong isolates (translate() in src/i18n/core.js), and WebKit
+   sizes a centred box that holds an isolate in a right-to-left page by its longest line, not by the width that is left, even with
+   overflow-wrap: anywhere. Measured on a point name of one word: the line was 418px (the 22em) in a 280px column. The cap is the column. */
+.w-result__body { color: var(--w-text-2); font-size: 1.1875rem; max-width: min(22em, 100%); overflow-wrap: anywhere; }
 .w-result__warning { color: var(--w-warn); font-weight: var(--w-weight-semibold); }
-.w-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; background: var(--w-surface-2); border: 1px solid var(--w-border); color: var(--w-text); font-weight: var(--w-weight-semibold); }
-.w-who { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--w-text-2); font-size: 1rem; }
+.w-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; background: var(--w-surface-2); border: 1px solid var(--w-border); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.w-who { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--w-text-2); font-size: 1rem; max-width: 100%; overflow-wrap: anywhere; }
+/* The same WebKit case as .w-result__body (the name is in isolates): the text is an element of its own, so that it can shrink below
+   its longest line. Text that sits straight in a flex box is an anonymous item, which a rule cannot reach. */
+.w-who > span { min-width: 0; }
 .w-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-block-start: 12px; }
 /* The screen that replaces a broken one (src/ui/ErrorBoundary.jsx) is this result screen. The one addition: a long message
    breaks into two even lines instead of leaving one word alone on the second. */

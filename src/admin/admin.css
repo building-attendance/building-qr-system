@@ -147,7 +147,10 @@ select.a-input {
 @media (max-width: 520px) { .a-form-row { grid-template-columns: 1fr; } }
 .w-switch.is-disabled { opacity: 0.55; cursor: not-allowed; }
 .a-check-list { display: flex; flex-direction: column; gap: 2px; border: 1px solid var(--w-border); border-radius: 14px; padding: 6px 12px; background: var(--w-surface-2); }
-.a-code { direction: ltr; font-variant-numeric: tabular-nums; unicode-bidi: isolate; overflow-wrap: anywhere; font-size: 0.9375rem; }
+.a-code { direction: ltr; font-variant-numeric: tabular-nums; unicode-bidi: isolate; overflow-wrap: anywhere; }
+/* The smaller size is for text that is only shown. A field that is also .a-code (the password in the provider dialogs) keeps the 1.0625rem
+   of .a-input, which is over 16px: a field under 16px makes iOS zoom the page in (F5, docs/design.md). :where keeps the specificity of the rule. */
+.a-code:where(:not(.a-input)) { font-size: 0.9375rem; }
 .a-secret { display: flex; gap: 10px; align-items: center; background: var(--w-surface-2); border: 1px dashed var(--w-border); border-radius: 14px; padding: 12px 14px; }
 .a-secret .a-code { flex: 1; user-select: all; }
 
@@ -225,8 +228,9 @@ select.a-input {
 /* ----- modal ----- */
 .a-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; background: var(--w-overlay); }
 .a-modal { width: 100%; max-height: 92vh; max-height: 92dvh; display: flex; flex-direction: column; background: var(--w-surface); border: 1px solid var(--w-border); border-radius: 24px 24px 0 0; outline: none; color: var(--w-text); }
-.a-modal__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 14px 12px 6px 20px; padding-inline: 20px 12px; }
-.a-modal__head h2 { font-size: 1.25rem; font-weight: var(--w-weight-bold); }
+.a-modal__head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding-block: 14px 6px; padding-inline: 20px 12px; }
+/* The title holds the name of the point or the person, which can be one long word: it wraps inside the head (T2). */
+.a-modal__head h2 { font-size: 1.25rem; font-weight: var(--w-weight-bold); min-width: 0; overflow-wrap: anywhere; }
 .a-modal__body { padding: 8px 20px 20px; overflow: auto; display: flex; flex-direction: column; gap: 16px; }
 .a-modal__foot { padding: 14px 20px calc(14px + env(safe-area-inset-bottom)); border-block-start: 1px solid var(--w-border); display: flex; gap: 10px; justify-content: flex-end; flex-wrap: wrap; }
 @media (min-width: 640px) {
