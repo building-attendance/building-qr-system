@@ -55,3 +55,43 @@ name or anything else that identifies a person.
 - In a committee dialog whose title wraps to several lines, the close button is centred against the whole head (#175).
 - `e2e/admin.spec.js` compares `scrollWidth` with `window.innerWidth`, which grows with the content on Chromium, so its
   check of sideways scrolling cannot fail there (#175).
+
+## 11/10/2026, after the first iteration (master 2ca89a8)
+
+The same commands as above, after #181 to #187.
+
+### What changed
+
+| What | Before | Now |
+|---|---|---|
+| Height of every provider screen at 390x844 | 868 px (24 px of scroll on every page) | 844 px, the height of the screen (#187) |
+| A committee dialog with typed text, closed by a tap outside or Esc | the text was lost | it asks first; nothing closes it while its save is on its way (#181, #182, #183) |
+| A long point name on a card at 360 px | broken mid-word in a 104 px column | the actions wrap below it and the title has the full width (#187) |
+| The close button of a dialog whose title wraps | beside the middle of the title | at the top (#187) |
+
+### Automated, unchanged
+
+Accessibility violations 0; no screen scrolls sideways at 320 px; no input under 16 px; 4 physical exceptions; 278
+hard-coded sizes; 46 visual baselines (18 of them, the provider screens, remade at the new height in #187).
+
+### Size
+
+| Part | Bytes (brotli) | Budget |
+|---|---|---|
+| Provider app, entry JS | 78,431 | 86,016 |
+| Provider app, entry CSS | 3,943 | 4,608 |
+| Committee app, chunk JS | 75,566 | 79,872 |
+| Committee app, chunk CSS | 9,178 | 10,240 |
+| Precache, total | 236,959 (16 files) | 256,000 (17 files) |
+
+### Still not measured
+
+The friction in production and the five sessions with people, as in the first section.
+
+### Known and not fixed
+
+- `fitsTheWidth` in `e2e/error-boundary.spec.js` and `noHorizontalScroll` in `e2e/building-address.spec.js` compare with
+  `window.innerWidth`, which grows with the content on Chromium, so they cannot fail there. #187 fixed the same check in
+  `e2e/admin.spec.js`.
+- The `ui-review` skill has no helper for its pictures, and the dev seed has no long names: the first use of the skill
+  (#187) wrote its own scripts and data.
