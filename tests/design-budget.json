@@ -1,0 +1,48 @@
+{
+  "about": "Read by tests/design-css.test.js (rules R1 and V1 of docs/design.md). physicalExceptions: a left or right property that is right on purpose, matched exactly (file, selector or line, property), each with its reason; an entry that no declaration matches any more fails. literalBudget: the count of px and rem literals in spacing, radius and font-size declarations of each file; it may only go down (the test fails above it and below it), and a file that is not listed has 0. Raising a number is the owner's decision.",
+  "physicalExceptions": [
+    {
+      "file": "src/ui/ui.css",
+      "selector": ".w-app",
+      "property": "padding-left",
+      "reason": "env(safe-area-inset-left) is a physical value (the notch is on a physical side of the screen), so the padding that carries it is physical too: padding-inline-start would put the inset on the wrong side in right-to-left (the comment above it in ui.css says so)."
+    },
+    {
+      "file": "src/ui/ui.css",
+      "selector": ".w-app",
+      "property": "padding-right",
+      "reason": "env(safe-area-inset-right) is a physical value (the notch is on a physical side of the screen), so the padding that carries it is physical too: padding-inline-end would put the inset on the wrong side in right-to-left (the comment above it in ui.css says so)."
+    },
+    {
+      "file": "src/admin/admin.css",
+      "selector": "select.a-input",
+      "property": "background-position",
+      "reason": "The chevron of a select is a background image at the end of the field. background-position has no logical keyword that Chromium supports (CSS.supports refuses x-end and inline-end there, checked in Chromium 153), so the edge is chosen by direction: left by default (the committee app is right to left), right under [dir='ltr'] on the next rule."
+    },
+    {
+      "file": "src/admin/admin.css",
+      "selector": "[dir='ltr'] select.a-input",
+      "property": "background-position",
+      "reason": "The left-to-right half of the chevron above: the chevron of a select sits at the end of the field, which is the right edge when the page is left to right, and background-position has no logical keyword that Chromium supports."
+    },
+    {
+      "file": "src/admin/admin.css",
+      "selector": ".a-modal__head",
+      "property": "padding",
+      "reason": "A fallback for a browser without logical properties: its values are the left-to-right ones, and padding-inline on the next declaration (20px 12px) overrides it wherever logical properties exist, which is every browser that runs the app."
+    }
+  ],
+  "literalBudget": {
+    "src/admin/LoginScreen.jsx": 1,
+    "src/admin/MapPicker.jsx": 1,
+    "src/admin/admin.css": 180,
+    "src/admin/views/AgentView.jsx": 1,
+    "src/admin/views/AuditView.jsx": 1,
+    "src/admin/views/HistoryView.jsx": 1,
+    "src/admin/views/PointsView.jsx": 4,
+    "src/admin/views/ProvidersView.jsx": 2,
+    "src/pages/AdminApp.jsx": 2,
+    "src/ui/ui.css": 84,
+    "src/worker/components.jsx": 3
+  }
+}
