@@ -8,9 +8,12 @@ This is the version that `neon skills` had installed on the owner's machine on 0
 
 ## Local changes
 
-Only the em dash, which this project never allows (AGENTS.md, `tests/no-em-dash.test.js`). The upstream files of this skill have 39, in 4 of its 7 files. Each was replaced by hand with the text that keeps the meaning: 28 by a colon, 5 by a comma, 6 by parentheses (three pairs).
+Two kinds of change:
 
-The Apache License (section 4(b)) asks that a changed file says so. Each of the 4 changed files (`SKILL.md` and `references/claimable-neon.md`, `references/logs-loki.md`, `references/parse-env.md`) therefore starts, after the front matter of `SKILL.md`, with a one-line HTML comment that says so. The other 3 files (`references/auth.md`, `references/function-triggers.md`, `references/sdk.md`) are byte for byte the upstream files. Nothing else was changed.
+- The em dash, which this project never allows (AGENTS.md, `tests/no-em-dash.test.js`). The upstream files of this skill have 39, in 4 of its 7 files. Each was replaced by hand with the text that keeps the meaning: 28 by a colon, 5 by a comma, 6 by parentheses (three pairs).
+- `references/parse-env.md`: its examples passed the database URL to `console.log` (four calls). A connection string holds the password, and AGENTS.md (Safety) never puts a secret in a log, so the examples now use the values (a `pg` `Pool`, plain constants) and say not to log them. Found by the Codex review of the pull request that tracked this skill.
+
+The Apache License (section 4(b)) asks that a changed file says so. Each of the 4 changed files (`SKILL.md` and `references/claimable-neon.md`, `references/logs-loki.md`, `references/parse-env.md`) therefore starts, after the front matter of `SKILL.md`, with a one-line HTML comment that says what changed. The other 3 files (`references/auth.md`, `references/function-triggers.md`, `references/sdk.md`) are byte for byte the upstream files. Nothing else was changed.
 
 ## Where it disagrees with this project
 
