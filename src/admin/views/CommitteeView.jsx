@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { adminApi, errorText } from '../api.js'
 import { useLoad, setLoadCache, LOAD_KEY, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction } from '../ui.jsx'
+import { Modal, Field, Badge, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconPlus, IconBan, IconCheck, IconShield, IconAlert, IconTrash, IconClock, IconChevron } from '../icons.jsx'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { useBuildingName } from '../buildingName.jsx'
@@ -159,6 +159,7 @@ function AddDialog({ onClose, onAdded }) {
   const [name, setName] = useState('')
   const [error, setError] = useState('')
   const [busy, run] = useAction(toast, errorText)
+  const dirty = useDirty({ email, name })
   const submit = async (e) => {
     e.preventDefault()
     if (!EMAIL_RE.test(email.trim())) return setError('כתובת מייל לא תקינה.')
@@ -166,7 +167,7 @@ function AddDialog({ onClose, onAdded }) {
     if (res) onAdded()
   }
   return (
-    <Modal title="חבר ועד חדש" onClose={onClose} size="sm"
+    <Modal title="חבר ועד חדש" onClose={onClose} dirty={dirty} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>

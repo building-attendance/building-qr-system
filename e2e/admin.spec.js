@@ -594,6 +594,71 @@ test('the provider form and card have no language: each person chooses theirs on
   await expect(dialog.getByRole('option', { name: 'Русский' })).toHaveCount(0)
 })
 
+// A tap outside a form dialog and Esc used to close it and throw away everything typed in it. Now they ask first when something was typed
+// (Modal's `dirty`, src/admin/ui.jsx), and going back leaves the dialog as it was, with the cursor in the field it was in. The corner of the
+// screen is the backdrop in both layouts (a sheet that rises from the bottom on a phone, a window in the middle on a computer). The provider
+// form stands for the six dialogs that hold typed text (tests/components/dialog-unsaved.test.jsx opens each of them); the point form, with
+// its map, is in e2e/map-qr.spec.js.
+test('a tap outside a form dialog, or Esc, asks before it throws away what was typed, on a phone and on a computer', async ({ page }) => {
+  const TYPED = `נותן שירות שלא נשמר ${randomUUID().slice(0, 6)}`
+  await adminSignIn(page)
+  await page.goto('/admin#providers')
+  await loaded(page, 'נותני שירות')
+  const form = page.getByRole('dialog', { name: 'נותן שירות חדש' })
+  const question = page.getByRole('dialog', { name: 'לסגור בלי לשמור?' })
+  const company = form.getByLabel('חברה')
+  const tapOutside = () => page.mouse.click(4, 4) // the corner of the screen: the backdrop, whatever the layout
+
+  for (const [where, size] of [['phone', null], ['computer', COMPUTER]]) {
+    if (size) await page.setViewportSize(size)
+    await page.getByRole('button', { name: 'נותן שירות חדש' }).click()
+    await expect(company, `${where}: the first field has the focus`).toBeFocused()
+
+    // nothing typed yet: a tap outside closes it at once, with no question
+    await tapOutside()
+    await expect(form, `${where}: an untouched form`).toHaveCount(0)
+    await expect(question).toHaveCount(0)
+
+    // typed: a tap outside asks, and going back keeps the form, the text and the cursor
+    await page.getByRole('button', { name: 'נותן שירות חדש' }).click()
+    await company.fill(TYPED)
+    await tapOutside()
+    await expect(question, `${where}: a tap outside asks`).toBeVisible()
+    await expect(question.getByRole('button', { name: 'חזרה לעריכה' })).toBeFocused() // the safe answer is the one under Enter
+    await expect(form).toBeVisible()
+    await question.getByRole('button', { name: 'חזרה לעריכה' }).click()
+    await expect(question).toHaveCount(0)
+    await expect(company, `${where}: the text is still there`).toHaveValue(TYPED)
+    await expect(company, `${where}: the cursor is back in the field`).toBeFocused()
+
+    // Esc asks too, and Esc on the question is "back to editing"; the question fits the screen
+    await page.keyboard.press('Escape')
+    await expect(question, `${where}: Esc asks`).toBeVisible()
+    expect(await noHorizontalScroll(page), `${where}: the question does not scroll the page sideways`).toBe(true)
+    await expect(question.getByRole('button', { name: 'סגירה בלי לשמור' }), `${where}: both answers are in view`).toBeInViewport()
+    await expect(question.getByRole('button', { name: 'חזרה לעריכה' })).toBeInViewport()
+    await page.keyboard.press('Escape')
+    await expect(question).toHaveCount(0)
+    await expect(form).toBeVisible()
+    await expect(company).toHaveValue(TYPED)
+
+    // the question is answered "close without saving": the form is gone, nothing was saved, and a new form starts empty
+    await tapOutside()
+    await question.getByRole('button', { name: 'סגירה בלי לשמור' }).click()
+    await expect(form).toHaveCount(0)
+    await expect(question).toHaveCount(0)
+    await expect(page.getByRole('heading', { level: 2, name: TYPED })).toHaveCount(0)
+    await page.getByRole('button', { name: 'נותן שירות חדש' }).click()
+    await expect(company, `${where}: a new form starts empty`).toHaveValue('')
+
+    // the form's own Cancel is a decision: it leaves at once even with text typed
+    await company.fill(TYPED)
+    await form.getByRole('button', { name: 'ביטול' }).click()
+    await expect(form).toHaveCount(0)
+    await expect(question).toHaveCount(0)
+  }
+})
+
 // ---- dates and times: DD/MM/YYYY and HH:MM everywhere ---------------------------------------------------------------
 
 test.describe('dates on the committee screens', () => {

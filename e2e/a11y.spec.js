@@ -591,7 +591,14 @@ test.describe('committee app with the sample data filled in', () => {
     await form.getByRole('button', { name: 'שמירה' }).click()
     await expect(form.getByText('צריך שם לנקודה.')).toBeVisible()
     await scanBothThemes(page, 'committee phone: point form with an error')
-    await closeWithEscape('עריכת נקודה: לובי')
+    // the name was emptied, so Esc asks before it throws the change away; Esc on the question goes back to the form
+    await page.keyboard.press('Escape')
+    await expect(dialog('לסגור בלי לשמור?')).toBeVisible()
+    await scanBothThemes(page, 'committee phone: confirm, close a form without saving')
+    await closeWithEscape('לסגור בלי לשמור?')
+    await expect(form).toBeVisible()
+    await form.getByRole('button', { name: 'ביטול' }).click() // the form's own Cancel leaves at once
+    await expect(form).toHaveCount(0)
 
     await lobby.getByRole('button', { name: 'QR והדפסה' }).click()
     const qr = dialog('QR: לובי')
@@ -711,7 +718,9 @@ test.describe('committee app with the sample data filled in', () => {
     await add.getByRole('button', { name: 'הוספה' }).click()
     await expect(add.getByText('כתובת מייל לא תקינה.')).toBeVisible()
     await scanBothThemes(page, 'committee phone: new member with an error')
-    await closeWithEscape('חבר ועד חדש')
+    await page.keyboard.press('Escape') // an address was typed: Esc asks first, and "close without saving" throws it away
+    await dialog('לסגור בלי לשמור?').getByRole('button', { name: 'סגירה בלי לשמור' }).click()
+    await expect(add).toHaveCount(0)
     await page.getByRole('article').filter({ hasText: committee.member.name }).getByRole('button', { name: 'הסרת גישה' }).click()
     await expect(page.getByRole('dialog')).toBeVisible()
     await scanBothThemes(page, 'committee phone: confirm, remove an access')

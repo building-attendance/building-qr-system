@@ -82,12 +82,34 @@ const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:n
 // of another dialog closes just the confirmation.
 const modalStack = []
 
-/** Accessible dialog: focus moves in and is trapped, Esc / backdrop close it, focus returns, page scroll locks. */
-export function Modal({ title, onClose, children, footer, size = 'md' }) {
+/**
+ * True once `value` (the state of a form) differs from what it was when the dialog opened: what a form tells its Modal as
+ * `dirty`. Compared as JSON, so any plain object, array, string or number works.
+ */
+export function useDirty(value) {
+  const [opened] = useState(() => JSON.stringify(value))
+  return JSON.stringify(value) !== opened
+}
+
+/**
+ * Accessible dialog: focus moves in and is trapped, Esc / backdrop close it, focus returns, page scroll locks.
+ *
+ * `dirty` says that the dialog holds something the person typed or changed that is not saved yet. The ways of closing that
+ * happen by accident (a tap outside the dialog, Esc, the X in the corner) then ask "close without saving?" first, and going
+ * back leaves the dialog, and everything typed in it, as it was. A button of the dialog's own (the Cancel in a footer) calls
+ * `onClose` directly: pressing it is a decision, and it says what it does.
+ */
+export function Modal({ title, onClose, dirty = false, children, footer, size = 'md' }) {
   const ref = useRef(null)
   const titleId = useId()
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const dirtyRef = useRef(dirty)
+  dirtyRef.current = dirty
+  const [asking, setAsking] = useState(false)
+  // The question is part of this dialog (not of the ConfirmProvider): it goes away with it, so an answer can never reach a dialog
+  // that is already gone (a save that finishes while the question is open closes both).
+  const dismiss = useCallback(() => (dirtyRef.current ? setAsking(true) : closeRef.current()), [])
 
   useEffect(() => {
     const me = Symbol('modal')
@@ -104,7 +126,7 @@ export function Modal({ title, onClose, children, footer, size = 'md' }) {
       if (modalStack[modalStack.length - 1] !== me) return
       if (e.key === 'Escape') {
         e.stopPropagation()
-        closeRef.current()
+        dismiss()
       } else if (e.key === 'Tab') {
         const list = items()
         if (!list.length) return e.preventDefault()
@@ -126,22 +148,66 @@ export function Modal({ title, onClose, children, footer, size = 'md' }) {
       document.body.style.overflow = scrollLock
       opener?.focus?.()
     }
-  }, [])
+  }, [dismiss])
 
-  return createPortal(
-    <div className="a-overlay" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div className={`a-modal a-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
-        {/* Plain <div>s, not <header> and <footer>: inside a role="dialog" (which is not sectioning content) those two
-            become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}
-        <div className="a-modal__head">
-          <h2 id={titleId}>{title}</h2>
-          <IconButton icon={IconX} label="סגירה" onClick={onClose} />
-        </div>
-        <div className="a-modal__body">{children}</div>
-        {footer && <div className="a-modal__foot">{footer}</div>}
-      </div>
-    </div>,
-    appRoot(),
+  // A press on the backdrop does not take the keyboard focus away from the field that has it: the question asks, and going back
+  // lands the person in the same field.
+  const onBackdrop = (e) => {
+    if (e.target !== e.currentTarget) return
+    e.preventDefault()
+    dismiss()
+  }
+
+  return (
+    <>
+      {createPortal(
+        <div className="a-overlay" onMouseDown={onBackdrop}>
+          <div className={`a-modal a-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1}>
+            {/* Plain <div>s, not <header> and <footer>: inside a role="dialog" (which is not sectioning content) those two
+                become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}
+            <div className="a-modal__head">
+              <h2 id={titleId}>{title}</h2>
+              <IconButton icon={IconX} label="סגירה" onClick={dismiss} />
+            </div>
+            <div className="a-modal__body">{children}</div>
+            {footer && <div className="a-modal__foot">{footer}</div>}
+          </div>
+        </div>,
+        appRoot(),
+      )}
+      {asking && (
+        <Question
+          title="לסגור בלי לשמור?"
+          body="מה שהזנתם בחלון הזה עוד לא נשמר, ויימחק אם תסגרו אותו."
+          cancelLabel="חזרה לעריכה"
+          confirmLabel="סגירה בלי לשמור"
+          danger
+          onAnswer={(discard) => {
+            setAsking(false)
+            if (discard) closeRef.current()
+          }}
+        />
+      )}
+    </>
+  )
+}
+
+/** A small dialog with a question and two answers: the cancel is the first button and has the focus. `onAnswer(true)` is the confirm. */
+function Question({ title, body, cancelLabel = 'ביטול', confirmLabel = 'אישור', danger, onAnswer }) {
+  return (
+    <Modal
+      size="sm"
+      title={title}
+      onClose={() => onAnswer(false)}
+      footer={(
+        <>
+          <button className="w-btn w-btn--quiet w-btn--small" onClick={() => onAnswer(false)}>{cancelLabel}</button>
+          <button className={`w-btn w-btn--small${danger ? ' w-btn--danger' : ''}`} onClick={() => onAnswer(true)}>{confirmLabel}</button>
+        </>
+      )}
+    >
+      <p className="w-lead">{body}</p>
+    </Modal>
   )
 }
 
@@ -195,23 +261,7 @@ export function ConfirmProvider({ children }) {
   return (
     <ConfirmContext.Provider value={confirm}>
       {children}
-      {dialog && (
-        <Modal
-          size="sm"
-          title={dialog.title}
-          onClose={() => close(false)}
-          footer={(
-            <>
-              <button className="w-btn w-btn--quiet w-btn--small" onClick={() => close(false)}>ביטול</button>
-              <button className={`w-btn w-btn--small${dialog.danger ? ' w-btn--danger' : ''}`} onClick={() => close(true)}>
-                {dialog.confirmLabel ?? 'אישור'}
-              </button>
-            </>
-          )}
-        >
-          <p className="w-lead">{dialog.body}</p>
-        </Modal>
-      )}
+      {dialog && <Question title={dialog.title} body={dialog.body} confirmLabel={dialog.confirmLabel} danger={dialog.danger} onAnswer={close} />}
     </ConfirmContext.Provider>
   )
 }

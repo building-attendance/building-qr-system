@@ -1,7 +1,7 @@
 import { useCallback, useState } from 'react'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel } from '../hooks.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction } from '../ui.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { downloadDataUrl, safeFileName, useQrImage } from '../qr.js'
 import MapPicker from '../MapPicker.jsx'
 import PrintSheet from '../PrintSheet.jsx'
@@ -29,6 +29,7 @@ function PointForm({ point, providers, onClose, onSaved }) {
   const [form, setForm] = useState(point ? fromPoint(point) : EMPTY)
   const [errors, setErrors] = useState({})
   const [busy, run] = useAction(toast, errorText)
+  const dirty = useDirty(form)
   // Editing either coordinate clears both messages (one rule covers the pair).
   const set = (k, v) => {
     setForm((f) => ({ ...f, [k]: v }))
@@ -89,6 +90,7 @@ function PointForm({ point, providers, onClose, onSaved }) {
     <Modal
       title={point ? `עריכת נקודה: ${point.name}` : 'נקודה חדשה'}
       onClose={onClose}
+      dirty={dirty}
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose}>ביטול</button>

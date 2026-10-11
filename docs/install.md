@@ -326,8 +326,9 @@ not say `nonprod`.
    with the QR icon on the point's tile.
 3. Providers tab (("ספקים") in the navigation, ("נותני שירות") as the page title), ("נותן שירות חדש"): a company and a worker
    name. **The form fills in a password by itself**: ("יצירה") makes another one, and a copy button sits next to it. Copy
-   the password with that button before you save, and give it to the worker once. **Do not click outside the dialog while
-   you fill it in**: it closes, and what you typed is lost.
+   the password with that button before you save, and give it to the worker once. If you click outside the dialog or press
+   Esc while you fill it in, the dialog asks before it closes: ("חזרה לעריכה") keeps it open with everything you typed, and
+   ("סגירה בלי לשמור") throws what you typed away.
 
    You do not need the demo account for a first scan: **a point with no providers assigned accepts every provider.** Once
    you assign providers to a point, only they may scan it. The switch ("חשבון דמו") makes a demo account, which may scan

@@ -85,6 +85,50 @@ test('the point form shows the map with the marker and the circle at the point, 
   await expect(dialog).toHaveCount(0)
 })
 
+// The new-point form is the dialog with the most work in it: the name, the pin and the radius. A tap outside it, or Esc, used to close it
+// and lose all three; now they ask first (Modal's `dirty`, src/admin/ui.jsx), and going back keeps the name and the pin.
+test('the new-point form asks before a tap outside it, or Esc, throws away the name and the pin, and keeps both when the person goes back', async ({ page }) => {
+  const NAME = 'נקודה שלא נשמרה'
+  await stubMapImages(page)
+  await adminSignIn(page)
+  await page.getByRole('button', { name: 'נקודה חדשה' }).click()
+  const dialog = page.getByRole('dialog', { name: 'נקודה חדשה' })
+  const question = page.getByRole('dialog', { name: 'לסגור בלי לשמור?' })
+  const name = dialog.getByLabel('שם הנקודה')
+  const lat = dialog.getByLabel('קו רוחב')
+  const lng = dialog.getByLabel('קו אורך')
+
+  await name.fill(NAME)
+  await dialog.getByRole('application', { name: 'מפה לסימון מיקום הנקודה' }).click({ position: { x: 60, y: 60 } })
+  await expect(lat).not.toHaveValue('') // the click on the map put the pin
+  const pinned = [await lat.inputValue(), await lng.inputValue()]
+
+  // Esc asks; going back keeps the form with the name and the pin
+  await page.keyboard.press('Escape')
+  await expect(question).toBeVisible()
+  await question.getByRole('button', { name: 'חזרה לעריכה' }).click()
+  await expect(question).toHaveCount(0)
+  await expect(dialog).toBeVisible()
+  await expect(name).toHaveValue(NAME)
+  expect([await lat.inputValue(), await lng.inputValue()]).toEqual(pinned)
+
+  // a tap on the backdrop (the corner of the screen) asks too; "close without saving" throws the form away and creates nothing
+  await page.mouse.click(4, 4)
+  await expect(question).toBeVisible()
+  await question.getByRole('button', { name: 'סגירה בלי לשמור' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(page.getByRole('article').filter({ hasText: NAME })).toHaveCount(0)
+
+  // the next new-point form starts empty; the form's own Cancel leaves at once
+  await page.getByRole('button', { name: 'נקודה חדשה' }).click()
+  await expect(name).toHaveValue('')
+  await expect(lat).toHaveValue('')
+  await name.fill(NAME)
+  await dialog.getByRole('button', { name: 'ביטול' }).click()
+  await expect(dialog).toHaveCount(0)
+  await expect(question).toHaveCount(0)
+})
+
 test('the QR dialog draws the QR image of the point as a PNG and shows the address it holds', async ({ page }) => {
   await adminSignIn(page)
   await lobbyTile(page).getByRole('button', { name: 'QR והדפסה' }).click()
