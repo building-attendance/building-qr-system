@@ -12,7 +12,7 @@ the reasons and uses its own names.
    an existing record: title, Status, Date, Context, Decision, Consequences (good and bad), Alternatives considered.
 2. Keep it to about 60 lines. Concrete, no filler.
 3. Write the date as DD/MM/YYYY, like everywhere else in this project.
-4. Add it to the index below and to the Decisions section of `AGENTS.md`.
+4. Add it to the index below. That index is the one list of the records.
 5. Statuses: `Proposed`, `Accepted`, `Accepted, not implemented yet`, `Accepted, implemented`, `Superseded by NNNN`.
 
 Never edit an accepted decision to change what it decided. When the decision changes, write a new ADR that says it
