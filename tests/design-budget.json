@@ -24,18 +24,12 @@
       "selector": "[dir='ltr'] select.a-input",
       "property": "background-position",
       "reason": "The left-to-right half of the chevron above: the chevron of a select sits at the end of the field, which is the right edge when the page is left to right, and background-position has no logical keyword that Chromium supports."
-    },
-    {
-      "file": "src/admin/admin.css",
-      "selector": ".a-modal__head",
-      "property": "padding",
-      "reason": "A fallback for a browser without logical properties: its values are the left-to-right ones, and padding-inline on the next declaration (20px 12px) overrides it wherever logical properties exist, which is every browser that runs the app."
     }
   ],
   "literalBudget": {
     "src/admin/LoginScreen.jsx": 1,
     "src/admin/MapPicker.jsx": 1,
-    "src/admin/admin.css": 180,
+    "src/admin/admin.css": 178,
     "src/admin/views/AgentView.jsx": 1,
     "src/admin/views/AuditView.jsx": 1,
     "src/admin/views/HistoryView.jsx": 1,
