@@ -2,7 +2,9 @@
 import ar from '../src/i18n/ar.js'
 import { test, expect, he, en, ru, PEOPLE, signIn } from './fixtures.js'
 
-const noHorizontalScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+// Compared with the width of the viewport that was set, not with window.innerWidth: Chromium's mobile emulation widens the layout
+// viewport to the width of the content, so a page that scrolls sideways still has scrollWidth <= innerWidth there (e2e/reflow.spec.js).
+const noHorizontalScroll = (page) => page.evaluate((width) => document.documentElement.scrollWidth <= width, page.viewportSize().width)
 
 test.describe('language', () => {
   // The device says English, and the app still opens in Hebrew: the language is the person's choice, not the browser's.
