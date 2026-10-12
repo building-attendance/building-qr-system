@@ -13,7 +13,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, act, within } from '@testing-library/react'
 import AdminApp from '../../src/pages/AdminApp.jsx'
-import { tabFromHash, RENAMED_TABS } from '../../src/admin/tab.js'
+import { tabFromHash, hashQuery, hashName, RENAMED_TABS } from '../../src/admin/tab.js'
 import { api } from '../../src/api/client.js'
 
 vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
@@ -96,7 +96,7 @@ describe('the tab that the address names when the app opens', () => {
     await waitFor(() => expect(document.title).toBe(`${byKey[key].label}${TITLE_SUFFIX}`)) // the title is set by an effect after the heading is drawn
   })
 
-  it.each([['no hash', ''], ['an empty hash', '#'], ['a name that is not a tab', '#nowhere'], ['a tab with something after it', '#points?x=1'], ['the wrong case', '#Points']])(
+  it.each([['no hash', ''], ['an empty hash', '#'], ['a name that is not a tab', '#nowhere'], ['a tab with something after it', '#points/x'], ['the wrong case', '#Points']])(
     'opens the first tab (the history) for %s',
     async (_what, hash) => {
       answerLikeTheServer()
@@ -109,6 +109,26 @@ describe('the tab that the address names when the app opens', () => {
       expect(moreButton().getAttribute('aria-current')).toBeNull()
     },
   )
+
+  // A link can carry a query after the name of the tab (`#history?provider=...`, src/admin/tab.js): the tab is the part before the `?`.
+  // The row `['a tab with something after it', '#points?x=1']` of the list above opened the first tab before links had a query; it
+  // is `#points/x` there now (still no tab), and `#points?x=1` opens the points, here.
+  it.each([
+    ['a tab with a query', '#points?x=1', 'points'],
+    ['the first tab with a query', '#history?provider=1&from=2026-10-01', 'history'],
+    ['a tab with an empty query', '#providers?', 'providers'],
+    ['a renamed tab with a query', '#committee?x=1', 'settings'],
+    ['a name that is not a tab, with a query', '#nowhere?x=1', 'history'],
+    ['a tab with a query but the wrong case', '#Points?x=1', 'history'],
+  ])('opens the tab before the ? for %s', async (_what, hash, key) => {
+    answerLikeTheServer()
+    window.history.replaceState(null, '', `/${hash}`)
+    render(<AdminApp />)
+    await heading(key)
+    expect(shown()).toEqual([key])
+    expect(within(rail()).getByRole('button', { name: byKey[key].nav }).getAttribute('aria-current')).toBe('page')
+    await waitFor(() => expect(document.title).toBe(`${byKey[key].label}${TITLE_SUFFIX}`))
+  })
 
   it('opens the settings for #committee, the address of the screen that held the members, the building, the guide and the audit log', async () => {
     answerLikeTheServer()
@@ -168,6 +188,27 @@ describe('changing the tab while the app is open', () => {
     expect(shown()).toEqual(['audit'])
 
     await openByAddress('#nowhere')
+    await heading('history')
+    expect(shown()).toEqual(['history'])
+  })
+
+  it('follows an address with a query to another tab, and leaves the tab as it is when only the query changes', async () => {
+    answerLikeTheServer()
+    render(<AdminApp />)
+    await heading('history')
+
+    await openByAddress('#points?x=1')
+    await heading('points')
+    expect(shown()).toEqual(['points'])
+
+    // the same tab with another query, and with none: still the points (the heading is the same element, nothing was drawn again)
+    const title = screen.getByRole('heading', { level: 1, name: byKey.points.heading })
+    await openByAddress('#points?x=2')
+    await openByAddress('#points')
+    expect(shown()).toEqual(['points'])
+    expect(screen.getByRole('heading', { level: 1, name: byKey.points.heading })).toBe(title)
+
+    await openByAddress('#history?x=1')
     await heading('history')
     expect(shown()).toEqual(['history'])
   })
@@ -377,5 +418,79 @@ describe('tabFromHash', () => {
   it('reads the address of the page when it is not given a hash', () => {
     window.history.replaceState(null, '', '/#three')
     expect(tabFromHash(keys)).toBe('three')
+  })
+
+  it('decides by the part before the ?, so a link with a query opens the same tab as the plain address', () => {
+    expect(tabFromHash(keys, '#two?x=1')).toBe('two')
+    expect(tabFromHash(keys, '#three?a=1&b=2')).toBe('three')
+    expect(tabFromHash(keys, '#two?')).toBe('two')
+    expect(tabFromHash(keys, '#two??x=1')).toBe('two') // the first ? ends the name
+    expect(tabFromHash(keys, '#two?x=#three')).toBe('two') // a tab's name inside the query is not an address
+    expect(tabFromHash(keys, '#?x=1')).toBe('one') // no name: the first tab
+    expect(tabFromHash(keys, '#four?x=1')).toBe('one') // a name that is not a tab, whatever follows
+    expect(tabFromHash(keys, '#Two?x=1')).toBe('one') // the wrong case
+    expect(tabFromHash(keys, '#?two')).toBe('one') // the query does not name a tab
+    expect(tabFromHash(keys, '#two ?x=1')).toBe('one') // the name is exactly what is before the ?
+  })
+
+  it('applies the renamed tabs to the part before the ?', () => {
+    const screens = ['history', 'points', 'settings', 'audit', 'help']
+    expect(tabFromHash(screens, '#committee?x=1')).toBe('settings')
+    expect(tabFromHash(screens, '#committee2?x=1')).toBe('history')
+    expect(tabFromHash(screens, '#Committee?x=1')).toBe('history')
+    expect(tabFromHash(screens, '#settings?x=1')).toBe('settings')
+    expect(tabFromHash(['one', 'two'], '#committee?x=1')).toBe('one') // renamed to a screen that is not among the keys
+  })
+
+  it('opens the first tab for a hash that is no screen, with or without a query', () => {
+    expect(tabFromHash(keys, '#nowhere')).toBe('one')
+    expect(tabFromHash(keys, '#nowhere?provider=1&from=2026-10-01')).toBe('one')
+    expect(tabFromHash(keys, '#history?provider=1')).toBe('one') // not among these keys
+    expect(tabFromHash(['history', 'points'], '#history?provider=1&from=2026-10-01&to=2026-10-07&outcome=all')).toBe('history')
+  })
+
+  it('reads the query of the address of the page when it is not given a hash', () => {
+    window.history.replaceState(null, '', '/admin#two?x=1')
+    expect(tabFromHash(keys)).toBe('two')
+    expect(hashQuery().get('x')).toBe('1')
+    expect(hashName()).toBe('two')
+  })
+})
+
+describe('hashQuery', () => {
+  it('is the query after the first ? of the address, as URLSearchParams', () => {
+    const query = hashQuery('#history?provider=abc&from=2026-10-01&to=2026-10-07&outcome=not_counted')
+    expect(query).toBeInstanceOf(URLSearchParams)
+    expect(Object.fromEntries(query)).toEqual({ provider: 'abc', from: '2026-10-01', to: '2026-10-07', outcome: 'not_counted' })
+  })
+
+  it('is empty for an address with no query, an empty one, or none at all', () => {
+    for (const hash of ['', '#', '#history', '#history?', '#?', 'history']) expect([...hashQuery(hash)], JSON.stringify(hash)).toEqual([])
+  })
+
+  it('decodes what the browser encoded, and keeps a second ? and a # inside a value', () => {
+    expect(hashQuery('#history?provider=a%20b&x=%D7%A9').get('provider')).toBe('a b')
+    expect(hashQuery('#history?provider=a%20b&x=%D7%A9').get('x')).toBe('ש')
+    expect(hashQuery('#history?a=b?c').get('a')).toBe('b?c')
+    expect(hashQuery('#history?a=1&a=2').getAll('a')).toEqual(['1', '2'])
+    expect(hashQuery('#history?flag').has('flag')).toBe(true)
+    expect(hashQuery('#history?a=1').has('b')).toBe(false)
+  })
+
+  it('does not depend on the name before the ?', () => {
+    expect(hashQuery('#nowhere?x=1').get('x')).toBe('1')
+    expect(hashQuery('#committee?x=1').get('x')).toBe('1')
+  })
+})
+
+describe('hashName', () => {
+  it('is what is between the # and the first ?, as written', () => {
+    expect(hashName('#history')).toBe('history')
+    expect(hashName('#history?provider=1')).toBe('history')
+    expect(hashName('#History?x=1')).toBe('History') // not changed: the case and the renamed tabs are for tabFromHash
+    expect(hashName('#committee?x=1')).toBe('committee')
+    expect(hashName('#?x=1')).toBe('')
+    expect(hashName('#')).toBe('')
+    expect(hashName('')).toBe('')
   })
 })
