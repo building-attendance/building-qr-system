@@ -21,8 +21,10 @@ import { IconPin, IconUsers, IconList, IconKey, IconClock, IconInfo, IconSetting
 
 // The screens of the committee app, in the order of the side rail (a computer). `label` is the name of the screen as a page: the top bar,
 // the title of the document and the list under "עוד". `nav` is the name on its button in the side rail and in the tab bar of the phone.
-// Every screen but one has `nav` = `label`; the providers' button says "ספקים" because "נותני שירות" wrapped onto two lines in a fifth of
-// a 360 px screen, and the bar has four buttons now, so any `nav` of the bar fits with room to spare (e2e/admin.spec.js measures it).
+// Two screens have a `nav` shorter than their `label`, and each was measured (e2e/admin.spec.js), not guessed. The providers' button says
+// "ספקים" because "נותני שירות" wrapped onto two lines in a fifth of a 360 px screen, when the bar had five buttons. The help's says "עזרה"
+// because "איך עובדים עם המערכת" is 168 px wide and the name on a button of the side rail has 157 px. The sheet under "עוד" has room for
+// the whole name of a screen, so it shows the `label`.
 //
 // `group` is where the screen sits. The side rail shows all seven, the work group and then the management group with a separator
 // between them. The tab bar of the phone has four buttons: the three screens of the work group, in this order, and "עוד" (more), which
@@ -36,7 +38,7 @@ const TABS = [
   { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconKey, View: AgentView, group: GROUP_MANAGE },
   { key: 'settings', label: 'הגדרות', nav: 'הגדרות', icon: IconSettings, View: SettingsView, group: GROUP_MANAGE },
   { key: 'audit', label: 'יומן פעולות', nav: 'יומן פעולות', icon: IconClock, View: AuditView, group: GROUP_MANAGE },
-  { key: 'help', label: 'איך עובדים עם המערכת', nav: 'איך עובדים עם המערכת', icon: IconInfo, View: HelpView, group: GROUP_MANAGE },
+  { key: 'help', label: 'איך עובדים עם המערכת', nav: 'עזרה', icon: IconInfo, View: HelpView, group: GROUP_MANAGE },
 ]
 
 // The tab that is open lives in the address (#history), see src/admin/tab.js. The first tab is the one that opens by default.

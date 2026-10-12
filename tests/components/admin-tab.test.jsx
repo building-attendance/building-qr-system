@@ -31,7 +31,7 @@ const TABS = [
   { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', heading: "גישה לאייג'נט", bar: false },
   { key: 'settings', label: 'הגדרות', nav: 'הגדרות', heading: 'הגדרות', bar: false },
   { key: 'audit', label: 'יומן פעולות', nav: 'יומן פעולות', heading: 'יומן פעולות', bar: false },
-  { key: 'help', label: 'איך עובדים עם המערכת', nav: 'איך עובדים עם המערכת', heading: 'איך עובדים עם המערכת', bar: false },
+  { key: 'help', label: 'איך עובדים עם המערכת', nav: 'עזרה', heading: 'איך עובדים עם המערכת', bar: false },
 ]
 const MORE = TABS.filter((t) => !t.bar)
 const byKey = Object.fromEntries(TABS.map((t) => [t.key, t]))
@@ -238,12 +238,12 @@ describe('the tab bar of the phone and the side rail', () => {
     render(<AdminApp />)
     await heading('history')
     expect(within(rail()).getAllByRole('button').map((b) => b.textContent)).toEqual(
-      ['היסטוריה', 'נקודות', 'ספקים', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'איך עובדים עם המערכת'],
+      ['היסטוריה', 'נקודות', 'ספקים', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'עזרה'],
     )
     expect(within(rail()).getAllByRole('separator')).toHaveLength(1)
     // the separator is between the third and the fourth button
     expect([...rail().children].map((n) => (n.tagName === 'HR' ? '|' : n.textContent))).toEqual([
-      'היסטוריה', 'נקודות', 'ספקים', '|', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'איך עובדים עם המערכת',
+      'היסטוריה', 'נקודות', 'ספקים', '|', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'עזרה',
     ])
   })
 

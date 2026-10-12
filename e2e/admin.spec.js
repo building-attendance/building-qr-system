@@ -99,7 +99,8 @@ test('the tab bar of the phone fits a 360 px screen: four buttons, each label on
 })
 
 // The side rail of a computer has all seven screens in two groups, the work screens and the management screens, with a line between
-// them. Every name is whole, on one line: the longest is "איך עובדים עם המערכת", and the rail is 248 px wide.
+// them. Every name is whole, on one line. The help is called "עזרה" on its button: its whole name, "איך עובדים עם המערכת", measured 168 px
+// against the 157 px that the name of a button has in a rail 248 px wide (the sheet under "עוד" has room for the whole name).
 test('the side rail has the seven screens in two groups with a separator, each name whole on one line', async ({ page }) => {
   await page.setViewportSize(COMPUTER)
   await adminSignIn(page)

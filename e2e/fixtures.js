@@ -326,12 +326,22 @@ export const SCREEN_TITLES = Object.freeze({
 
 /**
  * The name on the button of each screen, in the side rail and in the tab bar of the phone (`nav` in TABS, src/pages/AdminApp.jsx). The
- * tab bar has the first three; the others are under "עוד" on a phone, with the name of the screen as a page (SCREEN_TITLES has the h1).
+ * tab bar has the first three; the others are under "עוד" on a phone, where the sheet says the whole name (SCREEN_LABELS; SCREEN_TITLES has the h1).
  */
 export const SCREEN_NAV = Object.freeze({
   history: 'היסטוריה',
   points: 'נקודות',
   providers: 'ספקים',
+  agent: 'אייג׳נט',
+  settings: 'הגדרות',
+  audit: 'יומן פעולות',
+  help: 'עזרה',
+})
+/** The name of each screen as a page (`label` in TABS): the title of the window, and the name of its button in the sheet under "עוד". */
+export const SCREEN_LABELS = Object.freeze({
+  history: 'היסטוריה',
+  points: 'נקודות',
+  providers: 'נותני שירות',
   agent: 'אייג׳נט',
   settings: 'הגדרות',
   audit: 'יומן פעולות',
@@ -352,7 +362,7 @@ export async function openScreen(page, key) {
     await bar.getByRole('button', { name: SCREEN_NAV[key], exact: true }).click()
   } else {
     await bar.getByRole('button', { name: 'עוד', exact: true }).click()
-    await page.getByRole('dialog', { name: 'עוד', exact: true }).getByRole('button', { name: SCREEN_NAV[key], exact: true }).click()
+    await page.getByRole('dialog', { name: 'עוד', exact: true }).getByRole('button', { name: SCREEN_LABELS[key], exact: true }).click()
   }
 }
 
