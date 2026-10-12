@@ -34,7 +34,7 @@
   --w-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
 
   font-family: 'Heebo Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
-  font-size: 1.0625rem;
+  font-size: var(--w-font-lg);
   line-height: 1.45;
   color: var(--w-text);
   background: var(--w-bg);
@@ -83,9 +83,9 @@
   display: flex;
   flex-direction: column;
   /* physical on purpose: env(safe-area-inset-*) values are physical, and padding-inline would swap them in RTL */
-  padding-left: max(20px, env(safe-area-inset-left));
-  padding-right: max(20px, env(safe-area-inset-right));
-  padding-block-end: max(24px, env(safe-area-inset-bottom));
+  padding-left: max(var(--w-space-5), env(safe-area-inset-left));
+  padding-right: max(var(--w-space-5), env(safe-area-inset-right));
+  padding-block-end: max(var(--w-space-6), env(safe-area-inset-bottom));
 }
 
 /* The two roots are in the list as well as everything inside them: .w-app has padding, and in the default box model its
@@ -106,20 +106,20 @@
 /* Pushed further down: on an iPhone the strip under the status bar is blurred by the system, and a bar sitting right
    under it came out smeared. In an installed app the safe-area inset is added to; in the browser it is a plain gap. */
 .w-topbar {
-  display: flex; align-items: center; justify-content: space-between; gap: 12px;
-  padding-block: max(32px, calc(env(safe-area-inset-top) + 18px)) 12px;
+  display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-3);
+  padding-block: max(var(--w-space-8), calc(env(safe-area-inset-top) + var(--w-space-4-5))) var(--w-space-3);
 }
 /* margin-inline-start: auto keeps the two icons at the end of the bar when there is no address line before them
    (justify-content alone would pull a lone item to the start). */
-.w-topbar__tools { display: flex; align-items: center; gap: 2px; margin-inline-start: auto; }
+.w-topbar__tools { display: flex; align-items: center; gap: var(--w-space-0-5); margin-inline-start: auto; }
 /* The building's address is the title of the screen: large, and free to wrap onto a second line in a narrow phone or a
    longer language, so it never pushes the two icons off the edge. It is the committee's own text (any language), and it
    is absent when the committee typed none. */
-.w-brand { min-width: 0; font-size: 1.25rem; line-height: 1.25; font-weight: var(--w-weight-semibold); color: var(--w-text); overflow-wrap: anywhere; }
+.w-brand { min-width: 0; font-size: var(--w-font-3xl); line-height: 1.25; font-weight: var(--w-weight-semibold); color: var(--w-text); overflow-wrap: anywhere; }
 /* The name and the address are two lines in one box, so that the box is the one item that shrinks and wraps (a long name is as free to
    wrap as a long address). With a name, the name is the title and the address under it is the quieter line. */
-.w-brandbox { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
-.w-brand--sub { font-size: 0.9375rem; line-height: 1.35; font-weight: var(--w-weight-medium); color: var(--w-text-2); }
+.w-brandbox { min-width: 0; display: flex; flex-direction: column; gap: var(--w-space-0-5); }
+.w-brand--sub { font-size: var(--w-font-md); line-height: 1.35; font-weight: var(--w-weight-medium); color: var(--w-text-2); }
 
 /* The appearance picker (src/ui/ThemeSwitch.jsx) and the language picker (TopBar) are just an icon: no edge, no fill,
    a 44px touch target. A real <select> lies invisibly over the icon, so the phone's own picker opens. Only the icon
@@ -132,29 +132,29 @@
    are reset as well. */
 .w-theme, .w-lang { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; color: var(--w-text-2); cursor: pointer; transition: color 0.12s; }
 .w-theme select, .w-lang select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; appearance: none; -webkit-appearance: none; }
-.w-theme--bare, .w-lang { width: 44px; height: 44px; border-radius: 12px; }
+.w-theme--bare, .w-lang { width: 44px; height: 44px; border-radius: var(--w-radius-sm); }
 @media (hover: hover) { .w-theme--bare:hover, .w-lang:hover { color: var(--w-info); } }
 .w-theme--bare:active, .w-lang:active { color: var(--w-info); }
 /* No frame around the two icons, even while their list is open or on keyboard focus: the icon itself turns blue. */
 .w-theme--bare:has(select:focus-visible), .w-lang:has(select:focus-visible) { color: var(--w-info); outline: none; }
 
-.w-main { flex: 1; display: flex; flex-direction: column; gap: 16px; padding-block: 8px 16px; }
+.w-main { flex: 1; display: flex; flex-direction: column; gap: var(--w-space-4); padding-block: var(--w-space-2) var(--w-space-4); }
 
 /* ----- text ----- */
-.w-h1 { font-size: 1.75rem; line-height: 1.2; font-weight: var(--w-weight-bold); overflow-wrap: anywhere; } /* it greets a person by name, which can be one long word (T2) */
-.w-lead { color: var(--w-text-2); font-size: 1.0625rem; }
-.w-small { color: var(--w-text-3); font-size: 0.875rem; line-height: 1.5; }
+.w-h1 { font-size: var(--w-font-4xl); line-height: 1.2; font-weight: var(--w-weight-bold); overflow-wrap: anywhere; } /* it greets a person by name, which can be one long word (T2) */
+.w-lead { color: var(--w-text-2); font-size: var(--w-font-lg); }
+.w-small { color: var(--w-text-3); font-size: var(--w-font-sm); line-height: 1.5; }
 /* The build id line (src/ui/BuildLabel.jsx): as quiet as the small text, on the same colour that tests/contrast.test.js holds
    to AA in both themes. The id itself is a left-to-right run inside the line (a <bdi dir="ltr">). */
-.w-build { color: var(--w-text-3); font-size: 0.8125rem; line-height: 1.5; }
+.w-build { color: var(--w-text-3); font-size: var(--w-font-xs); line-height: 1.5; }
 .w-build--center { align-self: center; text-align: center; }
 
 /* ----- buttons ----- */
 .w-btn {
-  display: inline-flex; align-items: center; justify-content: center; gap: 10px;
-  min-height: 56px; padding-inline: 24px; width: 100%;
-  border: 0; border-radius: 16px; cursor: pointer;
-  font-size: 1.125rem; font-weight: var(--w-weight-semibold);
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--w-space-2-5);
+  min-height: 56px; padding-inline: var(--w-space-6); width: 100%;
+  border: 0; border-radius: var(--w-radius-lg); cursor: pointer;
+  font-size: var(--w-font-xl); font-weight: var(--w-weight-semibold);
   background: var(--w-primary); color: #fff;
   transition: background 0.15s, transform 0.1s;
 }
@@ -163,22 +163,22 @@
 .w-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
 .w-btn--quiet { background: var(--w-surface-2); border: 1px solid var(--w-field-border); color: var(--w-text); }
 .w-btn--quiet:hover { background: var(--w-surface-3); }
-.w-btn--small { min-height: 48px; width: auto; font-size: 1rem; padding-inline: 18px; border-radius: 14px; }
+.w-btn--small { min-height: 48px; width: auto; font-size: var(--w-font-base); padding-inline: var(--w-space-4-5); border-radius: var(--w-radius-md); }
 .w-link {
-  background: none; border: 0; cursor: pointer; color: var(--w-info); font-size: 1rem; font-weight: var(--w-weight-medium);
-  min-height: 48px; padding-inline: 8px; text-decoration: underline; text-underline-offset: 3px; align-self: center;
+  background: none; border: 0; cursor: pointer; color: var(--w-info); font-size: var(--w-font-base); font-weight: var(--w-weight-medium);
+  min-height: 48px; padding-inline: var(--w-space-2); text-decoration: underline; text-underline-offset: 3px; align-self: center;
 }
 
 .w-admin-link {
-  display: inline-flex; align-items: center; gap: 8px; align-self: center; min-height: 48px; padding-inline: 14px;
-  color: var(--w-text-3); font-size: 0.9375rem; text-decoration: none; border-radius: 12px; margin-block-start: auto;
+  display: inline-flex; align-items: center; gap: var(--w-space-2); align-self: center; min-height: 48px; padding-inline: var(--w-space-3-5);
+  color: var(--w-text-3); font-size: var(--w-font-md); text-decoration: none; border-radius: var(--w-radius-sm); margin-block-start: auto;
 }
 .w-admin-link:hover { color: var(--w-text-2); background: var(--w-surface); }
 
 /* ----- cards / banners ----- */
-.w-card { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: 20px; padding: 18px; }
+.w-card { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); padding: var(--w-space-4-5); }
 .w-banner {
-  display: flex; align-items: center; gap: 12px; padding: 14px 16px; border-radius: 16px;
+  display: flex; align-items: center; gap: var(--w-space-3); padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-lg);
   background: var(--w-info-bg); border: 1px solid var(--w-info-line); color: var(--w-text);
 }
 .w-banner svg { flex: none; color: var(--w-info); }
@@ -189,85 +189,85 @@
 .w-banner__body { flex: 1; min-width: 0; overflow-wrap: anywhere; } /* the banner that names the point: one long word wraps inside it (T2) */
 
 /* ----- provider list ----- */
-.w-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+.w-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--w-space-2-5); }
 .w-person {
-  display: flex; align-items: center; gap: 14px; width: 100%; min-height: 68px; padding: 10px 16px;
-  text-align: start; background: var(--w-surface); border: 1px solid var(--w-field-border); border-radius: 18px; cursor: pointer;
+  display: flex; align-items: center; gap: var(--w-space-3-5); width: 100%; min-height: 68px; padding: var(--w-space-2-5) var(--w-space-4);
+  text-align: start; background: var(--w-surface); border: 1px solid var(--w-field-border); border-radius: var(--w-radius-xl); cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
 .w-person:hover { background: var(--w-surface-2); border-color: var(--w-field-border-hover); }
 .w-person:active { transform: scale(0.99); }
 .w-avatar {
   flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--w-info-bg); color: var(--w-info); font-weight: var(--w-weight-bold); font-size: 1.125rem;
+  background: var(--w-info-bg); color: var(--w-info); font-weight: var(--w-weight-bold); font-size: var(--w-font-xl);
 }
 .w-person__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.w-person__name { font-size: 1.125rem; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
-.w-person__sub { font-size: 0.9375rem; color: var(--w-text-2); overflow-wrap: anywhere; }
+.w-person__name { font-size: var(--w-font-xl); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.w-person__sub { font-size: var(--w-font-md); color: var(--w-text-2); overflow-wrap: anywhere; }
 .w-person svg { flex: none; color: var(--w-text-3); }
 [dir='rtl'] .w-flip { transform: scaleX(-1); }
 
 /* ----- form ----- */
-.w-field { display: flex; flex-direction: column; gap: 8px; }
-.w-label { font-size: 1rem; font-weight: var(--w-weight-medium); color: var(--w-text-2); }
+.w-field { display: flex; flex-direction: column; gap: var(--w-space-2); }
+.w-label { font-size: var(--w-font-base); font-weight: var(--w-weight-medium); color: var(--w-text-2); }
 .w-input-wrap { position: relative; display: flex; }
 .w-input {
-  width: 100%; min-height: 56px; padding-inline: 16px 56px; font-size: 1.125rem; /* >=16px: no iOS zoom */
-  background: var(--w-surface-2); border: 1.5px solid var(--w-field-border); border-radius: 16px; color: var(--w-text);
+  width: 100%; min-height: 56px; padding-inline: var(--w-space-4) 56px; font-size: var(--w-font-xl); /* >=16px: no iOS zoom */
+  background: var(--w-surface-2); border: 1.5px solid var(--w-field-border); border-radius: var(--w-radius-lg); color: var(--w-text);
 }
 .w-input:focus { outline: none; border-color: var(--w-focus); box-shadow: 0 0 0 3px var(--w-focus-ring); }
 .w-input--error { border-color: var(--w-danger); }
 .w-eye {
   position: absolute; inset-block: 0; inset-inline-end: 0; width: 56px; display: grid; place-items: center;
-  background: none; border: 0; cursor: pointer; color: var(--w-text-2); border-radius: 16px;
+  background: none; border: 0; cursor: pointer; color: var(--w-text-2); border-radius: var(--w-radius-lg);
 }
-.w-error { color: var(--w-danger); font-size: 1rem; font-weight: var(--w-weight-medium); display: flex; gap: 8px; align-items: flex-start; }
-.w-error svg { flex: none; margin-block-start: 2px; }
-.w-switch { display: flex; gap: 14px; align-items: flex-start; cursor: pointer; padding-block: 10px; min-height: 48px; }
-.w-switch input { width: 24px; height: 24px; margin-block-start: 2px; accent-color: var(--w-primary); flex: none; }
-.w-switch__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; overflow-wrap: anywhere; } /* a label that is one long word wraps (T2) */
+.w-error { color: var(--w-danger); font-size: var(--w-font-base); font-weight: var(--w-weight-medium); display: flex; gap: var(--w-space-2); align-items: flex-start; }
+.w-error svg { flex: none; margin-block-start: var(--w-space-0-5); }
+.w-switch { display: flex; gap: var(--w-space-3-5); align-items: flex-start; cursor: pointer; padding-block: var(--w-space-2-5); min-height: 48px; }
+.w-switch input { width: 24px; height: 24px; margin-block-start: var(--w-space-0-5); accent-color: var(--w-primary); flex: none; }
+.w-switch__text { display: flex; flex-direction: column; gap: var(--w-space-0-5); min-width: 0; overflow-wrap: anywhere; } /* a label that is one long word wraps (T2) */
 
 /* ----- pending / today ----- */
 .w-visits { list-style: none; margin: 0; padding: 0; }
-.w-visit { display: flex; align-items: center; gap: 14px; padding: 12px 0; border-block-end: 1px solid var(--w-border); }
+.w-visit { display: flex; align-items: center; gap: var(--w-space-3-5); padding: var(--w-space-3) 0; border-block-end: 1px solid var(--w-border); }
 .w-visit:last-child { border-block-end: 0; }
 .w-visit__time { font-variant-numeric: tabular-nums; font-weight: var(--w-weight-bold); min-width: 3.4em; direction: ltr; text-align: start; }
 .w-visit__point { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.w-tag { font-size: 0.8125rem; font-weight: var(--w-weight-semibold); padding: 3px 10px; border-radius: 999px; background: var(--w-warn-bg); color: var(--w-warn); white-space: nowrap; }
-.w-section-title { font-size: 1.0625rem; font-weight: var(--w-weight-semibold); margin-block-end: 4px; }
+.w-tag { font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); padding: 3px var(--w-space-2-5); border-radius: var(--w-radius-pill); background: var(--w-warn-bg); color: var(--w-warn); white-space: nowrap; }
+.w-section-title { font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); margin-block-end: var(--w-space-1); }
 
 /* ----- result screen ----- */
-.w-result { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 14px; padding-block: 12px; }
-.w-ring { width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center; border: 3px solid currentColor; margin-block-end: 8px; }
+.w-result { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--w-space-3-5); padding-block: var(--w-space-3); }
+.w-ring { width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center; border: 3px solid currentColor; margin-block-end: var(--w-space-2); }
 .w-ring svg { width: 56px; height: 56px; stroke-width: 2.4; }
 .w-result--success { color: var(--w-success); } .w-result--success .w-ring { background: var(--w-success-bg); }
 .w-result--info { color: var(--w-info); } .w-result--info .w-ring { background: var(--w-info-bg); }
 .w-result--warn { color: var(--w-warn); } .w-result--warn .w-ring { background: var(--w-warn-bg); }
 .w-result--danger { color: var(--w-danger); } .w-result--danger .w-ring { background: var(--w-danger-bg); }
-.w-result h1 { color: var(--w-text); font-size: 1.875rem; font-weight: var(--w-weight-bold); line-height: 1.2; }
+.w-result h1 { color: var(--w-text); font-size: var(--w-font-5xl); font-weight: var(--w-weight-bold); line-height: 1.2; }
 .w-result h1:focus { outline: none; }
 /* max-width: min(22em, 100%): this line holds the point name inside first-strong isolates (translate() in src/i18n/core.js), and WebKit
    sizes a centred box that holds an isolate in a right-to-left page by its longest line, not by the width that is left, even with
    overflow-wrap: anywhere. Measured on a point name of one word: the line was 418px (the 22em) in a 280px column. The cap is the column. */
-.w-result__body { color: var(--w-text-2); font-size: 1.1875rem; max-width: min(22em, 100%); overflow-wrap: anywhere; }
+.w-result__body { color: var(--w-text-2); font-size: var(--w-font-2xl); max-width: min(22em, 100%); overflow-wrap: anywhere; }
 .w-result__warning { color: var(--w-warn); font-weight: var(--w-weight-semibold); }
-.w-chip { display: inline-flex; align-items: center; gap: 8px; padding: 8px 16px; border-radius: 999px; background: var(--w-surface-2); border: 1px solid var(--w-border); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
-.w-who { display: inline-flex; align-items: center; gap: 8px; margin: 0; color: var(--w-text-2); font-size: 1rem; max-width: 100%; overflow-wrap: anywhere; }
+.w-chip { display: inline-flex; align-items: center; gap: var(--w-space-2); padding: var(--w-space-2) var(--w-space-4); border-radius: var(--w-radius-pill); background: var(--w-surface-2); border: 1px solid var(--w-border); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.w-who { display: inline-flex; align-items: center; gap: var(--w-space-2); margin: 0; color: var(--w-text-2); font-size: var(--w-font-base); max-width: 100%; overflow-wrap: anywhere; }
 /* The same WebKit case as .w-result__body (the name is in isolates): the text is an element of its own, so that it can shrink below
    its longest line. Text that sits straight in a flex box is an anonymous item, which a rule cannot reach. */
 .w-who > span { min-width: 0; }
-.w-actions { display: flex; flex-direction: column; gap: 10px; width: 100%; margin-block-start: 12px; }
+.w-actions { display: flex; flex-direction: column; gap: var(--w-space-2-5); width: 100%; margin-block-start: var(--w-space-3); }
 /* The screen that replaces a broken one (src/ui/ErrorBoundary.jsx) is this result screen. The one addition: a long message
    breaks into two even lines instead of leaving one word alone on the second. */
 .w-crash h1 { text-wrap: balance; }
 
 /* ----- working ----- */
-.w-working { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 20px; text-align: center; }
+.w-working { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--w-space-5); text-align: center; }
 .w-spinner { width: 56px; height: 56px; border-radius: 50%; border: 5px solid var(--w-surface-2); border-top-color: var(--w-focus); animation: w-spin 0.9s linear infinite; }
 @keyframes w-spin { to { transform: rotate(360deg); } }
 
 /* ----- skeleton ----- */
-.w-skel { height: 68px; border-radius: 18px; background: linear-gradient(90deg, var(--w-surface) 25%, var(--w-surface-2) 50%, var(--w-surface) 75%); background-size: 200% 100%; animation: w-shimmer 1.4s ease-in-out infinite; }
+.w-skel { height: 68px; border-radius: var(--w-radius-xl); background: linear-gradient(90deg, var(--w-surface) 25%, var(--w-surface-2) 50%, var(--w-surface) 75%); background-size: 200% 100%; animation: w-shimmer 1.4s ease-in-out infinite; }
 @keyframes w-shimmer { to { background-position: -200% 0; } }
 
 /* ----- enter animation for the result ----- */

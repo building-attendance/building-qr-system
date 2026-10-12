@@ -115,7 +115,7 @@ export default function LoginScreen({ config, onSignedIn }) {
           </form>
         )}
 
-        <a className="w-admin-link" href="/" style={{ marginBlockStart: 8 }}>
+        <a className="w-admin-link" href="/" style={{ marginBlockStart: 'var(--w-space-2)' }}>
           <IconLock size={18} />חזרה לאפליקציית נותני השירות
         </a>
       </div>

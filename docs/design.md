@@ -174,13 +174,17 @@ controls, the QR code, logos or checkmarks.**
 
 ## Visual system
 
-**V1. Colours and font weights come from the tokens. Spacing, radii and font sizes move to tokens; until then their
-count of hard-coded values may only go down.**
+**V1. Colours, font weights, spacing, radii and font sizes come from the tokens.**
 - **Why:** one set of tokens keeps the light and dark themes in step: a colour written in place passes in one theme and
-  fails in the other. The same applies to the sizes, once a short scale exists. One typeface is already pinned.
+  fails in the other. The sizes follow the same rule: spacing (`--w-space-*`), radius (`--w-radius-*`) and font size
+  (`--w-font-*`) are three families of tokens, defined once on `:root` in `src/ui/base.css` next to the weight tokens, and
+  a size that has a token is written as the token. Their values are the ones the apps already used, so this step changed
+  no pixel. A size that is on no scale yet stays a literal whose count may only go down, until the next step consolidates
+  the scales. One typeface is already pinned.
 - **Source:** this project; Refactoring UI (the advice to fix the spacing, sizing and type scales in advance;
   [book](https://refactoringui.com/), expert opinion, paraphrased).
-- **Check:** `tests/contrast.test.js`, `tests/typography.test.js`, and `planned: tests/design-css.test.js budget`.
+- **Check:** `tests/contrast.test.js`, `tests/typography.test.js`, and `tests/design-css.test.js` (a literal of a size that
+  has a token fails and names the token; the budget in `tests/design-budget.json` counts the sizes that have none).
 
 **V2. Text has 4.5:1 contrast, UI parts and focus rings 3:1, in both themes, including every fixed colour (the danger
 button, the select chevron).**

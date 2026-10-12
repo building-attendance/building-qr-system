@@ -185,7 +185,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
       {providers.status === 'error' && (
         <div className="w-card" role="alert">
           <p className="w-error"><IconAlert size={20} />{t('login.loadError')}</p>
-          <p className="w-small" style={{ marginBlock: '6px 12px' }}>{t('login.network')}</p>
+          <p className="w-small" style={{ marginBlock: 'var(--w-space-1-5) var(--w-space-3)' }}>{t('login.network')}</p>
           <button className="w-btn w-btn--quiet" onClick={providers.reload}>{t('common.retry')}</button>
         </div>
       )}

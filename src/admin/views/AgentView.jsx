@@ -137,7 +137,7 @@ export default function AgentView() {
         ))}
       </div>
 
-      <section className="a-card" style={{ marginBlockStart: 24 }} aria-labelledby="how-to">
+      <section className="a-card" style={{ marginBlockStart: 'var(--w-space-6)' }} aria-labelledby="how-to">
         <h2 id="how-to" className="a-card__title"><IconInfo size={20} style={{ verticalAlign: '-3px' }} /> איך האייג'נט מתחבר</h2>
         <p className="w-lead">כתובת ה-API: <span className="a-code">{base}</span></p>
         <p className="w-small">הדביקו לאייג'נט את ההנחיה הבאה (בלי המפתח עצמו, אותו מסרו בנפרד):</p>

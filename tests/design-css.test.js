@@ -11,16 +11,19 @@
 //     e2e/a11y-baseline.js does, so the list cannot go stale. (Only the physical properties of the line are flagged. `top` and `bottom`
 //     are the same in both directions.)
 //
-// V1  Hard-coded values. Spacing (margin, padding, gap, inset, top, bottom, left, right), border radius and font size are written as
-//     px or rem literals today. Tokens for them (a spacing scale, radii, font sizes, like the colour and weight tokens of src/ui/ui.css)
-//     are planned. Until they exist the count of literals may only go DOWN: tests/design-budget.json holds the count of each file under
-//     `literalBudget`, and this test fails on both sides of it. Above the budget, a declaration was added with a literal in it: use a token
-//     when there is one, and until then reuse the value of a neighbour or leave it out. Below the budget, a literal was removed:
-//     the test says what to lower the budget to, so that the new count is the ceiling (a ratchet). Raising a budget is a decision of the
-//     owner and a P1 finding in the code review (Code Review Rules of AGENTS.md), never a way to get the test green. A file that is not
-//     in the budget has a budget of 0. What is counted: a px or rem literal in a spacing, radius or font-size declaration, outside a
-//     custom property (`--x: 8px` is the definition of a token), and in a component the numbers that React reads as px (`padding: 8`) and
-//     the px and rem strings (`'6px 12px'`); a 0 is not a literal. A literal inside calc(), max() or var(--x, 8px) counts.
+// V1  Hard-coded values. Spacing (margin, padding, gap, inset, top, bottom, left, right), border radius and font size come from tokens
+//     (--w-space-*, --w-radius-*, --w-font-*, defined once on :root in src/ui/base.css, next to the weight tokens). Two checks keep it so.
+//     First, a literal whose size IS a token must be written as the token: `padding: 8px` is `padding: var(--w-space-2)`, `-8px` is
+//     `calc(-1 * var(--w-space-2))`, in a stylesheet and in the inline style of a component, and the failure names the token to use.
+//     The tokens are read from base.css, never copied here, so a step added there is enforced at once. Second, what is not on a scale yet
+//     (a 3px or a 56px, a font size that no token has) is a literal that may only go DOWN: tests/design-budget.json holds the count of
+//     each file under `literalBudget`, and this test fails on both sides of it. Above the budget, a declaration was added with a literal
+//     in it: use a token, or the value of a neighbour, or leave it out. Below the budget, a literal was removed: the test says what to
+//     lower the budget to, so that the new count is the ceiling (a ratchet). Raising a budget is a decision of the owner and a P1
+//     finding in the code review (Code Review Rules of AGENTS.md), never a way to get the test green. A file that is not in the budget has
+//     a budget of 0. What is counted: a px or rem literal in a spacing, radius or font-size declaration, outside a custom property
+//     (`--x: 8px` is the definition of a token), and in a component the numbers that React reads as px (`padding: 8`) and the px and rem
+//     strings (`'6px 12px'`); a 0 is not a literal. A literal inside calc(), max() or var(--x, 8px) counts.
 //
 // The scanner is checked by itself first (the cases at the end), because a scanner that finds nothing would pass every day.
 import { describe, it, expect } from 'vitest'
@@ -200,30 +203,88 @@ function isPhysical(property, rawValue) {
 
 // ---- V1: what is a hard-coded value -------------------------------------------------------------------------------------
 
-/** The properties whose px and rem literals are counted: spacing, border radius, font size. */
+/** The properties whose px and rem literals are counted: spacing, border radius, font size. Each is paired with the family of tokens that stands for it. */
 const COUNTED = [
-  /^(margin|padding)(-(top|right|bottom|left|block|inline|block-start|block-end|inline-start|inline-end))?$/,
-  /^(gap|row-gap|column-gap)$/,
-  /^inset(-(block|inline|block-start|block-end|inline-start|inline-end))?$/,
-  /^(top|bottom|left|right)$/,
-  /^border-radius$/,
-  /^border-(start|end)-(start|end)-radius$/,
-  /^border-(top|bottom)-(left|right)-radius$/,
-  /^font-size$/,
+  [/^(margin|padding)(-(top|right|bottom|left|block|inline|block-start|block-end|inline-start|inline-end))?$/, 'space'],
+  [/^(gap|row-gap|column-gap)$/, 'space'],
+  [/^inset(-(block|inline|block-start|block-end|inline-start|inline-end))?$/, 'space'],
+  [/^(top|bottom|left|right)$/, 'space'],
+  [/^border-radius$/, 'radius'],
+  [/^border-(start|end)-(start|end)-radius$/, 'radius'],
+  [/^border-(top|bottom)-(left|right)-radius$/, 'radius'],
+  [/^font-size$/, 'font'],
 ]
-const isCounted = (property) => COUNTED.some((pattern) => pattern.test(property))
+/** The family of tokens ('space', 'radius' or 'font') of a counted property, or null for any other property. */
+const familyOf = (property) => COUNTED.find(([pattern]) => pattern.test(property))?.[1] ?? null
 
 const LITERAL = /(?<![\w.$])-?(?:\d+\.?\d*|\.\d+)(?:px|rem)\b/gi
 
-/** How many hard-coded values this declaration holds. In a stylesheet only px and rem count; in a component a bare number is px too. */
-function literalCount(property, value, inComponent) {
-  if (!isCounted(property)) return 0
-  let count = [...value.matchAll(LITERAL)].length
+/** A literal as it is written (`text`) and its size without the sign (`value`: '8px', '0.875rem'), the way a token of base.css is compared. */
+function sizeOf(text) {
+  const [, sign, number, unit] = /^(-?)(\d+\.?\d*|\.\d+)(px|rem)$/i.exec(text)
+  return { text, negative: sign === '-', value: `${Number(number)}${unit.toLowerCase()}` }
+}
+
+/** The hard-coded values of this declaration. In a stylesheet only px and rem count; in a component a bare number is px too. */
+function literalsOf(property, value, inComponent) {
+  if (!familyOf(property)) return []
+  const found = [...value.matchAll(LITERAL)].map((m) => sizeOf(m[0]))
   if (inComponent) {
     const outsideStrings = value.replace(/'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|`[^`]*`/g, ' ')
-    count += [...outsideStrings.matchAll(/(?<![\w.$])-?(?:\d+\.?\d*|\.\d+)(?![\w.])/g)].filter((m) => Number(m[0]) !== 0).length
+    for (const m of outsideStrings.matchAll(/(?<![\w.$])-?(?:\d+\.?\d*|\.\d+)(?![\w.])/g)) if (Number(m[0]) !== 0) found.push(sizeOf(`${m[0]}px`))
   }
-  return count
+  return found
+}
+
+/** How many hard-coded values this declaration holds. */
+const literalCount = (property, value, inComponent) => literalsOf(property, value, inComponent).length
+
+// ---- V1: the size tokens ------------------------------------------------------------------------------------------------
+
+const TOKEN_FILE = 'src/ui/base.css'
+const TOKEN_PREFIX = { space: '--w-space-', radius: '--w-radius-', font: '--w-font-' }
+
+/**
+ * The size tokens, read from the declarations of the stylesheets: for each family, the size ('8px', '0.875rem') to the name of the
+ * token that holds it. A token is defined only in src/ui/base.css, as one number with px or rem, and no two tokens of a family hold the
+ * same size (the failure for a literal names ONE token). `problems` lists what breaks that.
+ */
+function readSizeTokens(declarations) {
+  const tokens = { space: new Map(), radius: new Map(), font: new Map() }
+  const problems = []
+  for (const d of declarations) {
+    const family = Object.keys(TOKEN_PREFIX).find((name) => d.property.startsWith(TOKEN_PREFIX[name]))
+    if (!family) continue
+    const value = /^(\d+\.?\d*|\.\d+)(px|rem)$/i.exec(d.value.trim())
+    if (d.file !== TOKEN_FILE) problems.push(`${describeDeclaration(d)}\n    a size token is defined in ${TOKEN_FILE} only, so that there is one scale`)
+    else if (!value) problems.push(`${describeDeclaration(d)}\n    a size token is one number with px or rem`)
+    else {
+      const size = `${Number(value[1])}${value[2].toLowerCase()}`
+      const twin = tokens[family].get(size)
+      if (twin) problems.push(`${d.property} and ${twin} are both ${size}: a size has one token, so that a literal can be told which one to use`)
+      else tokens[family].set(size, d.property)
+    }
+  }
+  return { tokens, problems }
+}
+
+/**
+ * The literals of the declarations whose size is a token. A literal of a size that has a token is written as the token (the value is the
+ * same, so no pixel moves): `var(--w-space-2)` for 8px, `calc(-1 * var(--w-space-2))` for -8px, a string in a component. Returns one
+ * message per literal, naming the token to use.
+ */
+function checkTokens(declarations, tokens) {
+  const problems = []
+  for (const d of declarations) {
+    const family = familyOf(d.property)
+    for (const literal of literalsOf(d.property, d.value, d.inComponent)) {
+      const token = tokens[family]?.get(literal.value)
+      if (!token) continue
+      const use = literal.negative ? `calc(-1 * var(${token}))` : `var(${token})`
+      problems.push(`${describeDeclaration(d)}\n    ${literal.text} is the size of ${token}: write ${d.inComponent ? `'${use}'` : use}`)
+    }
+  }
+  return problems
 }
 
 // ---- the findings, and the budget file ----------------------------------------------------------------------------------
@@ -343,6 +404,21 @@ describe('V1: hard-coded values only go down', () => {
   })
 })
 
+describe('V1: a size that has a token is written as the token', () => {
+  const declarations = projectDeclarations()
+  const { tokens, problems: definitions } = readSizeTokens(declarations)
+  const problems = checkTokens(declarations, tokens)
+
+  it(`${TOKEN_FILE} defines the spacing, radius and font-size tokens, each size once, and nothing else defines one`, () => {
+    for (const family of Object.keys(tokens)) expect(tokens[family].size, `the ${family} tokens of ${TOKEN_FILE}`).toBeGreaterThan(0)
+    expect(definitions, `\n${definitions.join('\n')}`).toEqual([])
+  })
+
+  it('no spacing, radius or font size is a literal of a size that has a token', () => {
+    expect(problems, `\nThese sizes have a token (defined in ${TOKEN_FILE}); write the token, the value is the same:\n${problems.join('\n')}`).toEqual([])
+  })
+})
+
 // ---- the scanner, on small cases ----------------------------------------------------------------------------------------
 
 describe('the scanner itself', () => {
@@ -408,6 +484,49 @@ const b = <i
     const count = (source) => inlineStyleDeclarations(source).reduce((sum, d) => sum + literalCount(d.property, d.value, true), 0)
     expect(count(`<p style={{ marginBlockStart: 8, padding: 0, margin: 0, gap: 0, fontSize: '1.375rem', marginBlock: '6px 12px', margin: '16px auto 0', width: 24, lineHeight: 1.5 }} />`)).toBe(5)
     expect(count(`<p style={{ padding: big ? 8 : 12, borderWidth: 3, flex: 1 }} />`)).toBe(2)
+  })
+
+  it('reads the size tokens, and refuses a definition that is not one scale', () => {
+    const read = (source, file = TOKEN_FILE) => readSizeTokens(css(source).map((d) => ({ ...d, file, inComponent: false })))
+    const base = read(':root { --w-space-2: 8px; --w-space-1-5: 6px; --w-radius-md: 14px; --w-font-sm: 0.875rem; --w-weight-bold: 700; --w-bg: #fff }')
+    expect(base.problems).toEqual([])
+    expect(Object.fromEntries(Object.entries(base.tokens).map(([family, sizes]) => [family, [...sizes]]))).toEqual({
+      space: [['8px', '--w-space-2'], ['6px', '--w-space-1-5']],
+      radius: [['14px', '--w-radius-md']],
+      font: [['0.875rem', '--w-font-sm']],
+    })
+    expect(read(':root { --w-space-2: 8px; --w-space-two: 8.0px }').problems).toEqual(['--w-space-two and --w-space-2 are both 8px: a size has one token, so that a literal can be told which one to use'])
+    expect(read(':root { --w-space-9: calc(8px + 1px); --w-font-x: 1em }').problems).toHaveLength(2)
+    expect(read(':root { --w-radius-md: 14px }', 'src/ui/ui.css').problems[0]).toContain(`a size token is defined in ${TOKEN_FILE} only`)
+  })
+
+  it('finds a literal that has a token, in its family, in a stylesheet and in a component, and names the token', () => {
+    const { tokens } = readSizeTokens(css(':root { --w-space-2: 8px; --w-space-1-5: 6px; --w-radius-md: 14px; --w-font-sm: 0.875rem }').map((d) => ({ ...d, file: TOKEN_FILE, inComponent: false })))
+    const inStylesheet = (source) => checkTokens(css(source).map((d) => ({ ...d, file: 'src/x.css', inComponent: false })), tokens)
+    const inComponent = (source) => checkTokens(inlineStyleDeclarations(source).map((d) => ({ ...d, file: 'src/X.jsx', inComponent: true })), tokens)
+
+    const found = inStylesheet('.x { padding: 8px 9px 6px; margin-inline: -8px 0; border-radius: 14px; font-size: 0.875rem }')
+    expect(found).toHaveLength(5)
+    expect(found[0]).toBe('src/x.css:1 .x { padding: 8px 9px 6px }\n    8px is the size of --w-space-2: write var(--w-space-2)')
+    expect(found[1]).toContain('6px is the size of --w-space-1-5: write var(--w-space-1-5)')
+    expect(found[2]).toContain('-8px is the size of --w-space-2: write calc(-1 * var(--w-space-2))')
+    expect(found[3]).toContain('14px is the size of --w-radius-md: write var(--w-radius-md)')
+    expect(found[4]).toContain('0.875rem is the size of --w-font-sm: write var(--w-font-sm)')
+
+    expect(inStylesheet('.x { padding-inline: max(8px, env(safe-area-inset-left)); margin: var(--a, 8px) }')).toHaveLength(2)
+    // a size belongs to its family: 14px is a radius token here and not a spacing or a font one, 8px is not a radius, 14px is not 0.875rem
+    expect(inStylesheet('.x { padding: 14px; border-radius: 8px; font-size: 14px; gap: 9px; margin: 0 }')).toEqual([])
+    // not a spacing, radius or font-size declaration, or the definition of a token
+    expect(inStylesheet('.x { --gap: 8px; width: 8px; border: 8px solid; line-height: 8px; font-family: x }')).toEqual([])
+
+    const component = inComponent(`<p style={{ padding: 8, marginBlock: '6px 9px', marginBlockStart: -8, fontSize: '0.875rem', borderRadius: 14, lineHeight: 8, width: 8 }} />`)
+    expect(component).toHaveLength(5)
+    expect(component[0]).toContain("8px is the size of --w-space-2: write 'var(--w-space-2)'")
+    expect(component[1]).toContain("6px is the size of --w-space-1-5: write 'var(--w-space-1-5)'")
+    expect(component[2]).toContain("-8px is the size of --w-space-2: write 'calc(-1 * var(--w-space-2))'")
+    expect(component[3]).toContain("write 'var(--w-font-sm)'")
+    expect(component[4]).toContain("write 'var(--w-radius-md)'")
+    expect(inComponent(`<p style={{ padding: 'var(--w-space-2)', marginBlock: 'var(--w-space-1-5) 9px', fontSize: fs, margin: 0 }} />`)).toEqual([])
   })
 
   it('compares a file with its budget on both sides', () => {

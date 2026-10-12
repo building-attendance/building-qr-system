@@ -1,5 +1,5 @@
 {
-  "about": "Read by tests/design-css.test.js (rules R1 and V1 of docs/design.md). physicalExceptions: a left or right property that is right on purpose, matched exactly (file, selector or line, property), each with its reason; an entry that no declaration matches any more fails. literalBudget: the count of px and rem literals in spacing, radius and font-size declarations of each file; it may only go down (the test fails above it and below it), and a file that is not listed has 0. Raising a number is the owner's decision.",
+  "about": "Read by tests/design-css.test.js (rules R1 and V1 of docs/design.md). physicalExceptions: a left or right property that is right on purpose, matched exactly (file, selector or line, property), each with its reason; an entry that no declaration matches any more fails. literalBudget: the count of px and rem literals in spacing, radius and font-size declarations of each file (a size that has a token in src/ui/base.css must be written as the token, so these are the sizes that no token has yet); it may only go down (the test fails above it and below it), and a file that is not listed has 0. Raising a number is the owner's decision.",
   "physicalExceptions": [
     {
       "file": "src/ui/ui.css",
@@ -27,16 +27,9 @@
     }
   ],
   "literalBudget": {
-    "src/admin/LoginScreen.jsx": 1,
-    "src/admin/MapPicker.jsx": 1,
-    "src/admin/admin.css": 178,
-    "src/admin/views/AgentView.jsx": 1,
-    "src/admin/views/AuditView.jsx": 1,
-    "src/admin/views/HistoryView.jsx": 1,
-    "src/admin/views/PointsView.jsx": 4,
-    "src/admin/views/ProvidersView.jsx": 2,
-    "src/pages/AdminApp.jsx": 2,
-    "src/ui/ui.css": 84,
-    "src/worker/components.jsx": 3
+    "src/admin/admin.css": 10,
+    "src/admin/views/ProvidersView.jsx": 1,
+    "src/ui/ui.css": 2,
+    "src/worker/components.jsx": 1
   }
 }

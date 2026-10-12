@@ -9,7 +9,7 @@ import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, NAME_MAX_LENGTH } from '../..
 function PasswordBox({ value, onChange, id, ...aria }) {
   const toast = useToast()
   return (
-    <div className="a-secret" style={{ padding: 8 }}>
+    <div className="a-secret" style={{ padding: 'var(--w-space-2)' }}>
       <input id={id} className="a-input a-code" value={value} onChange={(e) => onChange(e.target.value)} maxLength={PASSWORD_MAX_LENGTH} autoComplete="new-password" spellCheck="false" {...aria} />
       <button type="button" className="w-btn w-btn--ghost w-btn--small" onClick={() => onChange(generatePassword())}><IconRefresh size={18} />יצירה</button>
       <button type="button" className="a-icon-btn" aria-label="העתקת הסיסמה" disabled={!value}
