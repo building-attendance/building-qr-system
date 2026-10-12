@@ -112,6 +112,9 @@ export function useDirty(value) {
  * saving"; the question puts the person back in the form otherwise, with everything as it was. The close button and the
  * dialog's own Cancel button are chosen on purpose, so they call `onClose` at once.
  *
+ * `size` is the width of the dialog on a computer: "sm", "md" (the default) or "lg". "sheet" is a list of choices with no form (the screens
+ * under "עוד" on a phone): it stays at the bottom of the screen at every width and is as wide as the list needs.
+ *
  * `busy` says that the form's save is on its way: Esc and a tap outside then do nothing at all, and the close button is
  * disabled (a form disables its own Cancel the same way). The save closes the dialog itself when it works, and leaves the
  * form as it was typed when it fails; a dialog that closed meanwhile would lose the answer (the key that is shown only
@@ -189,7 +192,7 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
   return (
     <>
       {createPortal(
-        <div className="a-overlay" onMouseDown={onOverlayMouseDown}>
+        <div className={`a-overlay${size === 'sheet' ? ' a-overlay--sheet' : ''}`} onMouseDown={onOverlayMouseDown}>
           <div className={`a-modal a-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1} inert={asking}>
             {/* Plain <div>s, not <header> and <footer>: inside a role="dialog" (which is not sectioning content) those two
                 become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}

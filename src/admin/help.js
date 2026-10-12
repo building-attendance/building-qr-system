@@ -1,7 +1,7 @@
-// The short guide "how to work with the system" that a button at the foot of the Committee tab opens (HelpSection.jsx). It is
-// written for the members of the committee, in Hebrew like the rest of the committee app, and it uses the names that the
-// screens use (the tabs, the buttons and the fields), so that what it says can be found on the screen. When a screen renames a
-// button, rename it here too: tests/components/committee-help.test.jsx keeps the guide short, but it cannot know the names.
+// The short guide "how to work with the system", the screen of that name (HelpView.jsx). It is written for the members of the
+// committee, in Hebrew like the rest of the committee app, and it uses the names that the screens use (the tabs, the buttons and the
+// fields), so that what it says can be found on the screen. When a screen renames a button, rename it here too:
+// tests/components/committee-help.test.jsx keeps the guide short, but it cannot know the names.
 //
 // One entry per topic, in the order of the screen: a heading and two to four short sentences. Keep the whole guide under
 // HELP_MAX_LENGTH characters (the test measures it): a guide that is long is not read.
@@ -25,11 +25,11 @@ export const HELP_TOPICS = [
   },
   {
     title: "האייג'נט",
-    text: `בלשונית "אייג׳נט" לוחצים על "מפתח חדש" ומוסרים את המפתח לאייג'נט ה-AI של הוועד. המפתח מאפשר קריאה בלבד: אי אפשר לשנות דרכו שום דבר. הוא מוצג פעם אחת, ואם נחשף מבטלים אותו ב"ביטול המפתח" ויוצרים חדש.`,
+    text: `במסך "אייג׳נט" (בטלפון: "עוד" ואז "אייג׳נט") לוחצים על "מפתח חדש" ומוסרים את המפתח לאייג'נט ה-AI של הוועד. המפתח מאפשר קריאה בלבד: אי אפשר לשנות דרכו שום דבר. הוא מוצג פעם אחת, ואם נחשף מבטלים אותו ב"ביטול המפתח" ויוצרים חדש.`,
   },
   {
     title: 'יומן הפעולות',
-    text: 'בתחתית הלשונית "ועד" יש את "יומן פעולות". הוא מראה מי עשה מה ומתי, למשל מי השבית נקודה או הסיר גישה של חבר ועד. אפשר לסנן אותו, אבל הוא לקריאה בלבד.',
+    text: 'במסך "יומן פעולות" (בטלפון: "עוד" ואז "יומן פעולות") רואים מי עשה מה ומתי, למשל מי השבית נקודה או הסיר גישה של חבר ועד. אפשר לסנן אותו, אבל הוא לקריאה בלבד.',
   },
   {
     title: 'כשמגיעה התראה',

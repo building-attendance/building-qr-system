@@ -7,7 +7,7 @@
 .a-side { display: none; }
 @media (min-width: 1024px) {
   .a-side {
-    display: flex; flex-direction: column; gap: var(--w-space-1-5); flex: none; width: 248px; height: 100vh; position: sticky; top: 0;
+    display: flex; flex-direction: column; gap: var(--w-space-1-5); flex: none; width: 248px; height: 100vh; position: sticky; top: 0; overflow-y: auto;
     padding: var(--w-space-6) var(--w-space-3-5); background: var(--w-surface); border-inline-end: 1px solid var(--w-border);
   }
 }
@@ -23,6 +23,8 @@
   background: none; color: var(--w-text-2); text-align: start; cursor: pointer; font-weight: var(--w-weight-medium); font-size: var(--w-font-lg); text-decoration: none;
 }
 .a-nav__item:hover { background: var(--w-surface-2); color: var(--w-text); }
+/* The line between the work screens and the management screens in the side rail. */
+.a-nav__sep { width: 100%; height: 0; margin-block: var(--w-space-2); border: 0; border-block-start: 1px solid var(--w-border); }
 .a-nav__item[aria-current='page'] { background: var(--w-info-bg); color: var(--w-info); font-weight: var(--w-weight-semibold); }
 .a-side__foot { margin-block-start: auto; display: flex; flex-direction: column; gap: var(--w-space-1-5); }
 /* The provider-app, light/dark and sign-out icons: identical on a phone (top bar) and a computer (side rail). */
@@ -41,11 +43,11 @@
 @media (min-width: 1024px) { .a-top { display: none; } }
 
 .a-tabbar {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));
   background: var(--w-surface); border-top: 1px solid var(--w-border); padding-bottom: env(safe-area-inset-bottom);
 }
-/* Five equal columns that may shrink below their content (minmax(0, ...) and min-width: 0), so a long label can never push the bar
-   wider than the screen; the label (`.a-nav-label`) stays on one line. */
+/* Four equal columns (three screens and "עוד") that may shrink below their content (minmax(0, ...) and min-width: 0), so a long label can
+   never push the bar wider than the screen; the label (`.a-nav-label`) stays on one line. */
 .a-tab {
   min-width: 0; min-height: 62px; padding-inline: var(--w-space-1); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--w-space-1);
   border: 0; background: none; color: var(--w-text-3); font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); cursor: pointer;
@@ -62,8 +64,11 @@
 .a-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--w-space-3); margin-block-end: var(--w-space-5); }
 .a-head > :first-child { flex: 1 1 14rem; min-width: 0; }
 .a-head .a-actions { flex: none; gap: var(--w-space-1); flex-wrap: nowrap; }
+.a-head--section { margin-block-end: var(--w-space-3-5); }
 .a-head h1 { font-size: var(--w-font-4xl); font-weight: var(--w-weight-bold); line-height: 1.2; }
 .a-head p { color: var(--w-text-2); margin-block-start: var(--w-space-1); }
+/* A heading of a part of a screen (the members on the settings screen) that has its own button: smaller than the h1 of the screen. */
+.a-head--section h2 { font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); line-height: 1.2; }
 .a-actions { display: flex; gap: var(--w-space-2-5); flex-wrap: wrap; align-items: center; }
 .a-stack { display: flex; flex-direction: column; gap: var(--w-space-3-5); }
 .a-grid { display: grid; gap: var(--w-space-3-5); grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
@@ -207,22 +212,8 @@ select.a-input {
   .a-scan--readonly { grid-template-columns: 76px minmax(0, 1.2fr) minmax(0, 1fr); }
 }
 
-/* ----- the audit log: the section of the Committee tab that a button opens, and its read only rows (no icons) ----- */
-/* The help (src/admin/views/HelpSection.jsx) is a section of the same kind, with the same button, so it shares these rules. */
-.a-audit-section, .a-help-section { margin-block-start: var(--w-space-6); }
-.a-disclosure { margin: 0; } /* the button inside sets the size and the weight */
-.a-disclosure__btn {
-  display: flex; align-items: center; gap: var(--w-space-3); width: 100%; min-height: 56px; padding: var(--w-space-3) var(--w-space-4-5); background: var(--w-surface);
-  border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); color: var(--w-text); font-size: var(--w-font-3xl); font-weight: var(--w-weight-semibold);
-  text-align: start; cursor: pointer;
-}
-@media (hover: hover) { .a-disclosure__btn:hover { background: var(--w-surface-2); } }
-.a-disclosure__btn > svg:first-child { color: var(--w-info); flex: none; }
-.a-disclosure__text { flex: 1; min-width: 0; }
-.a-disclosure__chevron { flex: none; color: var(--w-text-3); transform: rotate(90deg); } /* closed: points down */
-.a-disclosure__btn[aria-expanded='true'] .a-disclosure__chevron { transform: rotate(-90deg); } /* open: points up */
-.a-audit-section > div:not([hidden]), .a-help-section > div:not([hidden]) { margin-block-start: var(--w-space-4); }
-/* The help's text: the topics in one card (the card's own look), a heading over its sentences, a line short enough to read on a computer. */
+/* ----- the audit log (its own screen) and its read only rows (no icons) ----- */
+/* The help's text (src/admin/views/HelpView.jsx): the topics in one card (the card's own look), a heading over its sentences, a line short enough to read on a computer. */
 .a-help { max-width: 720px; gap: var(--w-space-5); }
 .a-help__topic { display: flex; flex-direction: column; gap: var(--w-space-1); }
 /* Phone: the time and the action on the first line, then who, then the detail, all in the column of the action. */
@@ -245,7 +236,7 @@ select.a-input {
   .a-audit__who { margin-block-start: 0; }
 }
 
-/* The build id line at the foot of the Committee tab (src/ui/BuildLabel.jsx), under the building card and lined up with it. */
+/* The build id line at the foot of the settings screen (src/ui/BuildLabel.jsx), under the building card and lined up with it. */
 .a-build { margin-block-start: var(--w-space-4); }
 
 /* ----- modal ----- */
@@ -266,6 +257,13 @@ select.a-input {
   .a-modal--sm { max-width: 440px; }
   .a-modal--lg { max-width: 780px; }
 }
+/* The sheet that "עוד" opens (a list of screens, no form): it stays at the bottom of the screen at every width, with only its top corners
+   rounded, and no wider than a list needs. The room under the list clears the home indicator. */
+@media (min-width: 640px) {
+  .a-overlay--sheet { align-items: flex-end; padding: 0; }
+  .a-modal--sheet { border-radius: var(--w-radius-3xl) var(--w-radius-3xl) 0 0; max-width: 480px; }
+}
+.a-modal--sheet .a-modal__body { padding-block-end: calc(var(--w-space-5) + env(safe-area-inset-bottom)); }
 
 /* ----- toasts ----- */
 .a-toasts { position: fixed; inset-inline: var(--w-space-4); bottom: calc(var(--w-layout-toast-clearance) + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; gap: var(--w-space-2); pointer-events: none; }

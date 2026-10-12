@@ -310,11 +310,70 @@ export async function signIn(page, person, words = he) {
   await page.getByRole('button', { name: words['login.submit'], exact: true }).click()
 }
 
-/** Signs the committee in through the local-only shortcut that the scratch-schema API offers. */
-export async function adminSignIn(page) {
-  await page.goto('/admin')
+/**
+ * The <h1> of each screen of the committee app, by the key of its address (`/admin#points`). In the order of the side rail; the first
+ * screen is the one that opens when the address names none.
+ */
+export const SCREEN_TITLES = Object.freeze({
+  history: 'היסטוריית נוכחות',
+  points: 'נקודות סריקה',
+  providers: 'נותני שירות',
+  agent: "גישה לאייג'נט",
+  settings: 'הגדרות',
+  audit: 'יומן פעולות',
+  help: 'איך עובדים עם המערכת',
+})
+
+/**
+ * The name on the button of each screen, in the side rail and in the tab bar of the phone (`nav` in TABS, src/pages/AdminApp.jsx). The
+ * tab bar has the first three; the others are under "עוד" on a phone, where the sheet says the whole name (SCREEN_LABELS; SCREEN_TITLES has the h1).
+ */
+export const SCREEN_NAV = Object.freeze({
+  history: 'היסטוריה',
+  points: 'נקודות',
+  providers: 'ספקים',
+  agent: 'אייג׳נט',
+  settings: 'הגדרות',
+  audit: 'יומן פעולות',
+  help: 'עזרה',
+})
+/** The name of each screen as a page (`label` in TABS): the title of the window, and the name of its button in the sheet under "עוד". */
+export const SCREEN_LABELS = Object.freeze({
+  history: 'היסטוריה',
+  points: 'נקודות',
+  providers: 'נותני שירות',
+  agent: 'אייג׳נט',
+  settings: 'הגדרות',
+  audit: 'יומן פעולות',
+  help: 'איך עובדים עם המערכת',
+})
+export const BAR_SCREENS = Object.freeze(['history', 'points', 'providers'])
+
+/**
+ * Opens a screen of the committee app from the navigation that is on the screen: the side rail on a computer; on a phone the button
+ * of the tab bar, or, for the screens that the bar does not have, "עוד" and then the screen in its sheet. Waits for nothing else: the
+ * caller waits for the screen it expects.
+ */
+export async function openScreen(page, key) {
+  const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)', exact: true })
+  if (!(await bar.isVisible())) {
+    await page.getByRole('navigation', { name: 'ניווט ראשי', exact: true }).getByRole('button', { name: SCREEN_NAV[key], exact: true }).click()
+  } else if (BAR_SCREENS.includes(key)) {
+    await bar.getByRole('button', { name: SCREEN_NAV[key], exact: true }).click()
+  } else {
+    await bar.getByRole('button', { name: 'עוד', exact: true }).click()
+    await page.getByRole('dialog', { name: 'עוד', exact: true }).getByRole('button', { name: SCREEN_LABELS[key], exact: true }).click()
+  }
+}
+
+/**
+ * Signs the committee in through the local-only shortcut that the scratch-schema API offers, and waits for the first screen: the
+ * history, unless the test names another one (`screen`, a key of SCREEN_TITLES), which is then the address that the sign-in starts from.
+ */
+export async function adminSignIn(page, screen = 'history') {
+  await page.goto(screen === 'history' ? '/admin' : `/admin#${screen}`)
   await page.getByRole('button', { name: 'כניסת פיתוח' }).click()
-  await expect(page.getByRole('heading', { name: 'נקודות סריקה' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
 }
 
 /** The committee app draws its phone layout below this width (`usePhoneLayout` in src/admin/hooks.js). Both E2E devices are narrower. */

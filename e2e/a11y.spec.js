@@ -311,8 +311,8 @@ const loaded = async (page, title) => {
  * that changes in the moment after the shell appears is not lost. (Until that was so, this also waited for the title, which the
  * effect that attaches the listener sets, because a tab opened in that moment stayed on the first one.)
  */
-const signedIn = async (page) => {
-  await expect(page.getByRole('heading', { name: 'נקודות סריקה', level: 1 })).toBeVisible()
+const signedIn = async (page, title = 'היסטוריית נוכחות') => {
+  await expect(page.getByRole('heading', { name: title, level: 1, exact: true })).toBeVisible()
 }
 const openTab = async (page, tab, title) => {
   await page.goto(`/admin#${tab}`)
@@ -426,6 +426,15 @@ test.describe('committee app', () => {
     await scanBothThemes(page, 'committee phone: history, the filters sheet')
     await filters.getByRole('button', { name: 'סגירה' }).click()
 
+    // A new installation has no points: the first screen says to start with them instead of "widen the dates".
+    await page.route('**/api/admin/points', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { points: [] } }) : route.continue()))
+    await page.reload()
+    await expect(page.getByRole('heading', { level: 2, name: 'עוד אין נקודות' })).toBeVisible()
+    await scanBothThemes(page, 'committee phone: history, no points yet')
+    await page.unroute('**/api/admin/points')
+    await page.reload()
+    await signedIn(page)
+
     // The visits that the server did not count, for a stretch of time in which there were none: its own empty state.
     await changeFilters(page, async (sheet) => {
       await sheet.getByLabel('סוג').selectOption({ label: 'לא נקלטו' })
@@ -441,34 +450,24 @@ test.describe('committee app', () => {
   })
 })
 
-/** Opens the audit log, the section at the foot of the Committee tab, and waits for its entries. */
-async function openAuditLog(page) {
-  await page.getByRole('button', { name: 'יומן פעולות', exact: true }).click()
-  const log = page.getByRole('region', { name: 'יומן פעולות' })
+/** Waits for the entries of the audit log screen, with the members that the sample data added among them. */
+async function waitForAuditLog(page) {
+  const log = page.getByRole('main')
   await expect(log.getByRole('listitem').first()).toBeVisible()
   await expect(log.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
   await expect(log.getByRole('listitem').filter({ hasText: 'הוספת חבר ועד' }).first()).toBeVisible() // the members that the sample data added
 }
 
-/**
- * Opens the help, the section of the Committee tab above the audit log, and waits until its topics are drawn. It is scanned on its
- * own and closed again (`closeHelp`), so that the scan of the audit log below it is of the audit log and not of both.
- */
-async function openHelp(page) {
-  await page.getByRole('button', { name: 'איך עובדים עם המערכת', exact: true }).click()
-  const help = page.getByRole('region', { name: 'איך עובדים עם המערכת' })
-  await expect(help.getByRole('heading', { level: 3, name: 'נקודות ושלטי QR' })).toBeVisible()
-  await expect(help.getByRole('heading', { level: 3, name: 'כשטלפון תקוע' })).toBeVisible()
-}
-async function closeHelp(page) {
-  const opener = page.getByRole('button', { name: 'איך עובדים עם המערכת', exact: true })
-  await opener.click()
-  await expect(opener).toHaveAttribute('aria-expanded', 'false')
+/** Waits until the topics of the help screen are drawn (it is text only: nothing opens). */
+async function waitForHelp(page) {
+  const help = page.getByRole('main')
+  await expect(help.getByRole('heading', { level: 2, name: 'נקודות ושלטי QR' })).toBeVisible()
+  await expect(help.getByRole('heading', { level: 2, name: 'כשטלפון תקוע' })).toBeVisible()
 }
 
 /** Filters the open log to the agent keys, and waits until the list has changed. */
 async function filterAuditLog(page) {
-  const log = page.getByRole('region', { name: 'יומן פעולות' })
+  const log = page.getByRole('main')
   await changeFilters(page, (filters) => filters.getByLabel('סוג פעולה').selectOption({ label: "מפתחות אייג'נט" }), log)
   await expect(log.getByRole('listitem').filter({ hasText: 'הוספת חבר ועד' })).toHaveCount(0)
   await expect(log.getByRole('listitem').filter({ hasText: "יצירת מפתח אייג'נט" }).first()).toBeVisible()
@@ -500,7 +499,7 @@ test.describe('committee app with the sample data filled in', () => {
     },
   })
 
-  test('the five tabs, on a phone and on a computer', async ({ page }) => {
+  test('the seven screens and the sheet under "עוד", on a phone and on a computer', async ({ page }) => {
     allowConsoleErrors(page, /status of 401/) // the first load of /admin, before the sign-in
     await markPloniOutdated(page)
     await adminSignIn(page)
@@ -527,22 +526,19 @@ test.describe('committee app with the sample data filled in', () => {
     await expect(page.getByText(/^נחסמו \d+ קריאות ב-30 הימים האחרונים בגלל מגבלת הקצב$/)).toHaveCount(1)
     await expect(page.getByText(/^כל מפתח מוגבל ל-\d+ קריאות בדקה ול-\d+ ביום\.$/)).toHaveCount(1)
     await scanBothThemes(page, 'committee phone: agent')
-    await openTab(page, 'committee', 'חברי הוועד')
+    await openTab(page, 'settings', 'הגדרות')
     await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME) // the card is loaded, with the name filled in
-    await scanBothThemes(page, 'committee phone: committee')
+    await scanBothThemes(page, 'committee phone: settings')
     // the name field with a refusal under it (a character that cannot be saved): the message is tied to the field
     await page.getByLabel('שם הבניין', { exact: true }).fill('בניין\tהדוגמה')
     await page.getByRole('button', { name: 'שמירה', exact: true }).click()
     await expect(page.getByRole('alert').filter({ hasText: 'השם מכיל תווים שאי אפשר לשמור' })).toBeVisible()
-    await scanBothThemes(page, 'committee phone: committee, the name refused')
+    await scanBothThemes(page, 'committee phone: settings, the name refused')
     await page.getByLabel('שם הבניין', { exact: true }).fill(BUILDING_NAME)
     await expect(page.getByRole('alert').filter({ hasText: 'השם מכיל תווים שאי אפשר לשמור' })).toHaveCount(0)
-    // the help: a section of this tab that its button opens, above the audit log (text only)
-    await openHelp(page)
-    await scanBothThemes(page, 'committee phone: help')
-    await closeHelp(page)
-    // the audit log: a section at the foot of this tab that its button opens (the sample data above wrote its entries)
-    await openAuditLog(page)
+    // the audit log: a screen of its own (the sample data above wrote its entries)
+    await openTab(page, 'audit', 'יומן פעולות')
+    await waitForAuditLog(page)
     await scanBothThemes(page, 'committee phone: audit log')
     // the filters of the log are in a sheet on a phone, as the History tab's are
     const auditFilters = await openFilters(page)
@@ -551,6 +547,16 @@ test.describe('committee app with the sample data filled in', () => {
     // with a filter on: only the entries of the agent keys (the members that were added leave the list)
     await filterAuditLog(page)
     await scanBothThemes(page, 'committee phone: audit log, filtered by group')
+    // the help: a screen of its own (text only)
+    await openTab(page, 'help', 'איך עובדים עם המערכת')
+    await waitForHelp(page)
+    await scanBothThemes(page, 'committee phone: help')
+    // the sheet that the fourth button of the tab bar opens, over the help (which it marks as the current screen)
+    await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'עוד', exact: true })).toBeVisible()
+    await scanBothThemes(page, 'committee phone: the sheet under "עוד"')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
     // the history with every kind of row: refused, cancelled, flagged, and the demo account's
     await openTab(page, 'history', 'היסטוריית נוכחות')
     await changeFilters(page, async (sheet) => {
@@ -581,8 +587,8 @@ test.describe('committee app with the sample data filled in', () => {
     await question.getByRole('button', { name: 'סגירה בלי להציג' }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
-    // The side rail replaces the top bar and the tab bar. The five screens are the same markup at any width, so two of
-    // them are enough to see the rail and the wider layout.
+    // The side rail replaces the top bar and the tab bar. The screens are the same markup at any width, so a few of
+    // them are enough to see the rail (its two groups and the line between them) and the wider layout.
     await page.setViewportSize(COMPUTER)
     await openTab(page, 'points', 'נקודות סריקה')
     await expect(page.getByRole('complementary')).toContainText(BUILDING_NAME) // the side rail says the name of the building too
@@ -601,11 +607,14 @@ test.describe('committee app with the sample data filled in', () => {
     await expect(page.getByText('נקודה כבויה').first()).toBeVisible()
     await expect(page.getByText('מהתור בטלפון').first()).toBeVisible()
     await scanBothThemes(page, 'committee computer: history, visits not counted')
-    await openTab(page, 'committee', 'חברי הוועד')
-    await openHelp(page)
+    await openTab(page, 'settings', 'הגדרות')
+    await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
+    await scanBothThemes(page, 'committee computer: settings')
+    await openTab(page, 'help', 'איך עובדים עם המערכת')
+    await waitForHelp(page)
     await scanBothThemes(page, 'committee computer: help')
-    await closeHelp(page)
-    await openAuditLog(page)
+    await openTab(page, 'audit', 'יומן פעולות')
+    await waitForAuditLog(page)
     await scanBothThemes(page, 'committee computer: audit log')
   })
 
@@ -617,8 +626,8 @@ test.describe('committee app with the sample data filled in', () => {
       window.__prints = 0
       window.print = () => { window.__prints += 1 }
     })
-    await adminSignIn(page)
-    await signedIn(page)
+    await adminSignIn(page, 'points')
+    await signedIn(page, 'נקודות סריקה')
     const { dialog, closeWithEscape, discardWithEscape } = dialogs(page)
 
     // the form with the map, with an error, the QR dialog, and the questions
@@ -708,7 +717,7 @@ test.describe('committee app with the sample data filled in', () => {
     await closeWithEscape(phones)
   })
 
-  test('the dialogs of the history, the agent keys and the committee', async ({ page }) => {
+  test('the dialogs of the history, the agent keys and the settings', async ({ page }) => {
     allowConsoleErrors(page, /status of 401/) // the first load of /admin, before the sign-in
     await adminSignIn(page)
     await signedIn(page)
@@ -741,8 +750,8 @@ test.describe('committee app with the sample data filled in', () => {
     await scanBothThemes(page, 'committee phone: agent key shown once')
     await closeWithEscape('המפתח נוצר')
 
-    // committee: adding a member, and taking an access away
-    await openTab(page, 'committee', 'חברי הוועד')
+    // settings: adding a member, and taking an access away
+    await openTab(page, 'settings', 'הגדרות')
     await page.getByRole('button', { name: 'חבר ועד חדש' }).click()
     const add = dialog('חבר ועד חדש')
     await expect(add).toBeVisible()

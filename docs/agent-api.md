@@ -383,7 +383,7 @@ committee app. Nothing else about the building is there (not who saved it or whe
 ## The audit log
 
 `GET /audit` lists what the committee changed, one entry for each change, and the sign-ins and sign-outs of the committee members,
-newest first. It is the committee's own log, the one that its app shows on the Committee screen. Use it to explain a change in the
+newest first. It is the committee's own log, the one that its app shows on the audit log screen ("יומן פעולות"). Use it to explain a change in the
 data: a point that was switched off, a scan that was voided, the phones of a provider that were signed out. It is not attendance and
 not a scan.
 

@@ -4,7 +4,8 @@ import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useSheetOpen } from '../filters.jsx'
-import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash } from '../icons.jsx'
+import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash, IconPin } from '../icons.jsx'
+import { goToTab } from '../tab.js'
 import { formatDay, formatDateTime, formatTime, isoDay } from '../../../shared/datetime.js'
 import {
   OUTCOME_ACCEPTED, OUTCOME_REJECTED_FAR, OUTCOME_REJECTED_NO_LOCATION, VOID_REASON_MAX_LENGTH,
@@ -130,6 +131,26 @@ function RefusalRow({ r }) {
       </div>
     </li>
   )
+}
+
+/**
+ * What an empty list says. This is the first screen of the app, and a new installation has no points yet: a list of visits that is empty
+ * because there is nothing to scan must not tell the person to widen the dates, but to start by adding points. `points` is the load of the
+ * points that the filter above already makes (the same request, kept by useLoad). While it is on its way an empty list of visits waits (a
+ * spinner), so that the wrong message never shows for a moment; when it cannot be loaded, the list says what it always said.
+ */
+function EmptyHistory({ refusals, points }) {
+  if (refusals) return <EmptyState icon={IconList} title="אין ביקורים שלא נקלטו בטווח הזה">נסו להרחיב את טווח התאריכים או לשנות את הסינון.</EmptyState>
+  if (!points.data && points.status === 'loading') return <Spinner />
+  if (points.data?.points.length === 0) {
+    return (
+      <EmptyState icon={IconPin} title="עוד אין נקודות"
+        action={<button className="w-btn w-btn--small" onClick={() => goToTab('points')}>מעבר לנקודות</button>}>
+        הנוכחויות מופיעות כאן אחרי שנותני שירות סורקים שלט QR. מתחילים בהוספת נקודה לכל מקום שצריך לבדוק בו נוכחות.
+      </EmptyState>
+    )
+  }
+  return <EmptyState icon={IconList} title="אין נוכחויות בטווח הזה">נסו להרחיב את טווח התאריכים או לשנות את הסינון.</EmptyState>
 }
 
 function VoidDialog({ scan, onClose, onDone }) {
@@ -352,9 +373,7 @@ export default function HistoryView() {
       {status === 'error' && (
         <EmptyState icon={IconAlert} title="לא הצלחנו לטעון" action={<button className="w-btn w-btn--small" onClick={load}>נסו שוב</button>} />
       )}
-      {status === 'ready' && rows.length === 0 && (refusals
-        ? <EmptyState icon={IconList} title="אין ביקורים שלא נקלטו בטווח הזה">נסו להרחיב את טווח התאריכים או לשנות את הסינון.</EmptyState>
-        : <EmptyState icon={IconList} title="אין נוכחויות בטווח הזה">נסו להרחיב את טווח התאריכים או לשנות את הסינון.</EmptyState>)}
+      {status === 'ready' && rows.length === 0 && <EmptyHistory refusals={refusals} points={points} />}
 
       {groups.map((g) => (
         <section key={g.date} aria-label={dayLabel(g.date)}>

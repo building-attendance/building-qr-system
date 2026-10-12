@@ -28,7 +28,7 @@ const ADMIN = { id: '00000000-0000-4000-8000-0000000000a1', name: 'Sample Member
 const START = Date.parse('2026-10-05T08:00:00.000Z')
 const MINUTE = ERROR_REPORT_MIN_INTERVAL_MS
 const EXPIRED_NOTICE = 'פג תוקף ההתחברות. היכנסו שוב.'
-const TAB_KEYS = ['points', 'providers', 'history', 'agent', 'committee']
+const TAB_KEYS = ['history', 'points', 'providers', 'agent', 'settings', 'audit', 'help']
 
 const refusal = (status, code) => Object.assign(new Error('refused'), { status, code })
 
@@ -90,7 +90,7 @@ const comeBackToTheApp = () => {
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   act(() => { document.dispatchEvent(new Event('visibilitychange')) })
 }
-const signedIn = () => screen.findByRole('heading', { level: 1, name: 'נקודות סריקה' })
+const signedIn = () => screen.findByRole('heading', { level: 1, name: 'היסטוריית נוכחות' }) // the first screen: the history
 const loginScreen = () => screen.findByRole('heading', { level: 1, name: 'ניהול נוכחות הבניין' })
 const crashTitle = () => screen.findByRole('heading', { name: he['crash.title'] })
 const devSignIn = async () => fireEvent.click(await screen.findByRole('button', { name: 'כניסת פיתוח' }))
@@ -106,7 +106,7 @@ describe('the committee app: the screen comes from its own state', () => {
     expect(currentPlace()).toBe('committee:app')
     await act(async () => { answer() })
     await signedIn()
-    expect(currentPlace()).toBe('committee:points')
+    expect(currentPlace()).toBe('committee:history')
   })
 
   it('is committee:app on the screen that says there is no connection', async () => {
@@ -182,7 +182,7 @@ describe('a forced sign-out is noted', () => {
     start()
     await loginScreen()
     expect(screen.getByText(EXPIRED_NOTICE)).toBeTruthy()
-    expect(readOutbox()).toEqual([{ kind: 'signed_out', place: 'committee:points', code: 'admin_required', build: 'dev', count: 1 }])
+    expect(readOutbox()).toEqual([{ kind: 'signed_out', place: 'committee:history', code: 'admin_required', build: 'dev', count: 1 }])
   })
 
   it('once, however many calls find the session gone at the same time', async () => {
@@ -342,7 +342,7 @@ describe('what the server answers to a report', () => {
     expect(screen.getByText(EXPIRED_NOTICE)).toBeTruthy()
     expect(readOutbox()).toEqual([
       { ...crash, build: 'dev', count: 1 }, // not lost
-      { kind: 'signed_out', place: 'committee:points', code: 'admin_required', build: 'dev', count: 1 },
+      { kind: 'signed_out', place: 'committee:history', code: 'admin_required', build: 'dev', count: 1 },
     ])
     expect(reports()).toHaveLength(1) // and no second try of its own
   })

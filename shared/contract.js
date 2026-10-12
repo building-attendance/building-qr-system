@@ -152,7 +152,7 @@ export const MAX_TOKEN_LENGTH = 200
 // ---- 7. The build id of the app ----------------------------------------------------------------------------------
 // An installed app keeps running the JavaScript it has until the person next opens it, so the build id is how the committee
 // and the owner tell which version a phone runs. vite.config.js writes it into the bundle, src/ui/build.js reads it, and both
-// apps show it (the home screen of the provider app, the Committee tab of the committee app).
+// apps show it (the home screen of the provider app, the settings screen of the committee app).
 
 /**
  * What the build id of the app looks like: the first 7 characters of the commit that Vercel built (the same 7 characters
@@ -217,11 +217,16 @@ export const CLIENT_ERROR_KINDS = Object.freeze(['crash', 'unhandled', 'signed_o
 /**
  * Where in an app it happened, a closed list of screen keys: `provider:<screen>` for the provider's app and `committee:<tab>` for
  * the committee app, so that the number of rows in app_errors stays small whatever an app sends. The provider's screens are those of
- * src/pages/WorkerApp.jsx (the sign-in, the home screen, the check-in in progress, and its result) and the committee's are the tabs
+ * src/pages/WorkerApp.jsx (the sign-in, the home screen, the check-in in progress, and its result) and the committee's are the screens
  * of TABS in src/pages/AdminApp.jsx (tests/client-errors.test.js compares them). The sign-in screens are here although nobody is signed
  * in when they break: the app keeps the event on the device and sends it after the next sign-in. `provider:app` and `committee:app`
  * are for a crash outside any screen (the language provider, the boundary above everything). Each provider key starts with
  * `provider:` and each committee key with `committee:`, and the endpoint of a role takes only its own.
+ *
+ * `committee:committee` is a key of a screen that no longer exists (the screen that held the members, the building's details, the guide
+ * and the audit log, now split into `settings`, `help` and `audit`). It stays because an installed app keeps running the JavaScript it
+ * has for days or weeks and still reports its errors under it; the server skips a key that is not here, so removing it would silently
+ * drop them (AGENTS.md, "Database and API changes"). Remove it only when no installed app can send it any more.
  */
 export const CLIENT_PLACES = Object.freeze([
   'provider:login',
@@ -234,7 +239,10 @@ export const CLIENT_PLACES = Object.freeze([
   'committee:providers',
   'committee:history',
   'committee:agent',
-  'committee:committee',
+  'committee:settings',
+  'committee:audit',
+  'committee:help',
+  'committee:committee', // retired: the screen was split (see above); only an older installed app still sends it
   'committee:app',
 ])
 

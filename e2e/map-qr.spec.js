@@ -36,7 +36,7 @@ const lobbyTile = (page) => page.getByRole('article').filter({ hasText: 'לוב�
 
 test('the point form shows the map with the marker and the circle at the point, and a click on the map moves them', async ({ page }) => {
   const { tiles, hosts } = await stubMapImages(page)
-  await adminSignIn(page)
+  await adminSignIn(page, 'points')
   await lobbyTile(page).getByRole('button', { name: 'עריכה' }).click()
   const dialog = page.getByRole('dialog', { name: 'עריכת נקודה: לובי' })
 
@@ -86,7 +86,7 @@ test('the point form shows the map with the marker and the circle at the point, 
 })
 
 test('the QR dialog draws the QR image of the point as a PNG and shows the address it holds', async ({ page }) => {
-  await adminSignIn(page)
+  await adminSignIn(page, 'points')
   await lobbyTile(page).getByRole('button', { name: 'QR והדפסה' }).click()
   const dialog = page.getByRole('dialog', { name: 'QR: לובי' })
 
@@ -105,7 +105,7 @@ test('printing a sign builds the sheet with the name of the point and its QR ima
     window.__prints = 0
     window.print = () => { window.__prints += 1 }
   })
-  await adminSignIn(page)
+  await adminSignIn(page, 'points')
   await lobbyTile(page).getByRole('button', { name: 'QR והדפסה' }).click()
   await page.getByRole('dialog', { name: 'QR: לובי' }).getByRole('button', { name: 'הדפסת שלט' }).click()
 

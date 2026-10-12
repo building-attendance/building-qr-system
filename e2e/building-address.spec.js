@@ -1,4 +1,4 @@
-// The building's address and name: the committee types them in the Committee tab, the provider app shows both in its header (the
+// The building's address and name: the committee types them in the settings screen, the provider app shows both in its header (the
 // name above the address) and the committee app shows the name as its brand. They start empty on a real deployment; here the
 // scratch schema has an invented address and an invented name (scripts/dev-seed.mjs).
 import { randomUUID } from 'node:crypto'
@@ -15,7 +15,7 @@ test.beforeEach(async ({ page }) => {
 })
 
 const loaded = async (page) => {
-  await expect(page.getByRole('heading', { level: 1, name: 'חברי הוועד' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'הגדרות', exact: true })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
 }
 const field = (page) => page.getByLabel('כתובת הבניין', { exact: true })
@@ -23,9 +23,9 @@ const nameField = (page) => page.getByLabel('שם הבניין', { exact: true }
 const saveButton = (page) => page.getByRole('button', { name: 'שמירה', exact: true })
 const noHorizontalScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
 
-/** Types an address in the Committee tab and saves it. */
+/** Types an address in the settings screen and saves it. */
 async function setAddress(page, address) {
-  await page.goto('/admin#committee')
+  await page.goto('/admin#settings')
   await loaded(page)
   await field(page).fill(address)
   await saveButton(page).click()
@@ -52,13 +52,13 @@ for (const [where, size] of SIZES) {
     if (size) await page.setViewportSize(size)
     try {
       // the card is there, with the address that the scratch schema starts with, and nothing to save yet
-      await page.goto('/admin#committee')
+      await page.goto('/admin#settings')
       await loaded(page)
       await expect(page.getByRole('heading', { level: 2, name: 'פרטי הבניין' })).toBeVisible()
       await expect(field(page)).toHaveValue(BUILDING_ADDRESS)
       await expect(saveButton(page)).toBeDisabled()
       await expect(page.getByText('אפשר להשאיר ריק')).toBeVisible()
-      expect(await noHorizontalScroll(page), `the committee tab ${where}`).toBe(true)
+      expect(await noHorizontalScroll(page), `the settings screen ${where}`).toBe(true)
 
       // the field and the button are inside the screen and big enough to tap, on this size
       const fieldBox = await field(page).boundingBox()
@@ -82,8 +82,8 @@ for (const [where, size] of SIZES) {
       await iconsAtTheEnd(page, 'with an address')
       expect(await noHorizontalScroll(page), `the provider app ${where}`).toBe(true)
 
-      // still there after a reload of the committee tab (it is stored, not just on the screen)
-      await page.goto('/admin#committee')
+      // still there after a reload of the settings screen (it is stored, not just on the screen)
+      await page.goto('/admin#settings')
       await loaded(page)
       await expect(field(page)).toHaveValue(address)
 
@@ -122,7 +122,7 @@ test('a very long address wraps in the header of the provider app and pushes not
 
 test('the committee is told about a character that cannot be saved, and nothing is saved', async ({ page }) => {
   await adminSignIn(page)
-  await page.goto('/admin#committee')
+  await page.goto('/admin#settings')
   await loaded(page)
   await field(page).fill('רחוב\tהדוגמה')
   await saveButton(page).click()
@@ -136,7 +136,7 @@ test('the committee is told about a character that cannot be saved, and nothing 
 
 test('the address field stops at 200 characters, the most the server takes', async ({ page }) => {
   await adminSignIn(page)
-  await page.goto('/admin#committee')
+  await page.goto('/admin#settings')
   await loaded(page)
   await expect(field(page)).toHaveAttribute('maxlength', '200')
 })
@@ -192,7 +192,7 @@ async function loginFits(page, what, name) {
 }
 const signBackIn = async (page) => {
   await page.getByRole('button', { name: 'כניסת פיתוח' }).click()
-  await expect(page.getByRole('heading', { name: 'נקודות סריקה' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible() // the first screen: the address is /admin
 }
 /** Signs the committee in again by the request (a test that signed out ends here), and puts the scratch schema's texts back. */
 async function signInAndRestore(page) {
@@ -207,7 +207,7 @@ for (const [where, size] of SIZES) {
     if (size) await page.setViewportSize(size)
     try {
       // the card: the name field is the first of the two, it has the invented name of the scratch schema, and nothing waits to be saved
-      await page.goto('/admin#committee')
+      await page.goto('/admin#settings')
       await loaded(page)
       await expect(nameField(page)).toHaveValue(BUILDING_NAME)
       await expect(saveButton(page)).toBeDisabled()
@@ -221,8 +221,8 @@ for (const [where, size] of SIZES) {
       await expect(nameField(page)).toHaveAttribute('maxlength', String(BUILDING_NAME_MAX_LENGTH))
       // the brand and the title of the window already say the name that is saved
       await expect(brandBar(page, size)).toContainText(BUILDING_NAME)
-      await expect(page).toHaveTitle(`ועד · ${BUILDING_NAME}`)
-      expect(await noHorizontalScroll(page), `the committee tab ${where}`).toBe(true)
+      await expect(page).toHaveTitle(`הגדרות · ${BUILDING_NAME}`)
+      expect(await noHorizontalScroll(page), `the settings screen ${where}`).toBe(true)
 
       // a new name is saved by the same button, and the brand and the title follow it with no reload
       await page.evaluate(() => { window.sameDocument = true })
@@ -232,19 +232,20 @@ for (const [where, size] of SIZES) {
       await expect(page.getByRole('status').filter({ hasText: 'שם הבניין נשמר' })).toBeVisible()
       await expect(brandBar(page, size)).toContainText(name)
       await expect(brandBar(page, size)).not.toContainText(BUILDING_NAME)
-      await expect(page).toHaveTitle(`ועד · ${name}`)
+      await expect(page).toHaveTitle(`הגדרות · ${name}`)
       await expect(saveButton(page)).toBeDisabled()
       await expect(field(page)).toHaveValue(BUILDING_ADDRESS) // the address was sent with it and is as it was
       // every tab has it in its title, the page first
       await page.evaluate(() => { window.location.hash = '#points' })
       await expect(page).toHaveTitle(`נקודות · ${name}`)
       expect(await page.evaluate(() => window.sameDocument), 'the page was not reloaded').toBe(true)
-      await page.evaluate(() => { window.location.hash = '#committee' })
+      await page.evaluate(() => { window.location.hash = '#settings' })
       await loaded(page)
 
       // the change is in the audit log, as a change of the name, under the new phrase for an update of the building's details
-      await page.getByRole('button', { name: 'יומן פעולות', exact: true }).click()
-      const entry = page.getByRole('region', { name: 'יומן פעולות' }).getByRole('listitem').filter({ hasText: 'עדכון פרטי הבניין' }).first()
+      await page.evaluate(() => { window.location.hash = '#audit' })
+      await expect(page.getByRole('heading', { level: 1, name: 'יומן פעולות', exact: true })).toBeVisible()
+      const entry = page.getByRole('main').getByRole('listitem').filter({ hasText: 'עדכון פרטי הבניין' }).first()
       await expect(entry).toContainText(`שם: ${BUILDING_NAME} ← ${name}`)
 
       // the provider app: the name is a line of its own above the address, and it starts the title of the window
@@ -260,7 +261,7 @@ for (const [where, size] of SIZES) {
       expect(await noHorizontalScroll(page), `the provider app ${where}, with a name`).toBe(true)
 
       // clearing the name: the plain brand and titles come back, with no reload, and the provider app keeps only the address
-      await page.goto('/admin#committee')
+      await page.goto('/admin#settings')
       await loaded(page)
       await expect(brandBar(page, size)).toContainText(name)
       await nameField(page).fill('')
@@ -268,7 +269,7 @@ for (const [where, size] of SIZES) {
       await expect(page.getByRole('status').filter({ hasText: 'שם הבניין הוסר' })).toBeVisible()
       await expect(brandBar(page, size)).toContainText(APP)
       await expect(brandBar(page, size)).not.toContainText(name)
-      await expect(page).toHaveTitle(`ועד · ${APP}`)
+      await expect(page).toHaveTitle(`הגדרות · ${APP}`)
       await expect(nameField(page)).toHaveValue('')
       await page.goto('/')
       await expect(page.getByRole('heading', { name: he['login.title'] })).toBeVisible()
@@ -324,7 +325,7 @@ for (const [what, longName] of [['one word of 80 letters', WORD], ['80 character
         expect((await page.request.put('/api/admin/building', { data: { address: BUILDING_ADDRESS, name: longName } })).ok()).toBe(true)
 
         // the committee app: the brand is cut to two lines in the top bar and three in the side rail, and nothing is pushed off the screen
-        await page.goto('/admin#committee')
+        await page.goto('/admin#settings')
         await loaded(page)
         const bar = brandBar(page, !phone)
         await expect(bar).toContainText(longName) // the whole name is in the page (a screen reader reads it); the stylesheet cuts what is drawn
@@ -341,9 +342,9 @@ for (const [what, longName] of [['one word of 80 letters', WORD], ['80 character
           expect(out.x, 'the icons are inside the screen').toBeGreaterThanOrEqual(0)
           expect(first.x + first.width, 'the icons are inside the screen').toBeLessThanOrEqual(size.width)
           expect(brand.x, 'the brand does not run into the icons (on a Hebrew screen it is on the right of them)').toBeGreaterThanOrEqual(first.x + first.width - 1)
-          // the tab bar still has its five tabs on the 360 px screen (#103)
+          // the tab bar still has its four buttons on the 360 px screen (#103)
           const tabs = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button')
-          await expect(tabs).toHaveCount(5)
+          await expect(tabs).toHaveCount(4)
           for (const tab of await tabs.all()) {
             const box = await tab.boundingBox()
             expect(box.x).toBeGreaterThanOrEqual(0)
@@ -353,7 +354,7 @@ for (const [what, longName] of [['one word of 80 letters', WORD], ['80 character
           expect(out.y + out.height, 'the sign-out icon of the side rail is on the screen').toBeLessThanOrEqual(size.height)
           expect(barBox.height, 'the rail is as tall as the screen and no taller').toBeLessThanOrEqual(size.height)
         }
-        expect(await noHorizontalScroll(page), `the committee tab with a long name on ${where}`).toBe(true)
+        expect(await noHorizontalScroll(page), `the settings screen with a long name on ${where}`).toBe(true)
         const nameBox = await nameField(page).boundingBox()
         expect(nameBox.x + nameBox.width).toBeLessThanOrEqual(size.width)
         await expect(nameField(page)).toHaveValue(longName)
@@ -379,7 +380,7 @@ for (const [what, longName] of [['one word of 80 letters', WORD], ['80 character
 
 test('the name field stops at 80 characters, the most the server takes, and the server answers the field it refuses', async ({ page }) => {
   await adminSignIn(page)
-  await page.goto('/admin#committee')
+  await page.goto('/admin#settings')
   await loaded(page)
   await expect(nameField(page)).toHaveAttribute('maxlength', '80')
   // a name that is too long is refused by the server, naming the field (the form never sends one, an old or odd client could)
@@ -391,7 +392,7 @@ test('the name field stops at 80 characters, the most the server takes, and the 
 
 test('the committee is told about a name with a character that cannot be saved, under the name field, and nothing is saved', async ({ page }) => {
   await adminSignIn(page)
-  await page.goto('/admin#committee')
+  await page.goto('/admin#settings')
   await loaded(page)
   await nameField(page).fill('בניין\tהדוגמה')
   await saveButton(page).click()

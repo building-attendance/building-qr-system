@@ -76,7 +76,7 @@ const QUESTION = 'לסגור בלי להציג את התוצאות?'
 test.describe('on a phone', () => {
   test('the History tab keeps its filters in a sheet, so that the first visit is on the first screen of a 360 px phone', async ({ page }) => {
     await page.setViewportSize(PHONE_360)
-    await adminSignIn(page)
+    await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
     await stubScans(page)
     await openHistory(page)
 
@@ -95,7 +95,7 @@ test.describe('on a phone', () => {
   })
 
   test('nothing is applied until "show results"; then the count, the chips, the file, and reset', async ({ page }) => {
-    await adminSignIn(page)
+    await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
     const { asked, lobby } = await stubScans(page)
     await openHistory(page)
     const rows = page.getByRole('listitem')
@@ -171,7 +171,7 @@ test.describe('on a phone', () => {
   })
 
   test('closing the sheet keeps the applied filters; Esc and a tap outside ask first when something was chosen', async ({ page }) => {
-    await adminSignIn(page)
+    await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
     const { asked, basement } = await stubScans(page)
     await openHistory(page)
     const rows = page.getByRole('listitem')
@@ -227,7 +227,7 @@ test.describe('on a phone', () => {
   })
 
   test('a date that is not finished is never applied quietly: the sheet says so, under the field, and keeps the focus there', async ({ page }) => {
-    await adminSignIn(page)
+    await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
     const { asked } = await stubScans(page)
     await openHistory(page)
     await expect(page.getByRole('listitem')).toHaveCount(2)
@@ -281,12 +281,9 @@ test.describe('on a phone', () => {
   })
 
   test('the audit log has the same bar and sheet', async ({ page }) => {
-    await adminSignIn(page)
+    await adminSignIn(page, 'audit') // the audit log is a screen of its own
     const me = (await (await page.request.get('/api/admin/me')).json()).admin
-    await page.goto('/admin#committee')
-    await expect(page.getByRole('heading', { level: 1, name: 'חברי הוועד' })).toBeVisible()
-    await page.getByRole('button', { name: 'יומן פעולות', exact: true }).click()
-    const log = page.getByRole('region', { name: 'יומן פעולות' })
+    const log = page.getByRole('main')
     await expect(log.getByRole('listitem').first()).toBeVisible()
 
     // the bar: no filters are on, the range is every date, and the controls are not on the screen
@@ -328,7 +325,7 @@ test.describe('on a phone', () => {
 })
 
 test('on a computer the filters stay inline and live, each control is in the page once, and the layout follows the width of the window', async ({ page }) => {
-  await adminSignIn(page)
+  await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
   await page.setViewportSize(COMPUTER)
   const { asked, lobby } = await stubScans(page)
   await openHistory(page)
@@ -363,10 +360,9 @@ test('on a computer the filters stay inline and live, each control is in the pag
   await expect(page.getByLabel('מתאריך', { exact: true })).toHaveCount(1)
 
   // the audit log, on a computer: inline, once
-  await page.goto('/admin#committee')
-  await expect(page.getByRole('heading', { level: 1, name: 'חברי הוועד' })).toBeVisible()
-  await page.getByRole('button', { name: 'יומן פעולות', exact: true }).click()
-  const log = page.getByRole('region', { name: 'יומן פעולות' })
+  await page.goto('/admin#audit')
+  await expect(page.getByRole('heading', { level: 1, name: 'יומן פעולות', exact: true })).toBeVisible()
+  const log = page.getByRole('main')
   await expect(log.getByRole('listitem').first()).toBeVisible()
   await expect(opener(page)).toHaveCount(0)
   for (const label of ['מתאריך', 'עד תאריך', 'סוג פעולה', 'חבר ועד']) await expect(page.getByLabel(label, { exact: true })).toHaveCount(1)

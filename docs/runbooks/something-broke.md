@@ -26,7 +26,7 @@ those two services and that check name. A copy uses them under its own names, or
       after, so read the list and not only the e-mails.
    2. **The committee app.** The ("נותני שירות") tab, then the button ("מכשירים") on the provider's card: which phone has
       visits waiting for a long time, runs an old version, or does not report. The ("היסטוריה") tab, then ("סוג") and
-      ("לא נקלטו"): visits that the server refused. The ("ועד") tab, then ("יומן פעולות") at the bottom: who changed what,
+      ("לא נקלטו"): visits that the server refused. The ("יומן פעולות") screen (on a phone, under ("עוד")): who changed what,
       and when.
    3. **Neon's SQL editor.** In your own browser, open the SQL editor of the production project in Neon and run, one at a time,
       the two queries in "Where to look" in [incident.md](incident.md) (part c). They only read. Copy the result to the agent.

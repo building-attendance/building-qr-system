@@ -76,10 +76,17 @@ describe('the same design on a phone and on a computer', () => {
     expect(tools).toContain('label="יציאה"')
   })
 
-  it('the page icons are the same in the side rail and in the bottom bar, at the same size', () => {
-    const sizes = [...app.matchAll(/<NavItem [^>]*className="(a-nav__item|a-tab)" size=\{(\d+)\}/g)].map((m) => `${m[1]}:${m[2]}`)
-    expect(sizes).toEqual(['a-nav__item:24', 'a-tab:24'])
-    expect(app.match(/TABS\.map\(\(t\) => <NavItem/g)).toHaveLength(2) // one list of icons feeds both
+  it('the page icons are the same in the side rail, in the bottom bar and in the sheet under "עוד", at the same size', () => {
+    // in the order of the source: the sheet, then the side rail, then the bar (whose fourth button, "עוד", is not a screen and has its own icon)
+    const sizes = [...app.matchAll(/<NavItem [^\n]*className="(a-nav__item|a-tab)" size=\{(\d+)\}/g)].map((m) => `${m[1]}:${m[2]}`)
+    expect(sizes).toEqual(['a-nav__item:24', 'a-nav__item:24', 'a-tab:24'])
+    expect(app).toContain('<IconMore size={24} />')
+    // one list of screens, with the icon of each, feeds all three: the rail shows both groups, the bar the work group, the sheet the rest
+    expect(app).toContain('const WORK_TABS = TABS.filter(')
+    expect(app).toContain('const MORE_TABS = TABS.filter(')
+    expect(app).toContain('[WORK_TABS, MORE_TABS].map(')
+    expect(app).toContain('WORK_TABS.map((t) => <NavItem')
+    expect(app).toContain('MORE_TABS.map((t) => (')
   })
 
   it('the side rail keeps no text buttons for them (only the page links stay as rows)', () => {
@@ -103,7 +110,7 @@ describe('the tiles and headers of the committee screens', () => {
   it('red is used for exactly one thing, deleting, and every screen that lists things has it', () => {
     const uses = views.flatMap((f) => [...read(f).matchAll(/<IconButton([^>]*tone="danger"[^>]*)/g)].map((m) => [f, m[1]]))
     expect(uses.map(([f]) => f).sort()).toEqual([
-      'AgentView.jsx', 'CommitteeView.jsx', 'HistoryView.jsx', 'PointsView.jsx', 'ProvidersView.jsx',
+      'AgentView.jsx', 'HistoryView.jsx', 'PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx',
     ])
     for (const [f, attrs] of uses) expect(attrs, `${f}: a red button must be a trash can`).toContain('icon={IconTrash}')
   })
@@ -123,7 +130,7 @@ describe('the tiles and headers of the committee screens', () => {
   })
 
   it('removing something that can come back (switching off) uses the same icon on every screen: a circle with a bar', () => {
-    for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'CommitteeView.jsx', 'AgentView.jsx', 'HistoryView.jsx']) {
+    for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx', 'AgentView.jsx', 'HistoryView.jsx']) {
       expect(read(f), f).toMatch(/icon=\{[^}]*IconBan[^}]*\}/)
     }
   })
@@ -133,7 +140,7 @@ describe('the tiles and headers of the committee screens', () => {
   })
 
   it('every page that adds something offers it as the primary round button', () => {
-    for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'CommitteeView.jsx', 'AgentView.jsx']) {
+    for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx', 'AgentView.jsx']) {
       expect(read(f), f).toMatch(/icon=\{IconPlus\}[^>]*tone="primary"/)
     }
   })
