@@ -11,6 +11,10 @@ import { SAMPLE_PROVIDER_NAMES } from '../scripts/sample-data.mjs'
 
 const COMPUTER = { width: 1280, height: 800 }
 
+// The service worker would answer the requests of a page that is loaded again, and a stub (`page.route`) does not see those in WebKit: this spec
+// loads the page again on purpose (a link as the first address of a page, and a reload).
+test.use({ serviceWorkers: 'block' })
+
 test.beforeEach(({ page }) => {
   // The sign-in screen asks /api/admin/me before anyone is signed in: the browser notes that 401 as a console error.
   allowConsoleErrors(page, /status of 401/)

@@ -290,7 +290,7 @@ export default function HistoryView() {
   // The link's provider, while it is not known to be one of ours. It is known when the providers that an earlier visit kept hold it (then
   // it is in `first` already); if not, the list of providers decides, and until it has, the first query waits (a spinner, no list of the
   // wrong provider, no request that names an id the server may refuse). A provider that the list does not hold is dropped, and the other
-  // filters of the link stay. A choice of the person's own, or a newer link, ends the wait.
+  // filters of the link stay. A change that the person makes to the filters, or a newer link, ends the wait.
   const [wanted, setWanted] = useState(() => (link?.provider && first.provider_id !== link.provider ? link.provider : null))
   // The kept list is only the answer of an earlier visit, and it can lack a provider that was added since: it can say "yes", but only
   // an answer of this visit (a different object) can say "no". A request that failed cannot say anything, and the wait ends.
@@ -387,14 +387,14 @@ export default function HistoryView() {
   }
 
   const set = (k, v) => {
-    if (k === 'provider_id') setWanted(null) // the person chose a provider: the link's is not wanted any more
+    setWanted(null) // the person chose: what they chose is the filters now, and the link's provider is not added to it
     setFilters((f) => ({ ...f, [k]: v }))
   }
   // The phone: the sheet's "show results", and a chip's remove button. Both apply at once, with no pause for typing.
   const apply = (next) => {
     setSheet(false)
     if (sameFilters(next, applied)) return // nothing changed: no new query, no loading state
-    if (next.provider_id !== applied.provider_id) setWanted(null)
+    setWanted(null) // as above
     setFilters(next)
     setApplied(next)
   }

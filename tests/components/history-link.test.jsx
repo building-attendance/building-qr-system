@@ -432,6 +432,21 @@ describe('the provider of a link', () => {
     })
   })
 
+  it('is not added over a change that the person makes to another filter while it waits', async () => {
+    const gate = deferred()
+    server({ providersGate: gate })
+    openAt(`#history?provider=${ALMONI.id}`)
+    show()
+    await sleep(50)
+    expect(calls('/admin/scans')).toHaveLength(0)
+    fireEvent.click(screen.getByLabelText('כולל חשבון דמו')) // what they see in the provider field is "everyone", and that is what they keep
+    await act(async () => { gate.resolve() })
+    await waitFor(() => expect(lastAsked('/admin/scans')).toBeTruthy(), WAIT)
+    await sleep(600)
+    expect(lastAsked('/admin/scans')).toEqual({ from: FROM, to: TO, outcome: OUTCOME_ACCEPTED, include_demo: 'true', limit: '100' })
+    expect(screen.getByLabelText('נותן שירות').value).toBe('')
+  })
+
   it('shows as a chip on a phone, once it is known', async () => {
     layout(true)
     const gate = deferred()
