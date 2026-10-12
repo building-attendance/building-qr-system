@@ -76,7 +76,7 @@ function WhoCell({ provider: p }) {
 function WeekTable({ days, week }) {
   const titleId = useId()
   const scroller = useRef(null)
-  const today = days.at(-1)
+  const today = days[days.length - 1]
   useEffect(() => {
     const box = scroller.current
     // Start at today, the end of the row: scrollLeft counts toward the left in a right-to-left box, so the sign follows the direction.
@@ -137,7 +137,7 @@ function Cards({ days, counts }) {
     <div className="a-grid a-grid--stats">
       <StatCard href="#providers" value={providers.active} label="נותני שירות פעילים" note={`מתוך ${providers.total}`} />
       <StatCard href="#points" value={points.active} label="נקודות פעילות" note={`מתוך ${points.total}`} />
-      <StatCard href={historyLink({ outcome: 'not_counted', from: days[0], to: days.at(-1) })} value={notCounted} label="ביקורים שלא נקלטו ב-7 הימים" />
+      <StatCard href={historyLink({ outcome: 'not_counted', from: days[0], to: days[days.length - 1] })} value={notCounted} label="ביקורים שלא נקלטו ב-7 הימים" />
       {waiting.phones > 0 && (
         <StatCard href="#providers" value={waiting.phones} label="טלפונים עם ביקורים שממתינים לשליחה" note={`${visitsText(waiting.visits)} בסך הכול`} />
       )}
@@ -170,7 +170,7 @@ export default function HomeView({ admin }) {
   // A screen that stays open looks at the clock once a minute: the greeting follows the hour, and when the building's day has moved on
   // from the last column, the numbers are asked for again, so that "today" is today.
   const shownToday = useRef(null)
-  shownToday.current = data?.days.at(-1) ?? null
+  shownToday.current = data ? data.days[data.days.length - 1] : null
   useEffect(() => {
     const timer = setInterval(() => {
       setHour(buildingHour())
