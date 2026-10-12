@@ -12,7 +12,7 @@ import { devices } from '@playwright/test'
 import { test, expect, he, POINTS, PEOPLE, signIn, adminSignIn, allowConsoleErrors, OFFLINE_NOISE } from '../../e2e/fixtures.js'
 import { MAX_IMAGE_BYTES, SCREENSHOTS_DIR, SCREENSHOTS_SCHEMA, assertLocalScratch } from './settings.mjs'
 
-// The heading of a day in the History tab: the date (DD/MM/YYYY) and how many visits (the screen draws the count first, in Hebrew).
+// The heading of a day in the history: the date (DD/MM/YYYY) and how many visits (the screen draws the count first, in Hebrew).
 const DAY_HEADING = /^\d{2}\/\d{2}\/\d{4} · \d+$/
 const OUT = fileURLToPath(new URL(`../../${SCREENSHOTS_DIR}/`, import.meta.url))
 
@@ -97,7 +97,7 @@ test.describe('the committee app, on a phone', () => {
   })
 
   test('points and history', async ({ page }) => {
-    await adminSignIn(page)
+    await adminSignIn(page, 'points')
     await expect(page.getByRole('article').filter({ hasText: 'לובי' })).toBeVisible()
     await shot(page, 'committee-phone-points.png')
 
@@ -118,7 +118,7 @@ test.describe('the committee app, on a computer', () => {
   })
 
   test('points, history and the help', async ({ page }) => {
-    await adminSignIn(page)
+    await adminSignIn(page, 'points')
     await expect(page.getByRole('article').filter({ hasText: 'לובי' })).toBeVisible()
     await shot(page, 'committee-computer-points.png')
 
@@ -127,18 +127,15 @@ test.describe('the committee app, on a computer', () => {
     await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
     await shot(page, 'committee-computer-history.png')
 
-    await page.goto('/admin#committee')
-    await expect(page.getByRole('heading', { level: 1, name: 'חברי הוועד' })).toBeVisible()
-    await page.getByRole('button', { name: 'איך עובדים עם המערכת' }).click()
-    const help = page.getByRole('region', { name: 'איך עובדים עם המערכת' })
-    await expect(help.getByRole('heading', { level: 3, name: 'נקודות ושלטי QR' })).toBeVisible()
-    await scrollTo(help, 24)
+    await page.goto('/admin#help')
+    await expect(page.getByRole('heading', { level: 1, name: 'איך עובדים עם המערכת', exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: 'נקודות ושלטי QR' })).toBeVisible()
     await shot(page, 'committee-computer-help.png')
   })
 
   test('the dark theme', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' })
-    await adminSignIn(page)
+    await adminSignIn(page, 'points')
     await expect(page.getByRole('article').filter({ hasText: 'לובי' })).toBeVisible()
     await shot(page, 'committee-computer-points-dark.png')
   })

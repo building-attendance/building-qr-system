@@ -451,18 +451,20 @@ function committeeScreens(width) {
 }
 
 /**
- * The sheet that the fourth button of the tab bar opens, over the settings (which it marks as the current screen). It exists where the
- * tab bar does, below 1024 px: at 360 px, and at 768 px, where it stays at the bottom of the screen, 480 px wide.
+ * The sheet that the fourth button of the tab bar opens, over the help (which it marks as the current screen; the help is text only, so
+ * no mask lands on the sheet). It exists where the tab bar does, below 1024 px: at 360 px, and at 768 px, where it stays at the bottom
+ * of the screen, 480 px wide.
  */
 function committeeSheet(width) {
   test('the sheet under "עוד"', async ({ page }) => {
     await stopClock(page)
-    await committeeSignedIn(page, 'settings')
-    await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
+    await committeeSignedIn(page, 'help')
+    await expect(page.getByRole('heading', { level: 2, name: 'כשטלפון תקוע' })).toBeVisible()
     await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
     const sheet = page.getByRole('dialog', { name: 'עוד', exact: true })
     await expect(sheet).toBeVisible()
-    await expect(sheet.getByRole('button', { name: 'הגדרות', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(sheet.getByRole('button', { name: 'איך עובדים עם המערכת', exact: true })).toHaveAttribute('aria-current', 'page')
+    await page.mouse.move(0, 0) // the pointer is where "עוד" was tapped, over the last row of the sheet: its hover look is not what the picture is for
     await shotBothThemes(page, `committee-${width}-sheet`, { whole: false })
   })
 }
