@@ -48,7 +48,7 @@ occurs, or names a screen that is not scanned, fails. Fix a violation rather tha
 ## Visual regression
 
 `e2e/visual.spec.js` takes a picture of the key screens and compares it with the baseline image in
-`e2e/__screenshots__/visual.spec.js/` (`name.png`; 72 files, about 125 KB at most each). It is there to catch design drift
+`e2e/__screenshots__/visual.spec.js/` (`name.png`; 72 files, about 140 KB at most each). It is there to catch design drift
 that no behaviour test sees, and to show the owner the exact image diff of every intended change to a screen. It covers,
 each in the light and the dark theme:
 
