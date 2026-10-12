@@ -1,3 +1,5 @@
+import { UUID_RE } from '../shared/contract.js'
+
 /**
  * A request as the handlers see it: a Node request, with the parsed JSON in `body` (on Vercel `body` is a lazy getter that
  * throws on malformed JSON; the dev server sets it eagerly, see readBody in server/router.js).
@@ -124,7 +126,7 @@ export function assertSafeWrite(req) {
   }
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+/** True for the id of a row (the shape is UUID_RE in shared/contract.js, which the committee app reads too). */
 export const isUuid = (v) => typeof v === 'string' && UUID_RE.test(v)
 
 /** Returns the id in canonical lower-case (Postgres treats upper/lower case ids as the same row). */

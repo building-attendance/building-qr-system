@@ -10,6 +10,7 @@ import { test, expect, adminSignIn, allowConsoleErrors } from './fixtures.js'
 import { SAMPLE_PROVIDER_NAMES } from '../scripts/sample-data.mjs'
 
 const COMPUTER = { width: 1280, height: 800 }
+const DELETED_PROVIDER = '00000000-0000-4000-8000-0000000000de' // well formed, and not in the list of providers: the id of a provider that the committee deleted
 
 // The service worker would answer the requests of a page that is loaded again, and a stub (`page.route`) does not see those in WebKit: this spec
 // loads the page again on purpose (a link as the first address of a page, and a reload).
@@ -90,8 +91,46 @@ test('a link followed on the page opens History with its filters, in the layout 
   await expect(page).toHaveURL(/#points$/)
 })
 
+test('a link to a provider that the list of providers does not hold (a deleted one) keeps the provider filter, and says so', async ({ page }) => {
+  await adminSignIn(page, 'points')
+  const { asked } = await stubScans(page) // the stub answers an id that it does not know with no visits, as the server does
+
+  await page.goto(`/admin#history?provider=${DELETED_PROVIDER}&from=2026-03-01&to=2026-03-31`)
+  await expect(historyHeading(page)).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'אין נוכחויות בטווח הזה' })).toBeVisible()
+  await expect(rows(page)).toHaveCount(0) // never the visits of everyone
+  await expect(page).toHaveURL(/#history$/)
+  await page.waitForTimeout(600)
+  expect(asked, 'one request').toHaveLength(1)
+  expect(Object.fromEntries(asked[0])).toMatchObject({ provider_id: DELETED_PROVIDER, from: '2026-03-01', to: '2026-03-31' })
+  await expect(page.getByRole('button', { name: 'הסרת סינון: נותן שירות שנמחק' })).toBeVisible()
+
+  // the chip removes the filter, and then every provider's visits are asked for and shown
+  await page.getByRole('button', { name: 'הסרת סינון: נותן שירות שנמחק' }).click()
+  await expect(rows(page)).toHaveCount(2)
+  expect(asked.at(-1).get('provider_id')).toBeNull()
+})
+
 test.describe('on a computer', () => {
   test.use({ viewport: COMPUTER })
+
+  test('a provider that the list does not hold has an option of its own in the select, which goes with another choice', async ({ page }) => {
+    await adminSignIn(page, 'points')
+    const { asked } = await stubScans(page)
+
+    await page.goto(`/admin#history?provider=${DELETED_PROVIDER}`)
+    await expect(historyHeading(page)).toBeVisible()
+    const select = page.getByLabel('נותן שירות')
+    await expect(select).toHaveValue(DELETED_PROVIDER)
+    await expect(select.locator('option:checked')).toHaveText('נותן שירות שנמחק')
+    await expect(rows(page)).toHaveCount(0)
+    expect(asked.at(-1).get('provider_id')).toBe(DELETED_PROVIDER)
+
+    await select.selectOption({ label: 'כולם' })
+    await expect(rows(page)).toHaveCount(2)
+    await expect(select.locator('option', { hasText: 'נותן שירות שנמחק' })).toHaveCount(0)
+    expect(asked.at(-1).get('provider_id')).toBeNull()
+  })
 
   test('a page that is loaded with a link shows its filters in the fields, and a reload opens the defaults', async ({ page }) => {
     await adminSignIn(page, 'points')

@@ -5,10 +5,11 @@
 // `matchMedia` (jsdom has none, which `usePhoneLayout` reads as a computer).
 //
 // What these tests hold: the first request already carries the link's filters (there is no request of the defaults before it, and nothing
-// waits for the pause of 350 ms); a parameter that is not valid is left out quietly and its filter keeps its default; a provider that
-// the list of providers does not hold is dropped before any request names it; the address becomes a plain `#history` afterwards, without
-// the screen changing; a link followed while the screen is open is applied the same way; and the transitions that a filter bar has
-// (the window crossing 1024 px, a date half typed, a sheet that is open, the back button, a reload).
+// waits for the pause of 350 ms); a parameter that is not valid is left out quietly and its filter keeps its default; a provider filter
+// is never widened (the id of a link is applied whenever it is shaped like an id, whether or not the list of providers holds it, or
+// loaded, and the select and the chip say so; only an id that is not shaped like one is left out, so no request carries it); the address
+// becomes a plain `#history` afterwards, without the screen changing; a link followed while the screen is open is applied the same way;
+// and the transitions that a filter bar has (the window crossing 1024 px, a date half typed, a sheet that is open, the back button, a reload).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, within, cleanup, act } from '@testing-library/react'
 import HistoryView from '../../src/admin/views/HistoryView.jsx'
@@ -41,7 +42,8 @@ function layout(startAsPhone) {
 const POINT = { id: '11111111-1111-4111-8111-111111111111', name: 'לובי' }
 const PLONI = { id: '33333333-3333-4333-8333-333333333333', company: 'ניקיון', contact_name: 'פלוני' }
 const ALMONI = { id: '55555555-5555-4555-8555-555555555555', company: 'גינון', contact_name: 'אלמוני' }
-const UNKNOWN = '99999999-9999-4999-8999-999999999999' // well formed, and not a provider of this building
+const UNKNOWN = '99999999-9999-4999-8999-999999999999' // well formed, and no provider of this building has it, now or before
+const GONE = { id: '77777777-7777-4777-8777-777777777777' } // a provider that the committee deleted: its visits stay, the list of providers lacks it
 const PROVIDERS = [PLONI, ALMONI]
 
 // A fixed "today", so that the default week is known: 29/09/2026 to 05/10/2026. Only the clock of Date is faked: the pause before a query
@@ -54,7 +56,7 @@ const visit = (id, provider, name) => ({
   provider_id: provider.id, provider_name: name, outcome: OUTCOME_ACCEPTED, source: SOURCE_ONLINE,
   distance_m: null, flags: [], voided: false, void_reason: null,
 })
-const SCANS = [visit('s1', PLONI, 'ביקור של פלוני'), visit('s2', ALMONI, 'ביקור של אלמוני')]
+const SCANS = [visit('s1', PLONI, 'ביקור של פלוני'), visit('s2', ALMONI, 'ביקור של אלמוני'), visit('s3', GONE, 'ביקור של ספק שנמחק')]
 
 const WAIT = { timeout: 4000 }
 const calls = (prefix) => api.mock.calls.map(([path]) => path).filter((path) => path.startsWith(prefix))
@@ -317,146 +319,294 @@ describe('a parameter that is not valid', () => {
 })
 
 // ---- the provider ----------------------------------------------------------------------------------------------------------------
+// A provider filter is never widened (HistoryView.jsx): the id of a link is applied whenever it is shaped like an id, whether or not the
+// list of providers holds it, or loaded at all. A provider that the committee deleted keeps its visits, and the Home screen links its row
+// here; showing every provider's visits under that link would be wrong data. What the list does not know is said in the select and in the
+// chip, with the same words.
+
+const DELETED = 'נותן שירות שנמחק' // the list loaded and does not hold the id
+const UNLISTED = 'נותן שירות שאינו ברשימה' // the list could not be loaded
+const LOADING = 'טוען…' // the select, while the list is on its way
+const providerSelect = () => screen.getByLabelText('נותן שירות')
+const selectedText = () => providerSelect().options[providerSelect().selectedIndex].textContent
+const providerOptions = () => [...providerSelect().options].map((o) => o.textContent)
 
 describe('the provider of a link', () => {
-  describe('when an earlier visit kept the list of providers', () => {
-    it('is applied in the first render when the list holds it', async () => {
-      knownProviders()
-      server({ providersGate: deferred() }) // the new answer never comes: the kept list decides
-      openAt(`#history?provider=${PLONI.id}`)
-      show()
-      await listed('ביקור של פלוני')
-      expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: PLONI.id, outcome: OUTCOME_ACCEPTED, limit: '100' }])
-    })
+  it('is applied in the first render when the list that an earlier visit kept holds it', async () => {
+    knownProviders()
+    server({ providersGate: deferred() }) // the new answer never comes: the request does not wait for it
+    openAt(`#history?provider=${PLONI.id}`)
+    show()
+    await listed('ביקור של פלוני')
+    expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: PLONI.id, outcome: OUTCOME_ACCEPTED, limit: '100' }])
+    expect(selectedText()).toBe('פלוני')
+  })
 
-    it('is dropped when neither the kept list nor the new one holds it, and no request ever names it', async () => {
-      knownProviders()
-      server()
-      openAt(`#history?provider=${UNKNOWN}&from=2026-09-01`)
-      show()
-      await listed('ביקור של פלוני')
-      await listed('ביקור של אלמוני')
-      expect(asked('/admin/scans'), 'one request, without the unknown id, with the rest of the link').toEqual([
-        { from: '2026-09-01', to: TO, outcome: OUTCOME_ACCEPTED, limit: '100' },
-      ])
-      expect(api.mock.calls.flat().join(' ')).not.toContain(UNKNOWN)
-      expect(screen.getByLabelText('נותן שירות').value).toBe('')
-      expect(screen.queryByRole('alert')).toBeNull()
-      await sleep(500)
-      expect(calls('/admin/scans')).toHaveLength(1)
-    })
+  it('is applied for a deleted provider whose visits remain: the request carries it, and the list shows only that provider\'s rows', async () => {
+    knownProviders()
+    server()
+    openAt(`#history?provider=${GONE.id}&from=2026-09-01`)
+    show()
+    await listed('ביקור של ספק שנמחק')
+    expect(asked('/admin/scans')).toEqual([{ from: '2026-09-01', to: TO, provider_id: GONE.id, outcome: OUTCOME_ACCEPTED, limit: '100' }])
+    expect(screen.queryByText('ביקור של פלוני')).toBeNull()
+    expect(screen.queryByText('ביקור של אלמוני')).toBeNull()
+    expect(screen.queryByRole('alert')).toBeNull()
+    expect(providerSelect().value, 'the select does not say "everyone"').toBe(GONE.id)
+    expect(selectedText()).toBe(DELETED)
+    expect(providerOptions()).toEqual(['כולם', DELETED, 'פלוני', 'אלמוני'])
+    await sleep(500)
+    expect(calls('/admin/scans'), 'one request').toHaveLength(1)
+  })
 
-    it('waits for the new answer when the kept list lacks it (a provider added since), and applies it when the new list holds it', async () => {
-      knownProviders([PLONI]) // an older list
+  it('is applied for an id that no list and no visit knows: the list is empty, never everyone\'s', async () => {
+    knownProviders()
+    server()
+    openAt(`#history?provider=${UNKNOWN}`)
+    show()
+    await listed('אין נוכחויות בטווח הזה')
+    expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: UNKNOWN, outcome: OUTCOME_ACCEPTED, limit: '100' }])
+    expect(screen.queryByText(/ביקור של/)).toBeNull()
+    expect(selectedText()).toBe(DELETED)
+  })
+
+  it('is applied when the list of providers cannot be loaded, and the select says that it cannot tell', async () => {
+    server({ providersFail: true })
+    openAt(`#history?provider=${PLONI.id}&outcome=all`)
+    show()
+    await listed('ביקור של פלוני')
+    expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: PLONI.id, outcome: 'all', limit: '100' }])
+    expect(screen.queryByText('ביקור של אלמוני')).toBeNull()
+    await waitFor(() => expect(selectedText()).toBe(UNLISTED), WAIT)
+    expect(providerOptions()).toEqual(['כולם', UNLISTED])
+    expect(providerSelect().value).toBe(PLONI.id)
+    await sleep(500)
+    expect(calls('/admin/scans')).toHaveLength(1)
+  })
+
+  it('asks at once, before the list of providers has answered, and says "loading" until it has', async () => {
+    const gate = deferred()
+    server({ providersGate: gate })
+    openAt(`#history?provider=${ALMONI.id}&outcome=all`)
+    show()
+    await listed('ביקור של אלמוני') // the request did not wait for the providers
+    expect(calls('/admin/providers')).toHaveLength(1)
+    expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: ALMONI.id, outcome: 'all', limit: '100' }])
+    expect(screen.queryByText('ביקור של פלוני')).toBeNull()
+    expect(providerSelect().value).toBe(ALMONI.id)
+    expect(selectedText()).toBe(LOADING)
+    await act(async () => { gate.resolve() })
+    await waitFor(() => expect(selectedText()).toBe('אלמוני'), WAIT)
+    expect(providerOptions()).toEqual(['כולם', 'פלוני', 'אלמוני'])
+    await sleep(500)
+    expect(calls('/admin/scans'), 'and asks once').toHaveLength(1)
+  })
+
+  it('is kept when the list that was kept lacks it (a provider added since), and gets its name when the new list holds it', async () => {
+    knownProviders([PLONI]) // an older list
+    const gate = deferred()
+    server({ providersGate: gate }) // the new list has Almoni
+    openAt(`#history?provider=${ALMONI.id}`)
+    show()
+    await listed('ביקור של אלמוני')
+    expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: ALMONI.id, outcome: OUTCOME_ACCEPTED, limit: '100' }])
+    expect(selectedText(), 'what the older list can tell').toBe(DELETED)
+    await act(async () => { gate.resolve() })
+    await waitFor(() => expect(selectedText()).toBe('אלמוני'), WAIT)
+    expect(providerOptions()).toEqual(['כולם', 'פלוני', 'אלמוני'])
+    expect(calls('/admin/scans')).toHaveLength(1)
+  })
+
+  it('does not wait for the list of providers when the link names none', async () => {
+    server({ providersGate: deferred() })
+    openAt('#history?outcome=all')
+    show()
+    await listed('ביקור של פלוני')
+    expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, outcome: 'all', limit: '100' }])
+  })
+
+  it('takes the id in capitals, asks for it in lower case as the server reads it, and finds it in the list', async () => {
+    const SHOUTED = { id: 'abcdef01-2345-4678-89ab-cdef01234567', company: 'שרברבות', contact_name: 'מתקין' }
+    knownProviders([PLONI, SHOUTED])
+    server({ providers: [PLONI, SHOUTED] })
+    openAt(`#history?provider=${SHOUTED.id.toUpperCase()}`)
+    show()
+    await waitFor(() => expect(calls('/admin/scans')).toHaveLength(1), WAIT)
+    expect(lastAsked('/admin/scans').provider_id).toBe(SHOUTED.id)
+    expect(providerSelect().value).toBe(SHOUTED.id)
+    expect(selectedText()).toBe('מתקין')
+  })
+
+  it.each([
+    ['letters', 'not-an-id'],
+    ['an id one digit short', '33333333-3333-4333-8333-33333333333'],
+    ['an id with a digit too many', '33333333-3333-4333-8333-3333333333333'],
+    ['a character that is not hexadecimal', '3333333g-3333-4333-8333-333333333333'],
+    ['an id without its hyphens', '33333333333343338333333333333333'],
+    ['an id with a space before it', ' 33333333-3333-4333-8333-333333333333'],
+    ['an id in braces', '{33333333-3333-4333-8333-333333333333}'],
+    ['an id with a prefix', 'urn:uuid:33333333-3333-4333-8333-333333333333'],
+    ['two ids', '33333333-3333-4333-8333-333333333333,55555555-5555-4555-8555-555555555555'],
+    ['a number', '12345'],
+  ])('is left out, and no request carries it, when it is %s', async (_what, bad) => {
+    knownProviders()
+    server()
+    openAt(`#history?provider=${encodeURIComponent(bad)}&to=2026-10-03`)
+    show()
+    await listed('ביקור של פלוני')
+    expect(asked('/admin/scans'), 'the rest of the link is applied').toEqual([{ from: FROM, to: '2026-10-03', outcome: OUTCOME_ACCEPTED, limit: '100' }])
+    expect(providerSelect().value).toBe('')
+    expect(providerOptions()).toEqual(['כולם', 'פלוני', 'אלמוני'])
+    expect(screen.queryByRole('alert')).toBeNull()
+    await sleep(500)
+    expect(asked('/admin/scans')).toHaveLength(1)
+    expect(window.location.hash).toBe('#history')
+  })
+
+  it('has an option of its own in the select only while it is the filter: choosing another provider takes it away', async () => {
+    knownProviders()
+    server()
+    openAt(`#history?provider=${GONE.id}`)
+    show()
+    await listed('ביקור של ספק שנמחק')
+    expect(providerOptions()).toContain(DELETED)
+    fireEvent.change(providerSelect(), { target: { value: ALMONI.id } })
+    await listed('ביקור של אלמוני')
+    expect(lastAsked('/admin/scans').provider_id).toBe(ALMONI.id)
+    expect(providerOptions()).toEqual(['כולם', 'פלוני', 'אלמוני'])
+    expect(selectedText()).toBe('אלמוני')
+  })
+
+  it('has an option of its own in the select only while it is the filter: choosing "everyone" takes it away', async () => {
+    knownProviders()
+    server()
+    openAt(`#history?provider=${GONE.id}`)
+    show()
+    await listed('ביקור של ספק שנמחק')
+    fireEvent.change(providerSelect(), { target: { value: '' } })
+    await listed('ביקור של אלמוני')
+    expect(screen.getByText('ביקור של פלוני')).toBeTruthy()
+    expect(lastAsked('/admin/scans').provider_id).toBeUndefined()
+    expect(providerOptions()).toEqual(['כולם', 'פלוני', 'אלמוני'])
+    expect(selectedText()).toBe('כולם')
+  })
+
+  it('stays the filter when the person changes another filter', async () => {
+    knownProviders()
+    server()
+    openAt(`#history?provider=${GONE.id}`)
+    show()
+    await listed('ביקור של ספק שנמחק')
+    fireEvent.click(screen.getByLabelText('כולל חשבון דמו'))
+    await waitFor(() => expect(lastAsked('/admin/scans').include_demo).toBe('true'), WAIT)
+    expect(lastAsked('/admin/scans')).toMatchObject({ provider_id: GONE.id, include_demo: 'true' })
+    expect(selectedText()).toBe(DELETED)
+    expect(screen.queryByText('ביקור של פלוני')).toBeNull()
+  })
+
+  it('is on the file of visits too: the link of the Excel export carries it', async () => {
+    knownProviders()
+    server()
+    openAt(`#history?provider=${GONE.id}`)
+    show()
+    await listed('ביקור של ספק שנמחק')
+    expect(screen.getByRole('link', { name: 'ייצוא ל-Excel' }).getAttribute('href')).toContain(`provider_id=${GONE.id}`)
+  })
+
+  describe('on a phone, the chip', () => {
+    it('names a provider that the list holds, once the list has answered, and says only what it is about meanwhile', async () => {
+      layout(true)
       const gate = deferred()
-      server({ providersGate: gate }) // the new list has Almoni
+      server({ providersGate: gate })
       openAt(`#history?provider=${ALMONI.id}`)
       show()
-      await sleep(100)
-      expect(calls('/admin/scans'), 'nothing is asked for while it is not known whether the kept list is out of date').toHaveLength(0)
-      expect(screen.getByRole('status'), 'the list is on its way').toBeTruthy()
-      expect(screen.queryByText('ביקור של פלוני'), 'no list of the wrong filters').toBeNull()
-      await act(async () => { gate.resolve() })
       await listed('ביקור של אלמוני')
-      expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: ALMONI.id, outcome: OUTCOME_ACCEPTED, limit: '100' }])
-      expect(screen.getByLabelText('נותן שירות').value).toBe(ALMONI.id)
-    })
-  })
-
-  describe('when nothing was kept', () => {
-    it('waits for the list of providers, then asks once, with the provider', async () => {
-      const gate = deferred()
-      server({ providersGate: gate })
-      openAt(`#history?provider=${ALMONI.id}&outcome=all`)
-      show()
-      await sleep(100)
-      expect(calls('/admin/providers')).toHaveLength(1)
-      expect(calls('/admin/scans'), 'nothing is asked for before the provider is known to be one of ours').toHaveLength(0)
-      expect(screen.getByRole('status')).toBeTruthy()
-      expect(screen.queryByText('אין נוכחויות בטווח הזה'), 'and the list is not empty-looking either').toBeNull()
+      expect(chips()).toEqual(['נותן שירות'])
       await act(async () => { gate.resolve() })
-      await listed('ביקור של אלמוני')
-      expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: ALMONI.id, outcome: 'all', limit: '100' }])
-      expect(screen.queryByText('ביקור של פלוני')).toBeNull()
-      await sleep(500)
-      expect(calls('/admin/scans')).toHaveLength(1)
+      await waitFor(() => expect(chips()).toEqual(['נותן שירות: אלמוני']), WAIT)
     })
 
-    it('drops a provider that is not in the list without a request that names it, and without showing the wrong list', async () => {
-      const gate = deferred()
-      server({ providersGate: gate })
-      openAt(`#history?provider=${UNKNOWN}&outcome=all&to=2026-10-03`)
+    it('says that the provider was deleted, with the words of the select, and removing it asks for every provider at once', async () => {
+      layout(true)
+      knownProviders()
+      server()
+      openAt(`#history?provider=${GONE.id}`)
       show()
-      await sleep(100)
-      expect(calls('/admin/scans')).toHaveLength(0)
-      expect(screen.queryByText('ביקור של פלוני')).toBeNull()
-      await act(async () => { gate.resolve() })
+      await listed('ביקור של ספק שנמחק')
+      expect(chips()).toEqual([DELETED])
+      expect(screen.getByRole('button', { name: `הסרת סינון: ${DELETED}` })).toBeTruthy()
+      expect(opener().textContent).toMatch(/^סינון\s*1\s*פעילים$/)
+      expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: GONE.id, outcome: OUTCOME_ACCEPTED, limit: '100' }])
+      fireEvent.click(screen.getByRole('button', { name: `הסרת סינון: ${DELETED}` }))
       await listed('ביקור של פלוני')
-      expect(asked('/admin/scans')).toEqual([{ from: FROM, to: '2026-10-03', outcome: 'all', limit: '100' }])
-      expect(api.mock.calls.flat().join(' ')).not.toContain(UNKNOWN)
-      expect(screen.getByLabelText('נותן שירות').value).toBe('')
-      expect(screen.getByLabelText('סוג').value, 'the rest of the link stays').toBe('all')
-      expect(screen.queryByRole('alert')).toBeNull()
+      expect(lastAsked('/admin/scans')).toEqual({ from: FROM, to: TO, outcome: OUTCOME_ACCEPTED, limit: '100' })
+      expect(chips()).toEqual([])
     })
 
-    it('drops it, and asks, when the list of providers cannot be had', async () => {
+    it('says that the list could not be loaded when it could not', async () => {
+      layout(true)
       server({ providersFail: true })
-      openAt(`#history?provider=${PLONI.id}&outcome=all`)
-      show()
-      await listed('ביקור של פלוני')
-      expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, outcome: 'all', limit: '100' }])
-    })
-
-    it('does not wait for the list of providers when the link names none', async () => {
-      server({ providersGate: deferred() })
-      openAt('#history?outcome=all')
-      show()
-      await listed('ביקור של פלוני')
-      expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, outcome: 'all', limit: '100' }])
-    })
-
-    it('stops waiting when the person chooses a provider themselves, and the link\'s is not applied over it', async () => {
-      const gate = deferred()
-      server({ providersGate: gate })
-      knownProviders([ALMONI]) // the kept list is out of date (it lacks Ploni): the link's provider waits for the new one
       openAt(`#history?provider=${PLONI.id}`)
       show()
-      await sleep(50)
-      expect(calls('/admin/scans')).toHaveLength(0)
-      fireEvent.change(screen.getByLabelText('נותן שירות'), { target: { value: ALMONI.id } })
-      await listed('ביקור של אלמוני')
-      await act(async () => { gate.resolve() })
-      await sleep(600)
-      expect(lastAsked('/admin/scans').provider_id).toBe(ALMONI.id)
-      expect(screen.getByLabelText('נותן שירות').value).toBe(ALMONI.id)
+      await listed('ביקור של פלוני')
+      await waitFor(() => expect(chips()).toEqual([UNLISTED]), WAIT)
+      expect(screen.getByRole('button', { name: `הסרת סינון: ${UNLISTED}` })).toBeTruthy()
+    })
+
+    it('has the extra option in the sheet, selected, and it goes with another choice', async () => {
+      layout(true)
+      knownProviders()
+      server()
+      openAt(`#history?provider=${GONE.id}`)
+      show()
+      await listed('ביקור של ספק שנמחק')
+      fireEvent.click(opener())
+      const select = within(sheet()).getByLabelText('נותן שירות')
+      expect(select.value).toBe(GONE.id)
+      expect(select.options[select.selectedIndex].textContent).toBe(DELETED)
+      fireEvent.change(select, { target: { value: '' } })
+      expect([...select.options].map((o) => o.textContent)).toEqual(['כולם', 'פלוני', 'אלמוני'])
+      fireEvent.click(within(sheet()).getByRole('button', { name: 'הצגת תוצאות' }))
+      await listed('ביקור של פלוני')
+      expect(lastAsked('/admin/scans').provider_id).toBeUndefined()
+      expect(chips()).toEqual([])
+    })
+
+    it('keeps the provider when the sheet is closed without a choice', async () => {
+      layout(true)
+      knownProviders()
+      server()
+      openAt(`#history?provider=${GONE.id}`)
+      show()
+      await listed('ביקור של ספק שנמחק')
+      fireEvent.click(opener())
+      fireEvent.click(within(sheet()).getByRole('button', { name: 'סגירה' }))
+      expect(chips()).toEqual([DELETED])
+      expect(screen.queryByText('ביקור של פלוני')).toBeNull()
+      expect(calls('/admin/scans')).toHaveLength(1)
     })
   })
 
-  it('is not added over a change that the person makes to another filter while it waits', async () => {
-    const gate = deferred()
-    server({ providersGate: gate })
-    openAt(`#history?provider=${ALMONI.id}`)
-    show()
-    await sleep(50)
-    expect(calls('/admin/scans')).toHaveLength(0)
-    fireEvent.click(screen.getByLabelText('כולל חשבון דמו')) // what they see in the provider field is "everyone", and that is what they keep
-    await act(async () => { gate.resolve() })
-    await waitFor(() => expect(lastAsked('/admin/scans')).toBeTruthy(), WAIT)
-    await sleep(600)
-    expect(lastAsked('/admin/scans')).toEqual({ from: FROM, to: TO, outcome: OUTCOME_ACCEPTED, include_demo: 'true', limit: '100' })
-    expect(screen.getByLabelText('נותן שירות').value).toBe('')
-  })
+  describe('on a computer, the select', () => {
+    it('says that the provider was deleted', async () => {
+      layout(false)
+      knownProviders()
+      server()
+      openAt(`#history?provider=${GONE.id}`)
+      show()
+      await listed('ביקור של ספק שנמחק')
+      expect(screen.queryByRole('button', { name: /^סינון/ })).toBeNull()
+      expect(selectedText()).toBe(DELETED)
+    })
 
-  it('shows as a chip on a phone, once it is known', async () => {
-    layout(true)
-    const gate = deferred()
-    server({ providersGate: gate })
-    openAt(`#history?provider=${ALMONI.id}`)
-    show()
-    await sleep(50)
-    await act(async () => { gate.resolve() })
-    await listed('ביקור של אלמוני')
-    expect(chips()).toEqual(['נותן שירות: אלמוני'])
+    it('says that the list could not be loaded when it could not', async () => {
+      layout(false)
+      server({ providersFail: true })
+      openAt(`#history?provider=${PLONI.id}`)
+      show()
+      await listed('ביקור של פלוני')
+      await waitFor(() => expect(selectedText()).toBe(UNLISTED), WAIT)
+    })
   })
 })
 
@@ -583,20 +733,37 @@ describe('a link followed while the screen is open', () => {
     expect(screen.getByLabelText('סוג').value).toBe('not_counted')
   })
 
-  it('drops what is not valid in it, a provider that is not in the list included, and still applies the rest', async () => {
+  it('drops what is not valid in it, a provider id that is not shaped like an id included, and still applies the rest', async () => {
     knownProviders()
     server()
     openAt('#history')
     show()
     await listed('ביקור של פלוני')
-    await follow(`#history?provider=${UNKNOWN}&from=2026-02-30&to=2026-10-03&outcome=all`)
+    await follow('#history?provider=not-an-id&from=2026-02-30&to=2026-10-03&outcome=all')
     await waitFor(() => expect(lastAsked('/admin/scans')).toEqual({ from: FROM, to: '2026-10-03', outcome: 'all', limit: '100' }), WAIT)
-    expect(api.mock.calls.flat().join(' ')).not.toContain(UNKNOWN)
+    expect(api.mock.calls.flat().join(' ')).not.toContain('not-an-id')
     expect(screen.queryByRole('alert')).toBeNull()
     expect(window.location.hash).toBe('#history')
   })
 
-  it('waits for the providers, as an opening link does, when the screen has only just opened and they have not answered', async () => {
+  it('keeps a provider that the list does not hold (a deleted one, whose visits remain), and shows only its visits', async () => {
+    knownProviders()
+    server()
+    openAt('#history')
+    show()
+    await listed('ביקור של פלוני')
+    const before = calls('/admin/scans').length
+    await follow(`#history?provider=${GONE.id}&from=2026-09-01&to=2026-10-03&outcome=all`)
+    await listed('ביקור של ספק שנמחק')
+    expect(calls('/admin/scans')).toHaveLength(before + 1)
+    expect(lastAsked('/admin/scans')).toEqual({ from: '2026-09-01', to: '2026-10-03', provider_id: GONE.id, outcome: 'all', limit: '100' })
+    expect(screen.queryByText('ביקור של פלוני')).toBeNull()
+    expect(providerSelect().value).toBe(GONE.id)
+    expect(selectedText()).toBe(DELETED)
+    expect(window.location.hash).toBe('#history')
+  })
+
+  it('applies a provider at once when the screen has only just opened and the providers have not answered, and names it when they do', async () => {
     const gate = deferred()
     server({ providersGate: gate })
     openAt('#history')
@@ -604,30 +771,27 @@ describe('a link followed while the screen is open', () => {
     await listed('ביקור של פלוני') // the defaults do not need the providers
     const before = calls('/admin/scans').length
     await follow(`#history?provider=${ALMONI.id}&outcome=all`)
-    await sleep(100)
-    expect(calls('/admin/scans'), 'nothing is asked for until the provider is known').toHaveLength(before)
-    expect(screen.queryByText('ביקור של פלוני'), 'and the list of the old filters is not left under the new ones').toBeNull()
-    expect(screen.getByRole('status')).toBeTruthy()
-    await act(async () => { gate.resolve() })
     await listed('ביקור של אלמוני')
     expect(calls('/admin/scans')).toHaveLength(before + 1)
     expect(lastAsked('/admin/scans')).toEqual({ from: FROM, to: TO, provider_id: ALMONI.id, outcome: 'all', limit: '100' })
+    expect(screen.queryByText('ביקור של פלוני')).toBeNull()
+    expect(selectedText()).toBe(LOADING)
+    await act(async () => { gate.resolve() })
+    await waitFor(() => expect(selectedText()).toBe('אלמוני'), WAIT)
+    expect(calls('/admin/scans')).toHaveLength(before + 1)
     expect(window.location.hash).toBe('#history')
   })
 
-  it('drops a provider that the new list does not hold, after waiting for it', async () => {
-    const gate = deferred()
-    server({ providersGate: gate })
+  it('keeps a provider that the list cannot name when the providers could not be loaded', async () => {
+    server({ providersFail: true })
     openAt('#history')
     show()
     await listed('ביקור של פלוני')
-    const before = calls('/admin/scans').length
-    await follow(`#history?provider=${UNKNOWN}&outcome=all`)
-    await act(async () => { gate.resolve() })
-    await listed('ביקור של פלוני')
-    await waitFor(() => expect(calls('/admin/scans')).toHaveLength(before + 1), WAIT)
-    expect(lastAsked('/admin/scans')).toEqual({ from: FROM, to: TO, outcome: 'all', limit: '100' })
-    expect(api.mock.calls.flat().join(' ')).not.toContain(UNKNOWN)
+    await follow(`#history?provider=${ALMONI.id}`)
+    await listed('ביקור של אלמוני')
+    expect(lastAsked('/admin/scans').provider_id).toBe(ALMONI.id)
+    expect(screen.queryByText('ביקור של פלוני')).toBeNull()
+    await waitFor(() => expect(selectedText()).toBe(UNLISTED), WAIT)
   })
 
   it('asks for nothing when the screen already says what the link says', async () => {
@@ -767,21 +931,39 @@ describe('the window crossing 1024 px', () => {
     expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: PLONI.id, outcome: 'all', limit: '100' }])
   })
 
-  it('applies the provider that was waited for once, whichever layout the window has by then', async () => {
+  it('asks once for the provider of a link, whichever layout the window has by then, while the providers have not answered', async () => {
     const window1024 = layout(true)
     const gate = deferred()
     server({ providersGate: gate })
     openAt(`#history?provider=${ALMONI.id}`)
     show()
-    await sleep(50)
-    await window1024.computer() // while the first query waits for the providers
-    await act(async () => { gate.resolve() })
     await listed('ביקור של אלמוני')
+    await window1024.computer() // before the providers have answered
+    await act(async () => { gate.resolve() })
+    await waitFor(() => expect(selectedText()).toBe('אלמוני'), WAIT)
     await window1024.phone()
+    expect(chips()).toEqual(['נותן שירות: אלמוני'])
     await window1024.computer()
-    expect(screen.getByLabelText('נותן שירות').value).toBe(ALMONI.id)
+    expect(providerSelect().value).toBe(ALMONI.id)
     await sleep(600)
     expect(asked('/admin/scans')).toEqual([{ from: FROM, to: TO, provider_id: ALMONI.id, outcome: OUTCOME_ACCEPTED, limit: '100' }])
+  })
+
+  it('keeps a deleted provider through the window crossing 1024 px, with the same words in both layouts and no new request', async () => {
+    const window1024 = layout(true)
+    knownProviders()
+    server()
+    openAt(`#history?provider=${GONE.id}`)
+    show()
+    await listed('ביקור של ספק שנמחק')
+    expect(chips()).toEqual([DELETED])
+    await window1024.computer()
+    expect(selectedText()).toBe(DELETED)
+    await window1024.phone()
+    expect(chips()).toEqual([DELETED])
+    await sleep(600)
+    expect(asked('/admin/scans')).toHaveLength(1)
+    expect(screen.queryByText('ביקור של פלוני')).toBeNull()
   })
 
   it('applies a link that is followed at the moment the window crosses', async () => {

@@ -281,3 +281,14 @@ export const CLIENT_ERROR_MAX_COUNT = 1000
  * change"). Changing it is the owner's decision, with a plan for the dates that are already stored.
  */
 export const BUILDING_TZ = 'Asia/Jerusalem'
+
+// ---- 11. The id of a row -----------------------------------------------------------------------------------------
+
+/**
+ * What the id of a row looks like (a point, a provider, a scan): 8-4-4-4-12 hexadecimal digits, in any case. The server refuses a
+ * filter or a path that holds anything else before it asks the database (`isUuid` in server/http.js, the one reader on that side),
+ * and the committee app reads it to tell an id that a link may send (`#history?provider=...`, src/admin/views/HistoryView.jsx)
+ * from one that the server would answer with a 400. The two must agree, so it is written once. It is never narrowed: an id that
+ * it refuses is a row that cannot be asked for.
+ */
+export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
