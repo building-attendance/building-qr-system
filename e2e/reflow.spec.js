@@ -17,7 +17,7 @@
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, EMAIL_MAX_LENGTH } from '../shared/contract.js'
-import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled } from './fixtures.js'
+import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled, openFilters } from './fixtures.js'
 
 const PHONE = { width: 320, height: 640 }
 const NEAR = { latitude: SAMPLE_POINT.lat, longitude: SAMPLE_POINT.lng, accuracy: 10 }
@@ -467,6 +467,11 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
       if (tab === 'settings') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
       if (tab === 'audit') await expect(page.getByRole('main').getByRole('listitem').first()).toBeVisible()
       await check(`committee phone: ${tab}`)
+      if (tab === 'history') { // the filters are in a sheet on a phone
+        const filters = await openFilters(page)
+        await check('committee phone: history, the filters sheet')
+        await filters.getByRole('button', { name: 'סגירה' }).click()
+      }
     }
     // the sheet that the fourth button of the bar opens, over the screen of the management group that is open (the help)
     await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
@@ -548,7 +553,9 @@ test.describe('F5 input font size on a phone', () => {
     }
 
     await openTab(page, 'history')
+    const historyFilters = await openFilters(page) // on a phone (and this is one) the fields are in the sheet that the filter button opens
     await checkFields(page, 'committee: history (the filters)')
+    await historyFilters.getByRole('button', { name: 'סגירה' }).click()
 
     await openTab(page, 'points')
     await page.getByRole('button', { name: 'נקודה חדשה' }).click()
@@ -573,7 +580,9 @@ test.describe('F5 input font size on a phone', () => {
     await closeAfter('חבר ועד חדש', 'committee: new member form')
     await openTab(page, 'audit')
     await expect(page.getByRole('main').getByRole('listitem').first()).toBeVisible()
+    const auditFilters = await openFilters(page)
     await checkFields(page, 'committee: audit log (the filters)')
+    await auditFilters.getByRole('button', { name: 'סגירה' }).click()
   })
 })
 

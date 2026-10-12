@@ -72,14 +72,17 @@ test.describe.configure({ timeout: 120_000 })
  *     agent (both carry the host of the server). The prompt is ten kilobytes of text, which tests/agent-prompt.test.js pins, and
  *     which would make the picture of that tab four times the size of the others. (Only those three: the password field of the
  *     provider's dialog has the same class, and its look is what the picture is for.)
+ * `scope` is where to look: the page, or one dialog. A picture of a dialog that has a screen behind it looks inside the dialog only,
+ * because a box over something that the dialog covers would be drawn on the picture (the date fields of the filters' sheet are
+ * the dates that the History tab behind it also shows).
  */
-function dynamicRegions(page) {
+function dynamicRegions(page, scope = page) {
   return [
-    page.getByText(/\d{2}:\d{2}|\d{2}\/\d{2}\/\d{4}/),
-    page.getByLabel('מתאריך'),
-    page.getByLabel('עד תאריך'),
-    page.locator('.w-build, .a-build'),
-    page.locator('.a-facts .a-code, p .a-code, pre.a-code'),
+    scope.getByText(/\d{2}:\d{2}|\d{2}\/\d{2}\/\d{4}/),
+    scope.getByLabel('מתאריך'),
+    scope.getByLabel('עד תאריך'),
+    scope.locator('.w-build, .a-build'),
+    scope.locator('.a-facts .a-code, p .a-code, pre.a-code'),
   ]
 }
 
@@ -91,9 +94,11 @@ function dynamicRegions(page) {
  * A screen is taken whole (`whole`): the viewport is made as tall as the page for the picture, then put back. That is what a
  * long screen looks like on a tall phone, and it keeps what is fixed to the bottom of the screen (the tab bar of the committee
  * app on a phone) at the bottom of the picture, where Playwright's own full-page picture would put it in the middle. A dialog is
- * taken as it opens (`whole: false`): the screen that a person sees.
+ * taken as it opens (`whole: false`): the screen that a person sees. `within` is a dialog (a locator): only what is inside it is masked, plus
+ * what `alsoMask` lists (locators of what the dialog does not cover and that still changes with the date: a box is drawn over what the dialog
+ * covers as well, so only what is in view is named).
  */
-async function shot(page, name, { whole = true } = {}) {
+async function shot(page, name, { whole = true, within = page, alsoMask = [] } = {}) {
   const viewport = page.viewportSize()
   if (whole) {
     const height = await page.evaluate(() => document.documentElement.scrollHeight)
@@ -103,7 +108,7 @@ async function shot(page, name, { whole = true } = {}) {
     await pageSettled(page) // every request of the screen has been answered, and drawn
     await page.evaluate(() => document.fonts.ready)
     await expect.soft(page).toHaveScreenshot(`${name}.png`, {
-      mask: dynamicRegions(page),
+      mask: [...dynamicRegions(page, within), ...alsoMask],
       animations: 'disabled',
       caret: 'hide',
       scale: 'css',
@@ -451,6 +456,37 @@ function committeeScreens(width) {
 }
 
 /**
+ * The filters of the History tab below 1024 px: the sheet that the button of the bar opens (with the defaults, which is what the picture of
+ * the sheet is for), at 360 px and at 768 px, where it stays at the bottom of the screen like the sheet under "עוד", and, at 360 px, the bar
+ * with filters on, which holds a chip for each of them (a filtered list must not look like missing data). From 1024 px the filters are the
+ * block above the list, which the picture of the tab has.
+ */
+function committeeFilters(width) {
+  test(width === '360' ? 'the filters sheet and the bar with filters on' : 'the filters sheet', async ({ page }) => {
+    await stopClock(page)
+    await stubHistory(page)
+    await committeeSignedIn(page) // the history is the first screen
+    await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
+    await page.getByRole('button', { name: /^סינון/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'סינון', exact: true })
+    await expect(sheet).toBeVisible()
+    // At 768 px the bar of the History tab is in view above the sheet, and its dates (the week up to today) change from one day to the next.
+    const range = width === '360' ? [] : [page.getByText(/\d{2}\/\d{2}\/\d{4} עד \d{2}\/\d{2}\/\d{4}/)]
+    await shotBothThemes(page, `committee-${width}-history-filters-sheet`, { whole: false, within: sheet, alsoMask: range })
+    if (width !== '360') return
+
+    await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
+    await sheet.getByLabel('כולל חשבון דמו').check()
+    await sheet.getByRole('button', { name: 'הצגת תוצאות' }).click()
+    await expect(sheet).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'הסרת סינון: נקודה: לובי' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'הסרת סינון: כולל חשבון דמו' })).toBeVisible()
+    await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
+    await shotBothThemes(page, 'committee-360-history-filtered')
+  })
+}
+
+/**
  * The sheet that the fourth button of the tab bar opens, over the help (which it marks as the current screen; the help is text only, so
  * no mask lands on the sheet). It exists where the tab bar does, below 1024 px: at 360 px, and at 768 px, where it stays at the bottom
  * of the screen, 480 px wide.
@@ -482,6 +518,7 @@ test.describe('committee app', () => {
   test.describe('at 360 px', () => {
     test.use(COMMITTEE_PHONE)
     committeeScreens('360')
+    committeeFilters('360')
     committeeSheet('360')
   })
 
@@ -494,5 +531,6 @@ test.describe('committee app', () => {
   test.describe('at 768 px', () => {
     test.use({ ...SAME, viewport: { width: 768, height: 1024 } })
     committeeSheet('768')
+    committeeFilters('768')
   })
 })
