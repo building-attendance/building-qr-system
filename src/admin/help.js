@@ -1,7 +1,7 @@
 // The short guide "how to work with the system", the screen of that name (HelpView.jsx). It is written for the members of the
 // committee, in Hebrew like the rest of the committee app, and it uses the names that the screens use (the tabs, the buttons and the
 // fields), so that what it says can be found on the screen. When a screen renames a button, rename it here too:
-// tests/components/help-screen.test.jsx keeps the guide short, but it cannot know the names.
+// tests/components/committee-help.test.jsx keeps the guide short, but it cannot know the names.
 //
 // One entry per topic, in the order of the screen: a heading and two to four short sentences. Keep the whole guide under
 // HELP_MAX_LENGTH characters (the test measures it): a guide that is long is not read.
