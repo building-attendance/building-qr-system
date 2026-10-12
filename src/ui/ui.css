@@ -143,7 +143,7 @@
 /* ----- text ----- */
 .w-h1 { font-size: var(--w-font-4xl); line-height: 1.2; font-weight: var(--w-weight-bold); overflow-wrap: anywhere; } /* it greets a person by name, which can be one long word (T2) */
 .w-lead { color: var(--w-text-2); font-size: var(--w-font-lg); }
-.w-small { color: var(--w-text-3); font-size: var(--w-font-sm); line-height: 1.5; }
+.w-small { color: var(--w-text-3); font-size: var(--w-font-md); line-height: 1.5; }
 /* The build id line (src/ui/BuildLabel.jsx): as quiet as the small text, on the same colour that tests/contrast.test.js holds
    to AA in both themes. The id itself is a left-to-right run inside the line (a <bdi dir="ltr">). */
 .w-build { color: var(--w-text-3); font-size: var(--w-font-xs); line-height: 1.5; }
@@ -192,7 +192,7 @@
 .w-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--w-space-2-5); }
 .w-person {
   display: flex; align-items: center; gap: var(--w-space-3-5); width: 100%; min-height: 68px; padding: var(--w-space-2-5) var(--w-space-4);
-  text-align: start; background: var(--w-surface); border: 1px solid var(--w-field-border); border-radius: var(--w-radius-xl); cursor: pointer;
+  text-align: start; background: var(--w-surface); border: 1px solid var(--w-field-border); border-radius: var(--w-radius-2xl); cursor: pointer;
   transition: border-color 0.15s, background 0.15s;
 }
 .w-person:hover { background: var(--w-surface-2); border-color: var(--w-field-border-hover); }
@@ -212,13 +212,13 @@
 .w-label { font-size: var(--w-font-base); font-weight: var(--w-weight-medium); color: var(--w-text-2); }
 .w-input-wrap { position: relative; display: flex; }
 .w-input {
-  width: 100%; min-height: 56px; padding-inline: var(--w-space-4) 56px; font-size: var(--w-font-xl); /* >=16px: no iOS zoom */
+  width: 100%; min-height: 56px; padding-inline: var(--w-space-4) var(--w-layout-eye-width); font-size: var(--w-font-xl); /* >=16px: no iOS zoom */
   background: var(--w-surface-2); border: 1.5px solid var(--w-field-border); border-radius: var(--w-radius-lg); color: var(--w-text);
 }
 .w-input:focus { outline: none; border-color: var(--w-focus); box-shadow: 0 0 0 3px var(--w-focus-ring); }
 .w-input--error { border-color: var(--w-danger); }
 .w-eye {
-  position: absolute; inset-block: 0; inset-inline-end: 0; width: 56px; display: grid; place-items: center;
+  position: absolute; inset-block: 0; inset-inline-end: 0; width: var(--w-layout-eye-width); display: grid; place-items: center;
   background: none; border: 0; cursor: pointer; color: var(--w-text-2); border-radius: var(--w-radius-lg);
 }
 .w-error { color: var(--w-danger); font-size: var(--w-font-base); font-weight: var(--w-weight-medium); display: flex; gap: var(--w-space-2); align-items: flex-start; }
@@ -233,7 +233,7 @@
 .w-visit:last-child { border-block-end: 0; }
 .w-visit__time { font-variant-numeric: tabular-nums; font-weight: var(--w-weight-bold); min-width: 3.4em; direction: ltr; text-align: start; }
 .w-visit__point { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.w-tag { font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); padding: 3px var(--w-space-2-5); border-radius: var(--w-radius-pill); background: var(--w-warn-bg); color: var(--w-warn); white-space: nowrap; }
+.w-tag { font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); padding: var(--w-space-1) var(--w-space-2-5); border-radius: var(--w-radius-pill); background: var(--w-warn-bg); color: var(--w-warn); white-space: nowrap; }
 .w-section-title { font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); margin-block-end: var(--w-space-1); }
 
 /* ----- result screen ----- */
@@ -244,12 +244,12 @@
 .w-result--info { color: var(--w-info); } .w-result--info .w-ring { background: var(--w-info-bg); }
 .w-result--warn { color: var(--w-warn); } .w-result--warn .w-ring { background: var(--w-warn-bg); }
 .w-result--danger { color: var(--w-danger); } .w-result--danger .w-ring { background: var(--w-danger-bg); }
-.w-result h1 { color: var(--w-text); font-size: var(--w-font-5xl); font-weight: var(--w-weight-bold); line-height: 1.2; }
+.w-result h1 { color: var(--w-text); font-size: var(--w-font-4xl); font-weight: var(--w-weight-bold); line-height: 1.2; }
 .w-result h1:focus { outline: none; }
 /* max-width: min(22em, 100%): this line holds the point name inside first-strong isolates (translate() in src/i18n/core.js), and WebKit
    sizes a centred box that holds an isolate in a right-to-left page by its longest line, not by the width that is left, even with
    overflow-wrap: anywhere. Measured on a point name of one word: the line was 418px (the 22em) in a 280px column. The cap is the column. */
-.w-result__body { color: var(--w-text-2); font-size: var(--w-font-2xl); max-width: min(22em, 100%); overflow-wrap: anywhere; }
+.w-result__body { color: var(--w-text-2); font-size: var(--w-font-xl); max-width: min(22em, 100%); overflow-wrap: anywhere; }
 .w-result__warning { color: var(--w-warn); font-weight: var(--w-weight-semibold); }
 .w-chip { display: inline-flex; align-items: center; gap: var(--w-space-2); padding: var(--w-space-2) var(--w-space-4); border-radius: var(--w-radius-pill); background: var(--w-surface-2); border: 1px solid var(--w-border); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
 .w-who { display: inline-flex; align-items: center; gap: var(--w-space-2); margin: 0; color: var(--w-text-2); font-size: var(--w-font-base); max-width: 100%; overflow-wrap: anywhere; }
@@ -267,7 +267,7 @@
 @keyframes w-spin { to { transform: rotate(360deg); } }
 
 /* ----- skeleton ----- */
-.w-skel { height: 68px; border-radius: var(--w-radius-xl); background: linear-gradient(90deg, var(--w-surface) 25%, var(--w-surface-2) 50%, var(--w-surface) 75%); background-size: 200% 100%; animation: w-shimmer 1.4s ease-in-out infinite; }
+.w-skel { height: 68px; border-radius: var(--w-radius-2xl); background: linear-gradient(90deg, var(--w-surface) 25%, var(--w-surface-2) 50%, var(--w-surface) 75%); background-size: 200% 100%; animation: w-shimmer 1.4s ease-in-out infinite; }
 @keyframes w-shimmer { to { background-position: -200% 0; } }
 
 /* ----- enter animation for the result ----- */

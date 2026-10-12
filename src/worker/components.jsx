@@ -301,7 +301,7 @@ export function WorkingView({ phase }) {
   return (
     <div className="w-working" role="status" aria-live="polite">
       <div className="w-spinner" aria-hidden="true" />
-      <p className="w-h1" style={{ fontSize: '1.375rem' }}>
+      <p className="w-h1" style={{ fontSize: 'var(--w-font-3xl)' }}>
         {phase === 'locating' ? t('checkin.locating') : phase === 'saving' ? t('checkin.saving') : t('common.loading')}
       </p>
     </div>

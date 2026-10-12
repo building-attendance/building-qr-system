@@ -25,7 +25,7 @@ function PasswordHandover({ provider, password, onClose }) {
     <Modal title="הסיסמה נשמרה" onClose={onClose} size="sm" footer={<button className="w-btn w-btn--small" onClick={onClose}>סיימתי</button>}>
       <p className="w-lead">מסרו את הסיסמה ל<strong>{provider.contact_name || provider.company}</strong>. היא לא תוצג שוב, אבל אפשר תמיד להגדיר חדשה.</p>
       <div className="a-secret">
-        <span className="a-code" style={{ fontSize: '1.375rem', fontWeight: 600 }}>{password}</span>
+        <span className="a-code" style={{ fontSize: 'var(--w-font-3xl)', fontWeight: 600 }}>{password}</span>
         <button className="a-icon-btn" aria-label="העתקת הסיסמה" onClick={async () => toast.ok((await copyText(password)) ? 'הסיסמה הועתקה' : 'ההעתקה נכשלה')}><IconCopy /></button>
       </div>
     </Modal>
