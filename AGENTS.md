@@ -67,6 +67,10 @@ The scripts are the `scripts` of `package.json`, and `CONTRIBUTING.md` says what
   the building's time), written only by `shared/datetime.js`: never a month name, a weekday, the browser's own date
   field or the device's locale. The API and the agent keep ISO dates on purpose (a machine must not guess day-month or
   month-day). `tests/dates.test.js` fails if another way of writing a date turns up in `src/`, `server/` or `shared/`.
+  One exception, because a row of seven full dates does not fit a phone (owner decision of 12/10/2026): the column heads
+  of a table of consecutive days may write each day as DD/MM (`formatDayShort` in `shared/datetime.js`), only when the
+  table shows its whole range in DD/MM/YYYY right above it and each head carries its full date for a screen reader.
+  Anywhere else, a day keeps its year.
   The building's time zone is one constant that the phone and the server share, `BUILDING_TZ` in `shared/contract.js`
   (Israel, `Asia/Jerusalem`), not a setting of an installation: `scans.local_date` is stored in it and installed phones
   carry it in their JavaScript, so a change would split the stored days from the new ones. Changing it is the owner's
@@ -314,7 +318,9 @@ reviewing agent should apply it too.
 - Personal data (names, phone numbers, e-mails, attendance rows, coordinates) written to logs or error messages, or real
   personal data in tests or fixtures.
 - A date or time that a person sees and that is not written by `shared/datetime.js` (`toLocale*String`,
-  `Intl.DateTimeFormat` outside it, a native date or time input, a month name or a weekday).
+  `Intl.DateTimeFormat` outside it, a native date or time input, a month name or a weekday), or a day without its year
+  anywhere but the column heads of a table of consecutive days that shows its full range and gives each head its full
+  date for a screen reader (Rules for every change).
 - An API or offline-sync change that rejects requests from an older installed app.
 - Local tooling that could reach the production database: a bypass of `server/dbGuard.js` or `server/loadEnv.js`, or a
   marker check that trusts an environment variable.
