@@ -47,9 +47,13 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
     arrows point the right way, and no text is cut off.
 11. [ ] Typing a password: the keyboard does not zoom the page, the password manager offers the saved login, and the
     show/hide eye works.
-12. [ ] Committee app (`/admin`) on the phone: it opens on History, and the bar at the bottom has four buttons. More
-    ("עוד") opens a sheet from the bottom with the other four screens, its last row clear of the home indicator; after
-    choosing one, VoiceOver (or an external keyboard) is on the new screen, not lost. On History, Filter ("סינון") opens
+12. [ ] Committee app (`/admin`) on the phone: it opens on Home ("בית"), and the bar at the bottom has five buttons
+    (Home, History, Points, Providers, More), each label whole on one line. Home greets by the hour and the member's first
+    name, and its week table has today at the left edge and fits the width (nothing scrolls sideways but the table's own
+    box, if a narrow phone needs it, with the provider's name staying in view). A cell with visits opens History
+    filtered to that provider and that day, with that many rows, and Back returns to Home. More ("עוד") opens a sheet
+    from the bottom with the other four screens, its last row clear of the home indicator; after choosing one,
+    VoiceOver (or an external keyboard) is on the new screen, not lost. On History, Filter ("סינון") opens
     the filters sheet: its two date fields sit side by side without overlapping, the keyboard does not come up by itself,
     Show results ("הצגת תוצאות") is fully visible above the home indicator, and after it the chips above the list say
     what is filtered. The point tiles show four icons (QR, edit, switch off, delete), and nothing scrolls sideways.

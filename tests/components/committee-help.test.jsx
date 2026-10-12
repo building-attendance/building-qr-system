@@ -25,6 +25,7 @@ afterEach(() => {
 const TITLE = 'איך עובדים עם המערכת'
 // The topics, in the order of the screen: the names that the owner chose.
 const TOPICS = [
+  'מסך הבית',
   'נקודות ושלטי QR',
   'נותני שירות והטלפונים שלהם',
   "היסטוריה ו'לא נקלטו'",

@@ -8,7 +8,7 @@ import path from 'node:path'
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import {
-  formatDate, formatTime, formatDateTime, formatDateTimeUtc, formatDay, isoDay, parseDay, maskDay, editDay,
+  formatDate, formatTime, formatDateTime, formatDateTimeUtc, formatDay, formatDayShort, buildingHour, isoDay, parseDay, maskDay, editDay,
 } from '../shared/datetime.js'
 import { findDateProblems } from '../scripts/text-rules.mjs'
 
@@ -79,6 +79,68 @@ describe('writing a moment: DD/MM/YYYY and HH:MM in the building time', () => {
   })
 })
 
+// The Home screen greets by the hour of the building's clock: 05:00 to 11:59 the morning, 12:00 to 16:59 the noon, 17:00 to 04:59 the evening.
+// This is the hour itself, and the edges of those windows are tested where the greeting is (tests/components/home.test.jsx).
+describe("the hour on the building's clock (buildingHour)", () => {
+  it('summer time (UTC+3): the edges of the three windows, to the minute', () => {
+    const hour = (iso) => buildingHour(iso)
+    expect(hour('2026-10-12T01:59:00Z')).toBe(4) // 04:59
+    expect(hour('2026-10-12T02:00:00Z')).toBe(5) // 05:00
+    expect(hour('2026-10-12T08:59:00Z')).toBe(11) // 11:59
+    expect(hour('2026-10-12T09:00:00Z')).toBe(12) // 12:00
+    expect(hour('2026-10-12T13:59:00Z')).toBe(16) // 16:59
+    expect(hour('2026-10-12T14:00:00Z')).toBe(17) // 17:00
+  })
+
+  it('winter time (UTC+2): the same edges, an hour later in UTC', () => {
+    const hour = (iso) => buildingHour(iso)
+    expect(hour('2026-01-15T02:59:00Z')).toBe(4) // 04:59
+    expect(hour('2026-01-15T03:00:00Z')).toBe(5) // 05:00
+    expect(hour('2026-01-15T09:59:00Z')).toBe(11) // 11:59
+    expect(hour('2026-01-15T10:00:00Z')).toBe(12) // 12:00
+    expect(hour('2026-01-15T14:59:00Z')).toBe(16) // 16:59
+    expect(hour('2026-01-15T15:00:00Z')).toBe(17) // 17:00
+  })
+
+  it("midnight is hour 0, never 24, and the hour is the building's and not UTC's", () => {
+    expect(buildingHour('2026-09-30T21:30:00Z')).toBe(0) // 00:30 on 01/10
+    expect(buildingHour('2026-09-30T20:59:00Z')).toBe(23) // 23:59 on 30/09
+    expect(buildingHour('2026-01-15T22:00:00Z')).toBe(0) // 00:00 in winter
+  })
+
+  it('follows the two clock changes: the hour that is skipped in spring, and the hour that happens twice in autumn', () => {
+    // spring 2026: at 02:00 on 27 March the clocks go to 03:00, so there is no 02:xx
+    expect(buildingHour('2026-03-26T23:59:00Z')).toBe(1) // 01:59 (UTC+2)
+    expect(buildingHour('2026-03-27T00:00:00Z')).toBe(3) // 03:00 (UTC+3)
+    // autumn 2026: at 02:00 on 25 October the clocks go back to 01:00, so 01:30 happens twice
+    expect(buildingHour('2026-10-24T22:30:00Z')).toBe(1) // 01:30 (UTC+3)
+    expect(buildingHour('2026-10-24T23:30:00Z')).toBe(1) // 01:30 again (UTC+2)
+    expect(buildingHour('2026-10-25T02:59:00Z')).toBe(4) // 04:59 (UTC+2)
+    expect(buildingHour('2026-10-25T03:00:00Z')).toBe(5) // 05:00 (UTC+2)
+  })
+
+  it('takes a Date, a number or an ISO string with an offset, and has the hour of now when it is given nothing', () => {
+    expect(buildingHour(new Date('2026-10-12T09:00:00Z'))).toBe(12)
+    expect(buildingHour(Date.parse('2026-10-12T09:00:00Z'))).toBe(12)
+    expect(buildingHour('2026-10-12T12:00:00+03:00')).toBe(12)
+    expect(buildingHour()).toBe(Number(formatTime(new Date()).slice(0, 2)))
+  })
+
+  it('is null for no moment, for text that is not one, and for text that does not say which moment it is', () => {
+    for (const nothing of [null, '', 'not a date', '2026-10-12T09:00:00', '2026-10-12', NaN]) {
+      expect(buildingHour(nothing), String(nothing)).toBeNull()
+    }
+  })
+
+  it('does not depend on the time zone or the language of the machine it runs on', () => {
+    const script = `import('${pathToFileURL(path.join(root, 'shared', 'datetime.js')).href}').then((m) => console.log(JSON.stringify([
+      m.buildingHour('2026-10-12T09:00:00Z'), m.buildingHour('2026-09-30T21:30:00Z'), m.formatDayShort('2026-10-01'),
+    ])))`
+    const out = execFileSync(process.execPath, ['-e', script], { env: { ...process.env, LANG: 'ar_EG.UTF-8', LC_ALL: 'ar_EG.UTF-8', TZ: 'America/New_York' } })
+    expect(JSON.parse(out.toString())).toEqual([12, 0, '01/10'])
+  })
+})
+
 describe('a calendar day', () => {
   it("is the building's day as the API writes it, and as a person reads it", () => {
     expect(isoDay('2026-09-30T21:30:00Z')).toBe('2026-10-01')
@@ -88,6 +150,15 @@ describe('a calendar day', () => {
     expect(formatDay('2026-02-30')).toBe('-') // a day that is not on the calendar
     expect(formatDay('2028-02-29')).toBe('29/02/2028')
     expect(isoDay()).toMatch(/^\d{4}-\d{2}-\d{2}$/)
+  })
+
+  it('is written short, for a column head: the day and the month, and "-" for what is not a real day', () => {
+    expect(formatDayShort('2026-10-01')).toBe('01/10')
+    expect(formatDayShort('2026-12-31')).toBe('31/12')
+    expect(formatDayShort('2028-02-29')).toBe('29/02') // a leap year
+    for (const bad of ['', '1 Oct 2026', '2026-02-30', '2027-02-29', '2026-13-01', '01/10/2026', null, undefined]) {
+      expect(formatDayShort(bad), String(bad)).toBe('-')
+    }
   })
 
   it('is read back from what a person types, only when it is a real date', () => {
