@@ -770,6 +770,94 @@ describe('History: the two layouts', () => {
     })
   })
 
+  // On a computer the list follows the inline filters after a pause of 350 ms; on a phone what is applied and what is chosen are the same. So when
+  // the layout turns into a phone's while a change is still waiting for its pause, it is applied at once: the bar, the chips, the file, the cache of
+  // the first page and the sheet that opens next all start from what was typed, and the pause cannot land behind a draft that started before it.
+  describe('a change that is waiting for its pause when the window turns into a phone\'s', () => {
+    const fileHref = () => screen.getByRole('link', { name: 'ייצוא ל-Excel' }).getAttribute('href')
+    const pause = () => new Promise((resolve) => setTimeout(resolve, 600)) // longer than the pause
+
+    it('is applied at once when the finished date releases the held layout: the sheet starts from it, and the pause cannot revert it', async () => {
+      const window1024 = layout(false)
+      historyServer()
+      await showHistory()
+      const from = screen.getByLabelText('מתאריך')
+      fireEvent.change(from, { target: { value: '2909' } })
+      await window1024.phone() // held: a date is half typed
+      fireEvent.change(from, { target: { value: '29/09/2025' } }) // finished: the layout is a phone's now, before the pause has run
+      expect(document.querySelector('.a-filterbar__range').textContent, 'the bar').toBe('טווח התאריכים: 29/09/2025 עד 05/10/2026')
+      expect(fileHref(), 'the file').toContain('from=2025-09-29')
+      expect(within(openSheet()).getByLabelText('מתאריך').value, 'the sheet starts from what was typed').toBe('29/09/2025')
+      await pause() // the pause would have landed now
+      expect(within(sheet()).getByLabelText('מתאריך').value).toBe('29/09/2025')
+      showResults()
+      await pause()
+      expect(calls('/admin/scans'), 'one query for the finished date, and none that puts the old one back').toHaveLength(2)
+      expect(lastParams('/admin/scans').get('from')).toBe('2025-09-29')
+      expect(screen.queryByRole('dialog')).toBeNull()
+    })
+
+    it('is applied at once when a choice is waiting for its pause as the window narrows: the chips, the count, the file and the cache of the first page', async () => {
+      const window1024 = layout(false)
+      historyServer()
+      await showHistory()
+      fireEvent.change(screen.getByLabelText('נקודה'), { target: { value: OTHER_POINT.id } })
+      await window1024.phone() // the pause has not run
+      expect(removers().map((chip) => chip.textContent)).toEqual(['נקודה: מינוס 1'])
+      expect(opener().textContent).toBe('סינון1פעילים')
+      expect(fileHref()).toContain(`point_id=${OTHER_POINT.id}`)
+      expect(within(openSheet()).getByLabelText('נקודה').value).toBe(OTHER_POINT.id)
+      await waitFor(() => expect(calls('/admin/scans')).toHaveLength(2), WAIT)
+      expect(readLoadCache(`history:scans:from=${FROM}&to=${TO}&point_id=${OTHER_POINT.id}&outcome=${OUTCOME_ACCEPTED}&limit=100`), 'kept for the applied filters').toBeTruthy()
+      await pause()
+      expect(calls('/admin/scans'), 'and the pause asks for nothing more').toHaveLength(2)
+    })
+
+    it('is the same in the audit log: the finished date, and a choice, are applied at once', async () => {
+      const window1024 = layout(false)
+      api.mockImplementation(async (path) => {
+        if (path === '/admin/admins') return { admins: [DANA] }
+        if (path.startsWith('/admin/audit')) return { entries: [entry()], next_cursor: null }
+        throw new Error(`the test does not expect ${path}`)
+      })
+      await showAudit()
+      const from = screen.getByLabelText('מתאריך')
+      fireEvent.change(from, { target: { value: '0110' } })
+      fireEvent.change(screen.getByLabelText('סוג פעולה'), { target: { value: 'point' } })
+      await window1024.phone() // held by the half date, and the choice is waiting for its pause
+      fireEvent.change(from, { target: { value: '01/10/2026' } })
+      expect(document.querySelector('.a-filterbar__range').textContent).toBe('טווח התאריכים: מ-01/10/2026')
+      expect(removers().map((chip) => chip.textContent)).toEqual(['סוג פעולה: נקודות'])
+      expect(opener().textContent).toBe('סינון2פעילים')
+      const dialog = openSheet()
+      expect(within(dialog).getByLabelText('מתאריך').value).toBe('01/10/2026')
+      expect(within(dialog).getByLabelText('סוג פעולה').value).toBe('point')
+      await waitFor(() => expect(calls('/admin/audit')).toHaveLength(2), WAIT)
+      expect(readLoadCache('audit:from=2026-10-01&group=point&limit=50'), 'kept for the applied filters').toBeTruthy()
+      await pause()
+      showResults()
+      await pause()
+      expect(calls('/admin/audit'), 'one query for the filters that were typed, and none that puts the old ones back').toHaveLength(2)
+      expect(Object.fromEntries(lastParams('/admin/audit'))).toEqual({ from: '2026-10-01', group: 'point', limit: '50' })
+    })
+
+    it('has nothing to flush when the window narrows with the pause already run, or goes the other way', async () => {
+      const window1024 = layout(false)
+      historyServer()
+      await showHistory()
+      fireEvent.change(screen.getByLabelText('נקודה'), { target: { value: OTHER_POINT.id } })
+      await waitFor(() => expect(calls('/admin/scans')).toHaveLength(2), WAIT) // the pause has run
+      await window1024.phone()
+      expect(removers().map((chip) => chip.textContent)).toEqual(['נקודה: מינוס 1'])
+      await pause()
+      expect(calls('/admin/scans'), 'no second query for the same filters').toHaveLength(2)
+      await window1024.computer() // the other way: the inline controls show what is applied, and nothing waits
+      expect(screen.getByLabelText('נקודה').value).toBe(OTHER_POINT.id)
+      await pause()
+      expect(calls('/admin/scans')).toHaveLength(2)
+    })
+  })
+
   it('is a computer where the browser has no matchMedia', async () => {
     historyServer()
     await showHistory()

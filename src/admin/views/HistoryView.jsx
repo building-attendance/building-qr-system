@@ -3,7 +3,7 @@ import { adminApi, errorText, scanRefusals } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useUnfinishedDates } from '../filters.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useFilterState, useUnfinishedDates } from '../filters.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash, IconPin } from '../icons.jsx'
 import { goToTab } from '../tab.js'
 import { formatDay, formatDateTime, formatTime, isoDay } from '../../../shared/datetime.js'
@@ -231,8 +231,7 @@ export default function HistoryView() {
   const [defaults] = useState(DEFAULTS) // what "reset" and the count of the filters that are on are measured against
   // On a computer the filters are what the inputs show and the list follows them after a short pause in typing; on a phone they are
   // chosen in a sheet and applied together, so there the two are always the same (`apply`).
-  const [filters, setFilters] = useState(defaults) // what the inputs show
-  const [applied, setApplied] = useState(defaults) // what is actually queried
+  const [filters, setFilters, applied, setApplied] = useFilterState(defaults, phone) // what the inputs show, and what is actually queried
   const [sheet, setSheet] = useState(false) // the sheet of filters is open (the phone's, which stays open if the window grows past 1024 px)
   // `kind` says which list the rows are (scans or refusals), set when they arrive: the filter can already say another one
   // while the pause before a query runs, and rows are never drawn as the wrong kind.
@@ -242,11 +241,6 @@ export default function HistoryView() {
   const confirm = useConfirm()
   const [busy, run] = useAction(toast, errorText)
   const seq = useRef(0) // numbers the queries: an answer to an older one is ignored
-
-  useEffect(() => {
-    const t = setTimeout(() => setApplied(filters), 350)
-    return () => clearTimeout(t)
-  }, [filters])
 
   // Asks for the first page of the applied filters. `shown` is the page that was kept for them (see `rememberedList`): it stays on
   // screen while the answer comes, and if the request fails it stays. Without it the list starts from the loading state and a failure

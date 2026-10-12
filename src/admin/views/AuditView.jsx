@@ -3,7 +3,7 @@ import { adminApi, auditLog, errorText } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Field, EmptyState, Spinner, IconButton, useToast, useAction } from '../ui.jsx'
-import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useUnfinishedDates } from '../filters.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useFilterState, useUnfinishedDates } from '../filters.jsx'
 import { IconClock, IconRefresh, IconAlert } from '../icons.jsx'
 import { formatDay, formatTime, isoDay } from '../../../shared/datetime.js'
 import { GROUP_OPTIONS } from '../auditLabels.js'
@@ -114,18 +114,12 @@ export default function AuditView() {
   const members = useLoad(() => adminApi('/admins'), [], { cacheKey: LOAD_KEY.admins }) // the same list as the settings
   // On a computer the filters are what the inputs show and the log follows them after a short pause in typing; on a phone they are chosen
   // in a sheet and applied together, so there the two are always the same (`apply`).
-  const [filters, setFilters] = useState(EMPTY_FILTERS) // what the inputs show
-  const [applied, setApplied] = useState(filters) // what is actually queried
+  const [filters, setFilters, applied, setApplied] = useFilterState(EMPTY_FILTERS, phone) // what the inputs show, and what is actually queried
   const [sheet, setSheet] = useState(false) // the sheet of filters is open (the phone's, which stays open if the window grows past 1024 px)
   // The list starts with the page that was kept for the first filters, if there is one (the log was open before in this session).
   const [{ entries, cursor, status }, setList] = useState(() => rememberedList(filters) ?? { entries: [], cursor: null, status: 'loading' })
   const [busy, run] = useAction(toast, errorText)
   const seq = useRef(0) // numbers the queries: an answer to an older one is ignored
-
-  useEffect(() => {
-    const t = setTimeout(() => setApplied(filters), 350)
-    return () => clearTimeout(t)
-  }, [filters])
 
   // Asks for the first page of the applied filters. `shown` is the page that was kept for them (see `rememberedList`): it stays on
   // screen while the answer comes, and if the request fails it stays. Without it the list starts from the loading state and a failure

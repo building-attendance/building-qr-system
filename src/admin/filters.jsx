@@ -35,6 +35,30 @@ export function useFilterFocus() {
   return [ref, returnFocus]
 }
 
+/** The pause in typing after which the list follows the inline filters of a computer. */
+const FILTER_PAUSE_MS = 350
+
+/**
+ * The filters of a screen, as `[filters, setFilters, applied, setApplied]`: `filters` is what the inputs show and `applied` is what is
+ * queried (and what the bar, its chips and count, the file and the cache of the first page are made from). `phone` is the layout that
+ * is drawn. On a computer `applied` follows `filters` after a pause in typing. On a phone the two are always the same: the sheet's
+ * "show results" and a chip set both (`setFilters` and `setApplied`), so when the layout turns into a phone's with a change still
+ * waiting for its pause (a date finished a moment ago, which is what releases the held layout), `applied` takes it at once, before the
+ * bar is drawn: the bar, the chips and the sheet that opens next then start from what was typed, and the pause that would have landed
+ * a moment later cannot put the list, or a draft that started from the old filters, behind it.
+ */
+export function useFilterState(initial, phone) {
+  const [filters, setFilters] = useState(initial)
+  const [applied, setApplied] = useState(initial)
+  if (phone && applied !== filters) setApplied(filters) // not waiting for the pause any more (the effect below stops its timer)
+  useEffect(() => {
+    if (phone) return undefined
+    const timer = setTimeout(() => setApplied(filters), FILTER_PAUSE_MS)
+    return () => clearTimeout(timer)
+  }, [filters, phone])
+  return [filters, setFilters, applied, setApplied]
+}
+
 /**
  * Which of the two inline date fields hold a date that is not finished, as `[{ from, to }, onPending]`: `onPending` is for
  * `DateRangeFields`. The History tab holds its export back while one is unfinished, and both screens hold their layout.
