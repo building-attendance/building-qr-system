@@ -88,12 +88,15 @@
 /* :where() gives this rule no weight of its own, so the classes below decide the padding and the weight of each kind of cell. */
 :where(.a-week th, .a-week td) { padding: 0; border-block-end: 1px solid var(--w-border); font-weight: var(--w-weight-regular); }
 .a-week tbody tr:last-child > *, .a-week tfoot tr > * { border-block-end: 0; }
-.a-week__who { position: sticky; inset-inline-start: 0; z-index: 1; width: 72px; min-width: 72px; padding: var(--w-space-1-5); background: var(--w-surface); border-inline-end: 1px solid var(--w-border); text-align: start; }
+.a-week__who { position: sticky; inset-inline-start: 0; z-index: 1; width: 64px; min-width: 64px; padding: var(--w-space-1-5); background: var(--w-surface); border-inline-end: 1px solid var(--w-border); text-align: start; }
 .a-week__name { display: block; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
 .a-week__company { display: block; color: var(--w-text-2); font-size: var(--w-font-xs); overflow-wrap: anywhere; }
-.a-week__who .a-badge { margin-block-start: var(--w-space-0-5); white-space: normal; }
-.a-week__day { min-width: 38px; padding-block: var(--w-space-2); color: var(--w-text-2); font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); text-align: center; }
-.a-week__cell { min-width: 38px; padding: var(--w-space-0-5); text-align: center; }
+.a-week__who .a-badge { margin-block-start: var(--w-space-0-5); padding-inline: var(--w-space-1-5); white-space: normal; text-align: center; }
+/* The name column is as wide as the screen can spare: the days keep their 36px, and what is left goes to the name (a long name wraps inside it). */
+@media (min-width: 360px) { .a-week__who { width: 96px; min-width: 96px; } }
+@media (min-width: 640px) { .a-week__who { width: 144px; min-width: 144px; } }
+.a-week__day { min-width: 36px; padding-block: var(--w-space-2); color: var(--w-text-2); font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); text-align: center; }
+.a-week__cell { min-width: 36px; padding: var(--w-space-0-5); text-align: center; }
 .a-week tfoot > tr > * { border-block-start: 1px solid var(--w-border); background: var(--w-surface-2); }
 .a-week tfoot .a-week__who { font-weight: var(--w-weight-semibold); }
 /* A number of visits. The step (1 to 4) deepens the background; the number is always written, so colour is never the only carrier (V2). */

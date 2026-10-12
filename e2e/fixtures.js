@@ -312,9 +312,11 @@ export async function signIn(page, person, words = he) {
 
 /**
  * The <h1> of each screen of the committee app, by the key of its address (`/admin#points`). In the order of the side rail; the first
- * screen is the one that opens when the address names none.
+ * screen, Home, is the one that opens when the address names none. Home's <h1> is a greeting that follows the hour of the building (and
+ * the first word of the member's name), so its title is a pattern: the three greetings, with or without ", <name>".
  */
 export const SCREEN_TITLES = Object.freeze({
+  home: /^(בוקר טוב|צהריים טובים|ערב טוב)(, .+)?$/,
   history: 'היסטוריית נוכחות',
   points: 'נקודות סריקה',
   providers: 'נותני שירות',
@@ -326,9 +328,10 @@ export const SCREEN_TITLES = Object.freeze({
 
 /**
  * The name on the button of each screen, in the side rail and in the tab bar of the phone (`nav` in TABS, src/pages/AdminApp.jsx). The
- * tab bar has the first three; the others are under "עוד" on a phone, where the sheet says the whole name (SCREEN_LABELS; SCREEN_TITLES has the h1).
+ * tab bar has the first four; the others are under "עוד" on a phone, where the sheet says the whole name (SCREEN_LABELS; SCREEN_TITLES has the h1).
  */
 export const SCREEN_NAV = Object.freeze({
+  home: 'בית',
   history: 'היסטוריה',
   points: 'נקודות',
   providers: 'ספקים',
@@ -339,6 +342,7 @@ export const SCREEN_NAV = Object.freeze({
 })
 /** The name of each screen as a page (`label` in TABS): the title of the window, and the name of its button in the sheet under "עוד". */
 export const SCREEN_LABELS = Object.freeze({
+  home: 'בית',
   history: 'היסטוריה',
   points: 'נקודות',
   providers: 'נותני שירות',
@@ -347,7 +351,7 @@ export const SCREEN_LABELS = Object.freeze({
   audit: 'יומן פעולות',
   help: 'איך עובדים עם המערכת',
 })
-export const BAR_SCREENS = Object.freeze(['history', 'points', 'providers'])
+export const BAR_SCREENS = Object.freeze(['home', 'history', 'points', 'providers'])
 
 /**
  * Opens a screen of the committee app from the navigation that is on the screen: the side rail on a computer; on a phone the button
@@ -369,11 +373,62 @@ export async function openScreen(page, key) {
 /**
  * Signs the committee in through the local-only shortcut that the scratch-schema API offers, and waits for the first screen: the
  * history, unless the test names another one (`screen`, a key of SCREEN_TITLES), which is then the address that the sign-in starts from.
+ * Home is the screen that the app opens when the address names none, so it is the one start that has no `#`: `adminSignIn(page, 'home')`
+ * is the app opened the way a person opens it. The default stays the history, with its address, for the many tests that begin there.
  */
 export async function adminSignIn(page, screen = 'history') {
-  await page.goto(screen === 'history' ? '/admin' : `/admin#${screen}`)
+  await page.goto(screen === 'home' ? '/admin' : `/admin#${screen}`)
   await page.getByRole('button', { name: 'כניסת פיתוח' }).click()
   await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
+}
+
+// ---- the committee's Home screen ------------------------------------------------------------------------------------
+
+/**
+ * The seven days of the Home that the tests stub, the oldest first: a fixed week, so that a picture and a count do not depend on today.
+ * The clock of a test that looks at the greeting is set to 12/10/2026 (`HOME_NOW`), the last of them.
+ */
+export const HOME_DAYS = Object.freeze(['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11', '2026-10-12'])
+/** 10:00 on the last of HOME_DAYS in the building (UTC+3 in October): the morning, so the greeting is "בוקר טוב". */
+export const HOME_NOW = '2026-10-12T07:00:00.000Z'
+const homeId = (n) => `00000000-0000-4000-8000-0000000004${String(n).padStart(2, '0')}`
+/**
+ * The rows of the stubbed week table (the shape is `HomeWeekProvider` in shared/types.js), invented: a provider with every step of the
+ * colour (1, 2 to 3, 4 to 6, 7 and over) and a zero, one with a contact name and a company, one with a name in Latin letters, one that is
+ * switched off, one that was deleted (its visits stay), and one that did not come all week (an absence is information).
+ */
+export const HOME_PROVIDERS = Object.freeze([
+  { id: homeId(1), name: SAMPLE_PROVIDER_NAMES.cleaner, company: 'ניקיון', is_active: true, counts: [1, 2, 0, 4, 7, 3, 2] },
+  { id: homeId(2), name: SAMPLE_PROVIDER_NAMES.gardener, company: 'גינון', is_active: true, counts: [0, 0, 1, 0, 0, 12, 0] },
+  { id: homeId(3), name: 'John', company: 'Cleaning Co', is_active: true, counts: [3, 3, 3, 3, 3, 0, 0] },
+  { id: homeId(4), name: 'Иван', company: 'Уборка', is_active: false, counts: [0, 1, 0, 0, 0, 0, 0] },
+  { id: homeId(5), name: 'ספק ישן', company: null, is_active: false, counts: [0, 0, 2, 0, 0, 0, 0] },
+  { id: homeId(6), name: 'דנה', company: 'דנה', is_active: true, counts: [0, 0, 0, 0, 0, 0, 0] },
+])
+
+/**
+ * What GET /api/admin/home answers in a test that stubs it (HomeSummary, shared/types.js): the week of `HOME_PROVIDERS` with its totals,
+ * and the counts of the cards. `providers` and `counts` can be replaced.
+ */
+export function homeSummary({ providers = HOME_PROVIDERS, counts = {} } = {}) {
+  return {
+    days: [...HOME_DAYS],
+    week: { providers: providers.map((p) => ({ ...p, counts: [...p.counts] })), totals: HOME_DAYS.map((_, i) => providers.reduce((sum, p) => sum + p.counts[i], 0)) },
+    counts: {
+      points: { active: 3, total: 4 },
+      providers: { active: 5, total: 7 },
+      committee_members: { active: 2 },
+      agent_keys: { active: 1 },
+      visits_not_counted: 3,
+      waiting: { phones: 2, visits: 5 },
+      ...counts,
+    },
+  }
+}
+
+/** Answers the Home screen's request with `summary` (default: `homeSummary()`). Call it after signing in and before Home is opened. */
+export async function stubHome(page, summary = homeSummary()) {
+  await page.route(/\/api\/admin\/home$/, (route) => (route.request().method() === 'GET' ? route.fulfill({ json: summary }) : route.continue()))
 }
 
 /** The committee app draws its phone layout below this width (`usePhoneLayout` in src/admin/hooks.js). Both E2E devices are narrower. */
