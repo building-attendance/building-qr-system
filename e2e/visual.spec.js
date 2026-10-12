@@ -71,14 +71,17 @@ test.describe.configure({ timeout: 120_000 })
  *     agent (both carry the host of the server). The prompt is ten kilobytes of text, which tests/agent-prompt.test.js pins, and
  *     which would make the picture of that tab four times the size of the others. (Only those three: the password field of the
  *     provider's dialog has the same class, and its look is what the picture is for.)
+ * `scope` is where to look: the page, or one dialog. A picture of a dialog that has a screen behind it looks inside the dialog only,
+ * because a box over something that the dialog covers would be drawn on the picture (the date fields of the filters' sheet are
+ * the dates that the History tab behind it also shows).
  */
-function dynamicRegions(page) {
+function dynamicRegions(page, scope = page) {
   return [
-    page.getByText(/\d{2}:\d{2}|\d{2}\/\d{2}\/\d{4}/),
-    page.getByLabel('מתאריך'),
-    page.getByLabel('עד תאריך'),
-    page.locator('.w-build, .a-build'),
-    page.locator('.a-facts .a-code, p .a-code, pre.a-code'),
+    scope.getByText(/\d{2}:\d{2}|\d{2}\/\d{2}\/\d{4}/),
+    scope.getByLabel('מתאריך'),
+    scope.getByLabel('עד תאריך'),
+    scope.locator('.w-build, .a-build'),
+    scope.locator('.a-facts .a-code, p .a-code, pre.a-code'),
   ]
 }
 
@@ -90,9 +93,9 @@ function dynamicRegions(page) {
  * A screen is taken whole (`whole`): the viewport is made as tall as the page for the picture, then put back. That is what a
  * long screen looks like on a tall phone, and it keeps what is fixed to the bottom of the screen (the tab bar of the committee
  * app on a phone) at the bottom of the picture, where Playwright's own full-page picture would put it in the middle. A dialog is
- * taken as it opens (`whole: false`): the screen that a person sees.
+ * taken as it opens (`whole: false`): the screen that a person sees. `within` is a dialog (a locator): only what is inside it is masked.
  */
-async function shot(page, name, { whole = true } = {}) {
+async function shot(page, name, { whole = true, within = page } = {}) {
   const viewport = page.viewportSize()
   if (whole) {
     const height = await page.evaluate(() => document.documentElement.scrollHeight)
@@ -102,7 +105,7 @@ async function shot(page, name, { whole = true } = {}) {
     await pageSettled(page) // every request of the screen has been answered, and drawn
     await page.evaluate(() => document.fonts.ready)
     await expect.soft(page).toHaveScreenshot(`${name}.png`, {
-      mask: dynamicRegions(page),
+      mask: dynamicRegions(page, within),
       animations: 'disabled',
       caret: 'hide',
       scale: 'css',
@@ -425,7 +428,7 @@ function committeeFilters() {
     await page.getByRole('button', { name: /^סינון/ }).click()
     const sheet = page.getByRole('dialog', { name: 'סינון', exact: true })
     await expect(sheet).toBeVisible()
-    await shotBothThemes(page, 'committee-360-history-filters-sheet', { whole: false })
+    await shotBothThemes(page, 'committee-360-history-filters-sheet', { whole: false, within: sheet })
 
     await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
     await sheet.getByLabel('כולל חשבון דמו').check()
