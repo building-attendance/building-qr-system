@@ -94,9 +94,11 @@ function dynamicRegions(page, scope = page) {
  * A screen is taken whole (`whole`): the viewport is made as tall as the page for the picture, then put back. That is what a
  * long screen looks like on a tall phone, and it keeps what is fixed to the bottom of the screen (the tab bar of the committee
  * app on a phone) at the bottom of the picture, where Playwright's own full-page picture would put it in the middle. A dialog is
- * taken as it opens (`whole: false`): the screen that a person sees. `within` is a dialog (a locator): only what is inside it is masked.
+ * taken as it opens (`whole: false`): the screen that a person sees. `within` is a dialog (a locator): only what is inside it is masked, plus
+ * what `alsoMask` lists (locators of what the dialog does not cover and that still changes with the date: a box is drawn over what the dialog
+ * covers as well, so only what is in view is named).
  */
-async function shot(page, name, { whole = true, within = page } = {}) {
+async function shot(page, name, { whole = true, within = page, alsoMask = [] } = {}) {
   const viewport = page.viewportSize()
   if (whole) {
     const height = await page.evaluate(() => document.documentElement.scrollHeight)
@@ -106,7 +108,7 @@ async function shot(page, name, { whole = true, within = page } = {}) {
     await pageSettled(page) // every request of the screen has been answered, and drawn
     await page.evaluate(() => document.fonts.ready)
     await expect.soft(page).toHaveScreenshot(`${name}.png`, {
-      mask: dynamicRegions(page, within),
+      mask: [...dynamicRegions(page, within), ...alsoMask],
       animations: 'disabled',
       caret: 'hide',
       scale: 'css',
@@ -468,7 +470,9 @@ function committeeFilters(width) {
     await page.getByRole('button', { name: /^סינון/ }).click()
     const sheet = page.getByRole('dialog', { name: 'סינון', exact: true })
     await expect(sheet).toBeVisible()
-    await shotBothThemes(page, `committee-${width}-history-filters-sheet`, { whole: false, within: sheet })
+    // At 768 px the bar of the History tab is in view above the sheet, and its dates (the week up to today) change from one day to the next.
+    const range = width === '360' ? [] : [page.getByText(/\d{2}\/\d{2}\/\d{4} עד \d{2}\/\d{2}\/\d{4}/)]
+    await shotBothThemes(page, `committee-${width}-history-filters-sheet`, { whole: false, within: sheet, alsoMask: range })
     if (width !== '360') return
 
     await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
