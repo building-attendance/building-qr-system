@@ -402,14 +402,21 @@ export default function HistoryView() {
   // A link followed while the screen is open (the address changes, and the screen is still this one): the same as one that opened it, and
   // the address goes back to the plain `#history`. The latest values are read from a ref, so that the listener is attached once.
   const latest = useRef(null)
-  latest.current = { applied, defaults, providerList: providers.data?.providers, dateUnfinished: unfinished.from || unfinished.to }
+  latest.current = { applied, defaults, providerList: providers.data?.providers, providersAnswered, dateUnfinished: unfinished.from || unfinished.to }
   useEffect(() => {
     const follow = () => {
       const next = readLink()
       if (!next) return // another screen (this one is about to go), or this screen's own address, which has nothing to apply
-      const { applied: now, defaults: base, providerList, dateUnfinished } = latest.current
+      const { applied: now, defaults: base, providerList, providersAnswered: answered, dateUnfinished } = latest.current
       const filtersOfLink = linkedFilters(next, base, providerList)
-      setWanted(null) // the list of providers is here: a provider in it is known, and one that is not is dropped
+      // A provider that the list does not hold is dropped, unless the list of this visit has not answered yet (the screen has only just
+      // opened): then it waits for it, as it does when the link opens the screen, and the list is not that of the old filters meanwhile.
+      const waiting = Boolean(next.provider) && !filtersOfLink.provider_id && !answered
+      setWanted(waiting ? next.provider : null)
+      if (waiting) {
+        seq.current += 1 // an answer to the filters before the link is not the list now
+        setList({ rows: [], cursor: null, status: 'loading', kind: 'scans' })
+      }
       setSheet(false)
       if (dateUnfinished) setRound((n) => n + 1) // a date half typed in a field would stay there; the fields are drawn again from the filters
       if (sameFilters(filtersOfLink, now)) setFilters(now) // the screen already says it (a pause for typing may be waiting): no new query
