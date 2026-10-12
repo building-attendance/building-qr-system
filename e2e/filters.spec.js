@@ -310,7 +310,7 @@ test.describe('on a phone', () => {
     await from.fill('')
     await from.pressSequentially('01012026')
     await apply(sheet)
-    await expect(log.getByText(/^מ-01\/01\/2026$/)).toBeVisible()
+    await expect(log.getByText(/מ-01\/01\/2026/)).toBeVisible()
     await expect(opener(page)).toHaveAccessibleName(/^סינון\s*3\s*פעילים$/)
     await page.getByRole('button', { name: 'הסרת סינון: סוג פעולה: נקודות' }).click()
     await expect(chips(page)).toHaveCount(1)

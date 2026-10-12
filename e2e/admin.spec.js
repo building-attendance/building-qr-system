@@ -291,7 +291,7 @@ test('every screen has its actions in the same order and places, with the red tr
         await loaded(page, title)
         if (tab === 'history') {
           // the refused visit is listed too: its row keeps the place of the cancel icon, and the trash can does not move
-          await page.getByLabel('סוג').selectOption('all')
+          await changeFilters(page, (filters) => filters.getByLabel('סוג').selectOption('all')) // (on a phone: in the sheet)
           await expect(page.getByText('נדחתה: רחוק מהנקודה')).toBeVisible()
         }
         const remove = page.getByRole('button', { name: REMOVE[tab] })
