@@ -207,7 +207,7 @@ function RefusalRow({ r }) {
 }
 
 /**
- * What an empty list says. This is the first screen of the app, and a new installation has no points yet: a list of visits that is empty
+ * What an empty list says. A new installation has no points yet: a list of visits that is empty
  * because there is nothing to scan must not tell the person to widen the dates, but to start by adding points. `points` is the load of the
  * points that the filter above already makes (the same request, kept by useLoad). While it is on its way an empty list of visits waits (a
  * spinner), so that the wrong message never shows for a moment; when it cannot be loaded, the list says what it always said.

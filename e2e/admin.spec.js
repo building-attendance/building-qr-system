@@ -1233,7 +1233,10 @@ test('the week table of Home runs from the right (the oldest day) to the left (t
       expect(found.width, `${where}: the width of a cell link`).toBeGreaterThanOrEqual(24)
       expect(found.height, `${where}: the height of a cell link`).toBeGreaterThanOrEqual(44)
     }
-    for (const card of await page.getByRole('main').locator('a.a-stat').all()) expect((await box(card)).height, `${where}: a card`).toBeGreaterThanOrEqual(44)
+    // the six cards (the stub has phones that wait, so the sixth is there): each is one link, and at least 44 high
+    for (const label of [/נותני שירות פעילים/, /נקודות פעילות/, /ביקורים שלא נקלטו/, /טלפונים עם ביקורים/, /חברי הוועד/, /מפתחות אייג'נט פעילים/]) {
+      expect((await box(page.getByRole('main').getByRole('link', { name: label }))).height, `${where}: the card ${label}`).toBeGreaterThanOrEqual(44)
+    }
 
     // Nothing scrolls sideways, the box of the table included: it fits, and its own scrolling is only for what could not.
     expect(await noHorizontalScroll(page), `${where}: the page`).toBe(true)
