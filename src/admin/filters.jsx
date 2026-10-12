@@ -10,24 +10,14 @@ import { formatDay } from '../../shared/datetime.js'
 // is topped by one short bar (`FilterBar`: the button, the dates that are applied, and a chip for every other filter that is on), and the
 // fields are in a sheet that pops up from the bottom (`FilterSheet`). The list is hidden behind the sheet, so nothing is asked of the
 // server while the person chooses: the filters are applied when they press "show results". Which of the two layouts is drawn is decided by
-// `usePhoneLayout` (hooks.js), and only that one is rendered.
+// `usePhoneLayout` (hooks.js), and only that one is rendered, with one exception: a sheet that is open when the window crosses 1024 px (a
+// tablet that is turned) stays open until the person applies, resets or closes it, because closing it would drop what they chose and a date
+// that they half typed without the question that every other way of closing it asks (F4 of docs/design.md). The screen behind a modal is
+// out of reach, so the inline controls that appear behind it do no harm, and the sheet is one component in one place of the tree, so it
+// keeps its draft through the change.
 
 /** A date that a list is asked for: a complete, sensible one. A date typed digit by digit passes through nonsense ("0002-..."). */
 export const goodDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) >= 2000
-
-/**
- * Whether the sheet is open, as `[open, setOpen]`. It is open only on a phone, and it stays closed when the window goes from a computer's
- * width back to a phone's: a sheet that was open when the layout left must not come back by itself.
- */
-export function useSheetOpen(phone) {
-  const [open, setOpen] = useState(false)
-  const [wasPhone, setWasPhone] = useState(phone)
-  if (phone !== wasPhone) { // the layout changed: the sheet belongs to the layout that it was opened in
-    setWasPhone(phone)
-    setOpen(false)
-  }
-  return [open && phone, setOpen]
-}
 
 /** True when two sets of filters say the same. */
 export function sameFilters(a, b) {

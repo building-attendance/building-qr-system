@@ -327,7 +327,7 @@ test.describe('on a phone', () => {
 test('on a computer the filters stay inline and live, each control is in the page once, and the layout follows the width of the window', async ({ page }) => {
   await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
   await page.setViewportSize(COMPUTER)
-  const { asked, lobby } = await stubScans(page)
+  const { asked, lobby, basement } = await stubScans(page)
   await openHistory(page)
   const rows = page.getByRole('listitem')
   await expect(rows).toHaveCount(2)
@@ -351,12 +351,29 @@ test('on a computer the filters stay inline and live, each control is in the pag
   await expect(opener(page)).toBeVisible()
   await expect(page.getByRole('button', { name: 'הסרת סינון: נקודה: לובי' })).toBeVisible()
   await expect(rows).toHaveCount(1)
-  // an open sheet goes with the layout that it belongs to
-  await openFilters(page)
+  // a sheet that is open when the window crosses 1024 px (a tablet that is turned) stays, with what was chosen and a date that was half
+  // typed: closing it would lose both without the question that Esc asks (F4). The inline controls are behind it.
+  const sheet = await openFilters(page)
+  await sheet.getByLabel('נקודה').selectOption({ label: 'מינוס 1' })
+  const from = sheet.getByLabel('מתאריך')
+  await from.press('End')
+  for (let i = 0; i < 6; i++) await from.press('Backspace')
+  await expect(from).toHaveValue(/^\d{2}$/)
   await page.setViewportSize(COMPUTER)
+  await expect(sheet).toBeVisible()
+  await expect(sheet.getByLabel('נקודה')).toHaveValue(basement.id)
+  await expect(from).toHaveValue(/^\d{2}$/)
+  await expect(opener(page)).toHaveCount(0) // the bar is gone, the inline controls are behind the sheet
+  await expect(page.getByLabel('נקודה')).toHaveCount(2)
+  await page.setViewportSize({ width: 390, height: 800 })
+  await expect(sheet.getByLabel('נקודה')).toHaveValue(basement.id) // and back: still there
+  await page.setViewportSize(COMPUTER)
+  await page.keyboard.press('Escape') // it is as unsaved as on a phone: Esc asks first
+  const question = page.getByRole('dialog', { name: QUESTION })
+  await expect(question).toBeVisible()
+  await question.getByRole('button', { name: 'סגירה בלי להציג' }).click()
   await expect(page.getByRole('dialog')).toHaveCount(0)
-  await expect(opener(page)).toHaveCount(0)
-  await expect(page.getByLabel('נקודה')).toHaveValue(lobby.id) // the same filters, inline again
+  await expect(page.getByLabel('נקודה')).toHaveValue(lobby.id) // the same filters, inline again, one copy
   await expect(page.getByLabel('מתאריך', { exact: true })).toHaveCount(1)
 
   // the audit log, on a computer: inline, once

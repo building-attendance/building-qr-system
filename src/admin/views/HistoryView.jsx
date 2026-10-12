@@ -3,7 +3,7 @@ import { adminApi, errorText, scanRefusals } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useSheetOpen } from '../filters.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters } from '../filters.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash, IconPin } from '../icons.jsx'
 import { goToTab } from '../tab.js'
 import { formatDay, formatDateTime, formatTime, isoDay } from '../../../shared/datetime.js'
@@ -227,7 +227,7 @@ export default function HistoryView() {
   // chosen in a sheet and applied together, so there the two are always the same (`apply`).
   const [filters, setFilters] = useState(defaults) // what the inputs show
   const [applied, setApplied] = useState(defaults) // what is actually queried
-  const [sheet, setSheet] = useSheetOpen(phone) // the phone's sheet of filters is open
+  const [sheet, setSheet] = useState(false) // the sheet of filters is open (the phone's, which stays open if the window grows past 1024 px)
   // A date field that is half typed shows something other than what is queried (the last good date). The list may stay,
   // but the export must not quietly use a range that differs from the fields, so it waits until both are finished.
   // (Only the computer's inline fields tell it: the sheet of the phone applies nothing while a date is unfinished.)
@@ -354,19 +354,18 @@ export default function HistoryView() {
       </div>
 
       {phone ? (
-        <>
-          <FilterBar count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
-            chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: defaults[chip.key] }) }))} />
-          {sheet && (
-            <FilterSheet initial={applied} defaults={defaults} onApply={apply} onClose={() => setSheet(false)}>
-              {({ values, set: choose, errors, watch }) => <HistoryControls values={values} set={choose} errors={errors} onPending={watch} points={points} providers={providers} />}
-            </FilterSheet>
-          )}
-        </>
+        <FilterBar count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
+          chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: defaults[chip.key] }) }))} />
       ) : (
         <div className="a-filters">
           <HistoryControls values={filters} set={set} onPending={(key) => (pending) => setUnfinished((u) => ({ ...u, [key]: pending }))} points={points} providers={providers} />
         </div>
+      )}
+      {/* Outside the choice of layout, so that a sheet that is open when the window crosses 1024 px stays, with its draft (see filters.jsx). */}
+      {sheet && (
+        <FilterSheet initial={applied} defaults={defaults} onApply={apply} onClose={() => setSheet(false)}>
+          {({ values, set: choose, errors, watch }) => <HistoryControls values={values} set={choose} errors={errors} onPending={watch} points={points} providers={providers} />}
+        </FilterSheet>
       )}
 
       {status === 'loading' && <Spinner />}

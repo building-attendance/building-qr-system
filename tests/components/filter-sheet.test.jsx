@@ -434,7 +434,7 @@ describe('History: the two layouts', () => {
     expect(lastParams('/admin/scans').get('point_id')).toBe(OTHER_POINT.id)
   })
 
-  it('follows the window across 1024 px: the sheet goes with the phone, and the inline controls keep what was applied', async () => {
+  it('follows the window across 1024 px: the bar and the inline controls change places, and keep what was applied', async () => {
     const window1024 = layout(true)
     historyServer()
     await showHistory()
@@ -442,14 +442,93 @@ describe('History: the two layouts', () => {
     choose('נקודה', OTHER_POINT.id)
     showResults()
     await waitFor(() => expect(removers()).toHaveLength(1), WAIT)
-    openSheet()
     await window1024.computer()
-    expect(screen.queryByRole('dialog')).toBeNull()
     expect(screen.queryByRole('button', { name: /^סינון/ })).toBeNull()
     expect(screen.getByLabelText('נקודה').value).toBe(OTHER_POINT.id)
     await window1024.phone()
     expect(screen.queryByLabelText('נקודה')).toBeNull()
     expect(removers().map((chip) => chip.textContent)).toEqual(['נקודה: מינוס 1'])
+  })
+
+  // A tablet that is turned crosses 1024 px with the sheet open. Closing it then would drop what was chosen, and a date that is half typed,
+  // without the question that Esc and a tap outside ask (F4). So it stays open, with its draft, whichever way the window goes.
+  describe('a sheet that is open when the window crosses 1024 px', () => {
+    /** Opens the sheet on a phone, chooses a point, half types a date, and turns the window into a computer's. */
+    async function crossWithDraft() {
+      const window1024 = layout(true)
+      historyServer()
+      await showHistory()
+      openSheet()
+      choose('נקודה', OTHER_POINT.id)
+      fireEvent.change(within(sheet()).getByLabelText('מתאריך'), { target: { value: '2909' } }) // half a date: "29/09"
+      await window1024.computer()
+      return window1024
+    }
+
+    it('stays open with what was chosen and the date that was half typed, on a computer as on a phone', async () => {
+      const window1024 = await crossWithDraft()
+      expect(sheet()).toBeTruthy()
+      expect(within(sheet()).getByLabelText('נקודה').value).toBe(OTHER_POINT.id)
+      expect(within(sheet()).getByLabelText('מתאריך').value).toBe('29/09')
+      // the inline controls are behind it, with what is applied: nothing that was chosen in the sheet
+      expect(screen.getAllByLabelText('נקודה')).toHaveLength(2)
+      expect(screen.getAllByLabelText('נקודה').filter((field) => !sheet().contains(field))[0].value).toBe('')
+      await window1024.phone()
+      expect(within(sheet()).getByLabelText('נקודה').value).toBe(OTHER_POINT.id)
+      expect(within(sheet()).getByLabelText('מתאריך').value).toBe('29/09')
+      expect(screen.getAllByLabelText('נקודה'), 'one copy again: the bar has no controls').toHaveLength(1)
+      expect(calls('/admin/scans'), 'nothing was applied by the change').toHaveLength(1)
+    })
+
+    it('can still be applied: the date is finished, "show results" applies the draft, and the inline controls show it', async () => {
+      await crossWithDraft()
+      showResults() // the date is half typed: refused, as on a phone
+      expect((await within(sheet()).findByRole('alert')).textContent).toContain('התאריך לא תקין')
+      expect(calls('/admin/scans')).toHaveLength(1)
+      fireEvent.change(within(sheet()).getByLabelText('מתאריך'), { target: { value: '29/09/2025' } })
+      showResults()
+      await waitFor(() => expect(calls('/admin/scans')).toHaveLength(2), WAIT)
+      expect(Object.fromEntries(lastParams('/admin/scans'))).toEqual({ from: '2025-09-29', to: TO, point_id: OTHER_POINT.id, outcome: OUTCOME_ACCEPTED, limit: '100' })
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.getByLabelText('נקודה').value).toBe(OTHER_POINT.id)
+      expect(screen.getByLabelText('מתאריך').value).toBe('29/09/2025')
+    })
+
+    it('can still be discarded, through the same question as on a phone, and the applied filters stay', async () => {
+      await crossWithDraft()
+      fireEvent.keyDown(document, { key: 'Escape' })
+      const question = screen.getByRole('dialog', { name: QUESTION })
+      fireEvent.click(within(question).getByRole('button', { name: 'חזרה לסינון' }))
+      expect(within(sheet()).getByLabelText('מתאריך').value, 'asked, and kept').toBe('29/09')
+      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'סגירה בלי להציג' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(screen.getByLabelText('נקודה').value, 'the applied filters are the same').toBe('')
+      expect(calls('/admin/scans')).toHaveLength(1)
+    })
+
+    it('can still be reset, and the audit log keeps its sheet the same way', async () => {
+      const window1024 = layout(true)
+      api.mockImplementation(async (path) => {
+        if (path === '/admin/admins') return { admins: [DANA] }
+        if (path.startsWith('/admin/audit')) return { entries: [entry()], next_cursor: null }
+        throw new Error(`the test does not expect ${path}`)
+      })
+      await showAudit()
+      openSheet()
+      choose('סוג פעולה', 'point')
+      fireEvent.change(within(sheet()).getByLabelText('עד תאריך'), { target: { value: '0510' } })
+      await window1024.computer()
+      expect(within(sheet()).getByLabelText('סוג פעולה').value).toBe('point')
+      expect(within(sheet()).getByLabelText('עד תאריך').value).toBe('05/10')
+      fireEvent.click(within(sheet()).getByRole('button', { name: 'איפוס' }))
+      expect(within(sheet()).getByLabelText('סוג פעולה').value).toBe('')
+      expect(within(sheet()).getByLabelText('עד תאריך').value).toBe('')
+      showResults()
+      await new Promise((resolve) => setTimeout(resolve, 400))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(calls('/admin/audit'), 'reset to what was applied: nothing to ask').toHaveLength(1)
+    })
   })
 
   it('is a computer where the browser has no matchMedia', async () => {

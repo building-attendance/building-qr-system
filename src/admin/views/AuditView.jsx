@@ -3,7 +3,7 @@ import { adminApi, auditLog, errorText } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Field, EmptyState, Spinner, IconButton, useToast, useAction } from '../ui.jsx'
-import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useSheetOpen } from '../filters.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters } from '../filters.jsx'
 import { IconClock, IconRefresh, IconAlert } from '../icons.jsx'
 import { formatDay, formatTime, isoDay } from '../../../shared/datetime.js'
 import { GROUP_OPTIONS } from '../auditLabels.js'
@@ -112,7 +112,7 @@ export default function AuditView() {
   // in a sheet and applied together, so there the two are always the same (`apply`).
   const [filters, setFilters] = useState(EMPTY_FILTERS) // what the inputs show
   const [applied, setApplied] = useState(filters) // what is actually queried
-  const [sheet, setSheet] = useSheetOpen(phone) // the phone's sheet of filters is open
+  const [sheet, setSheet] = useState(false) // the sheet of filters is open (the phone's, which stays open if the window grows past 1024 px)
   // The list starts with the page that was kept for the first filters, if there is one (the log was open before in this session).
   const [{ entries, cursor, status }, setList] = useState(() => rememberedList(filters) ?? { entries: [], cursor: null, status: 'loading' })
   const [busy, run] = useAction(toast, errorText)
@@ -195,19 +195,18 @@ export default function AuditView() {
       </div>
 
       {phone ? (
-        <>
-          <FilterBar count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
-            chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: EMPTY_FILTERS[chip.key] }) }))} />
-          {sheet && (
-            <FilterSheet initial={applied} defaults={EMPTY_FILTERS} onApply={apply} onClose={() => setSheet(false)}>
-              {({ values, set: choose, errors, watch }) => <AuditControls values={values} set={choose} errors={errors} onPending={watch} members={members} />}
-            </FilterSheet>
-          )}
-        </>
+        <FilterBar count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
+          chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: EMPTY_FILTERS[chip.key] }) }))} />
       ) : (
         <div className="a-filters">
           <AuditControls values={filters} set={set} members={members} />
         </div>
+      )}
+      {/* Outside the choice of layout, so that a sheet that is open when the window crosses 1024 px stays, with its draft (see filters.jsx). */}
+      {sheet && (
+        <FilterSheet initial={applied} defaults={EMPTY_FILTERS} onApply={apply} onClose={() => setSheet(false)}>
+          {({ values, set: choose, errors, watch }) => <AuditControls values={values} set={choose} errors={errors} onPending={watch} members={members} />}
+        </FilterSheet>
       )}
 
       {status === 'loading' && <Spinner />}
