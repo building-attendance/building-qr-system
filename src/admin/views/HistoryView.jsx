@@ -3,7 +3,7 @@ import { adminApi, errorText, scanRefusals } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters } from '../filters.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useUnfinishedDates } from '../filters.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash, IconPin } from '../icons.jsx'
 import { goToTab } from '../tab.js'
 import { formatDay, formatDateTime, formatTime, isoDay } from '../../../shared/datetime.js'
@@ -219,7 +219,12 @@ function HistoryControls({ values, set, errors, onPending, points, providers }) 
 
 export default function HistoryView() {
   const toast = useToast()
-  const phone = usePhoneLayout()
+  // A date field that is half typed shows something other than what is queried (the last good date). The list may stay, but the export
+  // must not quietly use a range that differs from the fields, so it waits until both are finished. (Only the computer's inline fields tell
+  // it: the sheet of the phone applies nothing while a date is unfinished.) The same state holds the layout: a date that is half typed lives
+  // in the text of its field, which the phone's layout would unmount, so below 1024 px the computer's layout stays until it is finished.
+  const [unfinished, onPending] = useUnfinishedDates()
+  const phone = usePhoneLayout({ hold: unfinished.from || unfinished.to })
   const points = useLoad(() => adminApi('/points'), [], { cacheKey: LOAD_KEY.points })
   const providers = useLoad(() => adminApi('/providers'), [], { cacheKey: LOAD_KEY.providers })
   const [defaults] = useState(DEFAULTS) // what "reset" and the count of the filters that are on are measured against
@@ -228,10 +233,6 @@ export default function HistoryView() {
   const [filters, setFilters] = useState(defaults) // what the inputs show
   const [applied, setApplied] = useState(defaults) // what is actually queried
   const [sheet, setSheet] = useState(false) // the sheet of filters is open (the phone's, which stays open if the window grows past 1024 px)
-  // A date field that is half typed shows something other than what is queried (the last good date). The list may stay,
-  // but the export must not quietly use a range that differs from the fields, so it waits until both are finished.
-  // (Only the computer's inline fields tell it: the sheet of the phone applies nothing while a date is unfinished.)
-  const [unfinished, setUnfinished] = useState({ from: false, to: false })
   // `kind` says which list the rows are (scans or refusals), set when they arrive: the filter can already say another one
   // while the pause before a query runs, and rows are never drawn as the wrong kind.
   // The list starts with the page that was kept for the first filters, if there is one (the tab was open before in this session).
@@ -348,7 +349,7 @@ export default function HistoryView() {
           <IconButton icon={IconRefresh} label="רענון" onClick={load} />
           {/* The file is of scans only: it has no refused visits, so there is nothing to export in this view. */}
           {!choseRefusals && applied.outcome !== NOT_COUNTED && (
-            <IconButton icon={IconDownload} label="ייצוא ל-Excel" href={`/api/admin/scans?${query(applied, { format: 'csv' })}`} download="scans.csv" disabled={!phone && (unfinished.from || unfinished.to)} />
+            <IconButton icon={IconDownload} label="ייצוא ל-Excel" href={`/api/admin/scans?${query(applied, { format: 'csv' })}`} download="scans.csv" disabled={unfinished.from || unfinished.to} />
           )}
         </div>
       </div>
@@ -358,7 +359,7 @@ export default function HistoryView() {
           chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: defaults[chip.key] }) }))} />
       ) : (
         <div className="a-filters">
-          <HistoryControls values={filters} set={set} onPending={(key) => (pending) => setUnfinished((u) => ({ ...u, [key]: pending }))} points={points} providers={providers} />
+          <HistoryControls values={filters} set={set} onPending={onPending} points={points} providers={providers} />
         </div>
       )}
       {/* Outside the choice of layout, so that a sheet that is open when the window crosses 1024 px stays, with its draft (see filters.jsx). */}

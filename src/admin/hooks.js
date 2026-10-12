@@ -59,9 +59,15 @@ const COMPUTER_LAYOUT = '(min-width: 1024px)'
  * turned. Where the browser has no `matchMedia` (a test in jsdom) it is a computer: nothing there is a phone until a test says so.
  * A screen that draws something only in one of the two layouts uses this and renders it once, rather than drawing both and hiding one
  * with CSS: a control that is twice in the page is twice in the reading of a screen reader, and twice for a label that a test looks up.
+ *
+ * `hold` freezes the answer while it is true: the layout that was drawn stays, whatever the window does, and the screen follows the window
+ * again (at once, to the layout that it has by then) when `hold` is false. A screen holds it while the person has something in a field
+ * that the other layout would not keep: a date half typed in the inline filters lives in the text of its own field, which unmounts with the
+ * block, so a tablet that is turned across 1024px would take it away. The layout waits for the person's input.
  */
-export function usePhoneLayout() {
-  const [phone, setPhone] = useState(() => isPhone())
+export function usePhoneLayout({ hold = false } = {}) {
+  const [phone, setPhone] = useState(() => isPhone()) // what the window is
+  const [shown, setShown] = useState(phone) // what was last drawn, while it is held
   useEffect(() => {
     const computer = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(COMPUTER_LAYOUT) : null
     if (!computer) return undefined
@@ -70,7 +76,8 @@ export function usePhoneLayout() {
     computer.addEventListener('change', follow)
     return () => computer.removeEventListener('change', follow)
   }, [])
-  return phone
+  if (!hold && shown !== phone) setShown(phone) // not held: what is drawn is what the window is
+  return hold ? shown : phone
 }
 function isPhone() {
   return typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? !window.matchMedia(COMPUTER_LAYOUT).matches : false

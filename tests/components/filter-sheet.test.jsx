@@ -531,6 +531,85 @@ describe('History: the two layouts', () => {
     })
   })
 
+  // The other direction: on a computer the dates are typed in the inline fields, and a date that is half typed lives in the text of its own
+  // field, which would unmount with the inline block when a tablet is turned below 1024 px. The layout waits for the person's input.
+  describe('a date that is half typed in the inline fields when the window goes below 1024 px', () => {
+    it('keeps the computer layout, with the same field and the half text, until the date is finished', async () => {
+      const window1024 = layout(false)
+      historyServer()
+      await showHistory()
+      const from = screen.getByLabelText('מתאריך')
+      fireEvent.change(from, { target: { value: '2909' } }) // half a date: "29/09"
+      expect(from.value).toBe('29/09')
+      await window1024.phone()
+      expect(screen.getByLabelText('מתאריך'), 'the very same field').toBe(from)
+      expect(from.value).toBe('29/09')
+      expect(screen.queryByRole('button', { name: /^סינון/ }), 'no bar yet').toBeNull()
+      expect(screen.getByRole('button', { name: 'ייצוא ל-Excel' }).hasAttribute('disabled'), 'the file waits, as it does on a computer').toBe(true)
+      fireEvent.change(from, { target: { value: '29/09/2025' } }) // finished: the layout follows the window
+      await waitFor(() => expect(opener()).toBeTruthy(), WAIT)
+      expect(screen.queryByLabelText('מתאריך')).toBeNull()
+      await waitFor(() => expect(document.querySelector('.a-filterbar__range').textContent).toBe('טווח התאריכים: 29/09/2025 עד 05/10/2026'), WAIT)
+      expect(Object.fromEntries(lastParams('/admin/scans')).from, 'the finished date is what the list was asked for').toBe('2025-09-29')
+    })
+
+    it('switches once the date is cleared', async () => {
+      const window1024 = layout(false)
+      historyServer()
+      await showHistory()
+      const from = screen.getByLabelText('מתאריך')
+      fireEvent.change(from, { target: { value: '2909' } })
+      await window1024.phone()
+      expect(screen.getByLabelText('מתאריך')).toBe(from)
+      fireEvent.change(from, { target: { value: '' } })
+      await waitFor(() => expect(opener()).toBeTruthy(), WAIT)
+      expect(screen.queryByLabelText('מתאריך')).toBeNull()
+    })
+
+    it('holds for the date that is "to" as well, and for a date that does not exist (31/02)', async () => {
+      const window1024 = layout(false)
+      historyServer()
+      await showHistory()
+      const until = screen.getByLabelText('עד תאריך')
+      fireEvent.change(until, { target: { value: '31022026' } })
+      await window1024.phone()
+      expect(screen.getByLabelText('עד תאריך')).toBe(until)
+      expect(until.value).toBe('31/02/2026')
+      fireEvent.change(until, { target: { value: '28/02/2026' } })
+      await waitFor(() => expect(opener()).toBeTruthy(), WAIT)
+    })
+
+    it('does not hold anything when no date is half typed: the window decides at once', async () => {
+      const window1024 = layout(false)
+      historyServer()
+      await showHistory()
+      fireEvent.change(screen.getByLabelText('מתאריך'), { target: { value: '29/09/2025' } }) // a finished date
+      await window1024.phone()
+      expect(opener()).toBeTruthy()
+      expect(screen.queryByLabelText('מתאריך')).toBeNull()
+    })
+
+    it('is the same in the audit log', async () => {
+      const window1024 = layout(false)
+      api.mockImplementation(async (path) => {
+        if (path === '/admin/admins') return { admins: [DANA] }
+        if (path.startsWith('/admin/audit')) return { entries: [entry()], next_cursor: null }
+        throw new Error(`the test does not expect ${path}`)
+      })
+      await showAudit()
+      const from = screen.getByLabelText('מתאריך')
+      fireEvent.change(from, { target: { value: '2909' } })
+      await window1024.phone()
+      expect(screen.getByLabelText('מתאריך'), 'the very same field').toBe(from)
+      expect(from.value).toBe('29/09')
+      expect(screen.queryByRole('button', { name: /^סינון/ })).toBeNull()
+      fireEvent.change(from, { target: { value: '' } }) // cleared
+      await waitFor(() => expect(opener()).toBeTruthy(), WAIT)
+      expect(screen.queryByLabelText('מתאריך')).toBeNull()
+      expect(document.querySelector('.a-filterbar__range').textContent).toBe('טווח התאריכים: כל התאריכים')
+    })
+  })
+
   it('is a computer where the browser has no matchMedia', async () => {
     historyServer()
     await showHistory()

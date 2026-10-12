@@ -15,9 +15,24 @@ import { formatDay } from '../../shared/datetime.js'
 // that they half typed without the question that every other way of closing it asks (F4 of docs/design.md). The screen behind a modal is
 // out of reach, so the inline controls that appear behind it do no harm, and the sheet is one component in one place of the tree, so it
 // keeps its draft through the change.
+//
+// The other direction waits for the person's input too. On a computer the dates are typed in the inline fields, and a date that is half
+// typed there lives in the text of its own field (`DateInput`), which unmounts with the inline block when the window goes below 1024 px. So
+// while an inline date is unfinished (`useUnfinishedDates`) the screen holds the computer layout (`usePhoneLayout({ hold })`), which has
+// worked at any width, and it switches to the bar once the date is finished or cleared.
 
 /** A date that a list is asked for: a complete, sensible one. A date typed digit by digit passes through nonsense ("0002-..."). */
 export const goodDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) >= 2000
+
+/**
+ * Which of the two inline date fields hold a date that is not finished, as `[{ from, to }, onPending]`: `onPending` is for
+ * `DateRangeFields`. The History tab holds its export back while one is unfinished, and both screens hold their layout.
+ */
+export function useUnfinishedDates() {
+  const [unfinished, setUnfinished] = useState({ from: false, to: false })
+  const onPending = (key) => (pending) => setUnfinished((u) => (u[key] === pending ? u : { ...u, [key]: pending }))
+  return [unfinished, onPending]
+}
 
 /** True when two sets of filters say the same. */
 export function sameFilters(a, b) {

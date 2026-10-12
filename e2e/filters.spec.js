@@ -345,6 +345,22 @@ test('on a computer the filters stay inline and live, each control is in the pag
   await expect(rows).toHaveCount(1)
   expect(asked.at(-1).get('point_id')).toBe(lobby.id)
 
+  // a date that is half typed in the inline fields keeps the computer's layout below 1024 px, with the same field and its text, until it is
+  // finished: the text lives in the field, which the phone's layout would unmount
+  const inlineFrom = page.getByLabel('מתאריך')
+  const original = await inlineFrom.inputValue()
+  await inlineFrom.press('End')
+  for (let i = 0; i < 6; i++) await inlineFrom.press('Backspace')
+  await expect(inlineFrom).toHaveValue(/^\d{2}$/)
+  await page.setViewportSize({ width: 390, height: 800 })
+  await expect(inlineFrom).toHaveValue(/^\d{2}$/)
+  await expect(opener(page)).toHaveCount(0)
+  await inlineFrom.pressSequentially(original.replace(/\D/g, '').slice(2))
+  await expect(opener(page)).toBeVisible() // finished: the layout follows the window
+  await expect(page.getByLabel('מתאריך')).toHaveCount(0)
+  await page.setViewportSize(COMPUTER)
+  await expect(page.getByLabel('מתאריך')).toHaveValue(original)
+
   // narrower than 1024 px, with no reload: the controls go, and the bar says what is applied
   await page.setViewportSize({ width: 390, height: 800 })
   await expect(page.getByLabel('מתאריך')).toHaveCount(0)

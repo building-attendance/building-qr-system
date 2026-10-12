@@ -3,7 +3,7 @@ import { adminApi, auditLog, errorText } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Field, EmptyState, Spinner, IconButton, useToast, useAction } from '../ui.jsx'
-import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters } from '../filters.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useUnfinishedDates } from '../filters.jsx'
 import { IconClock, IconRefresh, IconAlert } from '../icons.jsx'
 import { formatDay, formatTime, isoDay } from '../../../shared/datetime.js'
 import { GROUP_OPTIONS } from '../auditLabels.js'
@@ -106,7 +106,10 @@ function AuditControls({ values, set, errors, onPending, members }) {
 
 export default function AuditView() {
   const toast = useToast()
-  const phone = usePhoneLayout()
+  // A date that is half typed in the inline fields (on a computer) lives in the text of its field, which the phone's layout would unmount,
+  // so below 1024 px the computer's layout stays until it is finished or cleared (see filters.jsx).
+  const [unfinished, onPending] = useUnfinishedDates()
+  const phone = usePhoneLayout({ hold: unfinished.from || unfinished.to })
   const members = useLoad(() => adminApi('/admins'), [], { cacheKey: LOAD_KEY.admins }) // the same list as the settings
   // On a computer the filters are what the inputs show and the log follows them after a short pause in typing; on a phone they are chosen
   // in a sheet and applied together, so there the two are always the same (`apply`).
@@ -199,7 +202,7 @@ export default function AuditView() {
           chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: EMPTY_FILTERS[chip.key] }) }))} />
       ) : (
         <div className="a-filters">
-          <AuditControls values={filters} set={set} members={members} />
+          <AuditControls values={filters} set={set} onPending={onPending} members={members} />
         </div>
       )}
       {/* Outside the choice of layout, so that a sheet that is open when the window crosses 1024 px stays, with its draft (see filters.jsx). */}
