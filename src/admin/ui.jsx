@@ -127,12 +127,21 @@ export function useDirty(value) {
  * part optional (the filters of a long list are shown, not saved). `initialFocus` is where the focus goes when the dialog opens: 'field'
  * (the default) is its first field, 'dialog' is the dialog itself, for a dialog whose first field is a text field that would bring up
  * the keyboard of a phone over it at once.
+ *
+ * When it closes, the focus goes back to the element that had it when the dialog opened (the opener). That element can be gone by then (the
+ * screen drew another layout meanwhile), or there can have been none (Safari does not focus a button that is tapped, so the page's body
+ * had the focus). `returnFocus` is a function that gives the element to focus instead, for a dialog whose screen knows its own opener: it is
+ * asked when the opener is gone or there was none, and an opener that is still in the page keeps the focus as it always had. Without it, a
+ * dialog whose opener is gone puts the focus on the page's `main` (the shell's own target when a screen changes), but only while nothing else
+ * has taken it: two dialogs that close together, one of them opened from the other, must not fight over it.
  */
-export function Modal({ title, onClose, dirty = false, busy = false, question, initialFocus = 'field', children, footer, size = 'md' }) {
+export function Modal({ title, onClose, dirty = false, busy = false, question, initialFocus = 'field', returnFocus, children, footer, size = 'md' }) {
   const ref = useRef(null)
   const titleId = useId()
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const returnFocusRef = useRef(returnFocus)
+  returnFocusRef.current = returnFocus
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
   const busyRef = useRef(busy)
@@ -181,7 +190,16 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
       document.removeEventListener('keydown', onKey)
       modalStack.splice(modalStack.indexOf(me), 1)
       if (!modalStack.length) document.body.style.overflow = bodyOverflow
-      opener?.focus?.()
+      if (opener && opener !== document.body && opener.isConnected) opener.focus?.()
+      else {
+        // The opener is gone, or there was none: the screen's own choice, if it gave one, and else the page's main, but only for an opener that
+        // was there and went (not for a dialog opened with nothing focused, which has always left the focus where the browser put it) and
+        // only while nothing holds the focus (the dialog's own element is already out of the page, so the browser has put it on the body).
+        const next = returnFocusRef.current?.()
+        const lost = !document.activeElement || document.activeElement === document.body
+        if (next && next.isConnected) next.focus?.()
+        else if (opener && opener !== document.body && lost) document.querySelector('main')?.focus?.()
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, when the dialog opens: `initialFocus` is read then and never changes
   }, [])

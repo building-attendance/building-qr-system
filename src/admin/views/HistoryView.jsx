@@ -3,7 +3,7 @@ import { adminApi, errorText, scanRefusals } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useUnfinishedDates } from '../filters.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useUnfinishedDates } from '../filters.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash, IconPin } from '../icons.jsx'
 import { goToTab } from '../tab.js'
 import { formatDay, formatDateTime, formatTime, isoDay } from '../../../shared/datetime.js'
@@ -225,6 +225,7 @@ export default function HistoryView() {
   // in the text of its field, which the phone's layout would unmount, so below 1024 px the computer's layout stays until it is finished.
   const [unfinished, onPending] = useUnfinishedDates()
   const phone = usePhoneLayout({ hold: unfinished.from || unfinished.to })
+  const [filtersRef, returnFocus] = useFilterFocus() // the focus has somewhere to go when the sheet closes after the layout changed
   const points = useLoad(() => adminApi('/points'), [], { cacheKey: LOAD_KEY.points })
   const providers = useLoad(() => adminApi('/providers'), [], { cacheKey: LOAD_KEY.providers })
   const [defaults] = useState(DEFAULTS) // what "reset" and the count of the filters that are on are measured against
@@ -355,16 +356,16 @@ export default function HistoryView() {
       </div>
 
       {phone ? (
-        <FilterBar count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
+        <FilterBar ref={filtersRef} count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
           chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: defaults[chip.key] }) }))} />
       ) : (
-        <div className="a-filters">
+        <div className="a-filters" ref={filtersRef}>
           <HistoryControls values={filters} set={set} onPending={onPending} points={points} providers={providers} />
         </div>
       )}
       {/* Outside the choice of layout, so that a sheet that is open when the window crosses 1024 px stays, with its draft (see filters.jsx). */}
       {sheet && (
-        <FilterSheet initial={applied} defaults={defaults} onApply={apply} onClose={() => setSheet(false)}>
+        <FilterSheet initial={applied} defaults={defaults} onApply={apply} onClose={() => setSheet(false)} returnFocus={returnFocus}>
           {({ values, set: choose, errors, watch }) => <HistoryControls values={values} set={choose} errors={errors} onPending={watch} points={points} providers={providers} />}
         </FilterSheet>
       )}

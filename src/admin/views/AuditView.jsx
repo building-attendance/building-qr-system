@@ -3,7 +3,7 @@ import { adminApi, auditLog, errorText } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Field, EmptyState, Spinner, IconButton, useToast, useAction } from '../ui.jsx'
-import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useUnfinishedDates } from '../filters.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useUnfinishedDates } from '../filters.jsx'
 import { IconClock, IconRefresh, IconAlert } from '../icons.jsx'
 import { formatDay, formatTime, isoDay } from '../../../shared/datetime.js'
 import { GROUP_OPTIONS } from '../auditLabels.js'
@@ -110,6 +110,7 @@ export default function AuditView() {
   // so below 1024 px the computer's layout stays until it is finished or cleared (see filters.jsx).
   const [unfinished, onPending] = useUnfinishedDates()
   const phone = usePhoneLayout({ hold: unfinished.from || unfinished.to })
+  const [filtersRef, returnFocus] = useFilterFocus() // the focus has somewhere to go when the sheet closes after the layout changed
   const members = useLoad(() => adminApi('/admins'), [], { cacheKey: LOAD_KEY.admins }) // the same list as the settings
   // On a computer the filters are what the inputs show and the log follows them after a short pause in typing; on a phone they are chosen
   // in a sheet and applied together, so there the two are always the same (`apply`).
@@ -198,16 +199,16 @@ export default function AuditView() {
       </div>
 
       {phone ? (
-        <FilterBar count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
+        <FilterBar ref={filtersRef} count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
           chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: EMPTY_FILTERS[chip.key] }) }))} />
       ) : (
-        <div className="a-filters">
+        <div className="a-filters" ref={filtersRef}>
           <AuditControls values={filters} set={set} onPending={onPending} members={members} />
         </div>
       )}
       {/* Outside the choice of layout, so that a sheet that is open when the window crosses 1024 px stays, with its draft (see filters.jsx). */}
       {sheet && (
-        <FilterSheet initial={applied} defaults={EMPTY_FILTERS} onApply={apply} onClose={() => setSheet(false)}>
+        <FilterSheet initial={applied} defaults={EMPTY_FILTERS} onApply={apply} onClose={() => setSheet(false)} returnFocus={returnFocus}>
           {({ values, set: choose, errors, watch }) => <AuditControls values={values} set={choose} errors={errors} onPending={watch} members={members} />}
         </FilterSheet>
       )}

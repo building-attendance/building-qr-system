@@ -218,6 +218,112 @@ describe('a dialog with its own words for the question, and its own first focus'
   })
 })
 
+describe('where the focus goes when a dialog closes', () => {
+  /**
+   * A screen with a button that opens a dialog, a field of its own and the shell's main. The dialog has a button that takes the opener away
+   * while the dialog is open, which is what a change of layout does to the bar that holds the button of the filters.
+   */
+  function Screen({ returnFocus, dirty = false }) {
+    const [open, setOpen] = useState(false)
+    const [gone, setGone] = useState(false)
+    return (
+      <>
+        <main tabIndex={-1} aria-label="מסך">
+          {!gone && <button type="button" onClick={() => setOpen(true)}>פתיחה</button>}
+          <input aria-label="שדה של המסך" />
+        </main>
+        {open && (
+          <Modal title="חלון" onClose={() => setOpen(false)} returnFocus={returnFocus} dirty={dirty}>
+            <label>שם<input /></label>
+            <button type="button" onClick={() => setGone(true)}>הסרת הפותח</button>
+          </Modal>
+        )}
+      </>
+    )
+  }
+  const openIt = (focused = true) => {
+    const button = screen.getByRole('button', { name: 'פתיחה' })
+    if (focused) button.focus()
+    fireEvent.click(button)
+    return button
+  }
+  const removeOpener = () => {
+    fireEvent.click(within(dialogNamed('חלון')).getByRole('button', { name: 'הסרת הפותח' }))
+    expect(screen.queryByRole('button', { name: 'פתיחה' })).toBeNull()
+  }
+  const closeIt = () => fireEvent.click(within(dialogNamed('חלון')).getByRole('button', { name: 'סגירה' }))
+
+  it('gives the focus back to the opener that is still there, as it always did (and does not ask for the screen\'s own choice)', () => {
+    const returnFocus = vi.fn(() => screen.getByLabelText('שדה של המסך'))
+    render(<Screen returnFocus={returnFocus} />)
+    const button = openIt()
+    closeIt()
+    expect(document.activeElement).toBe(button)
+    expect(returnFocus).not.toHaveBeenCalled()
+  })
+
+  it('asks the screen where to put the focus when the opener is gone', () => {
+    render(<Screen returnFocus={() => screen.getByLabelText('שדה של המסך')} />)
+    openIt()
+    removeOpener()
+    closeIt()
+    expect(document.activeElement).toBe(screen.getByLabelText('שדה של המסך'))
+  })
+
+  it('puts the focus on the main of the page when the opener is gone and the screen gave no choice, or no answer', () => {
+    render(<Screen />)
+    openIt()
+    removeOpener()
+    closeIt()
+    expect(document.activeElement).toBe(screen.getByRole('main'))
+    cleanup()
+    render(<Screen returnFocus={() => null} />)
+    openIt()
+    removeOpener()
+    closeIt()
+    expect(document.activeElement).toBe(screen.getByRole('main'))
+  })
+
+  it('does not move the focus for a dialog that was opened with nothing focused: that has always left it where the browser put it', () => {
+    render(<Screen />)
+    openIt(false) // Safari does not focus a button that is tapped
+    closeIt()
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('asks the screen when there was no opener at all (Safari), so that the screen can name its own button', () => {
+    const returnFocus = vi.fn(() => screen.getByLabelText('שדה של המסך'))
+    render(<Screen returnFocus={returnFocus} />)
+    openIt(false)
+    closeIt()
+    expect(document.activeElement).toBe(screen.getByLabelText('שדה של המסך'))
+  })
+
+  it('leaves the focus where the screen put it when two dialogs close together, one opened from the other', () => {
+    // The question of a dialog that holds typed input is a dialog opened from it: when "close without saving" is answered both go at once, and
+    // the second one's opener is the first one's own element, which is gone. It must not take the focus from the screen's choice.
+    render(<Screen dirty returnFocus={() => screen.getByLabelText('שדה של המסך')} />)
+    openIt()
+    removeOpener()
+    type(dialogNamed('חלון'), 'שם', 'x')
+    esc()
+    fireEvent.click(within(dialogNamed(QUESTION)).getByRole('button', { name: DISCARD }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByLabelText('שדה של המסך'))
+  })
+
+  it('does the same on the main of the page when the screen gave no choice', () => {
+    render(<Screen dirty />)
+    openIt()
+    removeOpener()
+    type(dialogNamed('חלון'), 'שם', 'x')
+    esc()
+    fireEvent.click(within(dialogNamed(QUESTION)).getByRole('button', { name: DISCARD }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('main'))
+  })
+})
+
 describe('the form under the question', () => {
   it('is inert while the question is open, so that nothing can reach it, and is not after the answer', () => {
     render(<Harness onClose={vi.fn()} />)

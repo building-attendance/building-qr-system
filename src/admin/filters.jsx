@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useRef, useState } from 'react'
 import { Modal, Field, Badge, DateInput, useDirty } from './ui.jsx'
 import { IconFilter, IconX } from './icons.jsx'
 import { formatDay } from '../../shared/datetime.js'
@@ -23,6 +23,17 @@ import { formatDay } from '../../shared/datetime.js'
 
 /** A date that a list is asked for: a complete, sensible one. A date typed digit by digit passes through nonsense ("0002-..."). */
 export const goodDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value) && Number(value.slice(0, 4)) >= 2000
+
+/**
+ * Where the focus goes when the sheet closes and the button that opened it is gone (the window crossed 1024 px while it was open): as
+ * `[ref, returnFocus]`. `ref` goes on whichever of the bar (`FilterBar`) and the inline block is drawn, and `returnFocus` (for
+ * `FilterSheet`) gives the first control in it: the "סינון" button of the bar, or the first field of the inline block.
+ */
+export function useFilterFocus() {
+  const ref = useRef(null)
+  const returnFocus = useCallback(() => ref.current?.querySelector('button, input, select') ?? null, [])
+  return [ref, returnFocus]
+}
 
 /**
  * Which of the two inline date fields hold a date that is not finished, as `[{ from, to }, onPending]`: `onPending` is for
@@ -72,11 +83,11 @@ function Range({ from, to }) {
 /**
  * The bar above a list on a phone. `count` is how many filters differ from the defaults (the dates count once); `from` and `to` are the
  * applied dates; `chips` is `[{ key, label, value, onRemove }]`, one for each filter that is on except the dates, and removing one applies
- * at once. Tapping the button opens the sheet (`onOpen`).
+ * at once. Tapping the button opens the sheet (`onOpen`). `ref` is the element that holds it (see `useFilterFocus`).
  */
-export function FilterBar({ count, from, to, chips, onOpen }) {
+export function FilterBar({ count, from, to, chips, onOpen, ref }) {
   return (
-    <div className="a-filterbar">
+    <div className="a-filterbar" ref={ref}>
       <div className="a-filterbar__main">
         <button type="button" className="w-btn w-btn--quiet w-btn--small" aria-haspopup="dialog" onClick={onOpen}>
           <IconFilter size={20} />
@@ -119,8 +130,9 @@ const QUESTION = {
  * A date that is not finished (a half-typed one, or 31/02) is never applied quietly: "show results" keeps the sheet open, says so under the
  * field and moves the focus to it (F2). And since a typed date is the one thing here that costs something to type again, the sheet counts
  * as having unsaved changes (F4) when the draft differs from what is applied or a date is half typed: Esc and a tap outside then ask first.
+ * `returnFocus` (see `useFilterFocus`) is where the focus goes when it closes if its opener is gone.
  */
-export function FilterSheet({ initial, defaults, onApply, onClose, children }) {
+export function FilterSheet({ initial, defaults, onApply, onClose, returnFocus, children }) {
   const formId = useId()
   const formRef = useRef(null)
   const [draft, setDraft] = useState(initial)
@@ -159,7 +171,7 @@ export function FilterSheet({ initial, defaults, onApply, onClose, children }) {
 
   return (
     <Modal
-      title="סינון" size="sm" initialFocus="dialog" onClose={onClose} question={QUESTION} dirty={changed || pending.from || pending.to}
+      title="סינון" size="sm" initialFocus="dialog" onClose={onClose} question={QUESTION} dirty={changed || pending.from || pending.to} returnFocus={returnFocus}
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={reset}>איפוס</button>

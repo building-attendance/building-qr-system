@@ -391,6 +391,12 @@ test('on a computer the filters stay inline and live, each control is in the pag
   await expect(page.getByRole('dialog')).toHaveCount(0)
   await expect(page.getByLabel('נקודה')).toHaveValue(lobby.id) // the same filters, inline again, one copy
   await expect(page.getByLabel('מתאריך', { exact: true })).toHaveCount(1)
+  // the button that opened the sheet went with the bar: the focus is not lost on the body. It is on the first inline field where the browser
+  // focused that button when it was clicked (Chromium), and on the main of the page where it had not (WebKit does not focus a clicked button,
+  // so the element that had the focus when the sheet opened was the main, which is still there: tests/components/filter-sheet.test.jsx has the
+  // exact place for each case)
+  await expect.poll(() => page.evaluate(() => document.activeElement?.tagName)).not.toBe('BODY')
+  if (test.info().project.name === 'android-chrome') await expect(page.getByLabel('מתאריך', { exact: true })).toBeFocused()
 
   // the audit log, on a computer: inline, once
   await page.goto('/admin#audit')

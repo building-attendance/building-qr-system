@@ -610,6 +610,153 @@ describe('History: the two layouts', () => {
     })
   })
 
+  // Whichever way a sheet that was open across 1024 px closes, the button that opened it is gone with the bar, and the focus must not be
+  // left on the page's body (a keyboard or screen reader user would start again from the top): it goes to the first inline field.
+  describe('the focus when a sheet that was open across 1024 px closes', () => {
+    const ways = [
+      ['"show results"', () => showResults()],
+      ['the close button', () => fireEvent.click(within(sheet()).getByRole('button', { name: 'סגירה' }))],
+      ['Esc', () => fireEvent.keyDown(document, { key: 'Escape' })],
+      ['a tap outside', () => fireEvent.mouseDown(sheet().parentElement)],
+      ['"close without showing", the answer to the question', () => {
+        choose('נקודה', OTHER_POINT.id) // something chosen, so that Esc asks
+        fireEvent.keyDown(document, { key: 'Escape' })
+        fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'סגירה בלי להציג' }))
+      }],
+    ]
+
+    it.each(ways)('goes to the first inline field when it closes with %s', async (_name, close) => {
+      const window1024 = layout(true)
+      historyServer()
+      await showHistory()
+      opener().focus() // a browser focuses the button that is clicked (Safari does not: see below)
+      fireEvent.click(opener())
+      await window1024.computer()
+      expect(screen.queryByRole('button', { name: /^סינון/ }), 'the button that opened it is gone').toBeNull()
+      close()
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      expect(document.activeElement).toBe(screen.getByLabelText('מתאריך'))
+    })
+
+    it('goes to the first inline field in the audit log too, after "show results" and after the question', async () => {
+      for (const withQuestion of [false, true]) {
+        const window1024 = layout(true)
+        api.mockImplementation(async (path) => {
+          if (path === '/admin/admins') return { admins: [DANA] }
+          if (path.startsWith('/admin/audit')) return { entries: [entry()], next_cursor: null }
+          throw new Error(`the test does not expect ${path}`)
+        })
+        await showAudit()
+        opener().focus()
+        fireEvent.click(opener())
+        await window1024.computer()
+        if (withQuestion) {
+          choose('סוג פעולה', 'point') // something chosen, so that Esc asks
+          fireEvent.keyDown(document, { key: 'Escape' })
+          fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'סגירה בלי להציג' }))
+        } else showResults()
+        await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+        expect(document.activeElement).toBe(screen.getByLabelText('מתאריך'))
+        cleanup()
+      }
+    })
+
+    it('goes back to the button when the layout did not change: an opener that is still there keeps the focus, as it always had', async () => {
+      layout(true)
+      historyServer()
+      await showHistory()
+      opener().focus()
+      fireEvent.click(opener())
+      showResults()
+      await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull())
+      expect(document.activeElement).toBe(opener())
+    })
+
+    it('goes back to the button when the browser never focused it (Safari does not focus a button that is tapped)', async () => {
+      layout(true)
+      historyServer()
+      await showHistory()
+      fireEvent.click(opener()) // nothing had the focus when the sheet opened
+      fireEvent.click(within(sheet()).getByRole('button', { name: 'סגירה' }))
+      expect(document.activeElement).toBe(opener())
+    })
+  })
+
+  // The rest of the path across 1024 px with the sheet open, in either direction.
+  describe('a sheet that is open across 1024 px, the rest of the way', () => {
+    it('keeps the page from scrolling behind it all along, and gives the scroll back when it closes', async () => {
+      const window1024 = layout(true)
+      historyServer()
+      await showHistory()
+      openSheet()
+      expect(document.body.style.overflow).toBe('hidden')
+      await window1024.computer()
+      expect(document.body.style.overflow).toBe('hidden')
+      await window1024.phone()
+      expect(document.body.style.overflow).toBe('hidden')
+      showResults()
+      expect(document.body.style.overflow).toBe('')
+    })
+
+    it('applies on the other layout, and the chips and the count are right when the window comes back', async () => {
+      const window1024 = layout(true)
+      historyServer()
+      await showHistory()
+      openSheet()
+      choose('נקודה', OTHER_POINT.id)
+      choose('סוג', 'all')
+      fireEvent.click(within(sheet()).getByLabelText('כולל חשבון דמו'))
+      await window1024.computer()
+      showResults()
+      await waitFor(() => expect(calls('/admin/scans')).toHaveLength(2), WAIT)
+      expect(screen.getByLabelText('נקודה').value).toBe(OTHER_POINT.id) // the inline controls show what was applied
+      expect(screen.getByLabelText('סוג').value).toBe('all')
+      expect(screen.getByLabelText('כולל חשבון דמו').checked).toBe(true)
+      await window1024.phone()
+      expect(opener().textContent).toBe('סינון3פעילים')
+      expect(removers().map((chip) => chip.textContent)).toEqual(['נקודה: מינוס 1', 'סוג: הכול', 'כולל חשבון דמו'])
+    })
+
+    it('keeps the question when the window crosses while it is open, and answers it the usual way', async () => {
+      const window1024 = layout(true)
+      historyServer()
+      await showHistory()
+      opener().focus()
+      fireEvent.click(opener())
+      choose('נקודה', OTHER_POINT.id)
+      fireEvent.keyDown(document, { key: 'Escape' })
+      expect(screen.getByRole('dialog', { name: QUESTION })).toBeTruthy()
+      await window1024.computer()
+      expect(screen.getByRole('dialog', { name: QUESTION })).toBeTruthy()
+      fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'חזרה לסינון' }))
+      expect(screen.queryByRole('dialog', { name: QUESTION })).toBeNull()
+      expect(within(sheet()).getByLabelText('נקודה').value).toBe(OTHER_POINT.id)
+      expect(sheet().contains(document.activeElement), 'the focus is back in the sheet, not behind it').toBe(true)
+      fireEvent.keyDown(document, { key: 'Escape' })
+      fireEvent.click(within(screen.getByRole('dialog', { name: QUESTION })).getByRole('button', { name: 'סגירה בלי להציג' }))
+      expect(screen.queryByRole('dialog')).toBeNull()
+      expect(document.body.style.overflow).toBe('')
+      expect(document.activeElement).toBe(screen.getByLabelText('מתאריך'))
+      expect(removers()).toHaveLength(0)
+      expect(calls('/admin/scans')).toHaveLength(1)
+    })
+
+    it('does not let the keyboard leave it for the inline controls behind it', async () => {
+      const window1024 = layout(true)
+      historyServer()
+      await showHistory()
+      openSheet()
+      await window1024.computer()
+      const inline = screen.getAllByLabelText('מתאריך').find((field) => !sheet().contains(field))
+      // Tab from the last control of the sheet goes to its first, never out
+      const last = within(sheet()).getByRole('button', { name: 'הצגת תוצאות' })
+      last.focus()
+      fireEvent.keyDown(document, { key: 'Tab' })
+      expect(sheet().contains(document.activeElement)).toBe(true)
+      expect(document.activeElement).not.toBe(inline)
+    })
+  })
+
   it('is a computer where the browser has no matchMedia', async () => {
     historyServer()
     await showHistory()
