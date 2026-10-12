@@ -7,7 +7,7 @@ import { render, screen, cleanup, waitFor } from '@testing-library/react'
 import { I18nProvider } from '../../src/i18n/index.jsx'
 import { DICTS, LANGS, LANG_STORAGE_KEY } from '../../src/i18n/core.js'
 import { HomeView } from '../../src/worker/components.jsx'
-import CommitteeView from '../../src/admin/views/CommitteeView.jsx'
+import SettingsView from '../../src/admin/views/SettingsView.jsx'
 import { ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
 import { adminApi } from '../../src/admin/api.js'
 
@@ -73,7 +73,7 @@ describe('the committee app', () => {
     render(
       <ToastProvider>
         <ConfirmProvider>
-          <CommitteeView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.com' }} />
+          <SettingsView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.com' }} />
         </ConfirmProvider>
       </ToastProvider>,
     )
@@ -102,7 +102,7 @@ describe('the committee app', () => {
     render(
       <ToastProvider>
         <ConfirmProvider>
-          <CommitteeView admin={{ id: 'a1' }} />
+          <SettingsView admin={{ id: 'a1' }} />
         </ConfirmProvider>
       </ToastProvider>,
     )

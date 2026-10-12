@@ -12,9 +12,8 @@ import { describeEntry, actorText } from '../auditDescribe.js'
 // actions and there is no file to export: it answers "who switched this point off?" and "who removed this member?".
 // Built like the history screen: filters that query after a short pause, rows grouped by building day, and a page at a time.
 //
-// It is the body of the section "יומן פעולות" at the foot of the Committee tab (CommitteeView.jsx), not a tab of its own: six
-// tabs do not fit the phone's bar at 360 px without wrapping a label (see the pull request), so the section has the heading
-// (an <h2>, the opening button) and this component has what is under it, with the days as <h3>.
+// It is a screen of its own ("יומן פעולות", under "עוד" on a phone): the <h1>, the filters, and the days as <h2>. It used to be a section
+// at the foot of the Committee screen that a button opened; that screen was split into the settings, the audit log and the guide.
 
 const PAGE = 50
 const EMPTY_FILTERS = { from: '', to: '', group: '', actor_id: '' }
@@ -78,7 +77,7 @@ function EntryRow({ entry }) {
 
 export default function AuditView() {
   const toast = useToast()
-  const members = useLoad(() => adminApi('/admins'), [], { cacheKey: LOAD_KEY.admins }) // the same list as the Committee tab
+  const members = useLoad(() => adminApi('/admins'), [], { cacheKey: LOAD_KEY.admins }) // the same list as the settings
   const [filters, setFilters] = useState(EMPTY_FILTERS) // what the inputs show
   const [applied, setApplied] = useState(filters) // what is actually queried (after a short pause in typing)
   // The list starts with the page that was kept for the first filters, if there is one (the log was open before in this session).
@@ -144,6 +143,7 @@ export default function AuditView() {
     <>
       <div className="a-head">
         <div>
+          <h1>יומן פעולות</h1>
           <p>מי עשה מה ומתי: שינויים של חברי הוועד ופעולות אוטומטיות של המערכת. הרשימה לקריאה בלבד.</p>
         </div>
         <div className="a-actions">
@@ -177,7 +177,7 @@ export default function AuditView() {
 
       {days.map((day) => (
         <section key={day.date} aria-label={formatDay(day.date)}>
-          <h3 className="a-day">{formatDay(day.date)} · {day.items.length}</h3>
+          <h2 className="a-day">{formatDay(day.date)} · {day.items.length}</h2>
           <ul className="a-scans">
             {day.items.map((entry) => <EntryRow key={entry.id} entry={entry} />)}
           </ul>

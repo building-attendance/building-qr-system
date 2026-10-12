@@ -18,13 +18,13 @@ const BuildingNameContext = createContext(NONE)
 
 /**
  * Holds the building's name for the whole committee app: the sign-in screen, the side bar, the top bar and the title of the window
- * read it, and the Committee tab tells it when the name has been saved, so the brand follows at once with no reload.
+ * read it, and the settings screen tells it when the name has been saved, so the brand follows at once with no reload.
  *
  * Where it comes from: the public route answers before anyone signs in (the sign-in screen shows the name), and it is also what the
  * brand shows until the committee's own route has answered (no flash of the plain brand on a reload). The committee's own answer
- * (`setName`, from the shell after sign-in and from the Committee tab) is the one that counts: an older public answer that arrives
+ * (`setName`, from the shell after sign-in and from the settings screen) is the one that counts: an older public answer that arrives
  * after it (the CDN may keep that route for a minute) never replaces it. The same holds for the shell's own read of the name
- * (`loadName`): if a save in the Committee tab came while it was on its way, its answer is older than the save and is dropped.
+ * (`loadName`): if a save in the settings screen came while it was on its way, its answer is older than the save and is dropped.
  * A failed request changes nothing: the plain brand stays.
  * @param {{ children: import('react').ReactNode }} props
  */

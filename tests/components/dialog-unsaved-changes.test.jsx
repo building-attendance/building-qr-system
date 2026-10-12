@@ -12,7 +12,7 @@ import { Modal, useDirty, ToastProvider, ConfirmProvider } from '../../src/admin
 import PointsView from '../../src/admin/views/PointsView.jsx'
 import ProvidersView from '../../src/admin/views/ProvidersView.jsx'
 import AgentView from '../../src/admin/views/AgentView.jsx'
-import CommitteeView from '../../src/admin/views/CommitteeView.jsx'
+import SettingsView from '../../src/admin/views/SettingsView.jsx'
 import HistoryView from '../../src/admin/views/HistoryView.jsx'
 import { clearLoadCache } from '../../src/admin/loadCache.js'
 import { api } from '../../src/api/client.js'
@@ -540,7 +540,7 @@ describe('the committee member form', () => {
       if (path === '/admin/admins') return { admins: [] }
       throw new Error(`the test does not expect ${path}`)
     })
-    render(<ToastProvider><ConfirmProvider><CommitteeView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.test' }} /></ConfirmProvider></ToastProvider>)
+    render(<ToastProvider><ConfirmProvider><SettingsView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.test' }} /></ConfirmProvider></ToastProvider>)
     fireEvent.click((await screen.findAllByRole('button', { name: 'חבר ועד חדש' }, WAIT))[0])
     esc()
     expect(screen.queryByRole('dialog'), 'untouched: closed at once').toBeNull()

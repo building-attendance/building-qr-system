@@ -54,7 +54,8 @@ each in the light and the dark theme:
 
 - the provider app in Hebrew: the sign-in list, the password screen, home with a visit, "recorded" and "too far", and in
   English (left to right) and Arabic (right to left): the sign-in list and home, on a 390 px phone;
-- the committee app in Hebrew, at 360 px and at 1280 px: the five tabs, the dialog of a point (with the map) and the dialog
+- the committee app in Hebrew, at 360 px and at 1280 px: the seven screens (history, points, providers, agent, settings, audit log and help),
+  the history of a building with no points, the dialog of a point (with the map) and the dialog
   of a provider.
 
 **It runs in CI only.** The baselines are made on the Linux runner, in Chromium (the `android-chrome` project): another

@@ -80,7 +80,7 @@ releases. The steps are in [section 5 of the install guide](docs/install.md#5-up
 
 **Which version is a phone running?** Both apps show their build id, the first 7 characters of the commit that Vercel
 built (`dev` for a local build). It is at the foot of the home screen in the provider app, and at the foot of the
-Committee tab ("ועד") in the committee app. The server's own commit is the `commit` of `GET /api/health`, so a phone that
+Settings screen ("הגדרות") in the committee app. The server's own commit is the `commit` of `GET /api/health`, so a phone that
 shows another id than the server is running an older app.
 
 ## How it is built

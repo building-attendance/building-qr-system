@@ -1,13 +1,13 @@
 // @vitest-environment jsdom
 // The audit log of the committee app (ADR 0007, decision 4): the real AuditView, with the network (`api`) answered by the test,
-// and the section of the Committee tab that opens it. It is read only, so the rows have no actions; it shows what the API
+// and the settings screen, which no longer holds it. It is read only, so the rows have no actions; it shows what the API
 // gives, in Hebrew, by the keys it knows, and nothing else (never a key, a hash or a token, and never as HTML).
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
 import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-library/react'
 import AuditView from '../../src/admin/views/AuditView.jsx'
-import CommitteeView from '../../src/admin/views/CommitteeView.jsx'
+import SettingsView from '../../src/admin/views/SettingsView.jsx'
 import { ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
 import { ACTION_LABELS, GROUP_OPTIONS } from '../../src/admin/auditLabels.js'
 import { describeEntry, looksSecret } from '../../src/admin/auditDescribe.js'
@@ -118,9 +118,9 @@ describe('one row', () => {
       ].sort((a, b) => b.at.localeCompare(a.at))),
     })
     show()
-    await screen.findByRole('heading', { level: 3, name: '06/10/2026 · 1' }, WAIT)
-    expect(screen.getByRole('heading', { level: 3, name: '05/10/2026 · 1' })).toBeTruthy()
-    expect(screen.getByRole('heading', { level: 3, name: '04/10/2026 · 1' })).toBeTruthy()
+    await screen.findByRole('heading', { level: 2, name: '06/10/2026 · 1' }, WAIT)
+    expect(screen.getByRole('heading', { level: 2, name: '05/10/2026 · 1' })).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: '04/10/2026 · 1' })).toBeTruthy()
     // 06/10 00:00 is the first minute of its day, and 05/10 23:59 the last of the one before
     expect(within(screen.getByRole('region', { name: '06/10/2026' })).getByText('00:00')).toBeTruthy()
     expect(within(screen.getByRole('region', { name: '05/10/2026' })).getByText('23:59')).toBeTruthy()
@@ -627,44 +627,27 @@ describe('an empty log, and one that could not load', () => {
   })
 })
 
-describe('the section of the Committee tab', () => {
-  const committee = () => render(<ToastProvider><ConfirmProvider><CommitteeView admin={DANA} /></ConfirmProvider></ToastProvider>)
-  const opener = () => screen.getByRole('button', { name: 'יומן פעולות' })
+describe('the screen', () => {
+  it('is a screen of its own: the <h1> "יומן פעולות", the filters and the days as <h2>, with no button to open it', async () => {
+    server({ audit: page([entry({ action: 'point.delete' })]) })
+    show()
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual(['יומן פעולות'])
+    await screen.findByText('מחיקת נקודה', {}, WAIT)
+    expect(screen.queryByRole('button', { name: 'יומן פעולות' })).toBeNull()
+    expect(document.querySelector('[aria-expanded], [hidden]')).toBeNull()
+    expect(screen.getByLabelText('סוג פעולה')).toBeTruthy()
+    expect(screen.getByRole('heading', { level: 2, name: '05/10/2026 · 1' })).toBeTruthy()
+    expect(screen.queryAllByRole('heading', { level: 3 })).toHaveLength(0) // nothing skips a level: <h1>, then <h2>
+    expect(auditCalls()).toHaveLength(1)
+  })
 
-  it('is closed at first: a button "יומן פעולות", and nothing is asked of the server', async () => {
+  it('is no longer a section of the settings screen, which does not ask for the log', async () => {
     server({ audit: page([entry()]) })
-    committee()
-    await screen.findByRole('heading', { level: 1, name: 'חברי הוועד' })
-    expect(opener().getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('heading', { level: 2, name: 'יומן פעולות' }).contains(opener())).toBe(true)
+    render(<ToastProvider><ConfirmProvider><SettingsView admin={DANA} /></ConfirmProvider></ToastProvider>)
+    await screen.findByRole('heading', { level: 1, name: 'הגדרות' })
+    await screen.findByRole('heading', { level: 2, name: 'פרטי הבניין' })
+    expect(screen.queryByRole('button', { name: 'יומן פעולות' })).toBeNull()
     expect(auditCalls()).toHaveLength(0)
     expect(screen.queryByLabelText('סוג פעולה')).toBeNull()
-  })
-
-  it('opens the log with the button, and closes it with the same button', async () => {
-    server({ audit: page([entry({ action: 'point.delete' })]) })
-    committee()
-    await screen.findByRole('heading', { level: 1, name: 'חברי הוועד' })
-    fireEvent.click(opener())
-    expect(opener().getAttribute('aria-expanded')).toBe('true')
-    await screen.findByText('מחיקת נקודה', {}, WAIT)
-    expect(auditCalls()).toHaveLength(1)
-    const panel = document.getElementById(opener().getAttribute('aria-controls'))
-    expect(panel.hidden).toBe(false)
-    expect(within(panel).getByLabelText('סוג פעולה')).toBeTruthy()
-    fireEvent.click(opener())
-    expect(opener().getAttribute('aria-expanded')).toBe('false')
-    expect(panel.hidden).toBe(true)
-    expect(screen.queryByText('מחיקת נקודה')).toBeNull()
-  })
-
-  it('keeps the rest of the tab as it was: the members, the building, and the version', async () => {
-    server({ audit: page([]) })
-    committee()
-    await screen.findByRole('heading', { level: 1, name: 'חברי הוועד' })
-    expect(await screen.findByRole('heading', { level: 2, name: 'פרטי הבניין' })).toBeTruthy()
-    // the log is the last section of the page, after the building and the version line
-    const sections = [...document.querySelectorAll('section')]
-    expect(sections.at(-1).className).toBe('a-audit-section')
   })
 })

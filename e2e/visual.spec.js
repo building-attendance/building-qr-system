@@ -17,7 +17,8 @@
 //     the Agent tab (a random key prefix, the address of the server, the prompt that quotes it). `dynamicRegions` lists them.
 //   - The map's tiles are one fixed picture that this file draws, not OpenStreetMap's.
 //   - The committee tests start from a known state (`prepareCommittee`), not from whatever an earlier spec left behind, and the
-//     visits that the History tab lists are a fixed list (`stubHistory`): no provider signs in for them, and their time is not real.
+//     visits that the History tab lists, and the entries of the audit log, are fixed lists (`stubHistory`, `stubAudit`): no provider
+//     signs in for them, and their time is not real.
 //   - Signing in is rationed: the server counts every sign-in of the run from one address (60 in 15 minutes), the other specs use most
 //     of that, and a failing screen restarts the worker and with it the setup of the next test. So the spec signs in once.
 //   - Animations and transitions are off (`animations: 'disabled'`, and the browser is told to reduce motion), the caret is
@@ -29,7 +30,7 @@
 import { deflateSync, crc32 } from 'node:zlib'
 import ar from '../src/i18n/ar.js'
 import {
-  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, clearScans, pageSettled, signIn,
+  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, SCREEN_TITLES, clearScans, pageSettled, signIn,
 } from './fixtures.js'
 
 // ---- where and when it runs ----------------------------------------------------------------------------------------------------
@@ -347,53 +348,92 @@ async function stubHistory(page) {
   })
 }
 
-const TABS = [
-  ['points', 'נקודות סריקה'],
-  ['providers', 'נותני שירות'],
-  ['history', 'היסטוריית נוכחות'],
-  ['agent', 'גישה לאייג\'נט'],
-  ['committee', 'חברי הוועד'],
-]
+/**
+ * The entries that the audit log lists (the shape is `AuditEntry` in shared/types.js): a fixed list on one day, answered in place of the
+ * server's own, whose entries carry the real time and the ids of the rows. Three kinds: an update with its detail, a creation, a sign-in.
+ */
+const AUDIT_ROWS = [
+  { at: '2026-03-02T10:40:00.000Z', action: 'point.update', entity: 'point', name: 'לובי', detail: { changes: { radius_m: { from: 40, to: 60 } } } },
+  { at: '2026-03-02T09:15:00.000Z', action: 'point.create', entity: 'point', name: 'גימבורי', detail: null },
+  { at: '2026-03-02T07:05:00.000Z', action: 'session.sign_in', entity: null, name: null, detail: null },
+].map((r, i) => ({
+  id: i + 1,
+  at: r.at,
+  action: r.action,
+  entity: r.entity,
+  entity_id: r.entity ? `00000000-0000-4000-8000-0000000001${i + 1}0` : null,
+  entity_name: r.name,
+  actor_type: 'admin',
+  actor_id: '00000000-0000-4000-8000-0000000003a0',
+  actor_name: 'דנה לוי',
+  actor_deleted: false,
+  detail: r.detail,
+}))
+
+/** Answers the audit log's list with AUDIT_ROWS. */
+async function stubAudit(page) {
+  await page.route(/\/api\/admin\/audit\?/, (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    return route.fulfill({ json: { entries: AUDIT_ROWS, next_cursor: null } })
+  })
+}
+
+// The screens of the committee app, in the order of the side rail (src/pages/AdminApp.jsx), with the heading of each.
+const TABS = Object.entries(SCREEN_TITLES)
 
 /**
- * Signs the committee in through the API of the scratch schema, on the browser's own cookies, and opens the app: it then shows its
- * first screen at once. (The sign-in button of adminSignIn would first load /admin without a session, and the browser logs the 401
- * of that request as a console error: not something to allow in a test that is about how the screens look.)
+ * Signs the committee in through the API of the scratch schema, on the browser's own cookies, and opens the app on `screen`: it then
+ * shows that screen at once (the history, the first one, when none is named). (The sign-in button of adminSignIn would first load /admin
+ * without a session, and the browser logs the 401 of that request as a console error: not something to allow in a test that is about
+ * how the screens look.)
  */
-async function committeeSignedIn(page) {
+async function committeeSignedIn(page, screen = 'history') {
   const login = await page.request.post('/api/admin/dev-login', { data: { email: ADMIN_EMAIL } })
   expect(login.ok(), 'dev admin sign-in').toBeTruthy()
-  await page.goto('/admin')
-  await expect(page.getByRole('heading', { name: 'נקודות סריקה', level: 1 })).toBeVisible()
+  await page.goto(screen === 'history' ? '/admin' : `/admin#${screen}`)
+  await expect(page.getByRole('heading', { name: SCREEN_TITLES[screen], level: 1, exact: true })).toBeVisible()
 }
 
 /** Opens a tab by its address and waits until it has loaded. */
 async function openTab(page, tab, title) {
   await page.goto(`/admin#${tab}`)
-  await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: title, exact: true })).toBeVisible()
   await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
 }
 
-/** The five tabs, and the dialog of a point and the dialog of a provider, at one width. `width` names the files. */
+/** The seven screens, the history of a building with no points, and the dialog of a point and the dialog of a provider, at one width. `width` names the files. */
 function committeeScreens(width) {
-  test('the five tabs', async ({ page }) => {
+  test('the seven screens', async ({ page }) => {
     await stopClock(page)
     await stubHistory(page)
+    await stubAudit(page)
     await committeeSignedIn(page)
     for (const [tab, title] of TABS) {
       await openTab(page, tab, title)
       if (tab === 'points') await expect(page.getByRole('article').filter({ hasText: 'לובי' })).toBeVisible()
       if (tab === 'history') await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
       if (tab === 'agent') await expect(page.getByRole('article').filter({ hasText: 'האייג\'נט של הוועד' })).toBeVisible()
-      if (tab === 'committee') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
+      if (tab === 'settings') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
+      if (tab === 'audit') await expect(page.getByRole('listitem').filter({ hasText: 'עדכון נקודה' })).toBeVisible()
+      if (tab === 'help') await expect(page.getByRole('heading', { level: 2, name: 'כשטלפון תקוע' })).toBeVisible()
       // The Agent tab ends in the prompt, a block of text that is masked and as long as nine phone screens: its top is the picture.
       await shotBothThemes(page, `committee-${width}-${tab}`, { whole: tab !== 'agent' })
     }
   })
 
+  // A new installation has no points, and the history is the first screen: it says to start with the points.
+  test('the history of a building with no points', async ({ page }) => {
+    await stopClock(page)
+    await page.route('**/api/admin/points', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { points: [] } }) : route.continue()))
+    await page.route(/\/api\/admin\/scans\?/, (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { scans: [], next_cursor: null } }) : route.continue()))
+    await committeeSignedIn(page)
+    await expect(page.getByRole('heading', { level: 2, name: 'עוד אין נקודות' })).toBeVisible()
+    await shotBothThemes(page, `committee-${width}-history-no-points`)
+  })
+
   test('the dialog of a point and the dialog of a provider', async ({ page }) => {
     await stubMapTiles(page)
-    await committeeSignedIn(page)
+    await committeeSignedIn(page, 'points')
 
     await page.getByRole('article').filter({ hasText: 'לובי' }).getByRole('button', { name: 'עריכה' }).click()
     const point = page.getByRole('dialog', { name: 'עריכת נקודה: לובי' })
@@ -410,6 +450,23 @@ function committeeScreens(width) {
   })
 }
 
+/**
+ * The sheet that the fourth button of the tab bar opens, over the settings (which it marks as the current screen). It exists where the
+ * tab bar does, below 1024 px: at 360 px, and at 768 px, where it stays at the bottom of the screen, 480 px wide.
+ */
+function committeeSheet(width) {
+  test('the sheet under "עוד"', async ({ page }) => {
+    await stopClock(page)
+    await committeeSignedIn(page, 'settings')
+    await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
+    await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
+    const sheet = page.getByRole('dialog', { name: 'עוד', exact: true })
+    await expect(sheet).toBeVisible()
+    await expect(sheet.getByRole('button', { name: 'הגדרות', exact: true })).toHaveAttribute('aria-current', 'page')
+    await shotBothThemes(page, `committee-${width}-sheet`, { whole: false })
+  })
+}
+
 test.describe('committee app', () => {
   let state
   test.beforeAll(async ({ playwright, browserName }, testInfo) => {
@@ -423,10 +480,17 @@ test.describe('committee app', () => {
   test.describe('at 360 px', () => {
     test.use(COMMITTEE_PHONE)
     committeeScreens('360')
+    committeeSheet('360')
   })
 
   test.describe('at 1280 px', () => {
     test.use(COMMITTEE_COMPUTER)
     committeeScreens('1280')
+  })
+
+  // The widest screen that still has the tab bar (and so the sheet): a tablet held upright.
+  test.describe('at 768 px', () => {
+    test.use({ ...SAME, viewport: { width: 768, height: 1024 } })
+    committeeSheet('768')
   })
 })

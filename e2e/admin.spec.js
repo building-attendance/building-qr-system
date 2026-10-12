@@ -1,18 +1,14 @@
 // The committee screens on a phone and on a computer: the same icons, nothing spilling off the screen, and deleting.
 import { randomUUID } from 'node:crypto'
-import { test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, adminSignIn, clearScans, allowConsoleErrors } from './fixtures.js'
+import {
+  test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, SCREEN_TITLES, SCREEN_NAV, adminSignIn, openScreen, clearScans, allowConsoleErrors,
+} from './fixtures.js'
 import { SCAN_ERROR_POINT_INACTIVE } from '../shared/contract.js'
 import { formatDateTime } from '../shared/datetime.js'
 
 const COMPUTER = { width: 1280, height: 800 }
-// Each tab and the heading of its page (every view renders its own h1 above its content)
-const TABS = [
-  ['points', 'נקודות סריקה'],
-  ['providers', 'נותני שירות'],
-  ['history', 'היסטוריית נוכחות'],
-  ['agent', 'גישה לאייג\'נט'],
-  ['committee', 'חברי הוועד'],
-]
+// Each screen and the heading of its page (every view renders its own h1 above its content), in the order of the side rail
+const TABS = Object.entries(SCREEN_TITLES)
 
 test.beforeEach(async ({ page, request }) => {
   // The sign-in screen asks /api/admin/me before anyone is signed in: the browser notes that 401 as a console error.
@@ -25,7 +21,7 @@ test.beforeEach(async ({ page, request }) => {
 const noHorizontalScroll = (page) => page.evaluate((width) => document.documentElement.scrollWidth <= width, page.viewportSize().width)
 
 test('the point tiles offer their actions as icons that have names, and no text buttons', async ({ page }) => {
-  await adminSignIn(page)
+  await adminSignIn(page, 'points')
   const tile = page.getByRole('article').filter({ hasText: 'לובי' })
   const actions = tile.getByRole('button')
   await expect(actions).toHaveCount(4)
@@ -68,20 +64,22 @@ test('every committee screen fits the width, on a phone and on a computer', asyn
   }
 })
 
-// The tab bar of the phone is five equal columns, so on the narrowest phone that is still in use (360 px) each label has about 70 px.
-// "נותני שירות" wrapped onto two lines there, which made the bar taller and set its icon higher than the other four; the
-// button now says "ספקים" (`nav` in TABS, src/pages/AdminApp.jsx) while the top bar, the heading and the title keep the long name.
-// The two E2E devices are 412 and 390 px wide, so nothing else measures 360.
-test('the tab bar of the phone fits a 360 px screen: each label on one line and not cut, every button the same height', async ({ page }) => {
+// The tab bar of the phone has four equal columns: history, points, providers and "עוד" (more), which opens the sheet with the other four screens.
+// On the narrowest phone that is still in use (360 px) each label has about 90 px. "נותני שירות" wrapped onto two lines in the five
+// columns this bar had before, which made the bar taller and set its icon higher than the others; the button says "ספקים" (`nav` in
+// TABS, src/pages/AdminApp.jsx) while the top bar, the heading and the title keep the long name. The two E2E devices are 412 and 390 px
+// wide, so nothing else measures 360.
+test('the tab bar of the phone fits a 360 px screen: four buttons, each label on one line and not cut, every button the same height', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
   await adminSignIn(page)
   const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
-  const labels = ['נקודות', 'ספקים', 'היסטוריה', 'אייג׳נט', 'ועד'] // the buttons, left to right in the order of TABS
+  const labels = ['היסטוריה', 'נקודות', 'ספקים', 'עוד'] // the buttons, in the order of the page (the first is at the right: the page runs right to left)
   await expect(bar.getByRole('button')).toHaveCount(labels.length)
   const heights = []
+  const xs = []
   for (const [index, label] of labels.entries()) {
     const button = bar.getByRole('button').nth(index)
-    await expect(button, `the name of tab ${index + 1} is its visible label`).toHaveAccessibleName(label)
+    await expect(button, `the name of button ${index + 1} is its visible label`).toHaveAccessibleName(label)
     const text = button.getByText(label, { exact: true })
     const { lines, scrollWidth, clientWidth } = await text.evaluate((span) => {
       const range = document.createRange()
@@ -90,10 +88,47 @@ test('the tab bar of the phone fits a 360 px screen: each label on one line and 
     })
     expect(scrollWidth, `${label} is not cut (its text is wider than its box)`).toBeLessThanOrEqual(clientWidth)
     expect(lines, `${label} is on one line`).toBe(1)
-    heights.push((await button.boundingBox()).height)
+    const box = await button.boundingBox()
+    heights.push(box.height)
+    xs.push(box.x)
+    expect(box.height, `${label} is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
   }
-  expect(Math.max(...heights) - Math.min(...heights), `the heights of the five buttons: ${heights.join(', ')}`).toBeLessThan(0.5)
+  expect(Math.max(...heights) - Math.min(...heights), `the heights of the four buttons: ${heights.join(', ')}`).toBeLessThan(0.5)
+  expect(xs, 'the first button is at the start of the bar (the right, in right-to-left), "עוד" at the end').toEqual([...xs].sort((p, q) => q - p))
   expect(await noHorizontalScroll(page), 'the page does not scroll sideways at 360 px').toBe(true)
+})
+
+// The side rail of a computer has all seven screens in two groups, the work screens and the management screens, with a line between
+// them. Every name is whole, on one line: the longest is "איך עובדים עם המערכת", and the rail is 248 px wide.
+test('the side rail has the seven screens in two groups with a separator, each name whole on one line', async ({ page }) => {
+  await page.setViewportSize(COMPUTER)
+  await adminSignIn(page)
+  const rail = page.getByRole('navigation', { name: 'ניווט ראשי', exact: true })
+  const names = Object.values(SCREEN_NAV)
+  await expect(rail.getByRole('button')).toHaveText(names)
+  await expect(rail.getByRole('separator')).toHaveCount(1)
+  // the separator is between the third button and the fourth, and visible (a line, not an empty gap)
+  const [third, fourth, separator] = await Promise.all([
+    rail.getByRole('button').nth(2).boundingBox(), rail.getByRole('button').nth(3).boundingBox(), rail.getByRole('separator').boundingBox(),
+  ])
+  expect(separator.y, 'the separator is under the third button').toBeGreaterThanOrEqual(third.y + third.height - 0.5)
+  expect(separator.y + separator.height, 'and above the fourth').toBeLessThanOrEqual(fourth.y + 0.5)
+  expect(await rail.getByRole('separator').evaluate((hr) => getComputedStyle(hr).borderBlockStartWidth), 'the separator draws a line').toBe('1px')
+  for (const [index, name] of names.entries()) {
+    const button = rail.getByRole('button').nth(index)
+    const { lines, scrollWidth, clientWidth } = await button.getByText(name, { exact: true }).evaluate((span) => {
+      const range = document.createRange()
+      range.selectNodeContents(span)
+      return { lines: range.getClientRects().length, scrollWidth: span.scrollWidth, clientWidth: span.clientWidth }
+    })
+    expect(scrollWidth, `${name} is not cut`).toBeLessThanOrEqual(clientWidth)
+    expect(lines, `${name} is on one line`).toBe(1)
+    expect((await button.boundingBox()).height, `${name}: a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+  }
+  // the whole rail is on the screen, also on a short one (it scrolls when it must; the sign-out is reachable)
+  await page.setViewportSize({ width: 1280, height: 560 })
+  await expect(rail.getByRole('button').last()).toBeVisible()
+  await expect(page.getByRole('complementary').getByRole('button', { name: 'יציאה' })).toBeVisible()
 })
 
 // The tab is kept in the address. A link to a tab that is opened in the moment after signing in (the shell has just appeared)
@@ -134,12 +169,11 @@ test('a tab that was open before shows its list at once and refreshes it in the 
   const loading = page.getByRole('status').filter({ hasText: 'טוען' })
   const lobby = page.getByRole('article').filter({ hasText: 'לובי' })
   const addedTile = page.getByRole('article').filter({ hasText: added })
-  // the buttons of the tab bar (phone) and of the side rail (computer) have the same names; the one that is hidden has no role
-  const open = (name) => page.getByRole('button', { name, exact: true }).click()
-  const AGENT = 'אייג׳נט'
-  const AGENT_TITLE = "גישה לאייג'נט"
+  // the screen's button in the tab bar (phone) or in the side rail (computer); the agent is under "עוד" on a phone
+  const open = (key) => openScreen(page, key)
+  const AGENT_TITLE = SCREEN_TITLES.agent
 
-  await adminSignIn(page)
+  await adminSignIn(page, 'points')
   let created = null
   try {
     for (const size of [null, COMPUTER]) {
@@ -148,11 +182,11 @@ test('a tab that was open before shows its list at once and refreshes it in the 
       await expect(lobby, `${where}: the list has arrived`).toBeVisible()
 
       // two tabs, then back to the first: the server's answer is held back, and the list is there anyway, with no loading state
-      await open(AGENT)
+      await open('agent')
       await expect(page.getByRole('heading', { level: 1, name: AGENT_TITLE })).toBeVisible()
       created = (await (await page.request.post('/api/admin/points', { data: { name: added, lat: SAMPLE_POINT.lat, lng: SAMPLE_POINT.lng, gps_mode: 'none' } })).json()).point
       const release = hold()
-      await open('נקודות')
+      await open('points')
       await expect(page.getByRole('heading', { level: 1, name: 'נקודות סריקה' })).toBeVisible()
       await expect(lobby, `${where}: back on Points, the list of the last visit is there before the server answers`).toBeVisible()
       await expect(loading, `${where}: and there is no loading state`).toHaveCount(0)
@@ -241,10 +275,12 @@ test('deleting a point keeps its scans, and a scan row can be deleted on its own
 
 // ---- the same actions in the same places on every screen -----------------------------------------------------------
 
+// The screens that have tiles or rows with actions, and the name of the last action of each (the red trash can). The audit log and the help
+// have none: they are read only (their tests say so).
 const REMOVE = {
   points: 'מחיקת הנקודה',
   providers: 'מחיקת נותן השירות',
-  committee: 'מחיקה מהוועד',
+  settings: 'מחיקה מהוועד',
   agent: 'מחיקת המפתח',
   history: 'מחיקת הנוכחות לצמיתות',
 }
@@ -281,7 +317,8 @@ test('every screen has its actions in the same order and places, with the red tr
     for (const size of [null, COMPUTER]) {
       if (size) await page.setViewportSize(size)
       const where = size ? 'computer' : 'phone'
-      for (const [tab, title] of TABS) {
+      for (const tab of Object.keys(REMOVE)) {
+        const title = SCREEN_TITLES[tab]
         await page.goto(`/admin#${tab}`) // a tab loads its list when it is opened
         await loaded(page, title)
         if (tab === 'history') {
@@ -293,7 +330,7 @@ test('every screen has its actions in the same order and places, with the red tr
         const tiles = (tab === 'history' ? page.getByRole('listitem') : page.getByRole('article')).filter({ has: remove })
         const count = await tiles.count()
         // your own committee card has none (you cannot delete yourself), so that screen has just the other member's
-        expect(count, `${tab}: tiles that have a trash can`).toBeGreaterThan(tab === 'committee' ? 0 : 1)
+        expect(count, `${tab}: tiles that have a trash can`).toBeGreaterThan(tab === 'settings' ? 0 : 1)
 
         const edges = []
         for (let i = 0; i < count; i++) {
@@ -315,7 +352,7 @@ test('every screen has its actions in the same order and places, with the red tr
     near(steps, 1, 'the icon next to the trash can is always the same distance from it')
     // the same place from one screen to the next (a card and a history row differ by their own padding, no more)
     for (const where of ['phone', 'computer']) {
-      near(['points', 'providers', 'committee', 'agent'].map((tab) => trashEdge[`${tab}/${where}`]), 1, `${where}: the trash can is where it is on every card screen`)
+      near(['points', 'providers', 'settings', 'agent'].map((tab) => trashEdge[`${tab}/${where}`]), 1, `${where}: the trash can is where it is on every card screen`)
     }
 
     // providers: the edit icon does not move whether or not a phone is signed in, and committee cards are all the same height
@@ -346,11 +383,11 @@ test('every screen has its actions in the same order and places, with the red tr
       expect(xs, `providers #${i}: each icon is to the left of the one before it`).toEqual([...xs].sort((a, b) => b - a))
     }
 
-    await page.goto('/admin#committee')
-    await loaded(page, 'חברי הוועד')
+    await page.goto('/admin#settings')
+    await loaded(page, 'הגדרות')
     const heights = await Promise.all((await page.getByRole('article').all()).map(async (a) => (await a.boundingBox()).height))
     expect(heights.length, 'your own card and the other member').toBeGreaterThan(1)
-    near(heights, 1, 'committee: every card is the same height, also the one with no icons')
+    near(heights, 1, 'settings: every member card is the same height, also the one with no icons')
   } finally {
     await phone.dispose()
     await page.request.delete(`/api/admin/admins/${member.id}`)
@@ -643,7 +680,7 @@ test('a provider, a committee member and an agent key can each be deleted from t
 
   await deleteFrom('providers', 'נותני שירות', page.getByRole('article').filter({ hasText: `עובד ${tag}` }),
     'מחיקת נותן השירות', 'מחיקת נותן השירות', 'בהיסטוריה, תחת השם הזה')
-  await deleteFrom('committee', 'חברי הוועד', page.getByRole('article').filter({ hasText: `חבר ${tag}` }),
+  await deleteFrom('settings', 'הגדרות', page.getByRole('article').filter({ hasText: `חבר ${tag}` }),
     'מחיקה מהוועד', 'מחיקה מהוועד', 'אפשר להוסיף את אותה כתובת שוב')
   await deleteFrom('agent', 'גישה לאייג\'נט', page.getByRole('article').filter({ hasText: `מפתח ${tag}` }),
     'מחיקת המפתח', 'מחיקת המפתח', 'נמחק מהרשימה לצמיתות')
@@ -680,7 +717,7 @@ test('a form that was filled in asks before a tap outside or Esc closes it, and 
   page.on('request', (request) => {
     if (request.method() !== 'GET' && request.url().includes('/api/admin/points')) writes.push(request.url())
   })
-  await adminSignIn(page)
+  await adminSignIn(page, 'points')
   for (const size of [null, COMPUTER]) {
     if (size) await page.setViewportSize(size)
     const form = page.getByRole('dialog', { name: 'נקודה חדשה' })
@@ -754,11 +791,11 @@ test.describe('dates on the committee screens', () => {
       await expect(ploniCard.locator('dd').nth(0)).toHaveText(DAY_TIME) // "last visit"
       await noOtherFormat('providers')
 
-      // committee: the last sign-in of the member who is signed in now
-      await page.goto('/admin#committee')
-      await loaded(page, 'חברי הוועד')
+      // settings: the last sign-in of the member who is signed in now
+      await page.goto('/admin#settings')
+      await loaded(page, 'הגדרות')
       await expect(page.getByRole('article').filter({ hasText: '(אתם)' }).locator('dd').first()).toHaveText(DAY_TIME) // the member who is signed in
-      await noOtherFormat('committee')
+      await noOtherFormat('settings')
 
       // agent keys: created
       await page.goto('/admin#agent')
@@ -851,11 +888,11 @@ test.describe('dates on the committee screens', () => {
 })
 
 // ---- the audit log -------------------------------------------------------------------------------------------------
-// A section at the foot of the Committee tab, opened by the button "יומן פעולות" (it is not a tab of its own: six tabs do not fit
-// the phone's bar at 360 px without wrapping a label). Read only, so there are no row actions to measure: the order of the
-// actions of every tile is still measured by the test above, for the five screens that have tiles.
+// A screen of its own, "יומן פעולות" (under "עוד" on a phone). It used to be a section at the foot of the Committee screen that a button
+// opened. Read only, so there are no row actions to measure: the order of the actions of every tile is still measured by the test above,
+// for the five screens that have tiles.
 
-test('the audit log opens from the Committee tab, lists what was done and by whom, filters, and has no actions, on a phone and on a computer', async ({ page }) => {
+test('the audit log is a screen: it lists what was done and by whom, filters, and has no actions, on a phone and on a computer', async ({ page }) => {
   await adminSignIn(page)
   const tag = randomUUID().slice(0, 6)
   const name = `נקודת יומן ${tag}`
@@ -870,20 +907,16 @@ test('the audit log opens from the Committee tab, lists what was done and by who
     for (const size of [null, COMPUTER]) {
       if (size) await page.setViewportSize(size)
       const where = size ? 'computer' : 'phone'
-      // from another tab, so that the Committee tab opens with its section closed again
+      // from another screen, so that the log opens with its own filters again (the same address would keep the ones of the last round)
       await page.goto('/admin#points')
       await loaded(page, 'נקודות סריקה')
-      await page.goto('/admin#committee')
-      await loaded(page, 'חברי הוועד')
+      await openScreen(page, 'audit')
+      await loaded(page, 'יומן פעולות')
+      await expect(page).toHaveURL(/#audit$/)
 
-      // closed at first: a button, no log
-      const opener = page.getByRole('button', { name: 'יומן פעולות', exact: true })
-      await expect(opener).toHaveAttribute('aria-expanded', 'false')
-      await expect(page.getByLabel('סוג פעולה')).toHaveCount(0)
-      await opener.click()
-      await expect(opener).toHaveAttribute('aria-expanded', 'true')
-
-      const log = page.getByRole('region', { name: 'יומן פעולות' })
+      // no button to open it, no section: the log is the screen
+      const log = page.getByRole('main')
+      await expect(log.locator('[aria-expanded]')).toHaveCount(0)
       const rowsOfPoint = log.getByRole('listitem').filter({ hasText: name })
       await expect(rowsOfPoint).toHaveCount(3) // created, switched off, switched on
       // what the actions were, in words: the switch off and the switch on say from what to what
@@ -895,7 +928,8 @@ test('the audit log opens from the Committee tab, lists what was done and by who
         await expect(row).toContainText(`על ידי ${me.name}`)
         await expect(row).toContainText(/\d{2}:\d{2}/)
       }
-      await expect(log.getByRole('heading', { level: 3 }).filter({ hasText: /^\d{2}\/\d{2}\/\d{4} · \d+$/ }).first()).toBeVisible()
+      // the days are <h2>, under the <h1> of the screen
+      await expect(log.getByRole('heading', { level: 2 }).filter({ hasText: /^\d{2}\/\d{2}\/\d{4} · \d+$/ }).first()).toBeVisible()
 
       // read only: no action on any row, and no file
       for (const row of await log.getByRole('listitem').all()) {
@@ -924,11 +958,6 @@ test('the audit log opens from the Committee tab, lists what was done and by who
       await until.pressSequentially('02012020')
       await expect(page.getByRole('heading', { level: 2, name: 'אין פעולות בטווח הזה' })).toBeVisible()
       expect(await noHorizontalScroll(page), `the audit log at ${where} width`).toBe(true)
-
-      // closed again with the same button
-      await opener.click()
-      await expect(opener).toHaveAttribute('aria-expanded', 'false')
-      await expect(page.getByLabel('סוג פעולה')).toHaveCount(0)
     }
   } finally {
     await page.request.delete(`/api/admin/points/${point.id}`, { data: {} })
@@ -936,84 +965,162 @@ test('the audit log opens from the Committee tab, lists what was done and by who
 })
 
 // ---- the help ------------------------------------------------------------------------------------------------------------
-// A short guide in a section of the Committee tab, opened by the button "איך עובדים עם המערכת" (src/admin/views/HelpSection.jsx),
-// built like the audit log's: closed at first, between the building card and the audit log. It is text only, so there is nothing
-// to measure but where it sits, that it opens and closes, and that it fits the width.
+// A short guide, a screen of its own, "איך עובדים עם המערכת" (src/admin/views/HelpView.jsx; under "עוד" on a phone). It used to be a
+// section of the Committee screen that a button opened. It is text only, so there is nothing to measure but that every topic is
+// there at once, that nothing can be pressed in it, and that it fits the width.
 
 const HELP = 'איך עובדים עם המערכת'
 const HELP_TOPICS = [
   'נקודות ושלטי QR', 'נותני שירות והטלפונים שלהם', "היסטוריה ו'לא נקלטו'", "האייג'נט", 'יומן הפעולות', 'כשמגיעה התראה', 'כשטלפון תקוע',
 ]
 
-test('the help opens and closes from the Committee tab, sits between the building card and the audit log, and fits the width, on a phone and on a computer', async ({ page }) => {
+test('the help is a screen of its own with every topic on it, nothing to press, and fits the width, on a phone and on a computer', async ({ page }) => {
   await adminSignIn(page)
   for (const size of [null, COMPUTER]) {
     if (size) await page.setViewportSize(size)
     const where = size ? 'computer' : 'phone'
-    // from another tab, so that the Committee tab opens with its sections closed again
-    await page.goto('/admin#points')
-    await loaded(page, 'נקודות סריקה')
-    await page.goto('/admin#committee')
-    await loaded(page, 'חברי הוועד')
+    await openScreen(page, 'help')
+    await loaded(page, HELP)
+    await expect(page).toHaveURL(/#help$/)
+    const main = page.getByRole('main')
 
-    const opener = page.getByRole('button', { name: HELP, exact: true })
-    const help = page.getByRole('region', { name: HELP })
-    const topics = help.getByRole('heading', { level: 3 })
-    const auditOpener = page.getByRole('button', { name: 'יומן פעולות', exact: true })
-
-    // closed at first: a button, no topic
-    await expect(opener).toHaveAttribute('aria-expanded', 'false')
-    await expect(topics).toHaveCount(0)
-    await expect(page.getByLabel('כתובת הבניין')).toBeVisible() // the building card has finished loading, so nothing above the help changes height any more
-    // The places are measured from the top of the page (a box from `boundingBox` is measured in the window, which moves when the page scrolls).
-    const top = (locator) => locator.evaluate((el) => el.getBoundingClientRect().top + window.scrollY)
-    const bottom = (locator) => locator.evaluate((el) => el.getBoundingClientRect().bottom + window.scrollY)
-    const closedAt = await top(opener)
-
-    // opens: every topic is there, with its sentences
-    await opener.click()
-    await expect(opener).toHaveAttribute('aria-expanded', 'true')
+    // every topic is there at once, as an <h2> under the <h1>, with its sentences
+    const topics = main.getByRole('heading', { level: 2 })
     await expect(topics).toHaveText(HELP_TOPICS)
-    for (const title of HELP_TOPICS) await expect(help.getByRole('heading', { level: 3, name: title, exact: true }), `${where}: ${title}`).toBeVisible()
-    await expect(help.locator('p')).toHaveCount(HELP_TOPICS.length)
-    for (const paragraph of await help.locator('p').all()) await expect(paragraph).not.toBeEmpty()
+    for (const title of HELP_TOPICS) await expect(main.getByRole('heading', { level: 2, name: title, exact: true }), `${where}: ${title}`).toBeVisible()
+    await expect(main.locator('p')).toHaveCount(HELP_TOPICS.length)
+    for (const paragraph of await main.locator('p').all()) await expect(paragraph).not.toBeEmpty()
 
-    // read only: nothing to press in it but the button that closes it
-    await expect(help.getByRole('button')).toHaveCount(1)
-    await expect(help.getByRole('link')).toHaveCount(0)
-
-    // where it sits: under the building card, with the audit log below it (its panel does not run over the audit log's button)
-    const buildingEnd = await bottom(page.getByRole('region', { name: 'פרטי הבניין' }))
-    expect(await top(opener), `${where}: the help is under the building card`).toBeGreaterThan(buildingEnd)
-    expect(await top(opener), `${where}: the button does not move when it opens`).toBeCloseTo(closedAt, 0)
-    expect(await bottom(help), `${where}: the audit log is under the help`).toBeLessThanOrEqual((await top(auditOpener)) + 0.5)
+    // read only: nothing to press in it, and nothing that opens or closes
+    await expect(main.getByRole('button')).toHaveCount(0)
+    await expect(main.getByRole('link')).toHaveCount(0)
+    await expect(main.locator('[aria-expanded]')).toHaveCount(0)
 
     // it fits: nothing of it is outside the screen, and the page does not scroll sideways
-    const outside = await help.evaluate((section) => [...section.querySelectorAll('*')].filter((el) => {
+    const outside = await main.evaluate((root) => [...root.querySelectorAll('*')].filter((el) => {
       const r = el.getBoundingClientRect()
       return r.width > 0 && (r.left < -0.5 || r.right > window.innerWidth + 0.5)
     }).map((el) => el.tagName))
     expect(outside, `${where}: elements of the help outside the screen`).toEqual([])
     expect(await noHorizontalScroll(page), `the help at ${where} width`).toBe(true)
-
-    // the audit log is a section of its own: open together they do not disturb each other, and each closes by itself
-    await auditOpener.click()
-    await expect(auditOpener).toHaveAttribute('aria-expanded', 'true')
-    await expect(opener).toHaveAttribute('aria-expanded', 'true')
-    await auditOpener.click()
-    await expect(auditOpener).toHaveAttribute('aria-expanded', 'false')
-    await expect(topics).toHaveCount(HELP_TOPICS.length)
-
-    // closes with the same button, and the keyboard works it too
-    await opener.click()
-    await expect(opener).toHaveAttribute('aria-expanded', 'false')
-    await expect(topics).toHaveCount(0)
-    await opener.focus()
-    await page.keyboard.press('Enter')
-    await expect(opener).toHaveAttribute('aria-expanded', 'true')
-    await page.keyboard.press('Space')
-    await expect(opener).toHaveAttribute('aria-expanded', 'false')
-    await expect(topics).toHaveCount(0)
-    expect(await noHorizontalScroll(page), `the Committee tab at ${where} width`).toBe(true)
+    await page.goto('/admin#points') // the next round opens it again from another screen
+    await loaded(page, 'נקודות סריקה')
   }
+})
+
+// ---- the sheet under "עוד" and the first screen --------------------------------------------------------------------------
+// On a phone the tab bar has four buttons and the fourth, "עוד", opens a sheet with the other four screens: a real dialog (the Modal
+// of every form of the app), so focus goes in, Esc and a tap outside close it, and the focus goes back to the button. The unit test
+// (tests/components/admin-tab.test.jsx) proves the behaviour in jsdom; this proves it in the two real browsers.
+
+test('the "עוד" sheet: opens, lists the four other screens, marks the current one, goes to a screen and closes, and Esc gives the focus back', async ({ page }) => {
+  await adminSignIn(page)
+  const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
+  const more = bar.getByRole('button', { name: 'עוד', exact: true })
+  const sheet = page.getByRole('dialog', { name: 'עוד', exact: true })
+  const items = sheet.getByRole('navigation', { name: 'מסכים נוספים' }).getByRole('button')
+
+  await expect(more).toHaveAttribute('aria-haspopup', 'dialog')
+  await expect(more).toHaveAttribute('aria-expanded', 'false')
+  await expect(more, 'on the history, "עוד" is not the current item').not.toHaveAttribute('aria-current', 'page')
+  await more.click()
+  await expect(sheet).toBeVisible()
+  await expect(more).toHaveAttribute('aria-expanded', 'true')
+  await expect(sheet).toHaveAttribute('aria-modal', 'true')
+  await expect(items).toHaveText(['אייג׳נט', 'הגדרות', 'יומן פעולות', 'איך עובדים עם המערכת'])
+  // each item has its icon and a target of 44 px or more, and the sheet is at the bottom of the screen
+  for (const item of await items.all()) {
+    await expect(item.locator('svg')).toHaveCount(1)
+    expect((await item.boundingBox()).height).toBeGreaterThanOrEqual(44)
+  }
+  const [sheetBox, view] = [await sheet.boundingBox(), page.viewportSize()]
+  expect(sheetBox.y + sheetBox.height, 'the sheet sits on the bottom edge of the screen').toBeGreaterThanOrEqual(view.height - 1)
+  expect(await noHorizontalScroll(page), 'the sheet does not make the page scroll sideways').toBe(true)
+  // the focus is inside, and Tab keeps it there
+  await expect(sheet.locator(':focus')).toHaveCount(1)
+  for (let i = 0; i < 8; i++) {
+    await page.keyboard.press('Tab')
+    await expect(sheet.locator(':focus'), 'the focus stays in the sheet after Tab').toHaveCount(1)
+  }
+
+  // Esc closes it and the focus goes back to the button that opened it
+  await page.keyboard.press('Escape')
+  await expect(sheet).toHaveCount(0)
+  await expect(more).toBeFocused()
+  await expect(more).toHaveAttribute('aria-expanded', 'false')
+
+  // a tap outside closes it too
+  await more.click()
+  await expect(sheet).toBeVisible()
+  await page.mouse.click(view.width / 2, 4) // on the dimmed page above the sheet
+  await expect(sheet).toHaveCount(0)
+  await expect(more).toBeFocused()
+
+  // choosing a screen goes there, closes the sheet, makes "עוד" the current item, and marks the screen in the sheet next time
+  await more.click()
+  await items.filter({ hasText: 'הגדרות' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'הגדרות', exact: true })).toBeVisible()
+  await expect(sheet).toHaveCount(0)
+  await expect(page).toHaveURL(/#settings$/)
+  await expect(more).toHaveAttribute('aria-current', 'page')
+  await expect(page.getByRole('main'), 'the focus moved to the content, as for any change of screen').toBeFocused()
+  expect(await page.title()).toMatch(/^הגדרות · /)
+  await more.click()
+  await expect(sheet.locator('[aria-current="page"]')).toHaveText(['הגדרות'])
+  await expect(items.filter({ hasText: 'אייג׳נט' })).not.toHaveAttribute('aria-current', 'page')
+  await page.keyboard.press('Escape')
+  await expect(more).toBeFocused()
+
+  // a screen of the bar: "עוד" is not the current item any more
+  await bar.getByRole('button', { name: 'נקודות', exact: true }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'נקודות סריקה' })).toBeVisible()
+  await expect(more).not.toHaveAttribute('aria-current', 'page')
+})
+
+test('each screen under "עוד" opens from the sheet with its title and its address, and the sheet is readable in the dark theme', async ({ page }) => {
+  await page.emulateMedia({ colorScheme: 'dark' })
+  await adminSignIn(page)
+  for (const [key, label] of [['agent', 'אייג׳נט'], ['settings', 'הגדרות'], ['audit', 'יומן פעולות'], ['help', 'איך עובדים עם המערכת']]) {
+    await page.goto('/admin#points')
+    await loaded(page, 'נקודות סריקה')
+    await openScreen(page, key)
+    await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[key], exact: true })).toBeVisible()
+    await expect(page).toHaveURL(new RegExp(`#${key}$`))
+    expect(await page.title(), `${key}: the title of the window`).toMatch(new RegExp(`^${label} · `))
+  }
+  // the sheet is readable in the dark theme: the text is not the colour of the sheet
+  await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
+  const sheet = page.getByRole('dialog', { name: 'עוד', exact: true })
+  const colours = await sheet.evaluate((el) => {
+    const item = el.querySelector('.a-nav__item:not([aria-current])')
+    return { sheet: getComputedStyle(el).backgroundColor, text: getComputedStyle(item).color }
+  })
+  expect(colours.text).not.toBe(colours.sheet)
+})
+
+// The old address of the screen that held the members, the building, the guide and the audit log.
+test('the old address #committee lands on the settings, and an address that is no screen lands on the history', async ({ page }) => {
+  await adminSignIn(page, 'settings')
+  await page.goto('/admin#history')
+  await loaded(page, 'היסטוריית נוכחות')
+  await page.goto('/admin#committee')
+  await loaded(page, 'הגדרות')
+  await expect(page.getByLabel('כתובת הבניין', { exact: true })).toBeVisible()
+  await expect(page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true })).toHaveAttribute('aria-current', 'page')
+  await page.goto('/admin#nowhere')
+  await loaded(page, 'היסטוריית נוכחות')
+})
+
+// A new installation has no points, and the history is the first screen: it says to start with the points instead of "widen the dates".
+test('the history of a building with no points says to add points, with a button to the Points screen', async ({ page }) => {
+  await page.route('**/api/admin/points', async (route) => {
+    if (route.request().method() === 'GET') return route.fulfill({ json: { points: [] } })
+    return route.continue()
+  })
+  await adminSignIn(page)
+  await expect(page.getByRole('heading', { level: 2, name: 'עוד אין נקודות' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 2, name: 'אין נוכחויות בטווח הזה' })).toHaveCount(0)
+  await page.getByRole('button', { name: 'מעבר לנקודות' }).click()
+  await expect(page.getByRole('heading', { level: 1, name: 'נקודות סריקה' })).toBeVisible()
+  await expect(page).toHaveURL(/#points$/)
 })

@@ -418,7 +418,7 @@ describe('the audit log', () => {
 
 const ADMIN = { id: '00000000-0000-4000-8000-0000000000a1', name: 'Sample Member', email: 'member@example.test' }
 const OTHER_ADMIN = { id: '00000000-0000-4000-8000-0000000000b2', name: 'Other Member', email: 'other@example.test' }
-const NAV = { points: 'נקודות', providers: 'ספקים', history: 'היסטוריה', agent: 'אייג׳נט', committee: 'ועד' }
+const NAV = { points: 'נקודות', providers: 'ספקים', history: 'היסטוריה', agent: 'אייג׳נט', settings: 'הגדרות' }
 
 /** What the server has now. A test changes it. `held` is the next GET of a path that the test keeps waiting. */
 const app = { signedIn: true, who: ADMIN, signInAs: ADMIN, points: [], providers: [], building: { address: '', name: '' }, held: new Map() }
@@ -474,7 +474,7 @@ function hold(path) {
 const goTo = async (tab) => {
   fireEvent.click(screen.getAllByRole('button', { name: NAV[tab] })[0])
   await waitFor(() => expect(window.location.hash).toBe(`#${tab}`))
-  await screen.findByRole('heading', { level: 1, name: { points: 'נקודות סריקה', providers: 'נותני שירות', history: 'היסטוריית נוכחות', agent: "גישה לאייג'נט", committee: 'חברי הוועד' }[tab] })
+  await screen.findByRole('heading', { level: 1, name: { points: 'נקודות סריקה', providers: 'נותני שירות', history: 'היסטוריית נוכחות', agent: "גישה לאייג'נט", settings: 'הגדרות' }[tab] })
 }
 const signOut = () => fireEvent.click(screen.getAllByRole('button', { name: 'יציאה' })[0])
 const devSignIn = async () => fireEvent.click(await screen.findByRole('button', { name: 'כניסת פיתוח' }))
@@ -509,7 +509,7 @@ describe('the committee app', () => {
   it('draws the building card from the last visit, and an answer that comes while the person types keeps what they typed', async () => {
     answerLikeTheServer()
     app.building = { address: 'רחוב הדוגמה 1', name: 'בניין הדוגמה' }
-    window.history.replaceState(null, '', '/admin#committee')
+    window.history.replaceState(null, '', '/admin#settings')
     render(<AdminApp />)
     const address = await screen.findByLabelText('כתובת הבניין', { exact: true })
     await waitFor(() => expect(address.value).toBe('רחוב הדוגמה 1'))
@@ -517,7 +517,7 @@ describe('the committee app', () => {
 
     const building = hold('/admin/building')
     app.building = { address: 'רחוב הדוגמה 2', name: 'בניין הדוגמה' }
-    await goTo('committee')
+    await goTo('settings')
     const again = screen.getByLabelText('כתובת הבניין', { exact: true })
     expect(again.value).toBe('רחוב הדוגמה 1') // the last visit's value, before the server has answered
     expect(screen.getByLabelText('שם הבניין', { exact: true }).value).toBe('בניין הדוגמה')

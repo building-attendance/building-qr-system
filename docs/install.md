@@ -284,12 +284,12 @@ Check that the daily jobs can run: Settings, Cron Jobs, run `retention` once. It
 1. Open `https://<your-domain>/admin`. The sign-in screen shows Google's button ("Sign in as" and your name). Sign in with
    Google, with exactly the address in `FIRST_ADMIN_EMAIL`. While the committee list is empty, the first sign-in with that
    address (the one Google marks as verified) adds that person as the first member, and writes it to the audit log
-   (`server/firstAdmin.js`): the audit log of the Committee tab shows the member added by the system, then the sign-in.
+   (`server/firstAdmin.js`): the audit log screen ("יומן פעולות") shows the member added by the system, then the sign-in.
 2. **Now delete `FIRST_ADMIN_EMAIL` in Vercel and redeploy.** It is personal data and has nothing left to do. Do not leave
    it "in case". In Settings, Environment Variables, the menu of its row has Edit, Rotate, Copy to Clipboard, View History
    and Delete. Delete asks "Delete Environment Variable" and warns "You can't undo this action". Vercel then says "Removed
    Environment Variable successfully. A new deployment is needed", with Redeploy.
-3. Add the other committee members in the Committee tab ("ועד"), by their Gmail address. If the consent screen is in
+3. Add the other committee members in the Settings screen ("הגדרות"), by their Gmail address. If the consent screen is in
    Testing mode, add them as Google test users as well.
 
 **If the sign-in does not work.** A wrong address, a Google account that is not the one in the variable, or a variable
@@ -312,7 +312,7 @@ not say `nonprod`.
 
 ### 3.7 In the app: the building, a point, a provider, a test scan
 
-1. Committee tab ("ועד"), the card ("פרטי הבניין"): fill ("שם הבניין") and ("כתובת הבניין"), and save ("שמירה"). The toast
+1. Settings screen ("הגדרות"), the card ("פרטי הבניין"): fill ("שם הבניין") and ("כתובת הבניין"), and save ("שמירה"). The toast
    says that the details were saved ("פרטי הבניין נשמרו"). The committee app's brand and window title follow at once, and
    the providers' app shows the name within about a minute. The label of the installed app on a phone's Home Screen is
    fixed when the app is built, so it does not follow the name.
@@ -562,7 +562,7 @@ themselves ([ADR 0002](adr/0002-production-migrations-in-the-vercel-build.md)): 
    "Database and API changes"), and old clients are accepted until a later release removes what they used. You need to do
    nothing for this.
 6. **Which version am I on?** Both apps show their build id (the first 7 characters of the commit) at the foot of the home
-   screen and of the Committee tab, and `/api/health` shows it as `commit`. On this repository, `git fetch --tags` and
+   screen and of the Settings screen, and `/api/health` shows it as `commit`. On this repository, `git fetch --tags` and
    `git tag --contains <build id> --sort=version:refname | head -1` name the first release that has it
    ([releases.md](releases.md)). In your copy that does not work: the build id is a commit of your own repository, it has
    commits of its own (section 3.8, step 3), and every update is a squash merge, so no release of this repository
@@ -610,4 +610,4 @@ call it Sensitive); "Config" is one that can be read.
 | The agent key of the committee's agent (optional) | The committee app, Agent tab | The vault of the agent platform |
 | `BACKUP_HEARTBEAT_URL`, or `BACKUP_DATABASE_URL` (optional) | healthchecks.io, Neon | The environment of the backup computer only |
 | The backup folder (optional) | The backup computer | That computer, never synchronised online |
-| The building's name and address | The committee app, Committee tab | The database |
+| The building's name and address | The committee app, Settings screen | The database |

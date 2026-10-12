@@ -2,12 +2,10 @@ import { useId, useRef, useState } from 'react'
 import { adminApi, errorText } from '../api.js'
 import { useLoad, setLoadCache, LOAD_KEY, formatDateTime } from '../hooks.js'
 import { Modal, Field, Badge, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { IconPlus, IconBan, IconCheck, IconShield, IconAlert, IconTrash, IconClock, IconChevron } from '../icons.jsx'
+import { IconPlus, IconBan, IconCheck, IconShield, IconAlert, IconTrash } from '../icons.jsx'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { useBuildingName } from '../buildingName.jsx'
 import BuildLabel from '../../ui/BuildLabel.jsx'
-import AuditView from './AuditView.jsx'
-import HelpSection from './HelpSection.jsx'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 
@@ -131,28 +129,6 @@ function BuildingCard() {
   )
 }
 
-/**
- * The audit log (who did what, and when), a section that a button opens: read only, so it has no row actions. It is here and not
- * a tab of its own because six tabs do not fit the phone's bar at 360 px. The button is the heading of the section (the usual
- * way to build one that opens), and the log is loaded only when it is opened.
- */
-function AuditSection() {
-  const id = useId()
-  const [open, setOpen] = useState(false)
-  return (
-    <section className="a-audit-section" aria-labelledby={`${id}-title`}>
-      <h2 className="a-disclosure" id={`${id}-title`}>
-        <button type="button" className="a-disclosure__btn" aria-expanded={open} aria-controls={`${id}-panel`} onClick={() => setOpen((o) => !o)}>
-          <IconClock size={24} />
-          <span className="a-disclosure__text">יומן פעולות</span>
-          <IconChevron size={22} className="a-disclosure__chevron" />
-        </button>
-      </h2>
-      <div id={`${id}-panel`} hidden={!open}>{open && <AuditView />}</div>
-    </section>
-  )
-}
-
 function AddDialog({ onClose, onAdded }) {
   const toast = useToast()
   const [email, setEmail] = useState('')
@@ -186,7 +162,13 @@ function AddDialog({ onClose, onAdded }) {
   )
 }
 
-export default function CommitteeView({ admin }) {
+/**
+ * The settings: who may sign in to the committee app (the members, with the button that adds one) and the building's name and address.
+ * It ends with the id of the build that this computer or phone runs. The audit log and the guide are screens of their own now
+ * (AuditView.jsx, HelpView.jsx), and the address `#committee` of the screen that held all of them lands here (src/admin/tab.js).
+ */
+export default function SettingsView({ admin }) {
+  const membersId = useId()
   const toast = useToast()
   const confirm = useConfirm()
   const admins = useLoad(() => adminApi('/admins'), [], { cacheKey: LOAD_KEY.admins })
@@ -220,52 +202,57 @@ export default function CommitteeView({ admin }) {
     <>
       <div className="a-head">
         <div>
-          <h1>חברי הוועד</h1>
-          <p>מי רשאי להיכנס לניהול. הכניסה תמיד עם חשבון Google.</p>
+          <h1>הגדרות</h1>
+          <p>חברי הוועד ופרטי הבניין.</p>
         </div>
-        <div className="a-actions"><IconButton icon={IconPlus} label="חבר ועד חדש" tone="primary" onClick={() => setAdding(true)} /></div>
       </div>
 
-      {admins.status === 'loading' && <Spinner />}
-      {admins.status === 'error' && !admins.data && (
-        <EmptyState icon={IconAlert} title="לא הצלחנו לטעון" action={<button className="w-btn w-btn--small" onClick={admins.reload}>נסו שוב</button>} />
-      )}
-      {admins.status === 'ready' && list.length === 0 && <EmptyState icon={IconShield} title="הרשימה ריקה" />}
+      <section aria-labelledby={membersId}>
+        <div className="a-head a-head--section">
+          <div>
+            <h2 id={membersId}>חברי הוועד</h2>
+            <p>מי רשאי להיכנס לניהול. הכניסה תמיד עם חשבון Google.</p>
+          </div>
+          <div className="a-actions"><IconButton icon={IconPlus} label="חבר ועד חדש" tone="primary" onClick={() => setAdding(true)} /></div>
+        </div>
 
-      <div className="a-grid">
-        {list.map((a) => {
-          const me = a.id === admin.id
-          return (
-            <article key={a.id} className={`a-card${a.is_active ? '' : ' is-off'}`}>
-              <div className="a-card__top">
-                <div>
-                  <h2 className="a-card__title">{a.name || 'חבר ועד'}{me && ' (אתם)'}</h2>
-                  {/* an address reads left to right, but it lines up with the title like the other cards' second line */}
-                  <p className="a-card__sub"><bdi dir="ltr">{a.email}</bdi></p>
-                </div>
-                {/* your own card has no icons: you cannot remove or delete yourself */}
-                {!me && (
-                  <div className="a-card__tools">
-                    <IconButton icon={a.is_active ? IconBan : IconCheck} label={a.is_active ? 'הסרת גישה' : 'החזרת גישה'} onClick={() => toggle(a)} disabled={busy} />
-                    <IconButton icon={IconTrash} label="מחיקה מהוועד" tone="danger" onClick={() => deleteMember(a)} disabled={busy} />
+        {admins.status === 'loading' && <Spinner />}
+        {admins.status === 'error' && !admins.data && (
+          <EmptyState icon={IconAlert} title="לא הצלחנו לטעון" action={<button className="w-btn w-btn--small" onClick={admins.reload}>נסו שוב</button>} />
+        )}
+        {admins.status === 'ready' && list.length === 0 && <EmptyState icon={IconShield} title="הרשימה ריקה" />}
+
+        <div className="a-grid">
+          {list.map((a) => {
+            const me = a.id === admin.id
+            return (
+              <article key={a.id} className={`a-card${a.is_active ? '' : ' is-off'}`}>
+                <div className="a-card__top">
+                  <div>
+                    <h3 className="a-card__title">{a.name || 'חבר ועד'}{me && ' (אתם)'}</h3>
+                    {/* an address reads left to right, but it lines up with the title like the other cards' second line */}
+                    <p className="a-card__sub"><bdi dir="ltr">{a.email}</bdi></p>
                   </div>
-                )}
-              </div>
-              <div className="a-meta"><Badge tone={a.is_active ? 'ok' : 'neutral'}>{a.is_active ? 'פעיל' : 'הוסר'}</Badge></div>
-              <dl className="a-facts"><dt>כניסה אחרונה</dt><dd>{a.last_login_at ? formatDateTime(a.last_login_at) : 'עוד לא נכנס'}</dd></dl>
-            </article>
-          )
-        })}
-      </div>
+                  {/* your own card has no icons: you cannot remove or delete yourself */}
+                  {!me && (
+                    <div className="a-card__tools">
+                      <IconButton icon={a.is_active ? IconBan : IconCheck} label={a.is_active ? 'הסרת גישה' : 'החזרת גישה'} onClick={() => toggle(a)} disabled={busy} />
+                      <IconButton icon={IconTrash} label="מחיקה מהוועד" tone="danger" onClick={() => deleteMember(a)} disabled={busy} />
+                    </div>
+                  )}
+                </div>
+                <div className="a-meta"><Badge tone={a.is_active ? 'ok' : 'neutral'}>{a.is_active ? 'פעיל' : 'הוסר'}</Badge></div>
+                <dl className="a-facts"><dt>כניסה אחרונה</dt><dd>{a.last_login_at ? formatDateTime(a.last_login_at) : 'עוד לא נכנס'}</dd></dl>
+              </article>
+            )
+          })}
+        </div>
+      </section>
 
       <BuildingCard />
 
-      <HelpSection />
-
-      {/* Which build this computer or phone runs. The one place that both layouts reach (the tab bar and the side rail). */}
+      {/* Which build this computer or phone runs: the end of the settings, the one place that both layouts reach (the tab bar and the side rail). */}
       <BuildLabel label="גרסה" className="a-build" />
-
-      <AuditSection />
 
       {adding && <AddDialog onClose={() => setAdding(false)} onAdded={() => { setAdding(false); admins.reload() }} />}
     </>

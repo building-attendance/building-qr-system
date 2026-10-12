@@ -2,14 +2,18 @@
 // The tab of the committee app follows the address (#history). The real AdminApp, signed in, with the network (`api`)
 // answered by the test: every screen gets an empty list, which is enough to show its heading.
 //
+// Seven screens. History, points and providers (the work group) are buttons of the tab bar of the phone and of the side rail; agent,
+// settings, audit and help (the management group) are in the side rail and, on a phone, in the sheet that the fourth button of the bar,
+// "עוד", opens. The first screen is the history, and the old address #committee lands on the settings.
+//
 // What went wrong: the tab was read from the address once, in the first render, and the listener for a change of the address
 // was attached later, in an effect. A change that came in between was lost and the app stayed on the first tab. A link that is
 // opened right after sign-in (or a test that does `page.goto('/admin#history')` at that moment) hit it. The address is now
 // an external store that React subscribes to (src/admin/tab.js): after subscribing React reads it again, so nothing is lost.
 import { describe, it, expect, vi, afterEach } from 'vitest'
-import { render, screen, fireEvent, waitFor, cleanup, act } from '@testing-library/react'
+import { render, screen, fireEvent, waitFor, cleanup, act, within } from '@testing-library/react'
 import AdminApp from '../../src/pages/AdminApp.jsx'
-import { tabFromHash } from '../../src/admin/tab.js'
+import { tabFromHash, RENAMED_TABS } from '../../src/admin/tab.js'
 import { api } from '../../src/api/client.js'
 
 vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
@@ -18,15 +22,20 @@ const ADMIN = { id: '00000000-0000-4000-8000-0000000000a1', name: 'Sample Member
 const TITLE_SUFFIX = ' · נוכחות בבניין'
 
 // Each tab: its key in the address, its name as a page (the first part of the title of the document), the short name on its button
-// (`nav`, in both navigations), and the heading that its screen draws.
+// (`nav`, in the side rail and in the tab bar), the heading that its screen draws, and whether it is a button of the tab bar of the phone
+// (`bar`) or one of the screens under "עוד". In the order of the side rail; the first one is the screen that opens by default.
 const TABS = [
-  { key: 'points', label: 'נקודות', nav: 'נקודות', heading: 'נקודות סריקה' },
-  { key: 'providers', label: 'נותני שירות', nav: 'ספקים', heading: 'נותני שירות' },
-  { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', heading: 'היסטוריית נוכחות' },
-  { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', heading: "גישה לאייג'נט" },
-  { key: 'committee', label: 'ועד', nav: 'ועד', heading: 'חברי הוועד' },
+  { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', heading: 'היסטוריית נוכחות', bar: true },
+  { key: 'points', label: 'נקודות', nav: 'נקודות', heading: 'נקודות סריקה', bar: true },
+  { key: 'providers', label: 'נותני שירות', nav: 'ספקים', heading: 'נותני שירות', bar: true },
+  { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', heading: "גישה לאייג'נט", bar: false },
+  { key: 'settings', label: 'הגדרות', nav: 'הגדרות', heading: 'הגדרות', bar: false },
+  { key: 'audit', label: 'יומן פעולות', nav: 'יומן פעולות', heading: 'יומן פעולות', bar: false },
+  { key: 'help', label: 'איך עובדים עם המערכת', nav: 'איך עובדים עם המערכת', heading: 'איך עובדים עם המערכת', bar: false },
 ]
+const MORE = TABS.filter((t) => !t.bar)
 const byKey = Object.fromEntries(TABS.map((t) => [t.key, t]))
+const FIRST = TABS[0].key
 
 window.scrollTo = vi.fn() // the shell scrolls to the top on a tab change; jsdom has no scrolling
 
@@ -48,16 +57,22 @@ function answerLikeTheServer() {
     if (path === '/admin/api-keys') return { api_keys: [] }
     if (path === '/admin/admins') return { admins: [] }
     if (path === '/admin/building') return { building: { address: '' } }
+    if (path.startsWith('/admin/audit')) return { entries: [], next_cursor: null }
     throw new Error(`the test does not expect ${path}`)
   })
 }
 
 const heading = (tab) => screen.findByRole('heading', { level: 1, name: byKey[tab].heading })
-// The page that is shown now, by the headings of the five screens. At most one of them is there.
+// The page that is shown now, by the headings of the seven screens. At most one of them is there.
 const shown = () => TABS.filter((t) => screen.queryByRole('heading', { level: 1, name: t.heading })).map((t) => t.key)
-// Both navigations are in the page (the side rail and the tab bar of the phone: CSS hides one), so a button is found twice.
+// Both navigations are in the page (the side rail and the tab bar of the phone: CSS hides one), so a screen of the bar is found twice: first
+// in the side rail, then in the bar. A screen under "עוד" is in the side rail only, until the sheet is open.
 const buttons = (tab) => screen.getAllByRole('button', { name: byKey[tab].nav })
 const current = (tab) => buttons(tab).map((b) => b.getAttribute('aria-current'))
+const bar = () => screen.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
+const rail = () => screen.getByRole('navigation', { name: 'ניווט ראשי' })
+const moreButton = () => within(bar()).getByRole('button', { name: 'עוד' })
+const sheet = () => screen.queryByRole('dialog', { name: 'עוד' })
 
 /** A person (or a test) opens another address of the same page: the address changes, and the browser says so. */
 async function openByAddress(hash) {
@@ -74,21 +89,37 @@ describe('the tab that the address names when the app opens', () => {
     render(<AdminApp />)
     await heading(key)
     expect(shown()).toEqual([key])
-    expect(current(key)).toEqual(['page', 'page'])
+    // the side rail marks it; so does the tab bar: the button of the screen, or "עוד" when the screen is one of those under it
+    expect(within(rail()).getByRole('button', { name: byKey[key].nav }).getAttribute('aria-current')).toBe('page')
+    if (byKey[key].bar) expect(current(key)).toEqual(['page', 'page'])
+    else expect(moreButton().getAttribute('aria-current')).toBe('page')
     await waitFor(() => expect(document.title).toBe(`${byKey[key].label}${TITLE_SUFFIX}`)) // the title is set by an effect after the heading is drawn
   })
 
-  it.each([['no hash', ''], ['an empty hash', '#'], ['a name that is not a tab', '#nowhere'], ['a tab with something after it', '#history?x=1'], ['the wrong case', '#History']])(
-    'opens the first tab for %s',
+  it.each([['no hash', ''], ['an empty hash', '#'], ['a name that is not a tab', '#nowhere'], ['a tab with something after it', '#points?x=1'], ['the wrong case', '#Points']])(
+    'opens the first tab (the history) for %s',
     async (_what, hash) => {
       answerLikeTheServer()
       window.history.replaceState(null, '', `/${hash}`)
       render(<AdminApp />)
-      await heading('points')
-      expect(shown()).toEqual(['points'])
-      expect(current('points')).toEqual(['page', 'page'])
+      await heading(FIRST)
+      expect(FIRST).toBe('history')
+      expect(shown()).toEqual([FIRST])
+      expect(current(FIRST)).toEqual(['page', 'page'])
+      expect(moreButton().getAttribute('aria-current')).toBeNull()
     },
   )
+
+  it('opens the settings for #committee, the address of the screen that held the members, the building, the guide and the audit log', async () => {
+    answerLikeTheServer()
+    window.history.replaceState(null, '', '/#committee')
+    render(<AdminApp />)
+    await heading('settings')
+    expect(shown()).toEqual(['settings'])
+    expect(within(rail()).getByRole('button', { name: 'הגדרות' }).getAttribute('aria-current')).toBe('page')
+    expect(moreButton().getAttribute('aria-current')).toBe('page')
+    await waitFor(() => expect(document.title).toBe(`הגדרות${TITLE_SUFFIX}`))
+  })
 })
 
 describe('the address that changes between the first render and the listener', () => {
@@ -97,11 +128,12 @@ describe('the address that changes between the first render and the listener', (
     let moved = 0
     const attach = window.addEventListener.bind(window)
     // Just before the app attaches its listener for `hashchange`, the address changes the way a link that is opened at that
-    // moment changes it. `replaceState` fires no `hashchange`, so only reading the address again after subscribing can see it.
+    // moment changes it. `replaceState` fires no `hashchange`, so only reading the address again after subscribing can see it. (A tab
+    // that is not the first one: the first is what the app shows when it has not seen the change.)
     vi.spyOn(window, 'addEventListener').mockImplementation((type, ...rest) => {
       if (type === 'hashchange' && moved === 0) {
         moved += 1
-        window.history.replaceState(null, '', '#history')
+        window.history.replaceState(null, '', '#points')
       }
       return attach(type, ...rest)
     })
@@ -109,10 +141,10 @@ describe('the address that changes between the first render and the listener', (
     render(<AdminApp />)
     // the shell is drawn and has attached its listener, and the address changed just before that
     await waitFor(() => expect(moved, 'the address changed before the listener was attached').toBe(1))
-    await heading('history')
-    expect(shown()).toEqual(['history'])
-    expect(current('history')).toEqual(['page', 'page'])
-    await waitFor(() => expect(document.title).toBe(`${byKey.history.label}${TITLE_SUFFIX}`)) // the title is set by an effect after the heading is drawn
+    await heading('points')
+    expect(shown()).toEqual(['points'])
+    expect(current('points')).toEqual(['page', 'page'])
+    await waitFor(() => expect(document.title).toBe(`${byKey.points.label}${TITLE_SUFFIX}`)) // the title is set by an effect after the heading is drawn
   })
 })
 
@@ -120,26 +152,30 @@ describe('changing the tab while the app is open', () => {
   it('follows a change of the address, and a change back, and goes to the first tab when the address names none', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('points')
-
-    await openByAddress('#history')
     await heading('history')
-    expect(shown()).toEqual(['history'])
-    await waitFor(() => expect(document.title).toBe(`${byKey.history.label}${TITLE_SUFFIX}`)) // the title is set by an effect after the heading is drawn
 
-    await openByAddress('#committee')
-    await heading('committee')
-    expect(shown()).toEqual(['committee'])
-
-    await openByAddress('#nowhere')
+    await openByAddress('#points')
     await heading('points')
     expect(shown()).toEqual(['points'])
+    await waitFor(() => expect(document.title).toBe(`${byKey.points.label}${TITLE_SUFFIX}`)) // the title is set by an effect after the heading is drawn
+
+    await openByAddress('#committee')
+    await heading('settings')
+    expect(shown()).toEqual(['settings'])
+
+    await openByAddress('#audit')
+    await heading('audit')
+    expect(shown()).toEqual(['audit'])
+
+    await openByAddress('#nowhere')
+    await heading('history')
+    expect(shown()).toEqual(['history'])
   })
 
   it('follows the back button', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('points')
+    await heading('history')
     await openByAddress('#providers')
     await heading('providers')
     await openByAddress('#agent')
@@ -154,23 +190,164 @@ describe('changing the tab while the app is open', () => {
     expect(window.location.hash).toBe('#providers')
   })
 
-  it.each(TABS)('opens $key from its button (the one in the side rail and the one in the tab bar) and puts it in the address', async ({ key }) => {
+  it.each(TABS)('opens $key from its button in the side rail, and a screen of the bar also from its button in the tab bar, and puts it in the address', async ({ key, bar: inBar }) => {
     answerLikeTheServer()
-    for (const index of [0, 1]) {
-      // from the first tab each time, so that every button has somewhere to go from
-      window.history.replaceState(null, '', '/#points')
+    for (const index of inBar ? [0, 1] : [0]) {
+      // from another screen each time, so that every button has somewhere to go from
+      const from = key === 'points' ? 'history' : 'points'
+      window.history.replaceState(null, '', `/#${from}`)
       render(<AdminApp />)
-      await heading('points')
+      await heading(from)
 
       fireEvent.click(buttons(key)[index])
       await heading(key)
       await waitFor(() => expect(window.location.hash).toBe(`#${key}`))
       expect(shown()).toEqual([key])
-      expect(current(key)).toEqual(['page', 'page'])
-      for (const other of TABS.filter((t) => t.key !== key)) expect(current(other.key), `${other.key} is not the current page`).toEqual([null, null])
+      expect(within(rail()).getByRole('button', { name: byKey[key].nav }).getAttribute('aria-current')).toBe('page')
+      for (const other of TABS.filter((t) => t.key !== key)) {
+        expect(within(rail()).getByRole('button', { name: other.nav }).getAttribute('aria-current'), `${other.key} is not the current page`).toBeNull()
+      }
       await waitFor(() => expect(document.title).toBe(`${byKey[key].label}${TITLE_SUFFIX}`)) // the title is set by an effect after the heading is drawn
       cleanup()
     }
+  })
+
+  it('scrolls to the top and puts the focus on the content when the screen changes, also to a screen under "עוד"', async () => {
+    answerLikeTheServer()
+    render(<AdminApp />)
+    await heading('history')
+    window.scrollTo.mockClear()
+    fireEvent.click(moreButton())
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'הגדרות' }))
+    await heading('settings')
+    await waitFor(() => expect(window.scrollTo).toHaveBeenCalledWith(0, 0))
+    await waitFor(() => expect(document.activeElement).toBe(document.querySelector('main')))
+  })
+})
+
+describe('the tab bar of the phone and the side rail', () => {
+  it('has exactly four buttons in the bar: history, points, providers and "עוד", in this order', async () => {
+    answerLikeTheServer()
+    render(<AdminApp />)
+    await heading('history')
+    expect(within(bar()).getAllByRole('button').map((b) => b.textContent)).toEqual(['היסטוריה', 'נקודות', 'ספקים', 'עוד'])
+  })
+
+  it('has all seven screens in the side rail, in two groups with a separator between them', async () => {
+    answerLikeTheServer()
+    render(<AdminApp />)
+    await heading('history')
+    expect(within(rail()).getAllByRole('button').map((b) => b.textContent)).toEqual(
+      ['היסטוריה', 'נקודות', 'ספקים', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'איך עובדים עם המערכת'],
+    )
+    expect(within(rail()).getAllByRole('separator')).toHaveLength(1)
+    // the separator is between the third and the fourth button
+    expect([...rail().children].map((n) => (n.tagName === 'HR' ? '|' : n.textContent))).toEqual([
+      'היסטוריה', 'נקודות', 'ספקים', '|', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'איך עובדים עם המערכת',
+    ])
+  })
+
+  it('says that "עוד" opens a dialog, and whether it is open', async () => {
+    answerLikeTheServer()
+    render(<AdminApp />)
+    await heading('history')
+    expect(moreButton().getAttribute('aria-haspopup')).toBe('dialog')
+    expect(moreButton().getAttribute('aria-expanded')).toBe('false')
+    fireEvent.click(moreButton())
+    expect(moreButton().getAttribute('aria-expanded')).toBe('true')
+  })
+})
+
+describe('the sheet under "עוד"', () => {
+  /** Opens the app on `hash` (the first screen when empty) and the sheet, and returns the sheet. */
+  async function open(hash = '') {
+    answerLikeTheServer()
+    window.history.replaceState(null, '', `/${hash}`)
+    render(<AdminApp />)
+    await heading(hash ? hash.slice(1) : FIRST)
+    expect(sheet()).toBeNull()
+    fireEvent.click(moreButton())
+    return sheet()
+  }
+
+  it('is a modal dialog named "עוד" that lists the four other screens, each with an icon and its whole name', async () => {
+    const dialog = await open()
+    expect(dialog).toBeTruthy()
+    expect(dialog.getAttribute('aria-modal')).toBe('true')
+    const items = within(within(dialog).getByRole('navigation', { name: 'מסכים נוספים' })).getAllByRole('button')
+    expect(items.map((b) => b.textContent)).toEqual(MORE.map((t) => t.label))
+    for (const item of items) expect(item.querySelector('svg'), item.textContent).toBeTruthy()
+  })
+
+  it('marks no screen when the open screen is one of the bar, and "עוד" is not the current item either', async () => {
+    const dialog = await open('#points')
+    for (const item of within(dialog).getByRole('navigation', { name: 'מסכים נוספים' }).querySelectorAll('button')) expect(item.getAttribute('aria-current')).toBeNull()
+    expect(moreButton().getAttribute('aria-current')).toBeNull()
+  })
+
+  it.each(MORE)('marks $key as the current screen when it is open, and "עוד" is the current item of the bar', async ({ key, label }) => {
+    const dialog = await open(`#${key}`)
+    const marked = [...within(dialog).getByRole('navigation', { name: 'מסכים נוספים' }).querySelectorAll('button')].filter((b) => b.getAttribute('aria-current') === 'page')
+    expect(marked.map((b) => b.textContent)).toEqual([label])
+    expect(moreButton().getAttribute('aria-current')).toBe('page')
+  })
+
+  it.each(MORE)('goes to $key and closes when it is chosen', async ({ key, label }) => {
+    const dialog = await open()
+    fireEvent.click(within(dialog).getByRole('button', { name: label }))
+    await heading(key)
+    await waitFor(() => expect(window.location.hash).toBe(`#${key}`))
+    expect(sheet()).toBeNull()
+    expect(moreButton().getAttribute('aria-expanded')).toBe('false')
+    expect(moreButton().getAttribute('aria-current')).toBe('page')
+    await waitFor(() => expect(document.title).toBe(`${label}${TITLE_SUFFIX}`))
+  })
+
+  it('moves the focus in, keeps it inside, and gives it back to "עוד" on Escape', async () => {
+    const dialog = await open()
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    // Tab from the last button wraps to the first, and Shift+Tab from the first wraps to the last
+    const buttons = within(dialog).getAllByRole('button')
+    buttons.at(-1).focus()
+    fireEvent.keyDown(document, { key: 'Tab' })
+    expect(document.activeElement).toBe(buttons[0])
+    fireEvent.keyDown(document, { key: 'Tab', shiftKey: true })
+    expect(document.activeElement).toBe(buttons.at(-1))
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(sheet()).toBeNull()
+    expect(document.activeElement).toBe(moreButton())
+    expect(moreButton().getAttribute('aria-expanded')).toBe('false')
+    expect(shown()).toEqual([FIRST]) // closing changes nothing else
+  })
+
+  it('closes on a tap outside the sheet, and on its close button, and gives the focus back each time', async () => {
+    await open()
+    fireEvent.mouseDown(document.querySelector('.a-overlay'))
+    expect(sheet()).toBeNull()
+    expect(document.activeElement).toBe(moreButton())
+
+    fireEvent.click(moreButton())
+    const dialog = sheet()
+    fireEvent.mouseDown(dialog) // a tap inside does not close it
+    expect(sheet()).toBeTruthy()
+    fireEvent.click(within(dialog).getByRole('button', { name: 'סגירה' }))
+    expect(sheet()).toBeNull()
+    expect(document.activeElement).toBe(moreButton())
+  })
+
+  it('has no question about unsaved changes (it has no form)', async () => {
+    const dialog = await open()
+    expect(dialog.querySelector('form, input, select, textarea')).toBeNull()
+    fireEvent.keyDown(document, { key: 'Escape' })
+    expect(screen.queryByRole('dialog')).toBeNull() // and no "close without saving?" on top
+  })
+
+  it('stays on the same screen, and gives the focus back to "עוד", when the screen that is already open is chosen', async () => {
+    const dialog = await open('#audit')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'יומן פעולות' }))
+    expect(sheet()).toBeNull()
+    expect(shown()).toEqual(['audit'])
+    expect(document.activeElement).toBe(moreButton())
   })
 })
 
@@ -184,6 +361,17 @@ describe('tabFromHash', () => {
     expect(tabFromHash(keys, '#four')).toBe('one')
     expect(tabFromHash(keys, '#Two')).toBe('one')
     expect(tabFromHash(keys, 'two')).toBe('one') // `slice(1)` takes the # off: a hash always starts with one
+    expect(tabFromHash(keys, '#committee')).toBe('one') // a renamed address lands on its new screen only when that screen is among the keys
+  })
+
+  it('lands the address of a screen that was split on the screen that took its place', () => {
+    const screens = ['history', 'points', 'settings', 'audit', 'help']
+    expect(tabFromHash(screens, '#committee')).toBe('settings')
+    expect(tabFromHash(screens, '#settings')).toBe('settings')
+    expect(tabFromHash(screens, '#Committee')).toBe('history') // the wrong case is no address
+    expect(tabFromHash(screens, '#committee2')).toBe('history')
+    expect(RENAMED_TABS.get('committee')).toBe('settings')
+    for (const [, target] of RENAMED_TABS) expect(screens).toContain(target)
   })
 
   it('reads the address of the page when it is not given a hash', () => {

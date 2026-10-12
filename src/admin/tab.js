@@ -12,13 +12,25 @@
 import { useSyncExternalStore } from 'react'
 
 /**
- * The tab that the address names: the key after the `#`, or the first key when the address names none of them (no
- * hash, or one that is not a tab). The first of `keys` is therefore the tab that opens by default.
+ * The screens that changed their address, old key to new key. The address of a screen is kept in bookmarks, in links that were sent and in
+ * tabs that are still open, so an old address lands on the screen that took its place. `#committee` was one screen with the members, the
+ * building's details, the help and the audit log; it is now `#settings` (the members and the building's details), and the help and the
+ * audit log are `#help` and `#audit`.
+ */
+export const RENAMED_TABS = new Map([['committee', 'settings']])
+
+/**
+ * The tab that the address names: the key after the `#` (or the key that an old one was renamed to), or the first key when the address
+ * names none of `keys` (no hash, or one that is not a tab). The first of `keys` is therefore the tab that opens by default.
  * @param {string[]} keys
  * @param {string} [hash]  default: the address of the page now
  * @returns {string}
  */
-export const tabFromHash = (keys, hash = window.location.hash) => keys.find((key) => key === hash.slice(1)) ?? keys[0]
+export const tabFromHash = (keys, hash = window.location.hash) => {
+  const named = hash.slice(1)
+  const wanted = RENAMED_TABS.get(named) ?? named
+  return keys.find((key) => key === wanted) ?? keys[0]
+}
 
 /** One function for the life of the module, so that React does not subscribe again on every render. */
 function subscribe(onChange) {
