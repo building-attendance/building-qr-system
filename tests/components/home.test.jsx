@@ -7,8 +7,9 @@
 // answered by the test and the clock of `Date` set by the test (the greeting follows the hour of the building's clock).
 //   - the greeting: its three windows to the minute, in summer and in winter time; the first word of the name, none when there is no
 //     name; the screen that stays open follows the clock;
-//   - the table: a real table with its caption, the days in the order the server gives them, a row for each provider (a provider that is
-//     switched off or was deleted says so), the totals, the link of each cell with its provider and its day, and an empty cell for a zero;
+//   - the table: a real table whose caption is the range in DD/MM/YYYY, heads that write DD/MM and are named by the full date, the days in the
+//     order the server gives them, a row for each provider (a provider that is switched off or was deleted says so), the totals, the link
+//     of each cell with its provider and its day, and an empty cell for a zero;
 //   - the cards and their links, the card of the waiting phones only when there is one;
 //   - the states: loading, an error with "נסו שוב", a building with nothing in it, and the answer kept from the last visit;
 //   - the links followed in the real app: a cell opens the History with exactly its filters, on a phone and on a computer, Back returns to
@@ -97,7 +98,9 @@ const showed = async (options) => {
   return view
 }
 const greeting = () => screen.getByRole('heading', { level: 1 }).textContent
-const table = () => screen.getByRole('table', { name: 'נוכחות ב-7 הימים האחרונים' })
+const TITLE = 'נוכחות ב-7 הימים האחרונים'
+const region = () => screen.getByRole('region', { name: TITLE })
+const table = () => within(region()).getByRole('table')
 const rowOf = (name) => screen.getByRole('rowheader', { name: new RegExp(name) }).closest('tr')
 const cellsOf = (row) => within(row).getAllByRole('cell')
 const linksOf = (row) => within(row).queryAllByRole('link')
@@ -274,24 +277,76 @@ describe('a screen that stays open follows the clock', () => {
 // ---- the table ----------------------------------------------------------------------------------------------------------------------
 
 describe('the week table', () => {
-  it('is a real table with a caption, in a region that a keyboard can reach and that has the same name', async () => {
+  it('is a real table in a region that a keyboard can reach: the heading names the region, and the caption is the range', async () => {
     server()
     await showed()
     const t = table()
     expect(t.tagName).toBe('TABLE')
-    expect(t.querySelector('caption').textContent).toBe('נוכחות ב-7 הימים האחרונים')
-    const region = screen.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' })
-    expect(region.contains(t)).toBe(true)
-    expect(region.getAttribute('tabindex')).toBe('0') // a box that scrolls must take the focus (axe: scrollable-region-focusable)
-    expect(screen.getByRole('heading', { level: 2, name: 'נוכחות ב-7 הימים האחרונים' })).toBeTruthy()
+    expect(region().contains(t)).toBe(true)
+    expect(region().getAttribute('tabindex')).toBe('0') // a box that scrolls must take the focus (axe: scrollable-region-focusable)
+    const title = screen.getByRole('heading', { level: 2, name: TITLE })
+    expect(region().getAttribute('aria-labelledby')).toBe(title.id) // the region (the box that scrolls) is named by the heading
+    // the table is named by its caption: the range, not the heading again
+    expect(screen.getByRole('table', { name: '06/10/2026 עד 12/10/2026' })).toBe(t)
   })
 
-  it('has a column head for each day, DD/MM and no weekday, in the order that the server gives: the oldest first, today last', async () => {
+  it('has a visible caption with the whole range in DD/MM/YYYY, as the filter bar of the History says a range, right above the heads', async () => {
+    server()
+    await showed()
+    const captions = table().querySelectorAll('caption')
+    expect(captions).toHaveLength(1)
+    const caption = captions[0]
+    expect(caption.textContent).toBe('06/10/2026 עד 12/10/2026') // the first and the last day, with their year
+    expect(caption.classList.contains('w-sr'), 'visible: it is not the visually hidden class').toBe(false)
+    expect(caption.querySelector('.w-sr, [aria-hidden]'), 'nothing in it is hidden from a person or from a reader').toBeNull()
+    expect([...caption.querySelectorAll('.a-stamp')].map((n) => n.textContent)).toEqual(['06/10/2026', '12/10/2026']) // each date is kept in one piece, left to right, as in the History bar
+    expect(table().firstElementChild).toBe(caption) // the caption is the first thing in the table, over the heads
+  })
+
+  it('follows the days that it is given: the range is the first and the last of them, with their own year', async () => {
+    server({ home: homeSummary({ days: ['2026-12-27', '2026-12-28', '2026-12-29', '2026-12-30', '2026-12-31', '2027-01-01', '2027-01-02'] }) })
+    await showed()
+    expect(table().querySelector('caption').textContent).toBe('27/12/2026 עד 02/01/2027')
+    expect(within(table()).getByRole('columnheader', { name: '01/01/2027' })).toBeTruthy() // a head over the new year has the new year
+  })
+
+  it('has no second caption, and none that says the heading again (the heading is the name of the region, once)', async () => {
+    server()
+    await showed()
+    expect(document.querySelectorAll('caption')).toHaveLength(1)
+    expect(table().querySelector('caption').textContent).not.toContain(TITLE)
+    // the words of the heading are said by the heading and by the name of the region, and by nothing else in the table
+    expect(table().textContent).not.toContain(TITLE)
+    expect(screen.queryByRole('table', { name: TITLE })).toBeNull()
+    expect(screen.getAllByText(TITLE)).toHaveLength(1)
+  })
+
+  it('has a column head for each day that writes DD/MM and is named by the full date, DD/MM/YYYY, for a screen reader', async () => {
     server()
     await showed()
     const heads = within(table()).getAllByRole('columnheader')
-    expect(heads.map((h) => h.textContent)).toEqual(['נותן שירות', '06/10', '07/10', '08/10', '09/10', '10/10', '11/10', '12/10'])
+    expect(heads).toHaveLength(8)
     for (const head of heads) expect(head.getAttribute('scope')).toBe('col')
+    // what is written: DD/MM, hidden from a reader; what is read: the full date, hidden from the eye
+    const days = ['06/10', '07/10', '08/10', '09/10', '10/10', '11/10', '12/10']
+    for (const [i, short] of days.entries()) {
+      const head = heads[i + 1]
+      const written = head.querySelector('[aria-hidden="true"]')
+      const read = head.querySelector('.w-sr')
+      expect(written.textContent, `the head of ${short}: what is written`).toBe(short)
+      expect(read.textContent, `the head of ${short}: what is read`).toBe(`${short}/2026`)
+      // and its accessible name, as a screen reader and the accessibility tree have it: the full date and only that
+      expect(within(table()).getByRole('columnheader', { name: `${short}/2026`, exact: true }), `the head of ${short}`).toBe(head)
+    }
+    // no head is named by DD/MM alone
+    for (const short of days) expect(within(table()).queryByRole('columnheader', { name: short, exact: true }), short).toBeNull()
+  })
+
+  it('has the head over the names read, not drawn, and no weekday and no month name in any head', async () => {
+    server()
+    await showed()
+    const heads = within(table()).getAllByRole('columnheader')
+    expect(heads[0].textContent).toBe('נותן שירות')
     expect(heads[0].querySelector('.w-sr'), 'the head over the names is read, not drawn').toBeTruthy()
     // no weekday and no month name in a head (the guard of tests/dates.test.js is for the code; this is for the screen)
     expect(heads.map((h) => h.textContent).join(' ')).not.toMatch(/יום|ראשון|שלישי|רביעי|חמישי|שישי|שבת|אוקטובר/)

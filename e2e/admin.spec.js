@@ -5,7 +5,7 @@ import {
   changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS,
 } from './fixtures.js'
 import { SCAN_ERROR_POINT_INACTIVE } from '../shared/contract.js'
-import { formatDateTime } from '../shared/datetime.js'
+import { formatDateTime, formatDay } from '../shared/datetime.js'
 
 const COMPUTER = { width: 1280, height: 800 }
 // Each screen and the heading of its page (every view renders its own h1 above its content), in the order of the side rail
@@ -1166,7 +1166,7 @@ test('the history of a building with no points says to add points, with a button
 // What Home shows and where each of its links goes is in tests/components/home.test.jsx, with the network answered by the test. These run in
 // real browsers, on a phone and on a computer, and where it matters with real visits through the real server.
 
-const homeTable = (page) => page.getByRole('table', { name: 'נוכחות ב-7 הימים האחרונים' })
+const homeTable = (page) => page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table')
 /** The row of the week table of one provider (by a word of its name), and the cells of a row, in the order of the page. */
 const homeRow = (page, name) => homeTable(page).getByRole('row').filter({ has: page.getByRole('rowheader', { name }) })
 const homeTotals = (page) => homeTable(page).getByRole('row').filter({ has: page.getByRole('rowheader', { name: 'סך הכול' }) })
@@ -1207,11 +1207,20 @@ test('the week table of Home runs from the right (the oldest day) to the left (t
     await expect(homeTable(page)).toBeVisible()
 
     // The columns: the days in the order the server gives them, and the page is right to left, so the oldest is the right-most day.
-    const dayHeads = HOME_DAYS.map((day) => `${day.slice(8)}/${day.slice(5, 7)}`) // DD/MM
+    // The range stands above the table in full (its caption, the name of the table), the heads write DD/MM and are named by the full date,
+    // and the heading names the box once: no second caption says it again.
+    const range = `${formatDay(HOME_DAYS[0])} עד ${formatDay(HOME_DAYS.at(-1))}`
+    await expect(homeTable(page), `${where}: the table is named by its range`).toHaveAccessibleName(range)
+    const caption = homeTable(page).getByText(range, { exact: true })
+    await expect(caption, `${where}: the range is written, in DD/MM/YYYY`).toBeVisible()
+    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByText('נוכחות ב-7 הימים האחרונים'), `${where}: the heading is not said again in the table`).toHaveCount(0)
+    const dayHeads = HOME_DAYS.map((day) => formatDay(day)) // the name of a head is its full date, for a screen reader
+    for (const day of HOME_DAYS) await expect(homeTable(page).getByText(`${day.slice(8)}/${day.slice(5, 7)}`, { exact: true }), `${where}: the head writes DD/MM`).toBeVisible()
     const heads = await Promise.all(dayHeads.map((name) => box(homeTable(page).getByRole('columnheader', { name, exact: true }))))
     for (let i = 1; i < heads.length; i++) {
       expect(heads[i - 1].x, `${where}: ${dayHeads[i - 1]} is to the right of ${dayHeads[i]}`).toBeGreaterThan(heads[i].x)
     }
+    expect((await box(caption)).y + (await box(caption)).height, `${where}: the range is right above the heads`).toBeLessThanOrEqual(heads[0].y + 1)
     const names = await box(homeRow(page, 'פלוני').getByRole('rowheader'))
     expect(names.x, `${where}: the names are at the right, before the oldest day`).toBeGreaterThan(heads[0].x)
 

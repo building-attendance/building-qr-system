@@ -4,7 +4,7 @@ import { useLoad, LOAD_KEY } from '../hooks.js'
 import { Badge, EmptyState, Spinner } from '../ui.jsx'
 import { IconAlert, IconHome } from '../icons.jsx'
 import { goToTab } from '../tab.js'
-import { buildingHour, formatDayShort, isoDay } from '../../../shared/datetime.js'
+import { buildingHour, formatDay, formatDayShort, isoDay } from '../../../shared/datetime.js'
 
 // The Home screen: a greeting, the visits of the last seven days as a table (a row for each service provider, a column for each day), and a
 // card for each screen with its number. The app records facts and does not analyse them (AGENTS.md), so this screen shows counts and nothing
@@ -64,6 +64,14 @@ function WhoCell({ provider: p }) {
  * The visits of the seven days. The columns are the days in the order the server gives them (the oldest first); the page is right to left,
  * so the oldest is at the right and today at the left, and the data is never reversed. A table too wide for the screen scrolls inside its
  * own box (the page never does), which a keyboard can reach, with the provider's name staying in place and the box starting at today.
+ *
+ * The dates. The heads write each day as DD/MM (`formatDayShort`), which is allowed only because the whole range stands in DD/MM/YYYY right
+ * above the table, in its caption, and each head carries its full date for a screen reader (AGENTS.md, owner decision of 12/10/2026): the
+ * visible DD/MM is `aria-hidden` and the head is named by a visually hidden DD/MM/YYYY (`formatDay`), so that the name of a head is its
+ * full date in every screen reader, whatever the reader does with the `aria-label` of a table header.
+ *
+ * The names. The heading names the region (and so the box that scrolls); the caption gives the range and is the name of the table. There is
+ * no second, hidden caption that says the heading again.
  */
 function WeekTable({ days, week }) {
   const titleId = useId()
@@ -74,17 +82,22 @@ function WeekTable({ days, week }) {
     // Start at today, the end of the row: scrollLeft counts toward the left in a right-to-left box, so the sign follows the direction.
     if (box) box.scrollLeft = (getComputedStyle(box).direction === 'rtl' ? -1 : 1) * box.scrollWidth
   }, [today])
-  const caption = 'נוכחות ב-7 הימים האחרונים'
+  const title = 'נוכחות ב-7 הימים האחרונים'
   return (
     <section>
-      <h2 className="a-home__title" id={titleId}>{caption}</h2>
+      <h2 className="a-home__title" id={titleId}>{title}</h2>
       <div className="a-week" role="region" aria-labelledby={titleId} tabIndex={0} ref={scroller}>
         <table>
-          <caption className="w-sr">{caption}</caption>
+          <caption className="a-week__range"><span className="a-stamp">{formatDay(days[0])}</span> עד <span className="a-stamp">{formatDay(today)}</span></caption>
           <thead>
             <tr>
               <th scope="col" className="a-week__who"><span className="w-sr">נותן שירות</span></th>
-              {days.map((day) => <th scope="col" className="a-week__day" key={day}><span className="a-stamp">{formatDayShort(day)}</span></th>)}
+              {days.map((day) => (
+                <th scope="col" className="a-week__day" key={day}>
+                  <span className="a-stamp" aria-hidden="true">{formatDayShort(day)}</span>
+                  <span className="w-sr">{formatDay(day)}</span>
+                </th>
+              ))}
             </tr>
           </thead>
           <tbody>

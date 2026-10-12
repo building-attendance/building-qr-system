@@ -88,6 +88,8 @@
 /* :where() gives this rule no weight of its own, so the classes below decide the padding and the weight of each kind of cell. */
 :where(.a-week th, .a-week td) { padding: 0; border-block-end: 1px solid var(--w-border); font-weight: var(--w-weight-regular); }
 .a-week tbody tr:last-child > *, .a-week tfoot tr > * { border-block-end: 0; }
+/* The range of the table, in full, above its heads: DD/MM/YYYY to DD/MM/YYYY, as the filter bar of the History says it. */
+.a-week__range { caption-side: top; padding: var(--w-space-2-5) var(--w-space-3); color: var(--w-text-2); font-size: var(--w-font-md); text-align: start; border-block-end: 1px solid var(--w-border); }
 .a-week__who { position: sticky; inset-inline-start: 0; z-index: 1; width: 64px; min-width: 64px; padding: var(--w-space-1-5); background: var(--w-surface); border-inline-end: 1px solid var(--w-border); text-align: start; }
 .a-week__name { display: block; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
 .a-week__company { display: block; color: var(--w-text-2); font-size: var(--w-font-xs); overflow-wrap: anywhere; }

@@ -462,7 +462,7 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
     await expect(page.getByRole('banner')).toContainText(BUILDING_NAME.slice(0, 20)) // the top bar says the long name of the building
     for (const tab of ['home', 'history', 'points', 'providers', 'agent', 'settings', 'audit', 'help']) {
       await openTab(page, tab)
-      if (tab === 'home') await expect(page.getByRole('table', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('rowheader').filter({ hasText: WORKERS.he.name.slice(0, 12) })).toBeVisible() // the rows with the long names are drawn
+      if (tab === 'home') await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table').getByRole('rowheader').filter({ hasText: WORKERS.he.name.slice(0, 12) })).toBeVisible() // the rows with the long names are drawn
       if (tab === 'history') await expect(page.getByRole('listitem').getByText(POINT_NAME.slice(0, 20)).first()).toBeVisible() // the rows are drawn
       if (tab === 'agent') await expect(page.getByText(KEY_NAME.slice(0, 20))).toBeVisible()
       if (tab === 'settings') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
@@ -496,7 +496,7 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
     ]
     await stubHome(page, homeSummary({ providers, counts: { visits_not_counted: 123456, waiting: { phones: 12, visits: 345 } } }))
     await adminSignIn(page, 'home')
-    await expect(page.getByRole('table', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('rowheader').filter({ hasText: 'נותן שירות שנמחק' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table').getByRole('rowheader').filter({ hasText: 'נותן שירות שנמחק' })).toBeVisible()
     await check('committee phone: home, the longest names, a provider that is off and one that was deleted')
     const box = page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' })
     expect(await box.evaluate((el) => el.scrollWidth - el.clientWidth), 'the box of the table does not scroll: the table fits').toBeLessThanOrEqual(1)

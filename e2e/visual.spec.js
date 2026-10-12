@@ -434,7 +434,7 @@ function committeeScreens(width) {
     await stubHome(page)
     await committeeSignedIn(page, 'home')
     await expect(page.getByRole('heading', { level: 1, name: 'בוקר טוב, Dev' })).toBeVisible()
-    await expect(page.getByRole('table', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('link').first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table').getByRole('link').first()).toBeVisible()
     await shotBothThemes(page, `committee-${width}-home`)
   })
 

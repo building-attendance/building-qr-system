@@ -251,6 +251,21 @@ describe('no other way of writing a date in the code', () => {
     }
   })
 
+  // The one place that a day is written without its year: the column heads of a table of consecutive days, on the condition that the whole range
+  // stands in DD/MM/YYYY right above the table and that each head carries its full date for a screen reader (AGENTS.md, owner decision of
+  // 12/10/2026; the header of shared/datetime.js). So `formatDayShort` is used by the week table of the Home screen and by nothing else, and
+  // that table has both conditions in its source (tests/components/home.test.jsx proves them on the screen).
+  it('formatDayShort (a day with no year) is used by the column heads of the Home week table only, with the range and the full date beside it', () => {
+    const using = files.filter((file) => file !== 'shared/datetime.js' && /\bformatDayShort\b/.test(fs.readFileSync(path.join(root, file), 'utf8')))
+    expect(using, 'the files that use formatDayShort').toEqual(['src/admin/views/HomeView.jsx'])
+    const home = fs.readFileSync(path.join(root, 'src/admin/views/HomeView.jsx'), 'utf8')
+    expect(home.match(/formatDayShort\(/g), 'used once, for the heads').toHaveLength(1)
+    // the range, in full, is the caption of the table
+    expect(home).toMatch(/<caption[^>]*>[^]*formatDay\(days\[0\]\)[^]*formatDay\(today\)[^]*<\/caption>/)
+    // and each head writes DD/MM for the eye (hidden from a reader) and carries its full date for a reader (hidden from the eye)
+    expect(home).toMatch(/<span className="a-stamp" aria-hidden="true">\{formatDayShort\(day\)\}<\/span>\s*<span className="w-sr">\{formatDay\(day\)\}<\/span>/)
+  })
+
   it('the committee screens write dates through the shared module', () => {
     const history = fs.readFileSync(path.join(root, 'src/admin/views/HistoryView.jsx'), 'utf8')
     expect(history).toContain("from '../../../shared/datetime.js'")
