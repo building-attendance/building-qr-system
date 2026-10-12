@@ -257,13 +257,14 @@ select.a-input {
   .a-modal--sm { max-width: 440px; }
   .a-modal--lg { max-width: 780px; }
 }
-/* The sheet that "עוד" opens (a list of screens, no form): it stays at the bottom of the screen at every width, with only its top corners
-   rounded, and no wider than a list needs. The room under the list clears the home indicator. */
+/* The sheets (`size="sheet"` of Modal): the one that "עוד" opens (a list of screens) and the one of the filters (src/admin/filters.jsx). A sheet
+   stays at the bottom of the screen at every width, with only its top corners rounded, and no wider than 480px. The room under the content
+   clears the home indicator: under the body of a sheet that has no footer, and under the footer of one that has (its own padding does it). */
 @media (min-width: 640px) {
   .a-overlay--sheet { align-items: flex-end; padding: 0; }
   .a-modal--sheet { border-radius: var(--w-radius-3xl) var(--w-radius-3xl) 0 0; max-width: 480px; }
 }
-.a-modal--sheet .a-modal__body { padding-block-end: calc(var(--w-space-5) + env(safe-area-inset-bottom)); }
+.a-modal--sheet .a-modal__body:last-child { padding-block-end: calc(var(--w-space-5) + env(safe-area-inset-bottom)); }
 
 /* ----- toasts ----- */
 .a-toasts { position: fixed; inset-inline: var(--w-space-4); bottom: calc(var(--w-layout-toast-clearance) + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; gap: var(--w-space-2); pointer-events: none; }

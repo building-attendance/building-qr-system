@@ -122,7 +122,9 @@ const QUESTION = {
 }
 
 /**
- * The sheet that holds the controls on a phone: a dialog from the bottom (`Modal`). It works on a draft that starts as the applied
+ * The sheet that holds the controls on a phone: a dialog from the bottom (`Modal`, `size="sheet"`, the same sheet as the one under "עוד":
+ * it stays at the bottom of the screen at every width below the computer's, with only its top corners rounded, at most 480 px wide).
+ * It works on a draft that starts as the applied
  * filters, and nothing reaches the screen behind it until "show results" (`onApply(draft)`); "reset" puts the defaults in the draft, and
  * the close button leaves the applied filters as they were. `children` is a function of `{ values, set, errors, watch }` that draws the
  * controls, so the sheet and the computer's inline block share one set of controls.
@@ -171,7 +173,7 @@ export function FilterSheet({ initial, defaults, onApply, onClose, returnFocus, 
 
   return (
     <Modal
-      title="סינון" size="sm" initialFocus="dialog" onClose={onClose} question={QUESTION} dirty={changed || pending.from || pending.to} returnFocus={returnFocus}
+      title="סינון" size="sheet" initialFocus="dialog" onClose={onClose} question={QUESTION} dirty={changed || pending.from || pending.to} returnFocus={returnFocus}
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={reset}>איפוס</button>

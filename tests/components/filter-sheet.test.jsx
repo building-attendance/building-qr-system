@@ -133,6 +133,19 @@ describe('History on a phone: the sheet', () => {
     expect(screen.getAllByLabelText('מתאריך'), 'each control is in the page once').toHaveLength(1)
   })
 
+  it('is the same sheet as the one under "עוד": at the bottom of the screen from 640 px, top corners only, not a centred dialog', async () => {
+    layout(true)
+    historyServer()
+    await showHistory()
+    const dialog = openSheet()
+    expect(dialog.classList.contains('a-modal--sheet')).toBe(true)
+    expect(dialog.classList.contains('a-modal--sm'), 'not the width of a centred dialog').toBe(false)
+    expect(dialog.parentElement.classList.contains('a-overlay--sheet'), 'the overlay that keeps a sheet at the bottom').toBe(true)
+    // its footer has the buttons and the room under them for the home indicator, so the body is not its last child
+    expect(dialog.querySelector('.a-modal__body').nextElementSibling.classList.contains('a-modal__foot')).toBe(true)
+    expect([...dialog.querySelectorAll('.a-modal__foot button')].map((button) => button.textContent)).toEqual(['איפוס', 'הצגת תוצאות'])
+  })
+
   it('applies nothing while the person chooses, and everything when "show results" is pressed', async () => {
     layout(true)
     historyServer()
@@ -822,6 +835,15 @@ describe('the audit log on a phone', () => {
     const dialog = openSheet()
     expect(document.activeElement).toBe(dialog)
     for (const label of ['מתאריך', 'עד תאריך', 'סוג פעולה', 'חבר ועד']) expect(within(dialog).getByLabelText(label), label).toBeTruthy()
+  })
+
+  it('opens the same sheet as the History tab, and as the one under "עוד"', async () => {
+    layout(true)
+    auditServer()
+    await showAudit()
+    const dialog = openSheet()
+    expect(dialog.classList.contains('a-modal--sheet')).toBe(true)
+    expect(dialog.parentElement.classList.contains('a-overlay--sheet')).toBe(true)
   })
 
   it('applies group, member and dates on "show results" only, with a chip for the two selects and the dates in the bar', async () => {

@@ -280,6 +280,59 @@ test.describe('on a phone', () => {
     await expect(again.getByRole('alert')).toHaveCount(0)
   })
 
+  // From 640 px a Modal is a centred dialog, but a sheet stays at the bottom of the screen: the sheet under "עוד" does at every width, and
+  // the filters' sheet must be the same sheet (a tablet held upright is 768 px wide, a phone held sideways 740).
+  test('at 768 px the filters sheet is the same sheet as the one under "עוד": at the bottom, 480 px wide, top corners only', async ({ page }) => {
+    await page.setViewportSize({ width: 768, height: 1024 })
+    await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
+    await stubScans(page)
+    await openHistory(page)
+    const measure = (dialog) => dialog.evaluate((el) => {
+      const box = el.getBoundingClientRect()
+      return { bottom: Math.round(box.bottom), width: Math.round(box.width), middle: Math.round(box.left + box.width / 2), corners: getComputedStyle(el).borderRadius }
+    })
+
+    const filters = await openFilters(page)
+    const ofFilters = await measure(filters)
+    await filters.getByRole('button', { name: 'סגירה' }).click()
+    await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
+    const more = page.getByRole('dialog', { name: 'עוד', exact: true })
+    await expect(more).toBeVisible()
+    const ofMore = await measure(more)
+
+    expect(ofMore.bottom, 'the sheet under "עוד" is at the bottom of the screen').toBe(1024)
+    expect(ofFilters.bottom, 'so is the filters sheet').toBe(1024)
+    expect(ofFilters.width).toBe(480)
+    expect(ofFilters.middle, 'in the middle of the screen').toBe(384)
+    expect(ofFilters.corners, 'only its top corners are round').toMatch(/^\d+px \d+px 0px 0px$/)
+    expect(ofFilters, 'the same width, place and corners as the other sheet').toEqual(ofMore)
+  })
+
+  test('on a phone held sideways the filters sheet keeps its buttons on the screen and scrolls its fields', async ({ page }) => {
+    await page.setViewportSize({ width: 740, height: 360 })
+    await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
+    await stubScans(page)
+    await openHistory(page)
+    const sheet = await openFilters(page)
+    const box = await sheet.boundingBox()
+    expect(box.y + box.height, 'at the bottom of the screen').toBeCloseTo(360, 0)
+    expect(box.y, 'and not taller than the screen').toBeGreaterThan(0)
+    for (const name of ['הצגת תוצאות', 'איפוס', 'סגירה']) {
+      const button = await sheet.getByRole('button', { name }).boundingBox()
+      expect(button.y, `${name}: inside the screen, top`).toBeGreaterThanOrEqual(0)
+      expect(button.y + button.height, `${name}: inside the screen, bottom`).toBeLessThanOrEqual(360)
+    }
+    // the fields scroll under the head and above the buttons: the last switch can be reached
+    const scrolls = await sheet.locator('form').evaluate((form) => form.parentElement.scrollHeight > form.parentElement.clientHeight)
+    expect(scrolls, 'the body of the sheet scrolls').toBe(true)
+    const last = sheet.getByLabel('כולל חשבון דמו')
+    await last.scrollIntoViewIfNeeded()
+    await expect(last).toBeVisible()
+    const lastBox = await last.boundingBox()
+    const apply = await sheet.getByRole('button', { name: 'הצגת תוצאות' }).boundingBox()
+    expect(lastBox.y + lastBox.height, 'the last switch ends above the buttons').toBeLessThanOrEqual(apply.y + 0.5)
+  })
+
   test('the audit log has the same bar and sheet', async ({ page }) => {
     await adminSignIn(page, 'audit') // the audit log is a screen of its own
     const me = (await (await page.request.get('/api/admin/me')).json()).admin

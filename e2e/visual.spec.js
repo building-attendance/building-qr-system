@@ -454,12 +454,13 @@ function committeeScreens(width) {
 }
 
 /**
- * The filters of the History tab on a phone: the sheet that the button of the bar opens (with the defaults, which is what the picture of
- * the sheet is for), and the bar with filters on, which holds a chip for each of them (a filtered list must not look like missing data).
- * Only at 360 px: from 1024 px the filters are the block above the list, which the picture of the tab has.
+ * The filters of the History tab below 1024 px: the sheet that the button of the bar opens (with the defaults, which is what the picture of
+ * the sheet is for), at 360 px and at 768 px, where it stays at the bottom of the screen like the sheet under "עוד", and, at 360 px, the bar
+ * with filters on, which holds a chip for each of them (a filtered list must not look like missing data). From 1024 px the filters are the
+ * block above the list, which the picture of the tab has.
  */
-function committeeFilters() {
-  test('the filters sheet and the bar with filters on', async ({ page }) => {
+function committeeFilters(width) {
+  test(width === '360' ? 'the filters sheet and the bar with filters on' : 'the filters sheet', async ({ page }) => {
     await stopClock(page)
     await stubHistory(page)
     await committeeSignedIn(page) // the history is the first screen
@@ -467,7 +468,8 @@ function committeeFilters() {
     await page.getByRole('button', { name: /^סינון/ }).click()
     const sheet = page.getByRole('dialog', { name: 'סינון', exact: true })
     await expect(sheet).toBeVisible()
-    await shotBothThemes(page, 'committee-360-history-filters-sheet', { whole: false, within: sheet })
+    await shotBothThemes(page, `committee-${width}-history-filters-sheet`, { whole: false, within: sheet })
+    if (width !== '360') return
 
     await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
     await sheet.getByLabel('כולל חשבון דמו').check()
@@ -512,7 +514,7 @@ test.describe('committee app', () => {
   test.describe('at 360 px', () => {
     test.use(COMMITTEE_PHONE)
     committeeScreens('360')
-    committeeFilters()
+    committeeFilters('360')
     committeeSheet('360')
   })
 
@@ -525,5 +527,6 @@ test.describe('committee app', () => {
   test.describe('at 768 px', () => {
     test.use({ ...SAME, viewport: { width: 768, height: 1024 } })
     committeeSheet('768')
+    committeeFilters('768')
   })
 })

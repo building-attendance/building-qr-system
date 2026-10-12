@@ -115,8 +115,9 @@ export function useDirty(value) {
  * saving"; the question puts the person back in the form otherwise, with everything as it was. The close button and the
  * dialog's own Cancel button are chosen on purpose, so they call `onClose` at once.
  *
- * `size` is the width of the dialog on a computer: "sm", "md" (the default) or "lg". "sheet" is a list of choices with no form (the screens
- * under "עוד" on a phone): it stays at the bottom of the screen at every width and is as wide as the list needs.
+ * `size` is the width of the dialog on a computer: "sm", "md" (the default) or "lg". "sheet" is what a phone shows from the bottom (the screens
+ * under "עוד", and the filters of the History tab and the audit log): it stays at the bottom of the screen at every width, with only its top
+ * corners rounded, at most 480 px wide. A sheet with a footer (the filters) clears the home indicator under the footer, one without under its body.
  *
  * `busy` says that the form's save is on its way: Esc and a tap outside then do nothing at all, and the close button is
  * disabled (a form disables its own Cancel the same way). The save closes the dialog itself when it works, and leaves the
