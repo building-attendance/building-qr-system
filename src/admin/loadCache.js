@@ -27,6 +27,7 @@ export const LOAD_KEY = Object.freeze({
   admins: 'admins',
   apiKeys: 'api-keys',
   building: 'building',
+  home: 'home',
 })
 
 /** Forgets everything, and every answer that was asked for before this moment is never stored (it may belong to the member who just left). */

@@ -235,6 +235,7 @@ export const CLIENT_PLACES = Object.freeze([
   'provider:result',
   'provider:app',
   'committee:login',
+  'committee:home',
   'committee:points',
   'committee:providers',
   'committee:history',

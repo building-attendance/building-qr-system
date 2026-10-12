@@ -86,6 +86,23 @@ export function formatDay(ymd) {
   return match && isRealDay(match[1], match[2], match[3]) ? `${match[3]}/${match[2]}/${match[1]}` : '-'
 }
 
+/** '2026-10-01' as '01/10': the day and the month, for a column head where the year is not needed. '-' when it is not a real day. */
+export function formatDayShort(ymd) {
+  const full = formatDay(ymd)
+  return full === '-' ? full : full.slice(0, 5)
+}
+
+/**
+ * The hour of the moment in the building's time zone, 0 to 23 (so the 00:30 of a night is 0, never 24), or null when there is no moment.
+ * It is the building's clock and not the device's, as every time a person sees (the greeting of the Home screen decides by it).
+ * @param {Date | string | number} [now]  default: now
+ * @returns {number | null}
+ */
+export function buildingHour(now = new Date()) {
+  const p = parts(now)
+  return p ? Number(p.hour) : null
+}
+
 /** True for a day that exists on the calendar: 29/02 only in a leap year, no 31st in a 30-day month. */
 function isRealDay(year, month, day) {
   const check = new Date(Date.UTC(Number(year), Number(month) - 1, Number(day)))

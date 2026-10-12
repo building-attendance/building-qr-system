@@ -28,9 +28,19 @@ const ADMIN = { id: '00000000-0000-4000-8000-0000000000a1', name: 'Sample Member
 const START = Date.parse('2026-10-05T08:00:00.000Z')
 const MINUTE = ERROR_REPORT_MIN_INTERVAL_MS
 const EXPIRED_NOTICE = 'פג תוקף ההתחברות. היכנסו שוב.'
-const TAB_KEYS = ['history', 'points', 'providers', 'agent', 'settings', 'audit', 'help']
+const TAB_KEYS = ['home', 'history', 'points', 'providers', 'agent', 'settings', 'audit', 'help']
 
 const refusal = (status, code) => Object.assign(new Error('refused'), { status, code })
+
+// What GET /api/admin/home answers for a building with nothing in it: enough for the first screen to draw its heading.
+const HOME = {
+  days: ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11', '2026-10-12'],
+  week: { providers: [], totals: [0, 0, 0, 0, 0, 0, 0] },
+  counts: {
+    points: { active: 0, total: 0 }, providers: { active: 0, total: 0 }, committee_members: { active: 1 }, agent_keys: { active: 0 },
+    visits_not_counted: 0, waiting: { phones: 0, visits: 0 },
+  },
+}
 
 /** What the server answers, by route. A test changes these. */
 const server = {
@@ -38,6 +48,7 @@ const server = {
   me: async () => ({ admin: ADMIN }),
   devLogin: async () => ({ admin: ADMIN }),
   points: async () => ({ points: [] }),
+  home: async () => HOME,
   errors: async () => ({ ok: true, recorded: 1 }),
 }
 const defaults = { ...server }
@@ -67,6 +78,7 @@ function answerLikeTheServer() {
     if (path === '/admin/logout') return { ok: true }
     if (path === '/admin/client-errors') return server.errors(options)
     if (path === '/admin/points') return server.points()
+    if (path === '/admin/home') return server.home()
     if (path === '/admin/providers') return { providers: [] }
     if (path.startsWith('/admin/scans')) return { scans: [], next_cursor: null }
     if (path.startsWith('/admin/scan-refusals')) return { refusals: [], next_cursor: null }
@@ -90,7 +102,7 @@ const comeBackToTheApp = () => {
   vi.spyOn(document, 'visibilityState', 'get').mockReturnValue('visible')
   act(() => { document.dispatchEvent(new Event('visibilitychange')) })
 }
-const signedIn = () => screen.findByRole('heading', { level: 1, name: 'היסטוריית נוכחות' }) // the first screen: the history
+const signedIn = () => screen.findByRole('heading', { level: 1, name: /^(בוקר טוב|צהריים טובים|ערב טוב), Sample$/ }) // the first screen: Home, which greets by the first word of ADMIN's name
 const loginScreen = () => screen.findByRole('heading', { level: 1, name: 'ניהול נוכחות הבניין' })
 const crashTitle = () => screen.findByRole('heading', { name: he['crash.title'] })
 const devSignIn = async () => fireEvent.click(await screen.findByRole('button', { name: 'כניסת פיתוח' }))
@@ -106,7 +118,7 @@ describe('the committee app: the screen comes from its own state', () => {
     expect(currentPlace()).toBe('committee:app')
     await act(async () => { answer() })
     await signedIn()
-    expect(currentPlace()).toBe('committee:history')
+    expect(currentPlace()).toBe('committee:home')
   })
 
   it('is committee:app on the screen that says there is no connection', async () => {
@@ -178,11 +190,11 @@ describe('a forced sign-out is noted', () => {
 
   it('through the real call: a screen\'s request that the server answers with 401 admin_required', async () => {
     answerLikeTheServer()
-    server.points = async () => { throw refusal(401, 'admin_required') }
+    server.home = async () => { throw refusal(401, 'admin_required') } // the first screen, Home, asks for its numbers
     start()
     await loginScreen()
     expect(screen.getByText(EXPIRED_NOTICE)).toBeTruthy()
-    expect(readOutbox()).toEqual([{ kind: 'signed_out', place: 'committee:history', code: 'admin_required', build: 'dev', count: 1 }])
+    expect(readOutbox()).toEqual([{ kind: 'signed_out', place: 'committee:home', code: 'admin_required', build: 'dev', count: 1 }])
   })
 
   it('once, however many calls find the session gone at the same time', async () => {
@@ -342,7 +354,7 @@ describe('what the server answers to a report', () => {
     expect(screen.getByText(EXPIRED_NOTICE)).toBeTruthy()
     expect(readOutbox()).toEqual([
       { ...crash, build: 'dev', count: 1 }, // not lost
-      { kind: 'signed_out', place: 'committee:history', code: 'admin_required', build: 'dev', count: 1 },
+      { kind: 'signed_out', place: 'committee:home', code: 'admin_required', build: 'dev', count: 1 },
     ])
     expect(reports()).toHaveLength(1) // and no second try of its own
   })

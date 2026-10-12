@@ -4,6 +4,7 @@ import '../admin/admin.css'
 import { adminApi } from '../admin/api.js'
 import { ToastProvider, ConfirmProvider, Modal, Spinner, IconButton, useToast } from '../admin/ui.jsx'
 import LoginScreen from '../admin/LoginScreen.jsx'
+import HomeView from '../admin/views/HomeView.jsx'
 import PointsView from '../admin/views/PointsView.jsx'
 import ProvidersView from '../admin/views/ProvidersView.jsx'
 import HistoryView from '../admin/views/HistoryView.jsx'
@@ -17,21 +18,22 @@ import { useErrorReport, clearLoadCache } from '../admin/hooks.js'
 import { noteClientError, setPlace, currentPlace } from '../ui/errorReport.js'
 import { applyUpdate, isUpdateReady, subscribeUpdate } from '../worker/update.js'
 import ThemeSwitch, { HEBREW_THEME_LABELS as THEME_LABELS } from '../ui/ThemeSwitch.jsx'
-import { IconPin, IconUsers, IconList, IconKey, IconClock, IconInfo, IconSettings, IconMore, IconLogout, IconQr, IconDevice, IconAlert, IconRefresh } from '../admin/icons.jsx'
+import { IconHome, IconPin, IconUsers, IconList, IconKey, IconClock, IconInfo, IconSettings, IconMore, IconLogout, IconQr, IconDevice, IconAlert, IconRefresh } from '../admin/icons.jsx'
 
 // The screens of the committee app, in the order of the side rail (a computer). `label` is the name of the screen as a page: the top bar,
 // the title of the document and the list under "עוד". `nav` is the name on its button in the side rail and in the tab bar of the phone.
 // Two screens have a `nav` shorter than their `label`, and each was measured (e2e/admin.spec.js), not guessed. The providers' button says
-// "ספקים" because "נותני שירות" wrapped onto two lines in a fifth of a 360 px screen, when the bar had five buttons. The help's says "עזרה"
+// "ספקים" because "נותני שירות" wrapped onto two lines in a fifth of a 360 px screen (72 px), which is the share of each of the five buttons of the bar. The help's says "עזרה"
 // because "איך עובדים עם המערכת" is 168 px wide and the name on a button of the side rail has 157 px. The sheet under "עוד" has room for
 // the whole name of a screen, so it shows the `label`.
 //
-// `group` is where the screen sits. The side rail shows all seven, the work group and then the management group with a separator
-// between them. The tab bar of the phone has four buttons: the three screens of the work group, in this order, and "עוד" (more), which
-// opens a sheet with the management group. The first screen is the one that opens when the address names none.
+// `group` is where the screen sits. The side rail shows all eight, the work group and then the management group with a separator
+// between them. The tab bar of the phone has five buttons: the four screens of the work group, in this order (Home first), and "עוד" (more),
+// which opens a sheet with the management group. The first screen, Home, is the one that opens when the address names none.
 const GROUP_WORK = 'work'
 const GROUP_MANAGE = 'manage'
 const TABS = [
+  { key: 'home', label: 'בית', nav: 'בית', icon: IconHome, View: HomeView, group: GROUP_WORK },
   { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', icon: IconList, View: HistoryView, group: GROUP_WORK },
   { key: 'points', label: 'נקודות', nav: 'נקודות', icon: IconPin, View: PointsView, group: GROUP_WORK },
   { key: 'providers', label: 'נותני שירות', nav: 'ספקים', icon: IconUsers, View: ProvidersView, group: GROUP_WORK },
