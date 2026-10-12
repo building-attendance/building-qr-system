@@ -194,6 +194,136 @@ describe('a dialog with something typed in it', () => {
   })
 })
 
+describe('a dialog with its own words for the question, and its own first focus', () => {
+  it('asks in the words it was given, and in the usual ones for what it was not given', () => {
+    const onClose = vi.fn()
+    render(
+      <Modal title="סינון" onClose={onClose} dirty question={{ title: 'לסגור בלי להציג?', cancelLabel: 'חזרה לסינון' }}>
+        <label>שם<input defaultValue="x" /></label>
+      </Modal>,
+    )
+    esc()
+    const question = dialogNamed('לסגור בלי להציג?')
+    expect(within(question).getByRole('button', { name: 'חזרה לסינון' })).toBeTruthy()
+    expect(within(question).getByRole('button', { name: DISCARD })).toBeTruthy() // not given: the usual words
+    expect(within(question).getByText('מה שהקלדתם עדיין לא נשמר. אם תסגרו עכשיו, הוא יאבד.')).toBeTruthy()
+  })
+
+  it('starts on the first field by default, and on the dialog itself when it asks to', () => {
+    render(<Modal title="טופס" onClose={vi.fn()}><label>שם<input /></label></Modal>)
+    expect(document.activeElement).toBe(within(dialogNamed('טופס')).getByLabelText('שם'))
+    cleanup()
+    render(<Modal title="טופס" onClose={vi.fn()} initialFocus="dialog"><label>שם<input /></label></Modal>)
+    expect(document.activeElement).toBe(dialogNamed('טופס'))
+  })
+})
+
+describe('where the focus goes when a dialog closes', () => {
+  /**
+   * A screen with a button that opens a dialog, a field of its own and the shell's main. The dialog has a button that takes the opener away
+   * while the dialog is open, which is what a change of layout does to the bar that holds the button of the filters.
+   */
+  function Screen({ returnFocus, dirty = false }) {
+    const [open, setOpen] = useState(false)
+    const [gone, setGone] = useState(false)
+    return (
+      <>
+        <main tabIndex={-1} aria-label="מסך">
+          {!gone && <button type="button" onClick={() => setOpen(true)}>פתיחה</button>}
+          <input aria-label="שדה של המסך" />
+        </main>
+        {open && (
+          <Modal title="חלון" onClose={() => setOpen(false)} returnFocus={returnFocus} dirty={dirty}>
+            <label>שם<input /></label>
+            <button type="button" onClick={() => setGone(true)}>הסרת הפותח</button>
+          </Modal>
+        )}
+      </>
+    )
+  }
+  const openIt = (focused = true) => {
+    const button = screen.getByRole('button', { name: 'פתיחה' })
+    if (focused) button.focus()
+    fireEvent.click(button)
+    return button
+  }
+  const removeOpener = () => {
+    fireEvent.click(within(dialogNamed('חלון')).getByRole('button', { name: 'הסרת הפותח' }))
+    expect(screen.queryByRole('button', { name: 'פתיחה' })).toBeNull()
+  }
+  const closeIt = () => fireEvent.click(within(dialogNamed('חלון')).getByRole('button', { name: 'סגירה' }))
+
+  it('gives the focus back to the opener that is still there, as it always did (and does not ask for the screen\'s own choice)', () => {
+    const returnFocus = vi.fn(() => screen.getByLabelText('שדה של המסך'))
+    render(<Screen returnFocus={returnFocus} />)
+    const button = openIt()
+    closeIt()
+    expect(document.activeElement).toBe(button)
+    expect(returnFocus).not.toHaveBeenCalled()
+  })
+
+  it('asks the screen where to put the focus when the opener is gone', () => {
+    render(<Screen returnFocus={() => screen.getByLabelText('שדה של המסך')} />)
+    openIt()
+    removeOpener()
+    closeIt()
+    expect(document.activeElement).toBe(screen.getByLabelText('שדה של המסך'))
+  })
+
+  it('puts the focus on the main of the page when the opener is gone and the screen gave no choice, or no answer', () => {
+    render(<Screen />)
+    openIt()
+    removeOpener()
+    closeIt()
+    expect(document.activeElement).toBe(screen.getByRole('main'))
+    cleanup()
+    render(<Screen returnFocus={() => null} />)
+    openIt()
+    removeOpener()
+    closeIt()
+    expect(document.activeElement).toBe(screen.getByRole('main'))
+  })
+
+  it('does not move the focus for a dialog that was opened with nothing focused: that has always left it where the browser put it', () => {
+    render(<Screen />)
+    openIt(false) // Safari does not focus a button that is tapped
+    closeIt()
+    expect(document.activeElement).toBe(document.body)
+  })
+
+  it('asks the screen when there was no opener at all (Safari), so that the screen can name its own button', () => {
+    const returnFocus = vi.fn(() => screen.getByLabelText('שדה של המסך'))
+    render(<Screen returnFocus={returnFocus} />)
+    openIt(false)
+    closeIt()
+    expect(document.activeElement).toBe(screen.getByLabelText('שדה של המסך'))
+  })
+
+  it('leaves the focus where the screen put it when two dialogs close together, one opened from the other', () => {
+    // The question of a dialog that holds typed input is a dialog opened from it: when "close without saving" is answered both go at once, and
+    // the second one's opener is the first one's own element, which is gone. It must not take the focus from the screen's choice.
+    render(<Screen dirty returnFocus={() => screen.getByLabelText('שדה של המסך')} />)
+    openIt()
+    removeOpener()
+    type(dialogNamed('חלון'), 'שם', 'x')
+    esc()
+    fireEvent.click(within(dialogNamed(QUESTION)).getByRole('button', { name: DISCARD }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByLabelText('שדה של המסך'))
+  })
+
+  it('does the same on the main of the page when the screen gave no choice', () => {
+    render(<Screen dirty />)
+    openIt()
+    removeOpener()
+    type(dialogNamed('חלון'), 'שם', 'x')
+    esc()
+    fireEvent.click(within(dialogNamed(QUESTION)).getByRole('button', { name: DISCARD }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement).toBe(screen.getByRole('main'))
+  })
+})
+
 describe('the form under the question', () => {
   it('is inert while the question is open, so that nothing can reach it, and is not after the answer', () => {
     render(<Harness onClose={vi.fn()} />)
@@ -547,6 +677,40 @@ describe('the committee member form', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'חבר ועד חדש' })[0])
     expectItAsksBeforeLosingWhatWasTyped('חבר ועד חדש', 'כתובת Gmail', 'member@example.test')
+  })
+})
+
+describe('the filters sheet of the History tab on a phone', () => {
+  afterEach(() => { delete window.matchMedia })
+
+  it('asks before a choice that was not shown is lost, and not when nothing was chosen (the dates that are half typed count as typed)', async () => {
+    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })) // a phone: not a computer
+    api.mockImplementation(async (path) => {
+      if (path === '/admin/points') return { points: [{ id: 'pt1', name: 'לובי' }] }
+      if (path === '/admin/providers') return { providers: [] }
+      if (path.startsWith('/admin/scans')) return { scans: [], next_cursor: null }
+      throw new Error(`the test does not expect ${path}`)
+    })
+    render(<ToastProvider><ConfirmProvider><HistoryView /></ConfirmProvider></ToastProvider>)
+    await screen.findByRole('button', { name: /^סינון/ }, WAIT)
+    fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
+    esc()
+    expect(screen.queryByRole('dialog'), 'untouched: closed at once').toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
+    await within(dialogNamed('סינון')).findByRole('option', { name: 'לובי' }, WAIT) // the points have arrived
+    type(dialogNamed('סינון'), 'נקודה', 'pt1')
+    esc()
+    expect(dialogNamed('לסגור בלי להציג את התוצאות?')).toBeTruthy()
+    fireEvent.click(within(dialogNamed('לסגור בלי להציג את התוצאות?')).getByRole('button', { name: 'חזרה לסינון' }))
+    expect(within(dialogNamed('סינון')).getByLabelText('נקודה').value).toBe('pt1') // as it was chosen
+    fireEvent.click(within(dialogNamed('סינון')).getByRole('button', { name: 'סגירה' })) // chosen on purpose: no question
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
+    type(dialogNamed('סינון'), 'מתאריך', '2909') // half a date: the filters have not changed, the typing has
+    tapOutside(dialogNamed('סינון'))
+    expect(dialogNamed('לסגור בלי להציג את התוצאות?')).toBeTruthy()
   })
 })
 

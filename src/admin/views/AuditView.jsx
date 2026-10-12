@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { adminApi, auditLog, errorText } from '../api.js'
-import { useLoad, LOAD_KEY } from '../hooks.js'
+import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
-import { Field, EmptyState, Spinner, IconButton, DateInput, useToast, useAction } from '../ui.jsx'
+import { Field, EmptyState, Spinner, IconButton, useToast, useAction } from '../ui.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useFilterState, useUnfinishedDates } from '../filters.jsx'
 import { IconClock, IconRefresh, IconAlert } from '../icons.jsx'
 import { formatDay, formatTime, isoDay } from '../../../shared/datetime.js'
 import { GROUP_OPTIONS } from '../auditLabels.js'
@@ -17,9 +18,6 @@ import { describeEntry, actorText } from '../auditDescribe.js'
 
 const PAGE = 50
 const EMPTY_FILTERS = { from: '', to: '', group: '', actor_id: '' }
-
-// A date typed digit by digit passes through nonsense ("0002-…"); only complete, sensible dates are sent.
-const goodDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number(v.slice(0, 4)) >= 2000
 
 /** The filters that are set, as the API takes them: nothing empty, and only a complete, sensible date. */
 function params(filters) {
@@ -75,20 +73,53 @@ function EntryRow({ entry }) {
   )
 }
 
+/**
+ * What the filters that are on say, for the bar of the phone layout: one chip for each of the two selects (the dates are not a chip, the bar
+ * always shows them) and how many are on, the dates counting once. Every filter is off at first, so the defaults are `EMPTY_FILTERS`.
+ */
+function activeFilters(f, { memberName }) {
+  const chips = []
+  if (f.group) chips.push({ key: 'group', label: 'סוג פעולה', value: GROUP_OPTIONS.find((g) => g.value === f.group)?.label })
+  if (f.actor_id) chips.push({ key: 'actor_id', label: 'חבר ועד', value: memberName(f.actor_id) })
+  return { chips, count: chips.length + (f.from || f.to ? 1 : 0) }
+}
+
+/** The controls of the filters, drawn once: inline above the list on a computer, in the sheet on a phone (see HistoryView.jsx). */
+function AuditControls({ values, set, errors, onPending, members }) {
+  return (
+    <>
+      <DateRangeFields from={values.from} to={values.to} onFrom={(v) => set('from', v)} onTo={(v) => set('to', v)} onPending={onPending} errors={errors} />
+      <Field label="סוג פעולה">
+        <select className="a-input" value={values.group} onChange={(e) => set('group', e.target.value)}>
+          {GROUP_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+        </select>
+      </Field>
+      <Field label="חבר ועד">
+        <select className="a-input" value={values.actor_id} onChange={(e) => set('actor_id', e.target.value)}>
+          <option value="">כל החברים</option>
+          {(members.data?.admins ?? []).map((a) => <option key={a.id} value={a.id}>{a.name || a.email}</option>)}
+        </select>
+      </Field>
+    </>
+  )
+}
+
 export default function AuditView() {
   const toast = useToast()
+  // A date that is half typed in the inline fields (on a computer) lives in the text of its field, which the phone's layout would unmount,
+  // so below 1024 px the computer's layout stays until it is finished or cleared (see filters.jsx).
+  const [unfinished, onPending] = useUnfinishedDates()
+  const phone = usePhoneLayout({ hold: unfinished.from || unfinished.to })
+  const [filtersRef, returnFocus] = useFilterFocus() // the focus has somewhere to go when the sheet closes after the layout changed
   const members = useLoad(() => adminApi('/admins'), [], { cacheKey: LOAD_KEY.admins }) // the same list as the settings
-  const [filters, setFilters] = useState(EMPTY_FILTERS) // what the inputs show
-  const [applied, setApplied] = useState(filters) // what is actually queried (after a short pause in typing)
+  // On a computer the filters are what the inputs show and the log follows them after a short pause in typing; on a phone they are chosen
+  // in a sheet and applied together, so there the two are always the same (`apply`).
+  const [filters, setFilters, applied, setApplied] = useFilterState(EMPTY_FILTERS, phone) // what the inputs show, and what is actually queried
+  const [sheet, setSheet] = useState(false) // the sheet of filters is open (the phone's, which stays open if the window grows past 1024 px)
   // The list starts with the page that was kept for the first filters, if there is one (the log was open before in this session).
   const [{ entries, cursor, status }, setList] = useState(() => rememberedList(filters) ?? { entries: [], cursor: null, status: 'loading' })
   const [busy, run] = useAction(toast, errorText)
   const seq = useRef(0) // numbers the queries: an answer to an older one is ignored
-
-  useEffect(() => {
-    const t = setTimeout(() => setApplied(filters), 350)
-    return () => clearTimeout(t)
-  }, [filters])
 
   // Asks for the first page of the applied filters. `shown` is the page that was kept for them (see `rememberedList`): it stays on
   // screen while the answer comes, and if the request fails it stays. Without it the list starts from the loading state and a failure
@@ -125,6 +156,16 @@ export default function AuditView() {
   }
 
   const set = (key, value) => setFilters((f) => ({ ...f, [key]: value }))
+  // The phone: the sheet's "show results", and a chip's remove button. Both apply at once, with no pause for typing.
+  const apply = (next) => {
+    setSheet(false)
+    if (sameFilters(next, applied)) return // nothing changed: no new query, no loading state
+    setFilters(next)
+    setApplied(next)
+  }
+  const { chips, count } = activeFilters(applied, {
+    memberName: (id) => { const a = (members.data?.admins ?? []).find((x) => x.id === id); return a && (a.name || a.email) },
+  })
   const filtered = Object.keys(params(applied)).length > 0
 
   // Rows of one building day sit together under the date, newest day first (the API's order).
@@ -151,21 +192,20 @@ export default function AuditView() {
         </div>
       </div>
 
-      <div className="a-filters">
-        <Field label="מתאריך"><DateInput value={filters.from} onChange={(v) => set('from', v)} /></Field>
-        <Field label="עד תאריך"><DateInput value={filters.to} onChange={(v) => set('to', v)} /></Field>
-        <Field label="סוג פעולה">
-          <select className="a-input" value={filters.group} onChange={(e) => set('group', e.target.value)}>
-            {GROUP_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-          </select>
-        </Field>
-        <Field label="חבר ועד">
-          <select className="a-input" value={filters.actor_id} onChange={(e) => set('actor_id', e.target.value)}>
-            <option value="">כל החברים</option>
-            {(members.data?.admins ?? []).map((a) => <option key={a.id} value={a.id}>{a.name || a.email}</option>)}
-          </select>
-        </Field>
-      </div>
+      {phone ? (
+        <FilterBar ref={filtersRef} count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
+          chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: EMPTY_FILTERS[chip.key] }) }))} />
+      ) : (
+        <div className="a-filters" ref={filtersRef}>
+          <AuditControls values={filters} set={set} onPending={onPending} members={members} />
+        </div>
+      )}
+      {/* Outside the choice of layout, so that a sheet that is open when the window crosses 1024 px stays, with its draft (see filters.jsx). */}
+      {sheet && (
+        <FilterSheet initial={applied} defaults={EMPTY_FILTERS} onApply={apply} onClose={() => setSheet(false)} returnFocus={returnFocus}>
+          {({ values, set: choose, errors, watch }) => <AuditControls values={values} set={choose} errors={errors} onPending={watch} members={members} />}
+        </FilterSheet>
+      )}
 
       {status === 'loading' && <Spinner />}
       {status === 'error' && (

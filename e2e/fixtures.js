@@ -376,6 +376,35 @@ export async function adminSignIn(page, screen = 'history') {
   await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
 }
 
+/** The committee app draws its phone layout below this width (`usePhoneLayout` in src/admin/hooks.js). Both E2E devices are narrower. */
+export const COMPUTER_WIDTH = 1024
+export const isPhoneLayout = (page) => page.viewportSize().width < COMPUTER_WIDTH
+
+/**
+ * Opens the sheet of filters that the History tab and the audit log have on a phone (src/admin/filters.jsx), and returns it. The button
+ * is the one in the bar above the list: "סינון", with how many filters are on beside it (the chips' own buttons say "הסרת סינון").
+ */
+export async function openFilters(page) {
+  await page.getByRole('button', { name: /^סינון/ }).click()
+  const sheet = page.getByRole('dialog', { name: 'סינון', exact: true })
+  await expect(sheet).toBeVisible()
+  return sheet
+}
+
+/**
+ * Changes the filters of the History tab or of the audit log, the same way on a phone and on a computer. `fill(scope)` is given where the
+ * controls are and does the changing. On a computer that is `inline` (the page, or the section that holds them): the list follows the
+ * controls by itself. On a phone the controls are in a sheet, so it is opened first, `fill` gets the sheet, and "הצגת תוצאות" is pressed
+ * after it, because nothing is applied until then.
+ */
+export async function changeFilters(page, fill, inline = page) {
+  if (!isPhoneLayout(page)) return fill(inline)
+  const sheet = await openFilters(page)
+  await fill(sheet)
+  await sheet.getByRole('button', { name: 'הצגת תוצאות' }).click()
+  await expect(sheet).toHaveCount(0)
+}
+
 /**
  * The request that an app makes to report its errors (src/ui/errorReport.js): a POST to `path` (`/api/my/errors` for the provider app,
  * `/api/admin/client-errors` for the committee app). Pass it to `page.waitForRequest`, which must be called before the action that

@@ -48,7 +48,7 @@ occurs, or names a screen that is not scanned, fails. Fix a violation rather tha
 ## Visual regression
 
 `e2e/visual.spec.js` takes a picture of the key screens and compares it with the baseline image in
-`e2e/__screenshots__/visual.spec.js/` (`name.png`; 62 files, about 125 KB at most each). It is there to catch design drift
+`e2e/__screenshots__/visual.spec.js/` (`name.png`; 68 files, about 125 KB at most each). It is there to catch design drift
 that no behaviour test sees, and to show the owner the exact image diff of every intended change to a screen. It covers,
 each in the light and the dark theme:
 
@@ -57,7 +57,10 @@ each in the light and the dark theme:
 - the committee app in Hebrew, at 360 px and at 1280 px: the seven screens (history, points, providers, agent, settings, audit log and help),
   the history of a building with no points, the dialog of a point (with the map) and the dialog
   of a provider; and the sheet that the "More" button of the phone's tab bar opens (at 360 px, and at 768 px, the widest
-  screen that has the tab bar: a computer has the side rail instead).
+  screen that has the tab bar: a computer has the side rail instead);
+- the filters of the History tab below 1024 px: the sheet that its filter button opens (with the defaults), at 360 px and at 768 px, where it
+  stays at the bottom of the screen like the sheet under "More", and, at 360 px only, the tab with filters on, which has a chip for each
+  (from 1024 px the filters are the block above the list, which the picture of the tab shows).
 
 **It runs in CI only.** The baselines are made on the Linux runner, in Chromium (the `android-chrome` project): another
 system draws text a little differently, so a baseline from a laptop would never match. On anything else (WebKit, Windows,
