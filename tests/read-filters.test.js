@@ -201,8 +201,9 @@ describe('PHONE_HEALTH_LATERAL', () => {
   it('is the lateral join that gives a provider its phone-health columns, with $1 as the server build', () => {
     expect(PHONE_HEALTH_LATERAL).toMatch(/^cross join lateral \(/)
     expect(PHONE_HEALTH_LATERAL).toMatch(/\) phones$/)
-    // The committee's providers list selects the first three, the agent's providers all seven (tests/agent-phones-building-voids.test.js).
-    for (const column of ['waiting', 'oldest_waiting_at', 'outdated_devices', 'active_devices', 'last_sync_at', 'not_accepted_total', 'overflow_total']) {
+    // The committee's providers list selects the first three, the agent's providers the first seven (tests/agent-phones-building-voids.test.js),
+    // and the Home screen adds up `waiting` and `waiting_devices` over all providers (waitingUploads, tests/admin-home.test.js).
+    for (const column of ['waiting', 'oldest_waiting_at', 'outdated_devices', 'active_devices', 'last_sync_at', 'not_accepted_total', 'overflow_total', 'waiting_devices']) {
       expect(PHONE_HEALTH_LATERAL, column).toMatch(new RegExp(`\\bas ${column}\\b`))
     }
     expect(PHONE_HEALTH_LATERAL).toContain('d.app_build <> $1::text')

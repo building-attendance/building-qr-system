@@ -146,8 +146,9 @@ export async function touchLastSync(deviceId) {
 
 /**
  * The health of a provider's ACTIVE phones, as a SQL fragment for a list of providers: `cross join lateral (...) phones`, to be
- * written after `from providers p` (the alias `p` is what it joins on). It gives each provider seven columns, which the caller
- * selects by name as `phones.<name>` (the committee's list takes the first three, the agent's providers the seven):
+ * written after `from providers p` (the alias `p` is what it joins on). It gives each provider eight columns, which the caller
+ * selects by name as `phones.<name>` (the committee's list takes the first three, the agent's providers the first seven, and the
+ * Home screen of the committee adds up `waiting` and `waiting_devices` over all providers: waitingUploads below):
  *  - `waiting`: the sum of what the phones say waits in their queues (0 when none reported);
  *  - `oldest_waiting_at`: the oldest of the phones that have something waiting (null when none);
  *  - `outdated_devices`: how many phones reported a build that is not the server's own (0 when the server does not know its build);
@@ -155,7 +156,8 @@ export async function touchLastSync(deviceId) {
  *  - `last_sync_at`: the latest upload of any of the phones (null when none uploaded);
  *  - `not_accepted_total`, `overflow_total`: the two running totals of what the phones dropped, added up over the phones (0 when none).
  *    Each phone may report up to DEVICE_STATUS_MAX_TOTAL, so the sum over many phones could pass the largest int; it stops there
- *    (a cast of a bigger sum would make the whole providers list fail, the committee's included).
+ *    (a cast of a bigger sum would make the whole providers list fail, the committee's included);
+ *  - `waiting_devices`: how many phones have something waiting (`waiting_count` above 0; 0 when none), the phones behind `waiting`.
  * They are numbers and times over the provider's phones, never a column of one phone: the label, the browser string and the token hash
  * are not read here, and no row per phone comes out. $1 is the server's build (`commit()` in server/health.js), so the caller's own
  * values start at $2. The committee's providers list (PROVIDER_SELECT in server/routes/admin.js) and the agent's providers
@@ -168,10 +170,31 @@ export const PHONE_HEALTH_LATERAL = `cross join lateral (
              count(*)::int as active_devices,
              max(d.last_sync_at) as last_sync_at,
              least(coalesce(sum(d.not_accepted_total), 0), 2147483647)::int as not_accepted_total,
-             least(coalesce(sum(d.overflow_total), 0), 2147483647)::int as overflow_total
+             least(coalesce(sum(d.overflow_total), 0), 2147483647)::int as overflow_total,
+             (count(*) filter (where d.waiting_count > 0))::int as waiting_devices
         from provider_devices d
        where d.provider_id = p.id and d.revoked_at is null
     ) phones`
+
+/**
+ * The visits that wait on phones to be uploaded, as the Providers screen adds them up: `{ phones, visits }`, the number of ACTIVE
+ * phones (of any provider) that have something waiting, and the sum of what they say waits. It is PHONE_HEALTH_LATERAL over every
+ * provider, summed, so the screen and this count cannot disagree on which phones are active or what "waiting" is. Numbers only:
+ * no phone, label or provider comes out. Runs on `client` (a client of the caller's transaction, or the pool) so that the caller
+ * decides the transaction.
+ * @param {{ query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> }} client
+ * @param {string | null} build  the server's build (`commit()` in server/health.js), the $1 that the lateral compares with
+ * @returns {Promise<{ phones: number, visits: number }>}
+ */
+export async function waitingUploads(client, build) {
+  const { rows } = await client.query(
+    `select coalesce(sum(phones.waiting_devices), 0)::int as phones, coalesce(sum(phones.waiting), 0)::int as visits
+       from providers p
+       ${PHONE_HEALTH_LATERAL}`,
+    [build],
+  )
+  return { phones: rows[0].phones, visits: rows[0].visits }
+}
 
 /**
  * The active phones of a provider (not revoked), the one that was used last first, or null when there is no such provider (the
