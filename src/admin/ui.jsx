@@ -61,6 +61,9 @@ export function DateInput({ value, onChange, onPendingChange, 'aria-invalid': in
     const next = editDay(text, input.value, input.selectionStart ?? input.value.length)
     caretRef.current = next.caret
     setText(next.text)
+    // Told with the change itself, and not only by the effect above, which runs a render later: a screen that reads it on a key press
+    // (Enter in the filters' sheet) must not see the state of the key before.
+    onPendingChange?.(next.text !== '' && !parseDay(next.text))
     if (next.text === '') onChange('')
     else if (parseDay(next.text)) onChange(parseDay(next.text))
   }
