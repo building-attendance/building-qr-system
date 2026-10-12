@@ -13,6 +13,8 @@ import { listScans, listAllScans, scanJson, COMMITTEE_CSV_COLUMNS, committeeCsvR
 import { audit, adminActor, changesOf, idsChanged } from '../audit.js'
 import { commit } from '../health.js'
 import { PHONE_HEALTH_LATERAL } from '../deviceStatus.js'
+import { PROVIDER_LIST_ORDER } from '../providerOrder.js'
+import { buildHome } from '../home.js'
 import {
   ADMIN_COOKIE, ADMIN_SESSION_DAYS, ADMIN_TOKEN_PREFIX, AGENT_KEY_MAX_PER_DAY, AGENT_KEY_MAX_PER_MINUTE, API_KEY_PREFIX, TIMEZONE,
 } from '../config.js'
@@ -518,7 +520,7 @@ function providerFields(body, { create }) {
 
 route('GET', '/admin/providers', async ({ req }) => {
   await requireAdmin(req)
-  return { providers: await providerRows('order by p.is_active desc, p.company, p.contact_name') }
+  return { providers: await providerRows(`order by ${PROVIDER_LIST_ORDER}`) }
 })
 
 route('POST', '/admin/providers', async ({ req, body }) => {
@@ -772,4 +774,14 @@ route('DELETE', '/admin/api-keys/:id', async ({ req, params }) => {
     })
   })
   return { ok: true }
+})
+
+// ---------- the Home screen ----------
+
+// The counts of the committee's Home screen in one request: the visits of the last seven days for every provider, and a few numbers
+// that the committee reads on other screens. Read only, counts only (server/home.js says what each is and where it is defined). The
+// router has run the guard of the committee (server/access.js) before this handler, and the guard remembers its answer.
+route('GET', '/admin/home', async ({ req }) => {
+  await requireAdmin(req)
+  return buildHome()
 })

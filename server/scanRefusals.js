@@ -213,6 +213,21 @@ export async function listRefusals(q = {}) {
   return cutRefusalPage(rows, limit, refusalJson)
 }
 
+/**
+ * How many visits were refused between two building days, both included: the number of rows that listRefusals returns for the
+ * same `from` and `to`, paged to the end. The conditions are listRefusals' own (refusalPageParts), so a day means the stretch of
+ * time from its midnight to the next one in the building's zone here too. A count only: no row, name or code comes out. Runs on
+ * `client` (a client of the caller's transaction, or the pool) so that the caller decides the transaction.
+ * @param {{ query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> }} client
+ * @param {{ from: string, to: string }} days  building days, `YYYY-MM-DD`
+ * @returns {Promise<number>}
+ */
+export async function countRefusals(client, { from, to }) {
+  const { where, params } = refusalPageParts({ from, to })
+  const { rows } = await client.query(`select count(*)::int as n from scan_refusals where ${where.join(' and ')}`, params)
+  return rows[0].n
+}
+
 // ---------- reading (the agent's list) ----------
 
 // The columns of `scan_refusals` that the agent's listing reads, by name (never `select *`): a column that is added to the table
