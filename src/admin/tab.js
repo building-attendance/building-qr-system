@@ -8,7 +8,10 @@
 //
 // The app changes the tab by setting `location.hash`, and the browser fires `hashchange` for that, so the subscription
 // below is all the store needs. A change made with `history.replaceState` or `pushState` fires nothing: whoever adds one has
-// to tell the store (call the `onChange` that `subscribe` was given) or use `location.hash` instead.
+// to tell the store (call the `onChange` that `subscribe` was given) or use `location.hash` instead. The one change of that kind
+// that the app makes today leaves the tab as it was, so the store has nothing to learn from it: a link can carry a query after the
+// tab's name (`#history?provider=...`, see `hashQuery`), and the screen that read it puts the plain `#history` back with
+// `replaceState`. The tab is decided by the part before the `?` alone, so the snapshot is the same before and after.
 import { useSyncExternalStore } from 'react'
 
 /**
@@ -20,14 +23,37 @@ import { useSyncExternalStore } from 'react'
 export const RENAMED_TABS = new Map([['committee', 'settings']])
 
 /**
- * The tab that the address names: the key after the `#` (or the key that an old one was renamed to), or the first key when the address
- * names none of `keys` (no hash, or one that is not a tab). The first of `keys` is therefore the tab that opens by default.
+ * What an address names: the text between the `#` and the first `?` (all of it after the `#` when there is no `?`), as it was written.
+ * `#history?provider=1` names `history`.
+ * @param {string} [hash]  default: the address of the page now
+ * @returns {string}
+ */
+export const hashName = (hash = window.location.hash) => {
+  const at = hash.indexOf('?')
+  return (at < 0 ? hash : hash.slice(0, at)).slice(1)
+}
+
+/**
+ * The query that an address carries after the tab's name, as `URLSearchParams` (empty when it has none): the part after the first `?`
+ * of `#history?provider=1&from=2026-10-01`. A screen that a link can open with settings reads them from here.
+ * @param {string} [hash]  default: the address of the page now
+ * @returns {URLSearchParams}
+ */
+export const hashQuery = (hash = window.location.hash) => {
+  const at = hash.indexOf('?')
+  return new URLSearchParams(at < 0 ? '' : hash.slice(at + 1))
+}
+
+/**
+ * The tab that the address names: the key after the `#` and before any `?` (or the key that an old one was renamed to), or the first key
+ * when the address names none of `keys` (no hash, or one that is not a tab). The first of `keys` is therefore the tab that opens by
+ * default. What follows a `?` is the link's settings (`hashQuery`) and does not decide the tab.
  * @param {string[]} keys
  * @param {string} [hash]  default: the address of the page now
  * @returns {string}
  */
 export const tabFromHash = (keys, hash = window.location.hash) => {
-  const named = hash.slice(1)
+  const named = hashName(hash)
   const wanted = RENAMED_TABS.get(named) ?? named
   return keys.find((key) => key === wanted) ?? keys[0]
 }

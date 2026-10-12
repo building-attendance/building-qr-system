@@ -5,12 +5,12 @@ import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '..
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useFilterState, useUnfinishedDates } from '../filters.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash, IconPin } from '../icons.jsx'
-import { goToTab } from '../tab.js'
-import { formatDay, formatDateTime, formatTime, isoDay } from '../../../shared/datetime.js'
+import { goToTab, hashName, hashQuery } from '../tab.js'
+import { formatDay, formatDateTime, formatTime, isoDay, parseDay } from '../../../shared/datetime.js'
 import {
   OUTCOME_ACCEPTED, OUTCOME_REJECTED_FAR, OUTCOME_REJECTED_NO_LOCATION, VOID_REASON_MAX_LENGTH,
   SCAN_ERROR_INVALID_CODE, SCAN_ERROR_UNKNOWN_CODE, SCAN_ERROR_POINT_INACTIVE, SCAN_ERROR_NOT_ASSIGNED,
-  SCAN_ERROR_INVALID_SCAN_ID, SCAN_ERROR_SCAN_ID_CONFLICT, SCAN_ERROR_INVALID_ITEM, SOURCE_ONLINE, SOURCE_OFFLINE_SYNC,
+  SCAN_ERROR_INVALID_SCAN_ID, SCAN_ERROR_SCAN_ID_CONFLICT, SCAN_ERROR_INVALID_ITEM, SOURCE_ONLINE, SOURCE_OFFLINE_SYNC, UUID_RE,
 } from '../../../shared/contract.js'
 
 const daysAgo = (n) => isoDay(new Date(Date.now() - n * 86_400_000))
@@ -65,15 +65,88 @@ const TYPES = [
 ]
 const typeLabel = (value) => TYPES.find(([key]) => key === value)?.[1] ?? value
 
+// A link can open this screen with its filters set: `#history?provider=<id>&from=YYYY-MM-DD&to=YYYY-MM-DD&outcome=<type>`, every parameter
+// optional. `from`, `to` and `outcome` are the names of the filters themselves; `provider` is the filter `provider_id`, written the way the
+// link names it. `outcome` is one of the choices of the "type" filter (`accepted`, `rejected`, `all`, `not_counted`). The point and the
+// two switches are not in the address: a link that needs them adds them here, the same way.
+//
+// The link is a whole description of the view, so it is applied to the defaults, never to the filters that happen to be set: opening it
+// twice, or from another screen, gives the same list. A parameter that is not valid (a day that is not on the calendar, a type that is not
+// one of the choices, a provider id that is not shaped like an id) is left out quietly and its filter keeps its default. The screen
+// reads the address when it opens (`readLink`, in the first render, so nothing is drawn or asked for with the defaults first) and again
+// when the address changes while it is open; then it puts the plain `#history` back (`tidyAddress`).
+//
+// A provider filter is never widened. The id of a link is applied whenever it is shaped like an id, whether or not the list of providers
+// holds it, or loaded at all: a provider that the committee deleted keeps its visits (the Home screen links its row here), and an id that
+// is dropped would show the visits of everyone under a link that asked for one provider. What the list does not know is shown as such, in
+// the select and in the chip (`unlistedProvider`), so that the filter is on in plain sight.
+const LINK_KEYS = ['provider', 'from', 'to', 'outcome']
+
+/** A day that a link may name: the one that the date field itself would take (a day on the calendar, 2000 to 2100), as the API writes it. */
+const linkedDay = (value) => goodDate(value) && parseDay(formatDay(value)) === value
+
+/**
+ * What the address asks of this screen: `{ from?, to?, outcome?, provider? }` with only the valid values (the provider is an id in
+ * lower case, as the server reads it), or `null` when the address is not a link to this screen (another screen, or no parameter that a
+ * link has). A link whose every parameter is invalid is still a link: it opens the defaults.
+ */
+function readLink(hash = window.location.hash) {
+  if (hashName(hash) !== 'history') return null
+  const query = hashQuery(hash)
+  if (!LINK_KEYS.some((key) => query.has(key))) return null
+  const link = {}
+  const from = query.get('from')
+  const to = query.get('to')
+  const outcome = query.get('outcome')
+  const provider = query.get('provider')
+  if (linkedDay(from)) link.from = from
+  if (linkedDay(to)) link.to = to
+  if (TYPES.some(([key]) => key === outcome)) link.outcome = outcome
+  if (provider && UUID_RE.test(provider)) link.provider = provider.toLowerCase() // the shape that the server accepts: nothing else is sent
+  return link
+}
+
+/** The filters that a link asks for: the defaults, with its valid parameters on top. */
+function linkedFilters(link, defaults) {
+  const { provider, ...rest } = link
+  return { ...defaults, ...rest, ...(provider && { provider_id: provider }) }
+}
+
+/**
+ * The words for a provider filter whose id the list of providers does not name, from the load of that list: a provider that the
+ * committee deleted (its visits stay, and the Home screen links to them) when the list loaded and lacks it, one that cannot be told
+ * when the list could not be loaded, and `null` while it is on its way (the select says "loading", the chip only "provider"). The filter
+ * stays on, whatever the list says.
+ */
+function unlistedProvider(providers) {
+  if (providers.status === 'error') return 'נותן שירות שאינו ברשימה'
+  return providers.data ? 'נותן שירות שנמחק' : null
+}
+
+/**
+ * Puts the plain `#history` where the link's address was. `replaceState`, not `location.hash`: the screen does not change, so no
+ * `hashchange` is wanted, and the entry of the link in the history becomes the plain address (a reload or the forward button then opens
+ * the screen with its defaults, as a link is a one-time instruction, not a place to return to). It also lets the same link, clicked again,
+ * be a change of the address, which the browser reports and the screen reads. The tab does not change either, so the store of
+ * `useTab` (src/admin/tab.js) has nothing to learn.
+ */
+function tidyAddress() {
+  if (hashName() === 'history' && window.location.hash.includes('?')) window.history.replaceState(window.history.state, '', '#history')
+}
+
 /**
  * What the filters that differ from the defaults `d` say, for the bar of the phone layout: one chip for each (the dates are not a chip, the
  * bar always shows them) and how many they are, the dates counting once. A filter that has no control now is not counted: the two switches
- * are about scans, so they are left out while the list is the visits that were not counted.
+ * are about scans, so they are left out while the list is the visits that were not counted. A provider filter whose id the list does not
+ * name (`providerName` gives nothing) still gets its chip, and the chip says `unlisted` (see `unlistedProvider`).
  */
-function activeFilters(f, d, { pointName, providerName }) {
+function activeFilters(f, d, { pointName, providerName, unlisted }) {
   const chips = []
   if (f.point_id !== d.point_id) chips.push({ key: 'point_id', label: 'נקודה', value: pointName(f.point_id) })
-  if (f.provider_id !== d.provider_id) chips.push({ key: 'provider_id', label: 'נותן שירות', value: providerName(f.provider_id) })
+  if (f.provider_id !== d.provider_id) {
+    const name = providerName(f.provider_id) // undefined when the list does not name it: then the chip says why (`unlisted`) and has no value
+    chips.push(name ? { key: 'provider_id', label: 'נותן שירות', value: name } : { key: 'provider_id', label: unlisted })
+  }
   if (f.outcome !== d.outcome) chips.push({ key: 'outcome', label: 'סוג', value: typeLabel(f.outcome) })
   if (f.outcome !== NOT_COUNTED) {
     if (f.include_voided !== d.include_voided) chips.push({ key: 'include_voided', label: 'כולל מבוטלות' })
@@ -187,6 +260,10 @@ function VoidDialog({ scan, onClose, onDone }) {
  * go while the type is the visits that were not counted.
  */
 function HistoryControls({ values, set, errors, onPending, points, providers }) {
+  // A provider filter on an id that the list does not name (a deleted provider's visits, a list that did not load) has an option of its
+  // own, so that the select says that a filter is on instead of showing "everyone". It goes when another choice is made.
+  const providerList = providers.data?.providers ?? []
+  const unlisted = values.provider_id !== '' && !providerList.some((p) => p.id === values.provider_id)
   return (
     <>
       <DateRangeFields from={values.from} to={values.to} onFrom={(v) => set('from', v)} onTo={(v) => set('to', v)} onPending={onPending} errors={errors} />
@@ -199,7 +276,8 @@ function HistoryControls({ values, set, errors, onPending, points, providers }) 
       <Field label="נותן שירות">
         <select className="a-input" value={values.provider_id} onChange={(e) => set('provider_id', e.target.value)}>
           <option value="">כולם</option>
-          {(providers.data?.providers ?? []).map((p) => <option key={p.id} value={p.id}>{p.contact_name || p.company}</option>)}
+          {unlisted && <option value={values.provider_id}>{unlistedProvider(providers) ?? 'טוען…'}</option>}
+          {providerList.map((p) => <option key={p.id} value={p.id}>{p.contact_name || p.company}</option>)}
         </select>
       </Field>
       <Field label="סוג">
@@ -229,10 +307,15 @@ export default function HistoryView() {
   const points = useLoad(() => adminApi('/points'), [], { cacheKey: LOAD_KEY.points })
   const providers = useLoad(() => adminApi('/providers'), [], { cacheKey: LOAD_KEY.providers })
   const [defaults] = useState(DEFAULTS) // what "reset" and the count of the filters that are on are measured against
+  // The link that opened the screen (see `readLink`), or null. Its filters are the first ones, in the first render: they are the filters
+  // and the applied ones at once, so there is no pause for typing to wait for and no list of the defaults before them.
+  const [link] = useState(readLink)
+  const [first] = useState(() => (link ? linkedFilters(link, defaults) : defaults))
   // On a computer the filters are what the inputs show and the list follows them after a short pause in typing; on a phone they are
   // chosen in a sheet and applied together, so there the two are always the same (`apply`).
-  const [filters, setFilters, applied, setApplied] = useFilterState(defaults, phone) // what the inputs show, and what is actually queried
+  const [filters, setFilters, applied, setApplied] = useFilterState(first, phone) // what the inputs show, and what is actually queried
   const [sheet, setSheet] = useState(false) // the sheet of filters is open (the phone's, which stays open if the window grows past 1024 px)
+  const [round, setRound] = useState(0) // a link draws the inline fields again, so that a date half typed in one goes
   // `kind` says which list the rows are (scans or refusals), set when they arrive: the filter can already say another one
   // while the pause before a query runs, and rows are never drawn as the wrong kind.
   // The list starts with the page that was kept for the first filters, if there is one (the tab was open before in this session).
@@ -313,9 +396,31 @@ export default function HistoryView() {
     setFilters(next)
     setApplied(next)
   }
+
+  // A link followed while the screen is open (the address changes, and the screen is still this one): the same as one that opened it, and
+  // the address goes back to the plain `#history`. The latest values are read from a ref, so that the listener is attached once.
+  const latest = useRef(null)
+  latest.current = { applied, defaults, dateUnfinished: unfinished.from || unfinished.to }
+  useEffect(() => {
+    const follow = () => {
+      const next = readLink()
+      if (!next) return // another screen (this one is about to go), or this screen's own address, which has nothing to apply
+      const { applied: now, defaults: base, dateUnfinished } = latest.current
+      const filtersOfLink = linkedFilters(next, base)
+      setSheet(false)
+      if (dateUnfinished) setRound((n) => n + 1) // a date half typed in a field would stay there; the fields are drawn again from the filters
+      if (sameFilters(filtersOfLink, now)) setFilters(now) // the screen already says it (a pause for typing may be waiting): no new query
+      else { setFilters(filtersOfLink); setApplied(filtersOfLink) }
+      tidyAddress()
+    }
+    window.addEventListener('hashchange', follow)
+    return () => window.removeEventListener('hashchange', follow)
+  }, [setFilters, setApplied])
+  useEffect(() => { if (link) tidyAddress() }, [link]) // the link that opened the screen has been read: the plain address goes back
   const { chips, count } = activeFilters(applied, defaults, {
     pointName: (id) => (points.data?.points ?? []).find((p) => p.id === id)?.name,
     providerName: (id) => { const p = (providers.data?.providers ?? []).find((x) => x.id === id); return p && (p.contact_name || p.company) },
+    unlisted: unlistedProvider(providers) ?? 'נותן שירות', // while the list is on its way the chip only says what it is about
   })
   const refusals = kind === 'refusals'
   const groups = useMemo(() => {
@@ -353,7 +458,7 @@ export default function HistoryView() {
         <FilterBar ref={filtersRef} count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
           chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: defaults[chip.key] }) }))} />
       ) : (
-        <div className="a-filters" ref={filtersRef}>
+        <div className="a-filters" key={round} ref={filtersRef}>
           <HistoryControls values={filters} set={set} onPending={onPending} points={points} providers={providers} />
         </div>
       )}

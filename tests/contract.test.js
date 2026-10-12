@@ -538,6 +538,8 @@ const PINNED = [
   ['QR_TOKEN_RE (its flags)', contract.QR_TOKEN_RE.flags, '', 'A global or sticky flag makes test() remember where it stopped, and the next scan of a valid code fails.'],
   ['APP_BUILD_RE (its source)', contract.APP_BUILD_RE.source, '^(?:[0-9a-f]{7}|dev)$', `It is the shape of the build id that vite.config.js writes into the bundle (7 characters of the commit, or dev) and that src/ui/build.js accepts. It is never narrowed: a phone keeps the id it was built with until it is updated, and a reader of the shape (the server, once a phone reports its build) must accept every id that a build ever wrote. ${OLD_PHONES}`],
   ['APP_BUILD_RE (its flags)', contract.APP_BUILD_RE.flags, '', 'A global or sticky flag makes test() remember where it stopped, and the next id that is checked fails.'],
+  ['UUID_RE (its source)', contract.UUID_RE.source, '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', 'The server refuses an id in a filter or a path that does not match it (isUuid, server/http.js), and the committee app sends the id of a link only if it matches (src/admin/views/HistoryView.jsx): a narrower pattern makes a row that exists unreachable, a wider one lets the app send an id that the server answers with a 400.'],
+  ['UUID_RE (its flags)', contract.UUID_RE.flags, 'i', 'An id may be written in either case (the server lower-cases it), so the pattern ignores the case. A global or sticky flag would make test() remember where it stopped, and the next id that is checked would fail.'],
   ['DEVICE_STATUS_MIN_INTERVAL_S', contract.DEVICE_STATUS_MIN_INTERVAL_S, 10, `The server stores a report of a phone only when the last one is this many seconds old, and answers one that comes sooner as usual without storing it. The phone (a later release) reports no more often than this, so a higher value makes the server drop reports of a phone that keeps to this rhythm, and a lower one lets a loop on a phone write a row for each report. ${OLD_PHONES}`],
   ['DEVICE_STATUS_MAX_TOTAL', contract.DEVICE_STATUS_MAX_TOTAL, 1000000, `The largest cumulative count that the server takes for not_accepted_total and overflowed_total (the phone counts them since it signed in and never resets them): a larger whole number is cut to it, and the stored total never goes down. A lower value would cut the honest count of a phone that has run for a long time, and its total would stop growing there. ${OLD_PHONES}`],
   ['DEVICE_STATUS_MAX_AGE_DAYS', contract.DEVICE_STATUS_MAX_AGE_DAYS, 60, `The oldest_waiting_at that the server believes: an older time is stored as nothing. It is the one place where the age of a waiting visit is judged, and a phone that reports an older time shows "unknown" to the committee, so a higher value shows a time that is certainly a wrong clock and a lower one hides a real, long wait. ${OLD_PHONES}`],
@@ -635,6 +637,7 @@ describe('src/ and server/ hold no copy of a number or a pattern that moved to s
     ['the shortest password', /\.length\s*<\s*8\b/, BOTH, 'PASSWORD_MIN_LENGTH'],
     ['the QR token pattern or prefix', /BQR-/, BOTH, 'QR_TOKEN_RE, QR_TOKEN_PREFIX or parseQrToken from shared/'],
     ['the prefix of a provider device token', /['"`]qrp_/, BOTH, 'PROVIDER_TOKEN_PREFIX'],
+    ['the shape of the id of a row', /\[0-9a-f\]\{8\}/i, BOTH, 'UUID_RE (or isUuid, on the server)'],
   ]
 
   it('finds no copy', () => {
@@ -652,7 +655,7 @@ describe('src/ and server/ hold no copy of a number or a pattern that moved to s
   })
 
   it('the scan can see a copy (it flags a planted one)', () => {
-    const planted = ["const BATCH = 10", 'maxLength={120}', "radius_m: '50'", 'x.length < 8', "const t = 'BQR-abc'", "token.startsWith('qrp_')"]
+    const planted = ["const BATCH = 10", 'maxLength={120}', "radius_m: '50'", 'x.length < 8', "const t = 'BQR-abc'", "token.startsWith('qrp_')", 'const ID = /^[0-9a-f]{8}-[0-9a-f]{4}$/i']
     const hits = planted.filter((line) => COPIES.some(([, pattern]) => pattern.test(line)))
     expect(hits).toEqual(planted)
   })
