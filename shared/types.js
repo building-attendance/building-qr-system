@@ -201,4 +201,37 @@
  * @typedef {{ ok: true, recorded: number }} ClientErrorAnswer
  */
 
+/**
+ * One row of the week table of the committee's Home screen (HomeSummary): a service provider and the visits counted for each of
+ * the seven days. The counts are the History's (accepted visits only, voided ones and the demo account's hidden: scanWhere in
+ * server/scans.js), so a cell equals the rows that GET /api/admin/scans returns for that provider and that day.
+ * @typedef {object} HomeWeekProvider
+ * @property {string} id
+ * @property {string} name  what the Providers screen shows as the title: the contact name, else the company
+ * @property {string | null} company  null only for a provider that was deleted (its visits stay, and `name` is the name they kept)
+ * @property {boolean} is_active  false for a provider that is switched off, and for one that was deleted
+ * @property {number[]} counts  seven numbers, one for each day of `HomeSummary.days`, in the same order (0 for a day with no visit)
+ */
+
+/**
+ * The answer of GET /api/admin/home (buildHome in server/home.js): the numbers of the committee's Home screen, in one request.
+ * Counts only, and every one is a number that another screen shows already. An older client ignores a field it does not know, so a
+ * field is added and never renamed or removed.
+ * @typedef {object} HomeSummary
+ * @property {string[]} days  seven building days `YYYY-MM-DD`, the oldest first; the last one is today in the building's time zone
+ * @property {{ providers: HomeWeekProvider[], totals: number[] }} week  the visits of those days. `providers` holds every active
+ *   provider (also one with no visit: an absence is information; the demo account is left out, its visits are hidden) and any other
+ *   provider that had a visit in the seven days, in the order of the Providers screen, a deleted one last. `totals` is the sum of
+ *   the rows for each day, so it is the number of visits that the History shows for that day
+ * @property {object} counts
+ * @property {{ active: number, total: number }} counts.points
+ * @property {{ active: number, total: number }} counts.providers  every provider the Providers screen lists, the demo account included
+ * @property {{ active: number }} counts.committee_members  committee members who are switched on
+ * @property {{ active: number }} counts.agent_keys  agent keys that are not revoked
+ * @property {number} counts.visits_not_counted  visits the server refused (scan_refusals) in the seven days: the rows that
+ *   GET /api/admin/scan-refusals returns from `days[0]` to `days[6]`
+ * @property {{ phones: number, visits: number }} counts.waiting  active phones that have visits waiting to upload, and how many
+ *   visits wait in all, as the Providers screen adds them up
+ */
+
 export {}
