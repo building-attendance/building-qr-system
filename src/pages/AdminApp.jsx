@@ -1,42 +1,74 @@
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import '../ui/ui.css'
 import '../admin/admin.css'
 import { adminApi } from '../admin/api.js'
-import { ToastProvider, ConfirmProvider, Spinner, IconButton, useToast } from '../admin/ui.jsx'
+import { ToastProvider, ConfirmProvider, Modal, Spinner, IconButton, useToast } from '../admin/ui.jsx'
 import LoginScreen from '../admin/LoginScreen.jsx'
 import PointsView from '../admin/views/PointsView.jsx'
 import ProvidersView from '../admin/views/ProvidersView.jsx'
 import HistoryView from '../admin/views/HistoryView.jsx'
 import AgentView from '../admin/views/AgentView.jsx'
-import CommitteeView from '../admin/views/CommitteeView.jsx'
+import SettingsView from '../admin/views/SettingsView.jsx'
+import AuditView from '../admin/views/AuditView.jsx'
+import HelpView from '../admin/views/HelpView.jsx'
 import { useTab } from '../admin/tab.js'
 import { BuildingNameProvider, useBuildingName, APP_NAME } from '../admin/buildingName.jsx'
 import { useErrorReport, clearLoadCache } from '../admin/hooks.js'
 import { noteClientError, setPlace, currentPlace } from '../ui/errorReport.js'
 import { applyUpdate, isUpdateReady, subscribeUpdate } from '../worker/update.js'
 import ThemeSwitch, { HEBREW_THEME_LABELS as THEME_LABELS } from '../ui/ThemeSwitch.jsx'
-import { IconPin, IconUsers, IconList, IconKey, IconShield, IconLogout, IconQr, IconDevice, IconAlert, IconRefresh } from '../admin/icons.jsx'
+import { IconPin, IconUsers, IconList, IconKey, IconClock, IconInfo, IconSettings, IconMore, IconLogout, IconQr, IconDevice, IconAlert, IconRefresh } from '../admin/icons.jsx'
 
-// `label` is the name of the tab as a page: the top bar, the h1 and the title of the document. `nav` is the name on its button in both
-// navigations (the tab bar of the phone and the side rail), and is short enough for one fifth of a 360 px screen.
+// The screens of the committee app, in the order of the side rail (a computer). `label` is the name of the screen as a page: the top bar,
+// the title of the document and the list under "עוד". `nav` is the name on its button in the side rail and in the tab bar of the phone.
+// Two screens have a `nav` shorter than their `label`, and each was measured (e2e/admin.spec.js), not guessed. The providers' button says
+// "ספקים" because "נותני שירות" wrapped onto two lines in a fifth of a 360 px screen, when the bar had five buttons. The help's says "עזרה"
+// because "איך עובדים עם המערכת" is 168 px wide and the name on a button of the side rail has 157 px. The sheet under "עוד" has room for
+// the whole name of a screen, so it shows the `label`.
+//
+// `group` is where the screen sits. The side rail shows all seven, the work group and then the management group with a separator
+// between them. The tab bar of the phone has four buttons: the three screens of the work group, in this order, and "עוד" (more), which
+// opens a sheet with the management group. The first screen is the one that opens when the address names none.
+const GROUP_WORK = 'work'
+const GROUP_MANAGE = 'manage'
 const TABS = [
-  { key: 'points', label: 'נקודות', nav: 'נקודות', icon: IconPin, View: PointsView },
-  { key: 'providers', label: 'נותני שירות', nav: 'ספקים', icon: IconUsers, View: ProvidersView },
-  { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', icon: IconList, View: HistoryView },
-  { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconKey, View: AgentView },
-  { key: 'committee', label: 'ועד', nav: 'ועד', icon: IconShield, View: CommitteeView },
+  { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', icon: IconList, View: HistoryView, group: GROUP_WORK },
+  { key: 'points', label: 'נקודות', nav: 'נקודות', icon: IconPin, View: PointsView, group: GROUP_WORK },
+  { key: 'providers', label: 'נותני שירות', nav: 'ספקים', icon: IconUsers, View: ProvidersView, group: GROUP_WORK },
+  { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconKey, View: AgentView, group: GROUP_MANAGE },
+  { key: 'settings', label: 'הגדרות', nav: 'הגדרות', icon: IconSettings, View: SettingsView, group: GROUP_MANAGE },
+  { key: 'audit', label: 'יומן פעולות', nav: 'יומן פעולות', icon: IconClock, View: AuditView, group: GROUP_MANAGE },
+  { key: 'help', label: 'איך עובדים עם המערכת', nav: 'עזרה', icon: IconInfo, View: HelpView, group: GROUP_MANAGE },
 ]
 
 // The tab that is open lives in the address (#history), see src/admin/tab.js. The first tab is the one that opens by default.
 const TAB_KEYS = TABS.map((t) => t.key)
+const WORK_TABS = TABS.filter((t) => t.group === GROUP_WORK)
+const MORE_TABS = TABS.filter((t) => t.group === GROUP_MANAGE)
 
 // Defined once, outside Shell: a component created inside a render would be a new type each time and every
-// tab change would remount the buttons (losing keyboard focus).
-function NavItem({ tab, current, onGo, className, size }) {
+// tab change would remount the buttons (losing keyboard focus). `text` is what the button says (the `nav` name unless the caller
+// says otherwise: the sheet under "עוד" has room for the whole name of a screen).
+function NavItem({ tab, current, onGo, className, size, text = tab.nav }) {
   return (
     <button className={className} onClick={() => onGo(tab.key)} aria-current={current ? 'page' : undefined}>
-      <tab.icon size={size} /><span className="a-nav-label">{tab.nav}</span>
+      <tab.icon size={size} /><span className="a-nav-label">{text}</span>
     </button>
+  )
+}
+
+// The sheet that "עוד" opens: the management screens, one button each, in the same look as the rows of the side rail. A real dialog
+// (the same `Modal` as every form of the app: focus moves in and is trapped, Esc and a tap outside close it). Choosing a screen goes
+// there and closes the sheet; the button that opened it takes the focus back (Shell). It has no form, so it never asks about unsaved changes.
+function MoreSheet({ tab, onGo, onClose }) {
+  return (
+    <Modal title="עוד" onClose={onClose} size="sheet">
+      <nav className="a-nav" aria-label="מסכים נוספים">
+        {MORE_TABS.map((t) => (
+          <NavItem key={t.key} tab={t} text={t.label} current={tab === t.key} onGo={(key) => { onGo(key); onClose() }} className="a-nav__item" size={24} />
+        ))}
+      </nav>
+    </Modal>
   )
 }
 
@@ -72,9 +104,19 @@ function Shell({ admin, onSignedOut }) {
   const updateReady = useSyncExternalStore(subscribeUpdate, isUpdateReady)
   const mainRef = useRef(null)
   const first = useRef(true)
+  // The sheet under "עוד" on the phone. When it closes, the focus goes back to the button that opened it: the dialog does that itself, by
+  // the element that was focused when it opened, but Safari does not focus a button that was tapped, so the shell names the button.
+  const [moreOpen, setMoreOpen] = useState(false)
+  const moreRef = useRef(null)
+  const moreWasOpen = useRef(false)
+  useEffect(() => {
+    if (moreWasOpen.current && !moreOpen) moreRef.current?.focus()
+    moreWasOpen.current = moreOpen
+  }, [moreOpen])
+  const closeMore = useCallback(() => setMoreOpen(false), [])
 
   // The building's name, from the committee's own route, as soon as somebody is signed in. Until it answers (or when it cannot) the
-  // brand shows what the public route said, or the plain name of the app. The Committee tab tells the same state when it saves, and
+  // brand shows what the public route said, or the plain name of the app. The Settings screen tells the same state when it saves, and
   // a save that comes before this answer wins over it (loadName drops an answer that is older than a save).
   useEffect(() => {
     let cancelled = false
@@ -113,7 +155,12 @@ function Shell({ admin, onSignedOut }) {
       <aside className="a-side">
         <Brand name={buildingName} />
         <nav className="a-nav" aria-label="ניווט ראשי">
-          {TABS.map((t) => <NavItem key={t.key} tab={t} current={tab === t.key} onGo={goTo} className="a-nav__item" size={24} />)}
+          {[WORK_TABS, MORE_TABS].map((group, index) => (
+            <Fragment key={group[0].group}>
+              {index > 0 && <hr className="a-nav__sep" />}
+              {group.map((t) => <NavItem key={t.key} tab={t} current={tab === t.key} onGo={goTo} className="a-nav__item" size={24} />)}
+            </Fragment>
+          ))}
         </nav>
         <div className="a-side__foot">
           <div className="a-user"><strong>{admin.name || 'חבר ועד'}</strong><span dir="ltr">{admin.email}</span></div>
@@ -138,8 +185,14 @@ function Shell({ admin, onSignedOut }) {
       </main>
 
       <nav className="a-tabbar" aria-label="ניווט ראשי (טלפון)">
-        {TABS.map((t) => <NavItem key={t.key} tab={t} current={tab === t.key} onGo={goTo} className="a-tab" size={24} />)}
+        {WORK_TABS.map((t) => <NavItem key={t.key} tab={t} current={tab === t.key} onGo={goTo} className="a-tab" size={24} />)}
+        {/* The fourth button is the current item while one of the screens under it is open; the sheet marks which one. */}
+        <button type="button" className="a-tab" ref={moreRef} onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen}
+          aria-current={MORE_TABS.some((t) => t.key === tab) ? 'page' : undefined}>
+          <IconMore size={24} /><span className="a-nav-label">עוד</span>
+        </button>
       </nav>
+      {moreOpen && <MoreSheet tab={tab} onGo={goTo} onClose={closeMore} />}
     </>
   )
 }

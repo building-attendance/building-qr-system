@@ -144,7 +144,7 @@ Three screens answer most questions without any query. They need only a working 
   server refused with a final answer (a point that is switched off, a person who is not assigned to it, a code that names nothing,
   data that could not be stored), with the reason and whether the visit came from the phone's queue. They are not attendance
   and are not in the Excel file. Use it when a provider says "I scanned, and it is not there".
-- **Who changed what.** The ("ועד") tab, at the foot, the section ("יומן פעולות") (a button that opens it): every change that a
+- **Who changed what.** The ("יומן פעולות") screen (on a phone, the button ("עוד") opens it): every change that a
   member made, and the system's own daily cleanup, with the time and the member. The filters are the dates, the kind of action
   ("סוג פעולה") and the member ("חבר ועד"). Use it when something changed that nobody expected (a point switched off, a
   provider disabled, phones signed out, a scan cancelled), and to see that the daily cleanup ran (the kind ("ניקוי אוטומטי")).

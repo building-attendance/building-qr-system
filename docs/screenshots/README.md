@@ -20,7 +20,7 @@ end-to-end tests use.
 | `committee-phone-history.png` | The committee app on a phone: the History tab, scrolled to the visits |
 | `committee-computer-points.png` | The committee app on a computer (1280 px wide): the Points tab with the side rail |
 | `committee-computer-history.png` | The same, the History tab |
-| `committee-computer-help.png` | The same, the Committee tab with the help ("How to work with the system") open |
+| `committee-computer-help.png` | The same, the help screen ("How to work with the system") |
 | `committee-computer-points-dark.png` | The same, the Points tab in the dark theme |
 
 Phone pictures are 390 px wide, drawn at twice the density. Every image is a PNG of at most 300 KB (the script refuses a bigger

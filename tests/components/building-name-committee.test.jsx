@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The building's name in the committee app. The Committee tab saves it together with the address ("פרטי הבניין"), and the committee
+// The building's name in the committee app. The settings screen saves it together with the address ("פרטי הבניין"), and the committee
 // app shows it as its brand (the side rail of a computer and the top bar of a phone), in the title of the window and on the sign-in
 // screen. The real AdminApp, with the network (`api`) answered by the test like the server: the committee's own route
 // (`/admin/building`), the public one (`/public/building`) and a PUT that keeps what it was given.
@@ -24,7 +24,7 @@ const server = { signedIn: true, stored: { address: ADDRESS, name: NAME }, publi
 
 beforeEach(() => {
   Object.assign(server, { signedIn: true, stored: { address: ADDRESS, name: NAME }, publicName: NAME, puts: [], putFails: null, adminBuildingFails: false, publicFails: false })
-  window.history.replaceState(null, '', '/#committee')
+  window.history.replaceState(null, '', '/#settings')
 })
 afterEach(() => {
   cleanup()
@@ -76,7 +76,7 @@ const save = (c) => fireEvent.click(c.getByRole('button', { name: 'שמירה' }
 const brands = async () => [within(await screen.findByRole('complementary')), within(await screen.findByRole('banner'))]
 const calls = (path, method) => api.mock.calls.filter(([p, o]) => p === path && (o?.method ?? 'GET') === method)
 
-describe('the card in the Committee tab', () => {
+describe('the card in the settings screen', () => {
   it('has a name field before the address field, both filled with what the server has, and each typed in any language', async () => {
     answerLikeTheServer()
     start()
@@ -240,7 +240,7 @@ describe('the brand of the committee app', () => {
     start()
     for (const place of await brands()) expect(await place.findByText(NAME)).toBeTruthy()
     for (const place of await brands()) expect(place.queryByText(APP)).toBeNull()
-    await waitFor(() => expect(document.title).toBe(`ועד · ${NAME}`))
+    await waitFor(() => expect(document.title).toBe(`הגדרות · ${NAME}`))
   })
 
   it('is the name of the app when the building has no name, in both places and in the title', async () => {
@@ -250,7 +250,7 @@ describe('the brand of the committee app', () => {
     start()
     await waitFor(() => expect(calls('/admin/building', 'GET').length).toBeGreaterThan(0))
     for (const place of await brands()) expect(await place.findByText(APP)).toBeTruthy()
-    await waitFor(() => expect(document.title).toBe(`ועד · ${APP}`))
+    await waitFor(() => expect(document.title).toBe(`הגדרות · ${APP}`))
   })
 
   it('shows the whole of a name of 80 characters (a long one is shortened by the stylesheet, not by the script), laid out by its own script', async () => {
@@ -263,19 +263,19 @@ describe('the brand of the committee app', () => {
       const text = await place.findByText(LONG)
       expect(text.getAttribute('dir')).toBe('auto')
     }
-    await waitFor(() => expect(document.title).toBe(`ועד · ${LONG}`))
+    await waitFor(() => expect(document.title).toBe(`הגדרות · ${LONG}`))
   })
 
   it('asks the committee\'s own route once somebody is signed in, and the title follows the tab', async () => {
     answerLikeTheServer()
     start()
-    await waitFor(() => expect(document.title).toBe(`ועד · ${NAME}`))
+    await waitFor(() => expect(document.title).toBe(`הגדרות · ${NAME}`))
     expect(calls('/admin/building', 'GET').length).toBeGreaterThan(0)
     window.location.hash = '#points'
     await waitFor(() => expect(document.title).toBe(`נקודות · ${NAME}`))
   })
 
-  it('follows a save in the Committee tab at once, with no reload: a new name, then a cleared one', async () => {
+  it('follows a save in the settings screen at once, with no reload: a new name, then a cleared one', async () => {
     answerLikeTheServer()
     start()
     const c = await card()
@@ -286,20 +286,20 @@ describe('the brand of the committee app', () => {
     save(c)
     expect(await screen.findByText('שם הבניין נשמר')).toBeTruthy()
     for (const place of await brands()) expect(await place.findByText('מגדל הבדיקה')).toBeTruthy()
-    expect(document.title).toBe('ועד · מגדל הבדיקה')
+    expect(document.title).toBe('הגדרות · מגדל הבדיקה')
 
     type(nameField(c), '')
     save(c)
     expect(await screen.findByText('שם הבניין הוסר')).toBeTruthy()
     for (const place of await brands()) expect(await place.findByText(APP)).toBeTruthy()
-    expect(document.title).toBe(`ועד · ${APP}`)
+    expect(document.title).toBe(`הגדרות · ${APP}`)
     expect(calls('/admin/building', 'GET').length).toBe(asked) // what the server answered to the save was used: nothing was asked again
   })
 
   it('does not scroll or move the focus when the name arrives: only a change of tab does', async () => {
     answerLikeTheServer()
     start()
-    await waitFor(() => expect(document.title).toBe(`ועד · ${NAME}`))
+    await waitFor(() => expect(document.title).toBe(`הגדרות · ${NAME}`))
     const scrolled = window.scrollTo.mock.calls.length
     const c = await card()
     await waitFor(() => expect(nameField(c).value).toBe(NAME))
@@ -336,7 +336,7 @@ describe('the brand of the committee app', () => {
       expect(place.queryByText('שם ישן מה-CDN')).toBeNull()
       expect(place.getByText('שם עדכני')).toBeTruthy()
     }
-    expect(document.title).toBe('ועד · שם עדכני')
+    expect(document.title).toBe('הגדרות · שם עדכני')
   })
 
   it('keeps a saved name when a read of the committee\'s route that started before the save answers after it', async () => {
@@ -346,7 +346,7 @@ describe('the brand of the committee app', () => {
     const gate = new Promise((resolve) => { release = resolve })
     let reads = 0
     api.mockImplementation(async (path, options) => {
-      // The Committee tab's own read answers at once; the shell's (the second read) is slow, and says what the server had
+      // The settings screen's own read answers at once; the shell's (the second read) is slow, and says what the server had
       // when it was asked, the name from before the save.
       if (path === '/admin/building' && !options?.method && ++reads === 2) {
         const asked = { ...server.stored }
@@ -368,7 +368,7 @@ describe('the brand of the committee app', () => {
       expect(place.queryByText(NAME)).toBeNull()
       expect(place.getByText('מגדל הבדיקה')).toBeTruthy()
     }
-    expect(document.title).toBe('ועד · מגדל הבדיקה')
+    expect(document.title).toBe('הגדרות · מגדל הבדיקה')
   })
 
   it('stays as it is when a route fails: the public name if only the committee\'s route fails, the plain brand if both do', async () => {
@@ -382,7 +382,7 @@ describe('the brand of the committee app', () => {
     start()
     await waitFor(() => expect(calls('/admin/building', 'GET').length).toBeGreaterThan(1))
     for (const place of await brands()) expect(await place.findByText(APP)).toBeTruthy()
-    await waitFor(() => expect(document.title).toBe(`ועד · ${APP}`))
+    await waitFor(() => expect(document.title).toBe(`הגדרות · ${APP}`))
   })
 
   it('asks the public route even when somebody is already signed in, and nothing breaks when it answers without a name', async () => {

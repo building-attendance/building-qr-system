@@ -150,10 +150,10 @@ test('a broken screen of the committee app is Hebrew, on a phone and on a comput
   await page.unroute(ADMIN_ME)
   const report = page.waitForRequest(isErrorReport(ADMIN_ERRORS))
   await tryAgain.click()
-  await expect(page.getByRole('heading', { name: 'נקודות סריקה' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible() // the first screen of the committee app
   await expect(heading).toHaveCount(0)
   // The committee app sends the crash with its cookie, through its own API client: the tab that was open, the name of the error, no message.
-  await expectErrorReport(await report, [{ kind: 'crash', place: 'committee:points', name: 'Error' }])
+  await expectErrorReport(await report, [{ kind: 'crash', place: 'committee:history', name: 'Error' }])
   await expect.poll(() => outboxOf(page)).toBeNull()
   expect(crashes).toEqual(['Screen crash (committee app): Error'])
 })

@@ -1,13 +1,14 @@
 // @vitest-environment jsdom
-// The short guide in the Committee tab (src/admin/views/HelpSection.jsx, its text in src/admin/help.js): a section that a button
-// opens, closed at first, with flat <h3> topics, in Hebrew, short, and in the names that the screens use. The real section and
-// the real Committee tab, with the network (`adminApi`) answered by the test.
+// The short guide, a screen of its own ("איך עובדים עם המערכת": src/admin/views/HelpView.jsx, its text in src/admin/help.js): an <h1>,
+// then flat <h2> topics, all of them on the screen at once, in Hebrew, short, and in the names that the screens use. The real screen,
+// and the real settings screen to prove that the guide is no longer a section of it (it was a section that a button opened, in the
+// screen that held the members, the building and the audit log), with the network (`adminApi`) answered by the test.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import { render, screen, fireEvent, within, cleanup } from '@testing-library/react'
-import HelpSection from '../../src/admin/views/HelpSection.jsx'
-import CommitteeView from '../../src/admin/views/CommitteeView.jsx'
+import { render, screen, within, cleanup } from '@testing-library/react'
+import HelpView from '../../src/admin/views/HelpView.jsx'
+import SettingsView from '../../src/admin/views/SettingsView.jsx'
 import { HELP_TOPICS, HELP_MAX_LENGTH } from '../../src/admin/help.js'
 import { ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
 import { adminApi } from '../../src/admin/api.js'
@@ -21,7 +22,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-const BUTTON = 'איך עובדים עם המערכת'
+const TITLE = 'איך עובדים עם המערכת'
 // The topics, in the order of the screen: the names that the owner chose.
 const TOPICS = [
   'נקודות ושלטי QR',
@@ -33,79 +34,41 @@ const TOPICS = [
   'כשטלפון תקוע',
 ]
 
-const opener = () => screen.getByRole('button', { name: BUTTON })
-const panelOf = () => document.getElementById(opener().getAttribute('aria-controls'))
-const topics = () => screen.queryAllByRole('heading', { level: 3 })
-/** Everything that a person can read when the guide is open: the button and the topics. */
-const readable = () => `${opener().textContent}${panelOf().textContent}`
-const mount = () => render(<HelpSection />)
+const topics = () => screen.queryAllByRole('heading', { level: 2 })
+/** Everything that a person can read on the screen: its heading and the topics. */
+const readable = () => document.body.textContent
+const mount = () => render(<HelpView />)
 
-describe('the section', () => {
-  it('is closed at first: a button that is the heading of the section, a panel that is hidden, and no topic', () => {
+describe('the screen', () => {
+  it('has the guide as its one <h1>, and shows every topic at once: nothing opens or closes', () => {
     mount()
-    expect(opener().getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getByRole('heading', { level: 2, name: BUTTON }).contains(opener())).toBe(true)
-    expect(panelOf().hidden).toBe(true)
-    expect(topics()).toHaveLength(0)
-    expect(panelOf().textContent).toBe('') // nothing is drawn while it is closed
+    expect(screen.getAllByRole('heading', { level: 1 }).map((h) => h.textContent)).toEqual([TITLE])
+    expect(topics()).toHaveLength(HELP_TOPICS.length)
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
+    expect(document.querySelector('[aria-expanded], [hidden]')).toBeNull()
   })
 
-  it('is a region that the button names, and the button controls the panel that follows it', () => {
+  it('has no action in it: no button and no link', () => {
     mount()
-    const region = screen.getByRole('region', { name: BUTTON })
-    expect(region.contains(opener())).toBe(true)
-    expect(region.contains(panelOf())).toBe(true)
-    expect(opener().getAttribute('type')).toBe('button')
-  })
-
-  it('opens with the button and closes with the same button, and aria-expanded follows', () => {
-    mount()
-    fireEvent.click(opener())
-    expect(opener().getAttribute('aria-expanded')).toBe('true')
-    expect(panelOf().hidden).toBe(false)
-    expect(topics().length).toBeGreaterThan(0)
-    fireEvent.click(opener())
-    expect(opener().getAttribute('aria-expanded')).toBe('false')
-    expect(panelOf().hidden).toBe(true)
-    expect(topics()).toHaveLength(0)
-    fireEvent.click(opener())
-    expect(opener().getAttribute('aria-expanded')).toBe('true') // and again
-  })
-
-  it('keeps the same button and panel when it opens (the id that aria-controls names does not change)', () => {
-    mount()
-    const panel = panelOf()
-    const id = opener().getAttribute('aria-controls')
-    fireEvent.click(opener())
-    expect(panelOf()).toBe(panel)
-    expect(opener().getAttribute('aria-controls')).toBe(id)
-  })
-
-  it('has no action in it: only the one button, and no link', () => {
-    mount()
-    fireEvent.click(opener())
-    expect(within(panelOf()).queryAllByRole('button')).toHaveLength(0)
-    expect(within(panelOf()).queryAllByRole('link')).toHaveLength(0)
-    expect(screen.getAllByRole('button')).toHaveLength(1)
+    expect(screen.queryAllByRole('link')).toHaveLength(0)
+    expect(screen.queryAllByRole('button')).toHaveLength(0)
   })
 })
 
 describe('the topics', () => {
-  it('has a heading for every topic, flat (<h3>), in the order of the screen, and nothing else', () => {
+  it('has a heading for every topic, flat (<h2>, under the <h1>), in the order of the screen, and nothing else', () => {
     mount()
-    fireEvent.click(opener())
     expect(topics().map((h) => h.textContent)).toEqual(TOPICS)
     expect(topics()).toHaveLength(HELP_TOPICS.length)
-    expect(within(panelOf()).queryAllByRole('heading').filter((h) => h.tagName !== 'H3')).toHaveLength(0) // no heading of another level
+    expect(screen.queryAllByRole('heading').filter((h) => !['H1', 'H2'].includes(h.tagName))).toHaveLength(0) // no heading of another level
   })
 
   it('has under each heading its sentences, as text', () => {
     mount()
-    fireEvent.click(opener())
     for (const topic of HELP_TOPICS) {
       const text = screen.getByText(topic.text)
       expect(text.tagName).toBe('P')
-      const heading = screen.getByRole('heading', { level: 3, name: topic.title })
+      const heading = screen.getByRole('heading', { level: 2, name: topic.title })
       expect(heading.nextElementSibling).toBe(text)
     }
   })
@@ -119,26 +82,23 @@ describe('the topics', () => {
     }
   })
 
-  it('is short: everything that a person can read when it is open is within the limit (about 3,000 characters)', () => {
+  it('is short: everything that a person can read on the screen is within the limit (about 3,000 characters)', () => {
     expect(HELP_MAX_LENGTH, 'the limit was not raised').toBeLessThanOrEqual(3000)
     mount()
-    fireEvent.click(opener())
     expect(readable().length).toBeLessThanOrEqual(HELP_MAX_LENGTH)
     expect(readable().length, 'and it says something').toBeGreaterThan(800)
   })
 
   it('has no em dash and no stray markup', () => {
     mount()
-    fireEvent.click(opener())
     expect(readable()).not.toContain(EM_DASH)
     expect(JSON.stringify(HELP_TOPICS)).not.toContain(EM_DASH)
     expect(readable()).not.toMatch(/[<>{}]/)
   })
 
   it('is plain text: the sentences make no element, whatever they hold', () => {
-    mount()
-    fireEvent.click(opener())
-    expect(panelOf().querySelectorAll('*:not(div):not(h3):not(p)')).toHaveLength(0)
+    const { container } = mount()
+    expect(container.querySelectorAll('*:not(div):not(h1):not(h2):not(p)')).toHaveLength(0)
   })
 
   it('is in Hebrew', () => {
@@ -146,6 +106,13 @@ describe('the topics', () => {
       expect(title, 'a title in Hebrew').toMatch(/[֐-׿]/)
       expect(text, `${title}: text in Hebrew`).toMatch(/[֐-׿]/)
     }
+  })
+
+  it('says where the screens under "עוד" are on a phone', () => {
+    const text = HELP_TOPICS.map((t) => t.text).join(' ')
+    expect(text).toContain('בטלפון: "עוד" ואז "אייג׳נט"')
+    expect(text).toContain('בטלפון: "עוד" ואז "יומן פעולות"')
+    expect(text).not.toContain('"ועד"') // the screen of that name is gone
   })
 })
 
@@ -171,7 +138,7 @@ describe('the names that the guide quotes', () => {
 
   it('finds the quoted names at all (the check is not empty)', () => {
     expect(quoted.length).toBeGreaterThan(15)
-    for (const name of ['נקודה חדשה', 'הדפסת שלט', 'מכשירים', 'יומן פעולות', 'לא נקלטו']) expect(quoted).toContain(name)
+    for (const name of ['נקודה חדשה', 'הדפסת שלט', 'מכשירים', 'יומן פעולות', 'לא נקלטו', 'עוד']) expect(quoted).toContain(name)
   })
 
   it.each(quoted)('"%s" is written on a screen of the committee app', (name) => {
@@ -179,40 +146,18 @@ describe('the names that the guide quotes', () => {
   })
 })
 
-describe('in the Committee tab', () => {
-  const committee = () => {
+describe('in the settings screen', () => {
+  it('is not there any more: no button for the guide and none for the audit log, and the screen asks the server for the members and the building only', async () => {
     adminApi.mockImplementation(async (apiPath) => {
       if (apiPath === '/admins') return { admins: [] }
       if (apiPath === '/building') return { building: { address: '' } }
       throw new Error(`unexpected call ${apiPath}`)
     })
-    render(<ToastProvider><ConfirmProvider><CommitteeView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.test' }} /></ConfirmProvider></ToastProvider>)
-  }
-  const after = (a, b) => Boolean(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING)
-
-  it('is closed, after the building card and before the version line and the audit log, and asks the server for nothing', async () => {
-    committee()
-    const building = await screen.findByLabelText('כתובת הבניין')
-    expect(opener().getAttribute('aria-expanded')).toBe('false')
-    expect(topics()).toHaveLength(0)
-    const version = screen.getByText('גרסה').closest('p')
-    const audit = screen.getByRole('button', { name: 'יומן פעולות' })
-    expect(after(building, opener())).toBe(true)
-    expect(after(opener(), version)).toBe(true)
-    expect(after(opener(), audit)).toBe(true)
-    expect(adminApi.mock.calls.map(([p]) => p).sort()).toEqual(['/admins', '/building']) // opening a guide is not a request
-  })
-
-  it('opens without touching the audit log, which stays the last section of the page', async () => {
-    committee()
+    render(<ToastProvider><ConfirmProvider><SettingsView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.test' }} /></ConfirmProvider></ToastProvider>)
     await screen.findByLabelText('כתובת הבניין')
-    fireEvent.click(opener())
-    expect(topics().map((h) => h.textContent)).toEqual(TOPICS)
-    expect(screen.getByRole('button', { name: 'יומן פעולות' }).getAttribute('aria-expanded')).toBe('false')
-    expect(screen.getAllByRole('button', { name: /יומן פעולות|איך עובדים/ })).toHaveLength(2)
-    const sections = [...document.querySelectorAll('section')]
-    expect(sections.at(-1).className).toBe('a-audit-section')
-    expect(sections.map((s) => s.className)).toContain('a-help-section')
+    expect(screen.queryByRole('button', { name: TITLE })).toBeNull()
+    expect(screen.queryByRole('button', { name: 'יומן פעולות' })).toBeNull()
+    expect(within(document.body).queryAllByRole('heading', { level: 3 })).toHaveLength(0) // the members' cards (none in this list) are its only <h3>
     expect(adminApi.mock.calls.map(([p]) => p).sort()).toEqual(['/admins', '/building'])
   })
 })

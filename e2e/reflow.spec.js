@@ -3,7 +3,7 @@
 // T2  Reflow at 320 px. At a viewport of 320x640 (WCAG 1.4.10) no screen scrolls sideways, and no text is cut off, pushed out of the
 //     screen or out of the box that draws it. The screens are the provider app in each of its four languages (the sign-in list, the
 //     password screen, a result that was refused, a result that was recorded, the home screen) and the committee app (the sign-in
-//     screen, the five tabs, the audit log, and the point, QR and provider dialogs).
+//     screen, the seven screens and the sheet under "עוד", and the point, QR and provider dialogs).
 // F5  Input font size. On a phone every visible input, select and textarea has a computed font-size of 16 px or more, because iOS zooms
 //     the page in when a field below that is focused. The provider app's password screen and pickers, and the forms and dialogs of the
 //     committee app.
@@ -17,7 +17,7 @@
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, EMAIL_MAX_LENGTH } from '../shared/contract.js'
-import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, adminSignIn, clearScans, allowConsoleErrors, pageSettled } from './fixtures.js'
+import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled } from './fixtures.js'
 
 const PHONE = { width: 320, height: 640 }
 const NEAR = { latitude: SAMPLE_POINT.lat, longitude: SAMPLE_POINT.lng, accuracy: 10 }
@@ -429,7 +429,7 @@ test.describe('T2 reflow at 320 px: the provider app', () => {
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
 const stubMapImages = (page) => page.route('https://tile.openstreetmap.org/**', (route) => route.fulfill({ contentType: 'image/png', body: PIXEL }))
 
-const TITLES = { points: 'נקודות סריקה', providers: 'נותני שירות', history: 'היסטוריית נוכחות', agent: "גישה לאייג'נט", committee: 'חברי הוועד' }
+const TITLES = SCREEN_TITLES
 const openTab = async (page, tab) => {
   await page.goto(`/admin#${tab}`)
   await expect(page.getByRole('heading', { level: 1, name: TITLES[tab] })).toBeVisible()
@@ -456,27 +456,22 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
     await check('committee: sign-in')
   })
 
-  test('the five tabs, the help and the audit log', async ({ page }, testInfo) => {
+  test('the seven screens and the sheet under "עוד"', async ({ page }, testInfo) => {
     const { check } = reflowChecker(page, testInfo)
     await adminSignIn(page)
     await expect(page.getByRole('banner')).toContainText(BUILDING_NAME.slice(0, 20)) // the top bar says the long name of the building
-    for (const tab of ['points', 'providers', 'history', 'agent', 'committee']) {
+    for (const tab of ['history', 'points', 'providers', 'agent', 'settings', 'audit', 'help']) {
       await openTab(page, tab)
       if (tab === 'history') await expect(page.getByRole('listitem').getByText(POINT_NAME.slice(0, 20)).first()).toBeVisible() // the rows are drawn
       if (tab === 'agent') await expect(page.getByText(KEY_NAME.slice(0, 20))).toBeVisible()
-      if (tab === 'committee') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
+      if (tab === 'settings') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
+      if (tab === 'audit') await expect(page.getByRole('main').getByRole('listitem').first()).toBeVisible()
       await check(`committee phone: ${tab}`)
     }
-    // (the committee tab again) the two sections that a button opens at its foot
-    await page.getByRole('button', { name: 'איך עובדים עם המערכת', exact: true }).click()
-    await expect(page.getByRole('region', { name: 'איך עובדים עם המערכת' }).getByRole('heading', { level: 3 }).first()).toBeVisible()
-    await check('committee phone: committee, help open')
-    await page.getByRole('button', { name: 'איך עובדים עם המערכת', exact: true }).click()
-    await page.getByRole('button', { name: 'יומן פעולות', exact: true }).click()
-    const log = page.getByRole('region', { name: 'יומן פעולות' })
-    await expect(log.getByRole('listitem').first()).toBeVisible()
-    await expect(log.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
-    await check('committee phone: committee, audit log open')
+    // the sheet that the fourth button of the bar opens, over the screen of the management group that is open (the help)
+    await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'עוד', exact: true })).toBeVisible()
+    await check('committee phone: the sheet under "עוד"')
   })
 
   test('the dialogs of the points and the providers', async ({ page }, testInfo) => {
@@ -572,12 +567,12 @@ test.describe('F5 input font size on a phone', () => {
     await page.getByRole('button', { name: 'מפתח חדש' }).click()
     await closeAfter('מפתח גישה חדש', 'committee: new agent key form')
 
-    await openTab(page, 'committee')
-    await checkFields(page, 'committee: committee tab (the building card)')
+    await openTab(page, 'settings')
+    await checkFields(page, 'committee: settings (the building card)')
     await page.getByRole('button', { name: 'חבר ועד חדש' }).click()
     await closeAfter('חבר ועד חדש', 'committee: new member form')
-    await page.getByRole('button', { name: 'יומן פעולות', exact: true }).click()
-    await expect(page.getByRole('region', { name: 'יומן פעולות' }).getByRole('listitem').first()).toBeVisible()
+    await openTab(page, 'audit')
+    await expect(page.getByRole('main').getByRole('listitem').first()).toBeVisible()
     await checkFields(page, 'committee: audit log (the filters)')
   })
 })

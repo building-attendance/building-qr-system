@@ -711,6 +711,19 @@ describe('the lists of the contract', () => {
     expect(keys.length).toBeGreaterThan(0)
     for (const key of keys) expect(CLIENT_PLACES, `a tab of the committee app (${key}) has no key`).toContain(`committee:${key}`)
     const committee = CLIENT_PLACES.filter((place) => place.startsWith('committee:')).map((place) => place.slice('committee:'.length))
-    for (const key of committee) expect([...keys, 'login', 'app'], `committee:${key} is not a tab`).toContain(key)
+    // 'committee' is the key of the screen that was split into settings, audit and help: an installed app still sends it, so it stays
+    // (the comment above CLIENT_PLACES in shared/contract.js), and it is the only key that is not a screen, a fallback or the sign-in
+    const retired = ['committee']
+    for (const key of committee) expect([...keys, 'login', 'app', ...retired], `committee:${key} is not a tab`).toContain(key)
+    for (const key of retired) expect(keys, `committee:${key} is retired, so it must not be a tab again`).not.toContain(key)
+  })
+
+  it('accepts a report that an older committee app sends from the screen that was split (committee:committee)', async () => {
+    expect(parseClientErrorReport({ events: [{ kind: 'crash', place: 'committee:committee', name: 'TypeError' }] }, 'committee_app')).toEqual([
+      expect.objectContaining({ kind: 'crash', place: 'committee:committee' }),
+    ])
+    for (const place of ['committee:settings', 'committee:audit', 'committee:help']) {
+      expect(parseClientErrorReport({ events: [{ kind: 'crash', place }] }, 'committee_app'), place).toHaveLength(1)
+    }
   })
 })

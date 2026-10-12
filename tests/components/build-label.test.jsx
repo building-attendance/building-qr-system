@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The build id on screen: the home screen of the provider app (in each of its four languages) and the Committee tab of the
+// The build id on screen: the home screen of the provider app (in each of its four languages) and the settings screen of the
 // committee app. An installed phone keeps running old JavaScript for days or weeks, and this line is how the committee and
 // the owner tell which version it is.
 import { describe, it, expect, vi, afterEach } from 'vitest'
@@ -7,7 +7,7 @@ import { render, screen, cleanup, waitFor } from '@testing-library/react'
 import { I18nProvider } from '../../src/i18n/index.jsx'
 import { DICTS, LANGS, LANG_STORAGE_KEY } from '../../src/i18n/core.js'
 import { HomeView } from '../../src/worker/components.jsx'
-import CommitteeView from '../../src/admin/views/CommitteeView.jsx'
+import SettingsView from '../../src/admin/views/SettingsView.jsx'
 import { ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
 import { adminApi } from '../../src/admin/api.js'
 
@@ -73,13 +73,13 @@ describe('the committee app', () => {
     render(
       <ToastProvider>
         <ConfirmProvider>
-          <CommitteeView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.com' }} />
+          <SettingsView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.com' }} />
         </ConfirmProvider>
       </ToastProvider>,
     )
   }
 
-  it('shows the build id in Hebrew at the foot of the Committee tab, the id as a left-to-right run of its own', async () => {
+  it('shows the build id in Hebrew at the foot of the settings screen, the id as a left-to-right run of its own', async () => {
     view()
     await screen.findByLabelText('כתובת הבניין') // the tab has finished loading
     const label = screen.getByText('גרסה')
@@ -102,7 +102,7 @@ describe('the committee app', () => {
     render(
       <ToastProvider>
         <ConfirmProvider>
-          <CommitteeView admin={{ id: 'a1' }} />
+          <SettingsView admin={{ id: 'a1' }} />
         </ConfirmProvider>
       </ToastProvider>,
     )

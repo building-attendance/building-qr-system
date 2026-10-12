@@ -28,3 +28,7 @@ export const IconTrash = (p) => <Svg {...p}><path d="M4 7h16M10 11v6M14 11v6M6 7
 export const IconBan = (p) => <Svg {...p}><circle cx="12" cy="12" r="9" /><path d="M5.7 5.7l12.6 12.6" /></Svg>
 export const IconClock = (p) => <Svg {...p}><path d="M3.5 12a8.5 8.5 0 1 0 2.6-6.1M3.5 4v4.5H8M12 8v4.2l2.8 1.8" /></Svg>
 export const IconDevice = (p) => <Svg {...p}><rect x="7" y="3" width="10" height="18" rx="2" /><path d="M11 18h2" /></Svg>
+/* Three sliders: the settings screen. */
+export const IconSettings = (p) => <Svg {...p}><path d="M4 7h9M17 7h3M4 12h3M11 12h9M4 17h11M19 17h1" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="12" r="2" /><circle cx="17" cy="17" r="2" /></Svg>
+/* Three dots in a row: "more", the button of the phone's tab bar that opens the rest of the screens. */
+export const IconMore = (p) => <Svg {...p}><path d="M5 12h.01M12 12h.01M19 12h.01" strokeWidth="3.5" /></Svg>
