@@ -30,7 +30,7 @@
 import { deflateSync, crc32 } from 'node:zlib'
 import ar from '../src/i18n/ar.js'
 import {
-  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, SCREEN_TITLES, clearScans, pageSettled, signIn,
+  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, SCREEN_TITLES, HOME_NOW, clearScans, pageSettled, signIn, stubHome,
 } from './fixtures.js'
 
 // ---- where and when it runs ----------------------------------------------------------------------------------------------------
@@ -383,19 +383,20 @@ async function stubAudit(page) {
   })
 }
 
-// The screens of the committee app, in the order of the side rail (src/pages/AdminApp.jsx), with the heading of each.
-const TABS = Object.entries(SCREEN_TITLES)
+// The screens of the committee app, in the order of the side rail (src/pages/AdminApp.jsx), with the heading of each. Home has a test of its own:
+// its heading is a greeting that follows the hour, so the clock is set for it, and its numbers are a fixed week (`stubHome`).
+const TABS = Object.entries(SCREEN_TITLES).filter(([tab]) => tab !== 'home')
 
 /**
  * Signs the committee in through the API of the scratch schema, on the browser's own cookies, and opens the app on `screen`: it then
- * shows that screen at once (the history, the first one, when none is named). (The sign-in button of adminSignIn would first load /admin
- * without a session, and the browser logs the 401 of that request as a console error: not something to allow in a test that is about
- * how the screens look.)
+ * shows that screen at once (the history when none is named; Home is the screen that the app opens with no address, so `'home'` is /admin).
+ * (The sign-in button of adminSignIn would first load /admin without a session, and the browser logs the 401 of that request as a console
+ * error: not something to allow in a test that is about how the screens look.)
  */
 async function committeeSignedIn(page, screen = 'history') {
   const login = await page.request.post('/api/admin/dev-login', { data: { email: ADMIN_EMAIL } })
   expect(login.ok(), 'dev admin sign-in').toBeTruthy()
-  await page.goto(screen === 'history' ? '/admin' : `/admin#${screen}`)
+  await page.goto(screen === 'home' ? '/admin' : `/admin#${screen}`)
   await expect(page.getByRole('heading', { name: SCREEN_TITLES[screen], level: 1, exact: true })).toBeVisible()
 }
 
@@ -426,7 +427,18 @@ function committeeScreens(width) {
     }
   })
 
-  // A new installation has no points, and the history is the first screen: it says to start with the points.
+  // Home, with a fixed week of visits (invented, `stubHome`) and the clock at ten in the morning of its last day: the greeting is "בוקר טוב" and the
+  // days of the table are the ones in the picture. The member is the sample one, "Dev Admin", so the greeting says "Dev".
+  test('the home screen', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(HOME_NOW))
+    await stubHome(page)
+    await committeeSignedIn(page, 'home')
+    await expect(page.getByRole('heading', { level: 1, name: 'בוקר טוב, Dev' })).toBeVisible()
+    await expect(page.getByRole('table', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('link').first()).toBeVisible()
+    await shotBothThemes(page, `committee-${width}-home`)
+  })
+
+  // A new installation has no points: the history says to start with the points.
   test('the history of a building with no points', async ({ page }) => {
     await stopClock(page)
     await page.route('**/api/admin/points', (route) => (route.request().method() === 'GET' ? route.fulfill({ json: { points: [] } }) : route.continue()))
@@ -465,7 +477,7 @@ function committeeFilters(width) {
   test(width === '360' ? 'the filters sheet and the bar with filters on' : 'the filters sheet', async ({ page }) => {
     await stopClock(page)
     await stubHistory(page)
-    await committeeSignedIn(page) // the history is the first screen
+    await committeeSignedIn(page) // the history
     await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
     await page.getByRole('button', { name: /^סינון/ }).click()
     const sheet = page.getByRole('dialog', { name: 'סינון', exact: true })

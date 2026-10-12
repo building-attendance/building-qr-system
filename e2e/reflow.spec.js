@@ -3,7 +3,7 @@
 // T2  Reflow at 320 px. At a viewport of 320x640 (WCAG 1.4.10) no screen scrolls sideways, and no text is cut off, pushed out of the
 //     screen or out of the box that draws it. The screens are the provider app in each of its four languages (the sign-in list, the
 //     password screen, a result that was refused, a result that was recorded, the home screen) and the committee app (the sign-in
-//     screen, the seven screens and the sheet under "עוד", and the point, QR and provider dialogs).
+//     screen, the eight screens (Home with its week table among them) and the sheet under "עוד", and the point, QR and provider dialogs).
 // F5  Input font size. On a phone every visible input, select and textarea has a computed font-size of 16 px or more, because iOS zooms
 //     the page in when a field below that is focused. The provider app's password screen and pickers, and the forms and dialogs of the
 //     committee app.
@@ -17,7 +17,7 @@
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, EMAIL_MAX_LENGTH } from '../shared/contract.js'
-import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled, openFilters } from './fixtures.js'
+import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled, openFilters, stubHome, homeSummary } from './fixtures.js'
 
 const PHONE = { width: 320, height: 640 }
 const NEAR = { latitude: SAMPLE_POINT.lat, longitude: SAMPLE_POINT.lng, accuracy: 10 }
@@ -456,12 +456,13 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
     await check('committee: sign-in')
   })
 
-  test('the seven screens and the sheet under "עוד"', async ({ page }, testInfo) => {
+  test('the eight screens and the sheet under "עוד"', async ({ page }, testInfo) => {
     const { check } = reflowChecker(page, testInfo)
     await adminSignIn(page)
     await expect(page.getByRole('banner')).toContainText(BUILDING_NAME.slice(0, 20)) // the top bar says the long name of the building
-    for (const tab of ['history', 'points', 'providers', 'agent', 'settings', 'audit', 'help']) {
+    for (const tab of ['home', 'history', 'points', 'providers', 'agent', 'settings', 'audit', 'help']) {
       await openTab(page, tab)
+      if (tab === 'home') await expect(page.getByRole('table', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('rowheader').filter({ hasText: WORKERS.he.name.slice(0, 12) })).toBeVisible() // the rows with the long names are drawn
       if (tab === 'history') await expect(page.getByRole('listitem').getByText(POINT_NAME.slice(0, 20)).first()).toBeVisible() // the rows are drawn
       if (tab === 'agent') await expect(page.getByText(KEY_NAME.slice(0, 20))).toBeVisible()
       if (tab === 'settings') await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
@@ -477,6 +478,28 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
     await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
     await expect(page.getByRole('dialog', { name: 'עוד', exact: true })).toBeVisible()
     await check('committee phone: the sheet under "עוד"')
+  })
+
+  // The week table of Home is the one place where the numbers are a grid, so it gets the worst case that the real data above does not make: a
+  // provider that is switched off and one that was deleted (each has a badge in the name column), names of one long word, a name at the
+  // limit in Cyrillic, counts of three digits, and the cards with the biggest numbers. The table must fit the width of the screen by
+  // itself (its own box does not scroll), and so must every card.
+  test('the Home screen with the longest names, a provider that is switched off and one that was deleted, and big numbers', async ({ page }, testInfo) => {
+    const { check } = reflowChecker(page, testInfo)
+    const id = (n) => `00000000-0000-4000-8000-0000000005${String(n).padStart(2, '0')}`
+    const providers = [
+      { id: id(1), name: WORKERS.he.name, company: WORKERS.he.company, is_active: true, counts: [120, 0, 0, 0, 0, 0, 9] },
+      { id: id(2), name: UNBROKEN.worker.name, company: UNBROKEN.worker.company, is_active: true, counts: [1, 2, 3, 4, 5, 6, 7] },
+      { id: id(3), name: WORKERS.ru.name, company: WORKERS.ru.company, is_active: false, counts: [0, 0, 0, 0, 0, 0, 3] },
+      { id: id(4), name: `${UNBROKEN.worker.name}2`, company: null, is_active: false, counts: [0, 0, 4, 0, 0, 0, 0] },
+      { id: id(5), name: 'דנה', company: 'דנה', is_active: true, counts: [0, 0, 0, 0, 0, 0, 0] },
+    ]
+    await stubHome(page, homeSummary({ providers, counts: { visits_not_counted: 123456, waiting: { phones: 12, visits: 345 } } }))
+    await adminSignIn(page, 'home')
+    await expect(page.getByRole('table', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('rowheader').filter({ hasText: 'נותן שירות שנמחק' })).toBeVisible()
+    await check('committee phone: home, the longest names, a provider that is off and one that was deleted')
+    const box = page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' })
+    expect(await box.evaluate((el) => el.scrollWidth - el.clientWidth), 'the box of the table does not scroll: the table fits').toBeLessThanOrEqual(1)
   })
 
   test('the dialogs of the points and the providers', async ({ page }, testInfo) => {
