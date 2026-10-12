@@ -183,8 +183,13 @@ describe('no other way of writing a date in the code', () => {
   it('the committee screens write dates through the shared module', () => {
     const history = fs.readFileSync(path.join(root, 'src/admin/views/HistoryView.jsx'), 'utf8')
     expect(history).toContain("from '../../../shared/datetime.js'")
-    expect(history).toMatch(/<DateInput value=\{filters\.from\}/)
-    expect(history).toMatch(/<DateInput value=\{filters\.to\}/)
+    // The two date fields are the app's own DateInput (never the browser's date field), drawn by `DateRangeFields`, which the History
+    // tab and the audit log share (src/admin/filters.jsx); the History tab hands it its own filters.
+    expect(history).toMatch(/<DateRangeFields from=\{values\.from\} to=\{values\.to\}/)
+    const filters = fs.readFileSync(path.join(root, 'src/admin/filters.jsx'), 'utf8')
+    expect(filters).toContain("from '../../shared/datetime.js'")
+    expect(filters).toMatch(/<DateInput value=\{from\}/)
+    expect(filters).toMatch(/<DateInput value=\{to\}/)
     const hooks = fs.readFileSync(path.join(root, 'src/admin/hooks.js'), 'utf8')
     expect(hooks).toContain("export { formatDateTime } from '../../shared/datetime.js'")
   })

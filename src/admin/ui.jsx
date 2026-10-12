@@ -61,6 +61,9 @@ export function DateInput({ value, onChange, onPendingChange, 'aria-invalid': in
     const next = editDay(text, input.value, input.selectionStart ?? input.value.length)
     caretRef.current = next.caret
     setText(next.text)
+    // Told with the change itself, and not only by the effect above, which runs a render later: a screen that reads it on a key press
+    // (Enter in the filters' sheet) must not see the state of the key before.
+    onPendingChange?.(next.text !== '' && !parseDay(next.text))
     if (next.text === '') onChange('')
     else if (parseDay(next.text)) onChange(parseDay(next.text))
   }
@@ -112,19 +115,34 @@ export function useDirty(value) {
  * saving"; the question puts the person back in the form otherwise, with everything as it was. The close button and the
  * dialog's own Cancel button are chosen on purpose, so they call `onClose` at once.
  *
- * `size` is the width of the dialog on a computer: "sm", "md" (the default) or "lg". "sheet" is a list of choices with no form (the screens
- * under "עוד" on a phone): it stays at the bottom of the screen at every width and is as wide as the list needs.
+ * `size` is the width of the dialog on a computer: "sm", "md" (the default) or "lg". "sheet" is what a phone shows from the bottom (the screens
+ * under "עוד", and the filters of the History tab and the audit log): it stays at the bottom of the screen at every width, with only its top
+ * corners rounded, at most 480 px wide. A sheet with a footer (the filters) clears the home indicator under the footer, one without under its body.
  *
  * `busy` says that the form's save is on its way: Esc and a tap outside then do nothing at all, and the close button is
  * disabled (a form disables its own Cancel the same way). The save closes the dialog itself when it works, and leaves the
  * form as it was typed when it fails; a dialog that closed meanwhile would lose the answer (the key that is shown only
  * once) or let the change be saved after the person was told it was discarded.
+ *
+ * `question` is the words of that question when "save" is not what the dialog does: `{ title, body, confirmLabel, cancelLabel }`, each
+ * part optional (the filters of a long list are shown, not saved). `initialFocus` is where the focus goes when the dialog opens: 'field'
+ * (the default) is its first field, 'dialog' is the dialog itself, for a dialog whose first field is a text field that would bring up
+ * the keyboard of a phone over it at once.
+ *
+ * When it closes, the focus goes back to the element that had it when the dialog opened (the opener). That element can be gone by then (the
+ * screen drew another layout meanwhile), or there can have been none (Safari does not focus a button that is tapped, so the page's body
+ * had the focus). `returnFocus` is a function that gives the element to focus instead, for a dialog whose screen knows its own opener: it is
+ * asked when the opener is gone or there was none, and an opener that is still in the page keeps the focus as it always had. Without it, a
+ * dialog whose opener is gone puts the focus on the page's `main` (the shell's own target when a screen changes), but only while nothing else
+ * has taken it: two dialogs that close together, one of them opened from the other, must not fight over it.
  */
-export function Modal({ title, onClose, dirty = false, busy = false, children, footer, size = 'md' }) {
+export function Modal({ title, onClose, dirty = false, busy = false, question, initialFocus = 'field', returnFocus, children, footer, size = 'md' }) {
   const ref = useRef(null)
   const titleId = useId()
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const returnFocusRef = useRef(returnFocus)
+  returnFocusRef.current = returnFocus
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
   const busyRef = useRef(busy)
@@ -146,8 +164,8 @@ export function Modal({ title, onClose, dirty = false, busy = false, children, f
     document.body.style.overflow = 'hidden'
     const el = ref.current
     const items = () => [...el.querySelectorAll(FOCUSABLE)]
-    // Prefer the first form field over the close button.
-    ;(el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el).focus()
+    // Prefer the first form field over the close button, unless the dialog asks to start on itself.
+    ;(initialFocus === 'dialog' ? el : el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el).focus()
 
     const onKey = (e) => {
       if (modalStack[modalStack.length - 1] !== me) return
@@ -173,8 +191,18 @@ export function Modal({ title, onClose, dirty = false, busy = false, children, f
       document.removeEventListener('keydown', onKey)
       modalStack.splice(modalStack.indexOf(me), 1)
       if (!modalStack.length) document.body.style.overflow = bodyOverflow
-      opener?.focus?.()
+      if (opener && opener !== document.body && opener.isConnected) opener.focus?.()
+      else {
+        // The opener is gone, or there was none: the screen's own choice, if it gave one, and else the page's main, but only for an opener that
+        // was there and went (not for a dialog opened with nothing focused, which has always left the focus where the browser put it) and
+        // only while nothing holds the focus (the dialog's own element is already out of the page, so the browser has put it on the body).
+        const next = returnFocusRef.current?.()
+        const lost = !document.activeElement || document.activeElement === document.body
+        if (next && next.isConnected) next.focus?.()
+        else if (opener && opener !== document.body && lost) document.querySelector('main')?.focus?.()
+      }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, when the dialog opens: `initialFocus` is read then and never changes
   }, [])
 
   const onOverlayMouseDown = (e) => {
@@ -202,10 +230,10 @@ export function Modal({ title, onClose, dirty = false, busy = false, children, f
       )}
       {asking && (
         <ConfirmDialog
-          title="לסגור בלי לשמור?"
-          body="מה שהקלדתם עדיין לא נשמר. אם תסגרו עכשיו, הוא יאבד."
-          confirmLabel="סגירה בלי לשמור"
-          cancelLabel="חזרה לעריכה"
+          title={question?.title ?? 'לסגור בלי לשמור?'}
+          body={question?.body ?? 'מה שהקלדתם עדיין לא נשמר. אם תסגרו עכשיו, הוא יאבד.'}
+          confirmLabel={question?.confirmLabel ?? 'סגירה בלי לשמור'}
+          cancelLabel={question?.cancelLabel ?? 'חזרה לעריכה'}
           danger
           onAnswer={(discard) => { setAsking(false); if (discard) closeRef.current() }}
         />
@@ -299,10 +327,10 @@ export const useConfirm = () => useContext(ConfirmContext)
 
 /* ---------------------------------------------------------- small parts */
 
-export function Field({ label, hint, error, children }) {
+export function Field({ label, hint, error, className, children }) {
   const id = useId()
   return (
-    <div className="w-field">
+    <div className={className ? `w-field ${className}` : 'w-field'}>
       <label className="w-label" htmlFor={id}>{label}</label>
       {cloneElement(children, {
         id,
