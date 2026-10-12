@@ -1,0 +1,374 @@
+// The filters of the History tab and of the audit log (src/admin/filters.jsx). On a phone (below 1024 px, which both E2E devices are) they
+// are a bar above the list (the button "סינון" with how many filters are on, the dates that are applied, and a chip for every other filter
+// that is on) and a sheet from the bottom that holds the controls, which applies them when "הצגת תוצאות" is pressed. On a computer they are
+// the block above the list, live, as they were. The other specs reach the controls through `changeFilters` (e2e/fixtures.js); this one is
+// about the behaviour of the two layouts themselves.
+//
+// The History tab's list is answered here (`stubScans`) by what a real server does with the one filter that these tests change, and every
+// request is kept, so a test can tell what the screen asked for and when. A real visit would be a provider signing in, and the run has a
+// limited number of those (e2e/visual.spec.js says why); the filtering itself is the server's, and tests/read-filters.test.js covers it.
+import { test, expect, adminSignIn, allowConsoleErrors, openFilters } from './fixtures.js'
+import { OUTCOME_ACCEPTED } from '../shared/contract.js'
+
+const COMPUTER = { width: 1280, height: 800 }
+const PHONE_360 = { width: 360, height: 740 }
+const DAY = /^\d{2}\/\d{2}\/\d{4}$/
+
+test.beforeEach(({ page }) => {
+  // The sign-in screen asks /api/admin/me before anyone is signed in: the browser notes that 401 as a console error.
+  allowConsoleErrors(page, /status of 401/)
+})
+
+const noHorizontalScroll = (page) => page.evaluate((width) => document.documentElement.scrollWidth <= width, page.viewportSize().width)
+
+/** One visit as the list of the History tab holds it (the shape of `scanJson` in server/scans.js), at the point `point`. */
+const visit = (n, point, who) => ({
+  id: `00000000-0000-4000-8000-00000000000${n}`,
+  checked_in_at: '2026-03-02T10:40:00.000Z',
+  checked_in_local: '2026-03-02T10:40:00.000Z',
+  local_date: '2026-03-02',
+  point_id: point.id,
+  point_name: point.name,
+  provider_id: `00000000-0000-4000-8000-0000000002${n}0`,
+  provider_name: who,
+  service_type: 'cleaning',
+  source: 'online',
+  outcome: 'accepted',
+  distance_m: null,
+  gps_accuracy_m: null,
+  flags: [],
+  voided: false,
+  void_reason: null,
+})
+
+/**
+ * Answers the History tab's list with one visit at each of two real points ("לובי" and "מינוס 1"), narrowed by `point_id` the way the
+ * server does, and keeps the query of every request (`asked`, as URLSearchParams). Call it after signing in and before opening the tab.
+ */
+async function stubScans(page) {
+  const points = (await (await page.request.get('/api/admin/points')).json()).points
+  const lobby = points.find((p) => p.name === 'לובי')
+  const basement = points.find((p) => p.name === 'מינוס 1')
+  const visits = [visit(1, lobby, 'ניקיון – פלוני'), visit(2, basement, 'גינון – אלמוני')]
+  const asked = []
+  await page.route(/\/api\/admin\/scans\?/, (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    const query = new URL(route.request().url()).searchParams
+    asked.push(query)
+    const scans = visits.filter((v) => !query.get('point_id') || v.point_id === query.get('point_id'))
+    return route.fulfill({ json: { scans, next_cursor: null } })
+  })
+  return { asked, lobby, basement }
+}
+
+async function openHistory(page) {
+  await page.goto('/admin#history')
+  await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
+  await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
+}
+
+const apply = (sheet) => sheet.getByRole('button', { name: 'הצגת תוצאות' }).click()
+/** The button of the bar: its name is "סינון", and then how many filters are on. */
+const opener = (page) => page.getByRole('button', { name: /^סינון/ })
+const chips = (page) => page.getByRole('button', { name: /^הסרת סינון/ })
+const QUESTION = 'לסגור בלי להציג את התוצאות?'
+
+test.describe('on a phone', () => {
+  test('the History tab keeps its filters in a sheet, so that the first visit is on the first screen of a 360 px phone', async ({ page }) => {
+    await page.setViewportSize(PHONE_360)
+    await adminSignIn(page)
+    await stubScans(page)
+    await openHistory(page)
+
+    // no field of the filters is on the screen: one button, the dates that are applied, and the list under them
+    await expect(page.getByLabel('מתאריך')).toHaveCount(0)
+    await expect(page.getByLabel('נקודה')).toHaveCount(0)
+    await expect(opener(page)).toHaveAccessibleName('סינון') // nothing differs from the defaults, so no count
+    await expect(page.getByText(/\d{2}\/\d{2}\/\d{4} עד \d{2}\/\d{2}\/\d{4}/)).toBeVisible() // the range, written as every date is
+    const row = page.getByRole('listitem').first()
+    await expect(row).toBeVisible()
+    const box = await row.boundingBox()
+    const tabBar = await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).boundingBox()
+    expect(box.y + box.height, 'the first visit is whole on the first screen, above the tab bar').toBeLessThan(tabBar.y)
+    expect(box.y, 'and it starts in the upper part of it (it started at 873 px when the filters were drawn above the list)').toBeLessThan(500)
+    expect(await noHorizontalScroll(page), 'the History tab at 360 px').toBe(true)
+  })
+
+  test('nothing is applied until "show results"; then the count, the chips, the file, and reset', async ({ page }) => {
+    await adminSignIn(page)
+    const { asked, lobby } = await stubScans(page)
+    await openHistory(page)
+    const rows = page.getByRole('listitem')
+    await expect(rows).toHaveCount(2)
+    const file = page.getByRole('link', { name: 'ייצוא ל-Excel' })
+    await expect(chips(page)).toHaveCount(0)
+    const asks = asked.length
+
+    // choosing in the sheet asks for nothing, and the list behind it and the file stay as they were
+    let sheet = await openFilters(page)
+    await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
+    await page.waitForTimeout(600) // longer than the pause before a query on a computer, where the list follows the controls
+    expect(asked, 'no request while the person chooses').toHaveLength(asks)
+    await expect(rows).toHaveCount(2)
+    expect(await file.getAttribute('href')).not.toContain('point_id')
+    await apply(sheet)
+    await expect(sheet).toHaveCount(0)
+
+    // applied: the list, the chip (with a name that says what it removes), the count, and the file of the applied filters
+    await expect(rows).toHaveCount(1)
+    expect(asked.at(-1).get('point_id')).toBe(lobby.id)
+    await expect(opener(page)).toHaveAccessibleName(/^סינון\s*1\s*פעילים$/)
+    await expect(chips(page)).toHaveCount(1)
+    const chip = page.getByRole('button', { name: 'הסרת סינון: נקודה: לובי' })
+    await expect(chip).toHaveText('נקודה: לובי')
+    expect(await file.getAttribute('href')).toContain(`point_id=${lobby.id}`)
+
+    // more filters, and a range that is not the default: the count says how many differ (the dates count once), the range is in the bar
+    sheet = await openFilters(page)
+    await sheet.getByLabel('סוג').selectOption({ label: 'הכול' })
+    await sheet.getByLabel('כולל חשבון דמו').check()
+    const from = sheet.getByLabel('מתאריך')
+    await from.fill('')
+    await from.pressSequentially('01012026')
+    await apply(sheet)
+    await expect(sheet).toHaveCount(0)
+    await expect(opener(page)).toHaveAccessibleName(/^סינון\s*4\s*פעילים$/)
+    await expect(chips(page)).toHaveCount(3) // the point, the type and the demo account: the dates are in the bar, not a chip
+    await expect(page.getByText(/01\/01\/2026 עד \d{2}\/\d{2}\/\d{4}/)).toBeVisible()
+    expect(asked.at(-1).get('from')).toBe('2026-01-01')
+    expect(asked.at(-1).get('outcome')).toBe('all')
+    expect(asked.at(-1).get('include_demo')).toBe('true')
+
+    // a chip's remove button applies at once
+    await page.getByRole('button', { name: 'הסרת סינון: כולל חשבון דמו' }).click()
+    await expect(chips(page)).toHaveCount(2)
+    await expect(opener(page)).toHaveAccessibleName(/^סינון\s*3\s*פעילים$/)
+    expect(asked.at(-1).get('include_demo')).toBeNull()
+    expect(asked.at(-1).get('point_id')).toBe(lobby.id) // the others are kept
+
+    // reset puts the defaults in the sheet, and nothing is applied until "show results" says so
+    sheet = await openFilters(page)
+    await sheet.getByRole('button', { name: 'איפוס' }).click()
+    await expect(sheet.getByLabel('נקודה')).toHaveValue('')
+    await expect(sheet.getByLabel('סוג')).toHaveValue(OUTCOME_ACCEPTED)
+    await expect(sheet.getByLabel('מתאריך')).toHaveValue(DAY)
+    await expect(sheet.getByLabel('מתאריך')).not.toHaveValue('01/01/2026')
+    await expect(chips(page)).toHaveCount(2) // behind the sheet, as it was
+    await apply(sheet)
+    await expect(sheet).toHaveCount(0)
+    await expect(chips(page)).toHaveCount(0)
+    await expect(opener(page)).toHaveAccessibleName('סינון')
+    await expect(rows).toHaveCount(2)
+    expect(asked.at(-1).get('point_id')).toBeNull()
+
+    // "show results" with nothing changed asks for nothing again (and does not bring up the loading state)
+    const before = asked.length
+    sheet = await openFilters(page)
+    await apply(sheet)
+    await expect(sheet).toHaveCount(0)
+    await page.waitForTimeout(400)
+    expect(asked, 'no new request when nothing changed').toHaveLength(before)
+  })
+
+  test('closing the sheet keeps the applied filters; Esc and a tap outside ask first when something was chosen', async ({ page }) => {
+    await adminSignIn(page)
+    const { asked, basement } = await stubScans(page)
+    await openHistory(page)
+    const rows = page.getByRole('listitem')
+    await expect(rows).toHaveCount(2)
+    const dialogs = page.getByRole('dialog')
+    const question = page.getByRole('dialog', { name: QUESTION })
+
+    // a filter is applied: the lobby only
+    let sheet = await openFilters(page)
+    await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
+    await apply(sheet)
+    await expect(rows).toHaveCount(1)
+    const asks = asked.length
+
+    // nothing chosen: Esc closes it at once, with no question
+    await openFilters(page)
+    await page.keyboard.press('Escape')
+    await expect(dialogs).toHaveCount(0)
+
+    // something chosen: the close button is the person's choice, so it closes at once, and the applied filters stay
+    sheet = await openFilters(page)
+    await sheet.getByLabel('נקודה').selectOption({ label: 'מינוס 1' })
+    await sheet.getByRole('button', { name: 'סגירה' }).click()
+    await expect(dialogs).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'הסרת סינון: נקודה: לובי' })).toBeVisible()
+    await expect(rows).toHaveCount(1)
+
+    // Esc asks, "back to the filters" keeps the sheet and what was chosen in it, and the second Esc asks again
+    sheet = await openFilters(page)
+    await sheet.getByLabel('נקודה').selectOption({ label: 'מינוס 1' })
+    await page.keyboard.press('Escape')
+    await expect(question).toBeVisible()
+    await question.getByRole('button', { name: 'חזרה לסינון' }).click()
+    await expect(question).toHaveCount(0)
+    await expect(sheet.getByLabel('נקודה')).toHaveValue(basement.id)
+    await page.keyboard.press('Escape')
+    await expect(question).toBeVisible()
+    await question.getByRole('button', { name: 'סגירה בלי להציג' }).click()
+    await expect(dialogs).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'הסרת סינון: נקודה: לובי' })).toBeVisible()
+
+    // a tap on the dark part outside the sheet asks the same
+    sheet = await openFilters(page)
+    await sheet.getByLabel('נקודה').selectOption({ label: 'מינוס 1' })
+    await page.mouse.click(5, 5)
+    await expect(question).toBeVisible()
+    await question.getByRole('button', { name: 'חזרה לסינון' }).click()
+    await expect(sheet).toBeVisible()
+    await sheet.getByRole('button', { name: 'סגירה' }).click()
+    await expect(dialogs).toHaveCount(0)
+    expect(asked, 'closing without applying never asked for anything').toHaveLength(asks)
+    await expect(rows).toHaveCount(1)
+  })
+
+  test('a date that is not finished is never applied quietly: the sheet says so, under the field, and keeps the focus there', async ({ page }) => {
+    await adminSignIn(page)
+    const { asked } = await stubScans(page)
+    await openHistory(page)
+    await expect(page.getByRole('listitem')).toHaveCount(2)
+    const sheet = await openFilters(page)
+    const from = sheet.getByLabel('מתאריך')
+    const original = await from.inputValue()
+    const asks = asked.length
+
+    // half a date: "show results" refuses it, the message is tied to the field, and nothing was asked for
+    await from.press('End')
+    for (let i = 0; i < 6; i++) await from.press('Backspace')
+    await expect(from).toHaveValue(/^\d{2}$/)
+    await apply(sheet)
+    await expect(sheet).toBeVisible()
+    const message = sheet.getByRole('alert')
+    await expect(message).toContainText('התאריך לא תקין')
+    await expect(from).toBeFocused()
+    await expect(from).toHaveAttribute('aria-invalid', 'true')
+    const described = await from.getAttribute('aria-describedby')
+    expect(await message.getAttribute('id'), 'the message is the description of the field').toBe(described)
+    await page.waitForTimeout(600)
+    expect(asked, 'the half date was not applied').toHaveLength(asks)
+
+    // Enter in the field is "show results": the same refusal
+    await from.press('Enter')
+    await expect(sheet).toBeVisible()
+    await expect(message).toBeVisible()
+
+    // finishing the date takes the message away, and Enter applies it
+    await from.pressSequentially(original.replace(/\D/g, '').slice(2))
+    await expect(from).toHaveValue(original)
+    await expect(sheet.getByRole('alert')).toHaveCount(0)
+    await from.fill('')
+    await from.pressSequentially('01012026')
+    await from.press('Enter')
+    await expect(sheet).toHaveCount(0)
+    expect(asked.at(-1).get('from')).toBe('2026-01-01')
+    await expect(page.getByText(/01\/01\/2026 עד \d{2}\/\d{2}\/\d{4}/)).toBeVisible()
+
+    // a half-typed date is unsaved typing (F4): Esc asks, and reset takes it away with the rest
+    const again = await openFilters(page)
+    const field = again.getByLabel('מתאריך')
+    await field.fill('')
+    await field.pressSequentially('0101')
+    await expect(field).toHaveValue('01/01')
+    await page.keyboard.press('Escape')
+    await page.getByRole('dialog', { name: QUESTION }).getByRole('button', { name: 'חזרה לסינון' }).click()
+    await again.getByRole('button', { name: 'איפוס' }).click()
+    await expect(field).toHaveValue(original)
+    await expect(again.getByRole('alert')).toHaveCount(0)
+  })
+
+  test('the audit log has the same bar and sheet', async ({ page }) => {
+    await adminSignIn(page)
+    const me = (await (await page.request.get('/api/admin/me')).json()).admin
+    await page.goto('/admin#committee')
+    await expect(page.getByRole('heading', { level: 1, name: 'חברי הוועד' })).toBeVisible()
+    await page.getByRole('button', { name: 'יומן פעולות', exact: true }).click()
+    const log = page.getByRole('region', { name: 'יומן פעולות' })
+    await expect(log.getByRole('listitem').first()).toBeVisible()
+
+    // the bar: no filters are on, the range is every date, and the controls are not on the screen
+    await expect(log.getByText('כל התאריכים')).toBeVisible()
+    await expect(opener(page)).toHaveAccessibleName('סינון')
+    await expect(page.getByLabel('סוג פעולה')).toHaveCount(0)
+    await expect(page.getByLabel('חבר ועד', { exact: true })).toHaveCount(0) // (not the button "חבר ועד חדש")
+
+    let sheet = await openFilters(page)
+    await sheet.getByLabel('סוג פעולה').selectOption({ label: 'נקודות' })
+    await sheet.getByLabel('חבר ועד').selectOption({ label: me.name })
+    await apply(sheet)
+    await expect(sheet).toHaveCount(0)
+    await expect(opener(page)).toHaveAccessibleName(/^סינון\s*2\s*פעילים$/)
+    await expect(page.getByRole('button', { name: 'הסרת סינון: סוג פעולה: נקודות' })).toBeVisible()
+    await expect(page.getByRole('button', { name: `הסרת סינון: חבר ועד: ${me.name}` })).toBeVisible()
+
+    // a range: the bar says it, and it counts once; a chip removes its filter at once
+    sheet = await openFilters(page)
+    const from = sheet.getByLabel('מתאריך')
+    await from.fill('')
+    await from.pressSequentially('01012026')
+    await apply(sheet)
+    await expect(log.getByText(/^מ-01\/01\/2026$/)).toBeVisible()
+    await expect(opener(page)).toHaveAccessibleName(/^סינון\s*3\s*פעילים$/)
+    await page.getByRole('button', { name: 'הסרת סינון: סוג פעולה: נקודות' }).click()
+    await expect(chips(page)).toHaveCount(1)
+    await expect(opener(page)).toHaveAccessibleName(/^סינון\s*2\s*פעילים$/)
+
+    // reset, then show results: every filter is off again
+    sheet = await openFilters(page)
+    await sheet.getByRole('button', { name: 'איפוס' }).click()
+    await expect(sheet.getByLabel('מתאריך')).toHaveValue('')
+    await apply(sheet)
+    await expect(chips(page)).toHaveCount(0)
+    await expect(log.getByText('כל התאריכים')).toBeVisible()
+    expect(await noHorizontalScroll(page), 'the audit log on a phone').toBe(true)
+  })
+})
+
+test('on a computer the filters stay inline and live, each control is in the page once, and the layout follows the width of the window', async ({ page }) => {
+  await adminSignIn(page)
+  await page.setViewportSize(COMPUTER)
+  const { asked, lobby } = await stubScans(page)
+  await openHistory(page)
+  const rows = page.getByRole('listitem')
+  await expect(rows).toHaveCount(2)
+
+  // the block above the list, and nothing of the phone's: no button, no sheet, and every control once (the page has no second copy)
+  await expect(opener(page)).toHaveCount(0)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  for (const label of ['מתאריך', 'עד תאריך', 'נקודה', 'נותן שירות', 'סוג', 'כולל מבוטלות', 'כולל חשבון דמו']) {
+    await expect(page.getByLabel(label, { exact: true }), `${label} is in the page once`).toHaveCount(1)
+  }
+  await expect(page.getByRole('button', { name: 'הצגת תוצאות' })).toHaveCount(0)
+
+  // live: the list follows the control, with nothing to press
+  await page.getByLabel('נקודה').selectOption({ label: 'לובי' })
+  await expect(rows).toHaveCount(1)
+  expect(asked.at(-1).get('point_id')).toBe(lobby.id)
+
+  // narrower than 1024 px, with no reload: the controls go, and the bar says what is applied
+  await page.setViewportSize({ width: 390, height: 800 })
+  await expect(page.getByLabel('מתאריך')).toHaveCount(0)
+  await expect(opener(page)).toBeVisible()
+  await expect(page.getByRole('button', { name: 'הסרת סינון: נקודה: לובי' })).toBeVisible()
+  await expect(rows).toHaveCount(1)
+  // an open sheet goes with the layout that it belongs to
+  await openFilters(page)
+  await page.setViewportSize(COMPUTER)
+  await expect(page.getByRole('dialog')).toHaveCount(0)
+  await expect(opener(page)).toHaveCount(0)
+  await expect(page.getByLabel('נקודה')).toHaveValue(lobby.id) // the same filters, inline again
+  await expect(page.getByLabel('מתאריך', { exact: true })).toHaveCount(1)
+
+  // the audit log, on a computer: inline, once
+  await page.goto('/admin#committee')
+  await expect(page.getByRole('heading', { level: 1, name: 'חברי הוועד' })).toBeVisible()
+  await page.getByRole('button', { name: 'יומן פעולות', exact: true }).click()
+  const log = page.getByRole('region', { name: 'יומן פעולות' })
+  await expect(log.getByRole('listitem').first()).toBeVisible()
+  await expect(opener(page)).toHaveCount(0)
+  for (const label of ['מתאריך', 'עד תאריך', 'סוג פעולה', 'חבר ועד']) await expect(page.getByLabel(label, { exact: true })).toHaveCount(1)
+  expect(await noHorizontalScroll(page), 'the audit log on a computer').toBe(true)
+})

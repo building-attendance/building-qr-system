@@ -20,7 +20,8 @@ export const IconUsers = (p) => <Svg {...p}><circle cx="9" cy="8" r="3.5" /><pat
 export const IconList = (p) => <Svg {...p}><path d="M8 6h12M8 12h12M8 18h12M4 6v.01M4 12v.01M4 18v.01" /></Svg>
 export const IconShield = (p) => <Svg {...p}><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6l8-3z" /><path d="M9 12l2.2 2.2L15.5 10" /></Svg>
 export const IconLogout = (p) => <Svg {...p}><path d="M10 4H6a1 1 0 0 0-1 1v14a1 1 0 0 0 1 1h4M15 8l4 4-4 4M19 12H9" /></Svg>
-export const IconRefresh = (p) => <Svg {...p}><path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4" /></Svg>
+export const IconFilter = (p) => <Svg {...p}><path d="M4 5h16l-6 7.5V19l-4 2v-8.5L4 5z" /></Svg>
+export const IconRefresh =(p) => <Svg {...p}><path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4" /></Svg>
 export const IconX = (p) => <Svg {...p}><path d="M6 6l12 12M18 6L6 18" /></Svg>
 export const IconLocate = (p) => <Svg {...p}><circle cx="12" cy="12" r="3.5" /><path d="M12 3v3M12 18v3M3 12h3M18 12h3" /></Svg>
 export const IconUndo = (p) => <Svg {...p}><path d="M9 7L4 12l5 5M4 12h10a6 6 0 0 1 6 6" /></Svg>

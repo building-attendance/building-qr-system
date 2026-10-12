@@ -116,8 +116,13 @@ export function useDirty(value) {
  * disabled (a form disables its own Cancel the same way). The save closes the dialog itself when it works, and leaves the
  * form as it was typed when it fails; a dialog that closed meanwhile would lose the answer (the key that is shown only
  * once) or let the change be saved after the person was told it was discarded.
+ *
+ * `question` is the words of that question when "save" is not what the dialog does: `{ title, body, confirmLabel, cancelLabel }`, each
+ * part optional (the filters of a long list are shown, not saved). `initialFocus` is where the focus goes when the dialog opens: 'field'
+ * (the default) is its first field, 'dialog' is the dialog itself, for a dialog whose first field is a text field that would bring up
+ * the keyboard of a phone over it at once.
  */
-export function Modal({ title, onClose, dirty = false, busy = false, children, footer, size = 'md' }) {
+export function Modal({ title, onClose, dirty = false, busy = false, question, initialFocus = 'field', children, footer, size = 'md' }) {
   const ref = useRef(null)
   const titleId = useId()
   const closeRef = useRef(onClose)
@@ -143,8 +148,8 @@ export function Modal({ title, onClose, dirty = false, busy = false, children, f
     document.body.style.overflow = 'hidden'
     const el = ref.current
     const items = () => [...el.querySelectorAll(FOCUSABLE)]
-    // Prefer the first form field over the close button.
-    ;(el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el).focus()
+    // Prefer the first form field over the close button, unless the dialog asks to start on itself.
+    ;(initialFocus === 'dialog' ? el : el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el).focus()
 
     const onKey = (e) => {
       if (modalStack[modalStack.length - 1] !== me) return
@@ -172,6 +177,7 @@ export function Modal({ title, onClose, dirty = false, busy = false, children, f
       if (!modalStack.length) document.body.style.overflow = bodyOverflow
       opener?.focus?.()
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs once, when the dialog opens: `initialFocus` is read then and never changes
   }, [])
 
   const onOverlayMouseDown = (e) => {
@@ -199,10 +205,10 @@ export function Modal({ title, onClose, dirty = false, busy = false, children, f
       )}
       {asking && (
         <ConfirmDialog
-          title="לסגור בלי לשמור?"
-          body="מה שהקלדתם עדיין לא נשמר. אם תסגרו עכשיו, הוא יאבד."
-          confirmLabel="סגירה בלי לשמור"
-          cancelLabel="חזרה לעריכה"
+          title={question?.title ?? 'לסגור בלי לשמור?'}
+          body={question?.body ?? 'מה שהקלדתם עדיין לא נשמר. אם תסגרו עכשיו, הוא יאבד.'}
+          confirmLabel={question?.confirmLabel ?? 'סגירה בלי לשמור'}
+          cancelLabel={question?.cancelLabel ?? 'חזרה לעריכה'}
           danger
           onAnswer={(discard) => { setAsking(false); if (discard) closeRef.current() }}
         />
@@ -296,10 +302,10 @@ export const useConfirm = () => useContext(ConfirmContext)
 
 /* ---------------------------------------------------------- small parts */
 
-export function Field({ label, hint, error, children }) {
+export function Field({ label, hint, error, className, children }) {
   const id = useId()
   return (
-    <div className="w-field">
+    <div className={className ? `w-field ${className}` : 'w-field'}>
       <label className="w-label" htmlFor={id}>{label}</label>
       {cloneElement(children, {
         id,

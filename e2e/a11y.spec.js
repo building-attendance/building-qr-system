@@ -15,6 +15,7 @@ import ar from '../src/i18n/ar.js'
 import { PROVIDER_TOKEN_PREFIX } from '../shared/contract.js'
 import {
   test, expect, he, en, ru, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, adminSignIn, clearScans, allowConsoleErrors, expectNoA11yViolations,
+  changeFilters, openFilters,
 } from './fixtures.js'
 
 // No service worker: this spec answers some requests itself (page.route), and a page that a service worker controls
@@ -420,15 +421,21 @@ test.describe('committee app', () => {
     await openTab(page, 'history', 'היסטוריית נוכחות')
     await expect(page.getByText('אין נוכחויות בטווח הזה')).toBeVisible()
     await scanBothThemes(page, 'committee phone: history, empty')
+    // The filters are a bar above the list, and a sheet from the bottom that its button opens.
+    const filters = await openFilters(page)
+    await scanBothThemes(page, 'committee phone: history, the filters sheet')
+    await filters.getByRole('button', { name: 'סגירה' }).click()
 
     // The visits that the server did not count, for a stretch of time in which there were none: its own empty state.
-    await page.getByLabel('סוג').selectOption({ label: 'לא נקלטו' })
-    const from = page.getByLabel('מתאריך')
-    const until = page.getByLabel('עד תאריך')
-    await from.fill('')
-    await from.pressSequentially('01012020')
-    await until.fill('')
-    await until.pressSequentially('02012020')
+    await changeFilters(page, async (sheet) => {
+      await sheet.getByLabel('סוג').selectOption({ label: 'לא נקלטו' })
+      const from = sheet.getByLabel('מתאריך')
+      const until = sheet.getByLabel('עד תאריך')
+      await from.fill('')
+      await from.pressSequentially('01012020')
+      await until.fill('')
+      await until.pressSequentially('02012020')
+    })
     await expect(page.getByRole('heading', { level: 2, name: 'אין ביקורים שלא נקלטו בטווח הזה' })).toBeVisible()
     await scanBothThemes(page, 'committee phone: history, no visits not counted')
   })
@@ -462,7 +469,7 @@ async function closeHelp(page) {
 /** Filters the open log to the agent keys, and waits until the list has changed. */
 async function filterAuditLog(page) {
   const log = page.getByRole('region', { name: 'יומן פעולות' })
-  await log.getByLabel('סוג פעולה').selectOption({ label: "מפתחות אייג'נט" })
+  await changeFilters(page, (filters) => filters.getByLabel('סוג פעולה').selectOption({ label: "מפתחות אייג'נט" }), log)
   await expect(log.getByRole('listitem').filter({ hasText: 'הוספת חבר ועד' })).toHaveCount(0)
   await expect(log.getByRole('listitem').filter({ hasText: "יצירת מפתח אייג'נט" }).first()).toBeVisible()
 }
@@ -506,8 +513,12 @@ test.describe('committee app with the sample data filled in', () => {
     await scanBothThemes(page, 'committee phone: providers')
     await openTab(page, 'history', 'היסטוריית נוכחות')
     await scanBothThemes(page, 'committee phone: history')
+    // the sheet of filters that the button of the bar opens
+    const historyFilters = await openFilters(page)
+    await scanBothThemes(page, 'committee phone: history, the filters sheet')
+    await historyFilters.getByRole('button', { name: 'סגירה' }).click()
     // the same screen switched to the visits that the server did not count (the seed has some, from a queue and online)
-    await page.getByLabel('סוג').selectOption({ label: 'לא נקלטו' })
+    await changeFilters(page, (sheet) => sheet.getByLabel('סוג').selectOption({ label: 'לא נקלטו' }))
     await expect(page.getByText('נקודה כבויה').first()).toBeVisible()
     await expect(page.getByText('מהתור בטלפון').first()).toBeVisible()
     await scanBothThemes(page, 'committee phone: history, visits not counted')
@@ -533,23 +544,42 @@ test.describe('committee app with the sample data filled in', () => {
     // the audit log: a section at the foot of this tab that its button opens (the sample data above wrote its entries)
     await openAuditLog(page)
     await scanBothThemes(page, 'committee phone: audit log')
+    // the filters of the log are in a sheet on a phone, as the History tab's are
+    const auditFilters = await openFilters(page)
+    await scanBothThemes(page, 'committee phone: audit log, the filters sheet')
+    await auditFilters.getByRole('button', { name: 'סגירה' }).click()
     // with a filter on: only the entries of the agent keys (the members that were added leave the list)
     await filterAuditLog(page)
     await scanBothThemes(page, 'committee phone: audit log, filtered by group')
     // the history with every kind of row: refused, cancelled, flagged, and the demo account's
     await openTab(page, 'history', 'היסטוריית נוכחות')
-    await page.getByLabel('סוג').selectOption('all')
-    await page.getByLabel('כולל מבוטלות').check()
-    await page.getByLabel('כולל חשבון דמו').check()
+    await changeFilters(page, async (sheet) => {
+      await sheet.getByLabel('סוג').selectOption('all')
+      await sheet.getByLabel('כולל מבוטלות').check()
+      await sheet.getByLabel('כולל חשבון דמו').check()
+    })
     await expect(page.getByText('נדחתה: רחוק מהנקודה')).toBeVisible()
     await expect(page.getByText(/מבוטלת: נסרק בטעות/)).toBeVisible()
-    await scanBothThemes(page, 'committee phone: history, every kind of row')
+    await scanBothThemes(page, 'committee phone: history, every kind of row') // the bar now holds the chips of the three filters
     // a date field that holds a date that does not exist (31 February): flagged with aria-invalid, in red
-    const until = page.getByLabel('עד תאריך')
+    const unfinished = await openFilters(page)
+    const until = unfinished.getByLabel('עד תאריך')
     await until.fill('')
     await until.pressSequentially('31022026')
     await expect(until).toHaveAttribute('aria-invalid', 'true')
     await scanBothThemes(page, 'committee phone: history, a date that does not exist')
+    // "show results" does not apply it quietly: the message is under the field, which has the focus
+    await unfinished.getByRole('button', { name: 'הצגת תוצאות' }).click()
+    await expect(unfinished.getByRole('alert')).toContainText('התאריך לא תקין')
+    await expect(until).toBeFocused()
+    await scanBothThemes(page, 'committee phone: history, a date that does not exist, with the message')
+    // Esc with an unfinished date in the sheet asks before it closes (F4)
+    await page.keyboard.press('Escape')
+    const question = page.getByRole('dialog', { name: 'לסגור בלי להציג את התוצאות?' })
+    await expect(question).toBeVisible()
+    await scanBothThemes(page, 'committee phone: history, the question before the filters sheet is closed')
+    await question.getByRole('button', { name: 'סגירה בלי להציג' }).click()
+    await expect(page.getByRole('dialog')).toHaveCount(0)
 
     // The side rail replaces the top bar and the tab bar. The five screens are the same markup at any width, so two of
     // them are enough to see the rail and the wider layout.

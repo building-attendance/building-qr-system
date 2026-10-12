@@ -1,8 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { adminApi, errorText, scanRefusals } from '../api.js'
-import { useLoad, LOAD_KEY } from '../hooks.js'
+import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, DateInput, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useSheetOpen } from '../filters.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash } from '../icons.jsx'
 import { formatDay, formatDateTime, formatTime, isoDay } from '../../../shared/datetime.js'
 import {
@@ -54,8 +55,31 @@ const NO_POINT = 'קוד לא מוכר' // a refusal that named no point: the co
 const DEFAULTS = () => ({ from: daysAgo(6), to: isoDay(new Date()), point_id: '', provider_id: '', outcome: OUTCOME_ACCEPTED, include_voided: false, include_demo: false })
 const PAGE = 100
 
-// A date typed digit by digit passes through nonsense ("0002-…"); only complete, sensible dates are sent.
-const goodDate = (v) => /^\d{4}-\d{2}-\d{2}$/.test(v) && Number(v.slice(0, 4)) >= 2000
+// The choices of the "type" filter, in the order of the select. The label is also what a chip says on a phone.
+const TYPES = [
+  [OUTCOME_ACCEPTED, 'נוכחויות שנרשמו'],
+  ['rejected', 'ניסיונות שנדחו'],
+  ['all', 'הכול'],
+  [NOT_COUNTED, 'לא נקלטו'],
+]
+const typeLabel = (value) => TYPES.find(([key]) => key === value)?.[1] ?? value
+
+/**
+ * What the filters that differ from the defaults `d` say, for the bar of the phone layout: one chip for each (the dates are not a chip, the
+ * bar always shows them) and how many they are, the dates counting once. A filter that has no control now is not counted: the two switches
+ * are about scans, so they are left out while the list is the visits that were not counted.
+ */
+function activeFilters(f, d, { pointName, providerName }) {
+  const chips = []
+  if (f.point_id !== d.point_id) chips.push({ key: 'point_id', label: 'נקודה', value: pointName(f.point_id) })
+  if (f.provider_id !== d.provider_id) chips.push({ key: 'provider_id', label: 'נותן שירות', value: providerName(f.provider_id) })
+  if (f.outcome !== d.outcome) chips.push({ key: 'outcome', label: 'סוג', value: typeLabel(f.outcome) })
+  if (f.outcome !== NOT_COUNTED) {
+    if (f.include_voided !== d.include_voided) chips.push({ key: 'include_voided', label: 'כולל מבוטלות' })
+    if (f.include_demo !== d.include_demo) chips.push({ key: 'include_demo', label: 'כולל חשבון דמו' })
+  }
+  return { chips, count: chips.length + (f.from !== d.from || f.to !== d.to ? 1 : 0) }
+}
 
 /** The filters that are set, as the API takes them: nothing empty or off, and only a complete, sensible date. */
 function params(f, extra = {}) {
@@ -136,14 +160,56 @@ function VoidDialog({ scan, onClose, onDone }) {
   )
 }
 
+/**
+ * The controls of the filters, drawn once: inline above the list on a computer, in the sheet on a phone. `values` and `set` are the
+ * filters they edit, `errors` and `onPending` are for the date fields (see `DateRangeFields`). The two switches are about scans, so they
+ * go while the type is the visits that were not counted.
+ */
+function HistoryControls({ values, set, errors, onPending, points, providers }) {
+  return (
+    <>
+      <DateRangeFields from={values.from} to={values.to} onFrom={(v) => set('from', v)} onTo={(v) => set('to', v)} onPending={onPending} errors={errors} />
+      <Field label="נקודה">
+        <select className="a-input" value={values.point_id} onChange={(e) => set('point_id', e.target.value)}>
+          <option value="">כל הנקודות</option>
+          {(points.data?.points ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
+        </select>
+      </Field>
+      <Field label="נותן שירות">
+        <select className="a-input" value={values.provider_id} onChange={(e) => set('provider_id', e.target.value)}>
+          <option value="">כולם</option>
+          {(providers.data?.providers ?? []).map((p) => <option key={p.id} value={p.id}>{p.contact_name || p.company}</option>)}
+        </select>
+      </Field>
+      <Field label="סוג">
+        <select className="a-input" value={values.outcome} onChange={(e) => set('outcome', e.target.value)}>
+          {TYPES.map(([key, label]) => <option key={key} value={key}>{label}</option>)}
+        </select>
+      </Field>
+      {values.outcome !== NOT_COUNTED && (
+        <div className="a-stack" style={{ gap: 0 }}>
+          <Switch checked={values.include_voided} onChange={(v) => set('include_voided', v)} label="כולל מבוטלות" />
+          <Switch checked={values.include_demo} onChange={(v) => set('include_demo', v)} label="כולל חשבון דמו" />
+        </div>
+      )}
+    </>
+  )
+}
+
 export default function HistoryView() {
   const toast = useToast()
+  const phone = usePhoneLayout()
   const points = useLoad(() => adminApi('/points'), [], { cacheKey: LOAD_KEY.points })
   const providers = useLoad(() => adminApi('/providers'), [], { cacheKey: LOAD_KEY.providers })
-  const [filters, setFilters] = useState(DEFAULTS) // what the inputs show
-  const [applied, setApplied] = useState(filters) // what is actually queried (after a short pause in typing)
+  const [defaults] = useState(DEFAULTS) // what "reset" and the count of the filters that are on are measured against
+  // On a computer the filters are what the inputs show and the list follows them after a short pause in typing; on a phone they are
+  // chosen in a sheet and applied together, so there the two are always the same (`apply`).
+  const [filters, setFilters] = useState(defaults) // what the inputs show
+  const [applied, setApplied] = useState(defaults) // what is actually queried
+  const [sheet, setSheet] = useSheetOpen(phone) // the phone's sheet of filters is open
   // A date field that is half typed shows something other than what is queried (the last good date). The list may stay,
   // but the export must not quietly use a range that differs from the fields, so it waits until both are finished.
+  // (Only the computer's inline fields tell it: the sheet of the phone applies nothing while a date is unfinished.)
   const [unfinished, setUnfinished] = useState({ from: false, to: false })
   // `kind` says which list the rows are (scans or refusals), set when they arrive: the filter can already say another one
   // while the pause before a query runs, and rows are never drawn as the wrong kind.
@@ -223,6 +289,17 @@ export default function HistoryView() {
   }
 
   const set = (k, v) => setFilters((f) => ({ ...f, [k]: v }))
+  // The phone: the sheet's "show results", and a chip's remove button. Both apply at once, with no pause for typing.
+  const apply = (next) => {
+    setSheet(false)
+    if (sameFilters(next, applied)) return // nothing changed: no new query, no loading state
+    setFilters(next)
+    setApplied(next)
+  }
+  const { chips, count } = activeFilters(applied, defaults, {
+    pointName: (id) => (points.data?.points ?? []).find((p) => p.id === id)?.name,
+    providerName: (id) => { const p = (providers.data?.providers ?? []).find((x) => x.id === id); return p && (p.contact_name || p.company) },
+  })
   const refusals = kind === 'refusals'
   const groups = useMemo(() => {
     const out = []
@@ -250,41 +327,26 @@ export default function HistoryView() {
           <IconButton icon={IconRefresh} label="רענון" onClick={load} />
           {/* The file is of scans only: it has no refused visits, so there is nothing to export in this view. */}
           {!choseRefusals && applied.outcome !== NOT_COUNTED && (
-            <IconButton icon={IconDownload} label="ייצוא ל-Excel" href={`/api/admin/scans?${query(applied, { format: 'csv' })}`} download="scans.csv" disabled={unfinished.from || unfinished.to} />
+            <IconButton icon={IconDownload} label="ייצוא ל-Excel" href={`/api/admin/scans?${query(applied, { format: 'csv' })}`} download="scans.csv" disabled={!phone && (unfinished.from || unfinished.to)} />
           )}
         </div>
       </div>
 
-      <div className="a-filters">
-        <Field label="מתאריך"><DateInput value={filters.from} onChange={(v) => set('from', v)} onPendingChange={(p) => setUnfinished((u) => ({ ...u, from: p }))} /></Field>
-        <Field label="עד תאריך"><DateInput value={filters.to} onChange={(v) => set('to', v)} onPendingChange={(p) => setUnfinished((u) => ({ ...u, to: p }))} /></Field>
-        <Field label="נקודה">
-          <select className="a-input" value={filters.point_id} onChange={(e) => set('point_id', e.target.value)}>
-            <option value="">כל הנקודות</option>
-            {(points.data?.points ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </Field>
-        <Field label="נותן שירות">
-          <select className="a-input" value={filters.provider_id} onChange={(e) => set('provider_id', e.target.value)}>
-            <option value="">כולם</option>
-            {(providers.data?.providers ?? []).map((p) => <option key={p.id} value={p.id}>{p.contact_name || p.company}</option>)}
-          </select>
-        </Field>
-        <Field label="סוג">
-          <select className="a-input" value={filters.outcome} onChange={(e) => set('outcome', e.target.value)}>
-            <option value={OUTCOME_ACCEPTED}>נוכחויות שנרשמו</option>
-            <option value="rejected">ניסיונות שנדחו</option>
-            <option value="all">הכול</option>
-            <option value={NOT_COUNTED}>לא נקלטו</option>
-          </select>
-        </Field>
-        {!choseRefusals && (
-          <div className="a-stack" style={{ gap: 0 }}>
-            <Switch checked={filters.include_voided} onChange={(v) => set('include_voided', v)} label="כולל מבוטלות" />
-            <Switch checked={filters.include_demo} onChange={(v) => set('include_demo', v)} label="כולל חשבון דמו" />
-          </div>
-        )}
-      </div>
+      {phone ? (
+        <>
+          <FilterBar count={count} from={applied.from} to={applied.to} onOpen={() => setSheet(true)}
+            chips={chips.map((chip) => ({ ...chip, onRemove: () => apply({ ...applied, [chip.key]: defaults[chip.key] }) }))} />
+          {sheet && (
+            <FilterSheet initial={applied} defaults={defaults} onApply={apply} onClose={() => setSheet(false)}>
+              {({ values, set: choose, errors, watch }) => <HistoryControls values={values} set={choose} errors={errors} onPending={watch} points={points} providers={providers} />}
+            </FilterSheet>
+          )}
+        </>
+      ) : (
+        <div className="a-filters">
+          <HistoryControls values={filters} set={set} onPending={(key) => (pending) => setUnfinished((u) => ({ ...u, [key]: pending }))} points={points} providers={providers} />
+        </div>
+      )}
 
       {status === 'loading' && <Spinner />}
       {status === 'error' && (

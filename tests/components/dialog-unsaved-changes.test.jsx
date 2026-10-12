@@ -194,6 +194,30 @@ describe('a dialog with something typed in it', () => {
   })
 })
 
+describe('a dialog with its own words for the question, and its own first focus', () => {
+  it('asks in the words it was given, and in the usual ones for what it was not given', () => {
+    const onClose = vi.fn()
+    render(
+      <Modal title="סינון" onClose={onClose} dirty question={{ title: 'לסגור בלי להציג?', cancelLabel: 'חזרה לסינון' }}>
+        <label>שם<input defaultValue="x" /></label>
+      </Modal>,
+    )
+    esc()
+    const question = dialogNamed('לסגור בלי להציג?')
+    expect(within(question).getByRole('button', { name: 'חזרה לסינון' })).toBeTruthy()
+    expect(within(question).getByRole('button', { name: DISCARD })).toBeTruthy() // not given: the usual words
+    expect(within(question).getByText('מה שהקלדתם עדיין לא נשמר. אם תסגרו עכשיו, הוא יאבד.')).toBeTruthy()
+  })
+
+  it('starts on the first field by default, and on the dialog itself when it asks to', () => {
+    render(<Modal title="טופס" onClose={vi.fn()}><label>שם<input /></label></Modal>)
+    expect(document.activeElement).toBe(within(dialogNamed('טופס')).getByLabelText('שם'))
+    cleanup()
+    render(<Modal title="טופס" onClose={vi.fn()} initialFocus="dialog"><label>שם<input /></label></Modal>)
+    expect(document.activeElement).toBe(dialogNamed('טופס'))
+  })
+})
+
 describe('the form under the question', () => {
   it('is inert while the question is open, so that nothing can reach it, and is not after the answer', () => {
     render(<Harness onClose={vi.fn()} />)
@@ -547,6 +571,40 @@ describe('the committee member form', () => {
 
     fireEvent.click(screen.getAllByRole('button', { name: 'חבר ועד חדש' })[0])
     expectItAsksBeforeLosingWhatWasTyped('חבר ועד חדש', 'כתובת Gmail', 'member@example.test')
+  })
+})
+
+describe('the filters sheet of the History tab on a phone', () => {
+  afterEach(() => { delete window.matchMedia })
+
+  it('asks before a choice that was not shown is lost, and not when nothing was chosen (the dates that are half typed count as typed)', async () => {
+    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })) // a phone: not a computer
+    api.mockImplementation(async (path) => {
+      if (path === '/admin/points') return { points: [{ id: 'pt1', name: 'לובי' }] }
+      if (path === '/admin/providers') return { providers: [] }
+      if (path.startsWith('/admin/scans')) return { scans: [], next_cursor: null }
+      throw new Error(`the test does not expect ${path}`)
+    })
+    render(<ToastProvider><ConfirmProvider><HistoryView /></ConfirmProvider></ToastProvider>)
+    await screen.findByRole('button', { name: /^סינון/ }, WAIT)
+    fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
+    esc()
+    expect(screen.queryByRole('dialog'), 'untouched: closed at once').toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
+    await within(dialogNamed('סינון')).findByRole('option', { name: 'לובי' }, WAIT) // the points have arrived
+    type(dialogNamed('סינון'), 'נקודה', 'pt1')
+    esc()
+    expect(dialogNamed('לסגור בלי להציג את התוצאות?')).toBeTruthy()
+    fireEvent.click(within(dialogNamed('לסגור בלי להציג את התוצאות?')).getByRole('button', { name: 'חזרה לסינון' }))
+    expect(within(dialogNamed('סינון')).getByLabelText('נקודה').value).toBe('pt1') // as it was chosen
+    fireEvent.click(within(dialogNamed('סינון')).getByRole('button', { name: 'סגירה' })) // chosen on purpose: no question
+    expect(screen.queryByRole('dialog')).toBeNull()
+
+    fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
+    type(dialogNamed('סינון'), 'מתאריך', '2909') // half a date: the filters have not changed, the typing has
+    tapOutside(dialogNamed('סינון'))
+    expect(dialogNamed('לסגור בלי להציג את התוצאות?')).toBeTruthy()
   })
 })
 

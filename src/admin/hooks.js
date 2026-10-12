@@ -49,6 +49,33 @@ export function useLoad(fn, deps = [], { cacheKey } = {}) {
   return { status: state.status, data: state.data, error: state.error, reload: load }
 }
 
+// The width at which the committee app changes from its phone layout (the tab bar, the filters in a sheet) to its computer layout (the side
+// rail, the filters inline and live): the `min-width: 1024px` of src/admin/admin.css, which shows the tab bar below it.
+const COMPUTER_LAYOUT = '(min-width: 1024px)'
+
+/**
+ * True while the screen is laid out as a phone (narrower than 1024px) and false for a computer. It is read in the very first render, so
+ * a screen that draws one layout or the other never draws the wrong one first, and it follows a window that is resized or a phone that is
+ * turned. Where the browser has no `matchMedia` (a test in jsdom) it is a computer: nothing there is a phone until a test says so.
+ * A screen that draws something only in one of the two layouts uses this and renders it once, rather than drawing both and hiding one
+ * with CSS: a control that is twice in the page is twice in the reading of a screen reader, and twice for a label that a test looks up.
+ */
+export function usePhoneLayout() {
+  const [phone, setPhone] = useState(() => isPhone())
+  useEffect(() => {
+    const computer = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(COMPUTER_LAYOUT) : null
+    if (!computer) return undefined
+    const follow = () => setPhone(!computer.matches)
+    follow() // it can have changed between the first render and now
+    computer.addEventListener('change', follow)
+    return () => computer.removeEventListener('change', follow)
+  }, [])
+  return phone
+}
+function isPhone() {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? !window.matchMedia(COMPUTER_LAYOUT).matches : false
+}
+
 export const SERVICE_TYPES = [
   { value: 'cleaning', label: 'ניקיון' },
   { value: 'gardening', label: 'גינון' },

@@ -1,6 +1,8 @@
 // The committee screens on a phone and on a computer: the same icons, nothing spilling off the screen, and deleting.
 import { randomUUID } from 'node:crypto'
-import { test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, adminSignIn, clearScans, allowConsoleErrors } from './fixtures.js'
+import {
+  test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, adminSignIn, clearScans, allowConsoleErrors, changeFilters, isPhoneLayout, openFilters,
+} from './fixtures.js'
 import { SCAN_ERROR_POINT_INACTIVE } from '../shared/contract.js'
 import { formatDateTime } from '../shared/datetime.js'
 
@@ -187,9 +189,12 @@ test('the history date fields do not overlap and stay inside the filter bar, on 
     if (size) await page.setViewportSize(size)
     await page.goto('/admin#history')
     await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
+    // The filter bar is the block above the list on a computer, and the sheet that the filter button opens on a phone.
+    const sheet = isPhoneLayout(page) ? await openFilters(page) : null
     const from = await page.getByLabel('מתאריך').boundingBox()
     const to = await page.getByLabel('עד תאריך').boundingBox()
-    const filters = await page.getByLabel('מתאריך').locator('xpath=ancestor::*[contains(@class,"a-filters")]').boundingBox()
+    const filters = await page.getByLabel('מתאריך').locator('xpath=ancestor::*[contains(@class,"a-filters") or contains(@class,"a-filter-sheet")]').boundingBox()
+    await sheet?.getByRole('button', { name: 'סגירה' }).click()
     const where = size ? 'computer' : 'phone'
     const overlap = !(from.x + from.width <= to.x + 0.5 || to.x + to.width <= from.x + 0.5
       || from.y + from.height <= to.y + 0.5 || to.y + to.height <= from.y + 0.5)
@@ -569,7 +574,8 @@ test('History lists the visits that were not counted, with no action on them, on
     await loaded(page, 'נקודות סריקה')
     await page.goto('/admin#history')
     await loaded(page, 'היסטוריית נוכחות')
-    await page.getByLabel('סוג').selectOption({ label: 'לא נקלטו' })
+    // (on a phone the filters are in a sheet: changeFilters opens it, and presses "show results" after the change)
+    await changeFilters(page, (filters) => filters.getByLabel('סוג').selectOption({ label: 'לא נקלטו' }))
 
     // the visit from the queue: when the phone scanned it, next to the time of the server
     const queued = withReason('נקודה כבויה').filter({ hasText: 'מהתור בטלפון' }).first()
@@ -590,26 +596,30 @@ test('History lists the visits that were not counted, with no action on them, on
     for (const row of await rows.all()) await expect(row.getByRole('button'), `${where}: an action on a row`).toHaveCount(0)
     await expect(page.getByRole('link', { name: 'ייצוא ל-Excel' })).toHaveCount(0)
     await expect(page.getByRole('button', { name: 'ייצוא ל-Excel' })).toHaveCount(0)
-    await expect(page.getByLabel('כולל מבוטלות')).toHaveCount(0)
-    await expect(page.getByLabel('כולל חשבון דמו')).toHaveCount(0)
+    await changeFilters(page, async (filters) => { // on a phone the sheet opens for this, and its controls are looked at
+      await expect(filters.getByLabel('כולל מבוטלות')).toHaveCount(0)
+      await expect(filters.getByLabel('כולל חשבון דמו')).toHaveCount(0)
+    })
     expect(await noHorizontalScroll(page), `the list of visits not counted at ${where} width`).toBe(true)
 
     // the point filter applies: only the point that was switched off is left
-    await page.getByLabel('נקודה').selectOption({ label: 'נקודה ישנה' })
+    await changeFilters(page, (filters) => filters.getByLabel('נקודה').selectOption({ label: 'נקודה ישנה' }))
     await expect(withReason('לא משויך לנקודה')).toHaveCount(0)
     await expect(withReason('נקודה כבויה').first()).toBeVisible()
-    await page.getByLabel('נקודה').selectOption({ label: 'כל הנקודות' })
+    await changeFilters(page, (filters) => filters.getByLabel('נקודה').selectOption({ label: 'כל הנקודות' }))
     await expect(withReason('לא משויך לנקודה').first()).toBeVisible()
 
     // a stretch of time with none of them: the empty state, and the filter can go back to the scans (and their file)
-    const from = page.getByLabel('מתאריך')
-    const until = page.getByLabel('עד תאריך')
-    await from.fill('')
-    await from.pressSequentially('01012020')
-    await until.fill('')
-    await until.pressSequentially('02012020')
+    await changeFilters(page, async (filters) => {
+      const from = filters.getByLabel('מתאריך')
+      const until = filters.getByLabel('עד תאריך')
+      await from.fill('')
+      await from.pressSequentially('01012020')
+      await until.fill('')
+      await until.pressSequentially('02012020')
+    })
     await expect(page.getByRole('heading', { level: 2, name: 'אין ביקורים שלא נקלטו בטווח הזה' })).toBeVisible()
-    await page.getByLabel('סוג').selectOption({ label: 'נוכחויות שנרשמו' })
+    await changeFilters(page, (filters) => filters.getByLabel('סוג').selectOption({ label: 'נוכחויות שנרשמו' }))
     await expect(page.getByRole('link', { name: 'ייצוא ל-Excel' })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: 'אין נוכחויות בטווח הזה' })).toBeVisible()
   }
@@ -767,60 +777,83 @@ test.describe('dates on the committee screens', () => {
       await expect(keyCard.locator('dd').nth(1)).toHaveText(DAY_TIME) // "created"
       await noOtherFormat('agent keys')
 
-      // history: the two date fields, the heading of the day, the time of the visit, and the confirmation
-      await page.goto('/admin#history')
-      await loaded(page, 'היסטוריית נוכחות')
-      const from = page.getByLabel('מתאריך')
-      const to = page.getByLabel('עד תאריך')
-      await expect(from).toHaveValue(DAY)
-      await expect(to).toHaveValue(DAY)
-      await expect(page.getByRole('heading', { level: 2 }).filter({ hasText: /\d{2}\/\d{2}\/\d{4}/ }).first()).toHaveText(/^\d{2}\/\d{2}\/\d{4} · \d+$/)
-      const row = page.getByRole('listitem').filter({ hasText: 'מינוס 1' }).first()
-      await expect(row).toContainText(/\b\d{2}:\d{2}\b/)
-      await row.getByRole('button', { name: 'מחיקת הנוכחות לצמיתות' }).click()
-      await expect(page.getByRole('dialog')).toContainText(/\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/)
-      await page.getByRole('dialog').getByRole('button', { name: 'סגירה' }).click() // close without deleting
-      await noOtherFormat('history')
+      // history, on a phone and on a computer: the two date fields, the heading of the day, the time of the visit, and the confirmation.
+      // The date fields are above the list on a computer and in the sheet that the filter button opens on a phone, so there the sheet is
+      // opened to look at them and closed again before the rows are touched (it covers them).
+      for (const size of [null, COMPUTER]) {
+        if (size) await page.setViewportSize(size)
+        const phoneLayout = isPhoneLayout(page)
+        await page.goto('/admin#agent') // from another tab, so that History opens with its own filters again
+        await loaded(page, "גישה לאייג'נט")
+        await page.goto('/admin#history')
+        await loaded(page, 'היסטוריית נוכחות')
+        let sheet = phoneLayout ? await openFilters(page) : null
+        let from = (sheet ?? page).getByLabel('מתאריך')
+        let to = (sheet ?? page).getByLabel('עד תאריך')
+        await expect(from).toHaveValue(DAY)
+        await expect(to).toHaveValue(DAY)
+        await sheet?.getByRole('button', { name: 'סגירה' }).click()
+        await expect(page.getByRole('heading', { level: 2 }).filter({ hasText: /\d{2}\/\d{2}\/\d{4}/ }).first()).toHaveText(/^\d{2}\/\d{2}\/\d{4} · \d+$/)
+        const row = page.getByRole('listitem').filter({ hasText: 'מינוס 1' }).first()
+        await expect(row).toContainText(/\b\d{2}:\d{2}\b/)
+        await row.getByRole('button', { name: 'מחיקת הנוכחות לצמיתות' }).click()
+        await expect(page.getByRole('dialog')).toContainText(/\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/)
+        await page.getByRole('dialog').getByRole('button', { name: 'סגירה' }).click() // close without deleting
+        await noOtherFormat('history')
 
-      // a date that is half typed: the list does not follow it and the export waits (it would use the last good range, and
-      // the file would not match what the field says). Both are back when the date is finished.
-      const original = await from.inputValue()
-      const listed = await page.getByRole('listitem').count()
-      await from.press('End')
-      for (let i = 0; i < 6; i++) await from.press('Backspace')
-      await expect(from).toHaveValue(/^\d{2}$/)
-      await expect(page.getByRole('button', { name: 'ייצוא ל-Excel' })).toBeDisabled()
-      await expect(page.getByRole('link', { name: 'ייצוא ל-Excel' })).toHaveCount(0)
-      await page.waitForTimeout(600) // longer than the pause before a query: the list must not have followed half a date
-      expect(await page.getByRole('listitem').count()).toBe(listed)
-      await from.pressSequentially(original.replace(/\D/g, '').slice(2))
-      await expect(from).toHaveValue(original)
-      await expect(page.getByRole('link', { name: 'ייצוא ל-Excel' })).toBeVisible()
+        // a date that is half typed: the list does not follow it and the export waits (it would use the last good range, and
+        // the file would not match what the field says). Both are back when the date is finished. On a phone nothing follows the field
+        // at all: "show results" is what applies, and with a date that is not finished it applies nothing, says so under the field and
+        // keeps the sheet open on it.
+        sheet = phoneLayout ? await openFilters(page) : null
+        from = (sheet ?? page).getByLabel('מתאריך')
+        to = (sheet ?? page).getByLabel('עד תאריך')
+        const original = await from.inputValue()
+        const listed = await page.getByRole('listitem').count()
+        await from.press('End')
+        for (let i = 0; i < 6; i++) await from.press('Backspace')
+        await expect(from).toHaveValue(/^\d{2}$/)
+        if (sheet) {
+          await sheet.getByRole('button', { name: 'הצגת תוצאות' }).click()
+          await expect(sheet.getByRole('alert')).toContainText('התאריך לא תקין')
+          await expect(from).toBeFocused()
+          await expect(page.getByRole('link', { name: 'ייצוא ל-Excel' })).toBeVisible() // the file is still the applied range
+        } else {
+          await expect(page.getByRole('button', { name: 'ייצוא ל-Excel' })).toBeDisabled()
+          await expect(page.getByRole('link', { name: 'ייצוא ל-Excel' })).toHaveCount(0)
+        }
+        await page.waitForTimeout(600) // longer than the pause before a query: the list must not have followed half a date
+        expect(await page.getByRole('listitem').count()).toBe(listed)
+        await from.pressSequentially(original.replace(/\D/g, '').slice(2))
+        await expect(from).toHaveValue(original)
+        await expect(page.getByRole('link', { name: 'ייצוא ל-Excel' })).toBeVisible()
 
-      // typing a whole date: the slashes come by themselves
-      await from.fill('')
-      await from.pressSequentially('01012026')
-      await expect(from).toHaveValue('01/01/2026')
-      // deleting a slash deletes the digit before it, and the cursor stays by it
-      await from.fill('')
-      await from.pressSequentially('01102026')
-      await from.press('Home')
-      for (let i = 0; i < 3; i++) await from.press('ArrowRight')
-      await from.press('Backspace')
-      await expect(from).toHaveValue('01/02/026')
-      expect(await from.evaluate((el) => el.selectionStart)).toBe(1)
-      await from.fill('')
-      await from.pressSequentially('01012026')
-      await to.fill('')
-      await to.pressSequentially('3102')
-      await expect(to).toHaveValue('31/02')
-      await to.pressSequentially('2026')
-      await expect(to).toHaveValue('31/02/2026')
-      await expect(to).toHaveAttribute('aria-invalid', 'true') // there is no 31 February
-      await to.fill('')
-      await to.pressSequentially('15112026')
-      await expect(to).toHaveValue('15/11/2026')
-      await expect(to).not.toHaveAttribute('aria-invalid', 'true')
+        // typing a whole date: the slashes come by themselves
+        await from.fill('')
+        await from.pressSequentially('01012026')
+        await expect(from).toHaveValue('01/01/2026')
+        // deleting a slash deletes the digit before it, and the cursor stays by it
+        await from.fill('')
+        await from.pressSequentially('01102026')
+        await from.press('Home')
+        for (let i = 0; i < 3; i++) await from.press('ArrowRight')
+        await from.press('Backspace')
+        await expect(from).toHaveValue('01/02/026')
+        expect(await from.evaluate((el) => el.selectionStart)).toBe(1)
+        await from.fill('')
+        await from.pressSequentially('01012026')
+        await to.fill('')
+        await to.pressSequentially('3102')
+        await expect(to).toHaveValue('31/02')
+        await to.pressSequentially('2026')
+        await expect(to).toHaveValue('31/02/2026')
+        await expect(to).toHaveAttribute('aria-invalid', 'true') // there is no 31 February
+        await to.fill('')
+        await to.pressSequentially('15112026')
+        await expect(to).toHaveValue('15/11/2026')
+        await expect(to).not.toHaveAttribute('aria-invalid', 'true')
+        await sheet?.getByRole('button', { name: 'סגירה' }).click() // the filters that were typed are not applied
+      }
     } finally {
       await phone.dispose()
       await page.request.delete(`/api/admin/api-keys/${key.id}`)
@@ -906,22 +939,25 @@ test('the audit log opens from the Committee tab, lists what was done and by who
       await expect(log.getByRole('button', { name: /ייצוא/ })).toHaveCount(0)
 
       // the group: the entries of another group leave, and come back with their own
-      await log.getByLabel('סוג פעולה').selectOption({ label: 'נותני שירות' })
+      // (on a phone the controls are in a sheet that opens for each change; on a computer they are in the section, as they were)
+      await changeFilters(page, (filters) => filters.getByLabel('סוג פעולה').selectOption({ label: 'נותני שירות' }), log)
       await expect(rowsOfPoint).toHaveCount(0)
-      await log.getByLabel('סוג פעולה').selectOption({ label: 'נקודות' })
+      await changeFilters(page, (filters) => filters.getByLabel('סוג פעולה').selectOption({ label: 'נקודות' }), log)
       await expect(rowsOfPoint).toHaveCount(3)
       // the member: the entries of the signed-in member are these
-      await log.getByLabel('חבר ועד').selectOption({ label: me.name })
+      await changeFilters(page, (filters) => filters.getByLabel('חבר ועד').selectOption({ label: me.name }), log)
       await expect(rowsOfPoint).toHaveCount(3)
-      await log.getByLabel('חבר ועד').selectOption({ label: 'כל החברים' })
+      await changeFilters(page, (filters) => filters.getByLabel('חבר ועד').selectOption({ label: 'כל החברים' }), log)
 
       // a stretch of time in which nothing was done: its own empty state
-      const from = log.getByLabel('מתאריך')
-      const until = log.getByLabel('עד תאריך')
-      await from.fill('')
-      await from.pressSequentially('01012020')
-      await until.fill('')
-      await until.pressSequentially('02012020')
+      await changeFilters(page, async (filters) => {
+        const from = filters.getByLabel('מתאריך')
+        const until = filters.getByLabel('עד תאריך')
+        await from.fill('')
+        await from.pressSequentially('01012020')
+        await until.fill('')
+        await until.pressSequentially('02012020')
+      }, log)
       await expect(page.getByRole('heading', { level: 2, name: 'אין פעולות בטווח הזה' })).toBeVisible()
       expect(await noHorizontalScroll(page), `the audit log at ${where} width`).toBe(true)
 

@@ -410,6 +410,34 @@ function committeeScreens(width) {
   })
 }
 
+/**
+ * The filters of the History tab on a phone: the sheet that the button of the bar opens (with the defaults, which is what the picture of
+ * the sheet is for), and the bar with filters on, which holds a chip for each of them (a filtered list must not look like missing data).
+ * Only at 360 px: from 1024 px the filters are the block above the list, which the picture of the tab has.
+ */
+function committeeFilters() {
+  test('the filters sheet and the bar with filters on', async ({ page }) => {
+    await stopClock(page)
+    await stubHistory(page)
+    await committeeSignedIn(page)
+    await openTab(page, 'history', 'היסטוריית נוכחות')
+    await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
+    await page.getByRole('button', { name: /^סינון/ }).click()
+    const sheet = page.getByRole('dialog', { name: 'סינון', exact: true })
+    await expect(sheet).toBeVisible()
+    await shotBothThemes(page, 'committee-360-history-filters-sheet', { whole: false })
+
+    await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
+    await sheet.getByLabel('כולל חשבון דמו').check()
+    await sheet.getByRole('button', { name: 'הצגת תוצאות' }).click()
+    await expect(sheet).toHaveCount(0)
+    await expect(page.getByRole('button', { name: 'הסרת סינון: נקודה: לובי' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'הסרת סינון: כולל חשבון דמו' })).toBeVisible()
+    await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
+    await shotBothThemes(page, 'committee-360-history-filtered')
+  })
+}
+
 test.describe('committee app', () => {
   let state
   test.beforeAll(async ({ playwright, browserName }, testInfo) => {
@@ -423,6 +451,7 @@ test.describe('committee app', () => {
   test.describe('at 360 px', () => {
     test.use(COMMITTEE_PHONE)
     committeeScreens('360')
+    committeeFilters()
   })
 
   test.describe('at 1280 px', () => {

@@ -164,6 +164,25 @@ select.a-input {
 /* The date fields are text fields that always read DD/MM/YYYY (DateInput in src/admin/ui.jsx): the digits run left to
    right whatever the page direction, and sit at the end of the field like the labels. They shrink to fit their column. */
 .a-input--date { min-width: 0; direction: ltr; text-align: end; }
+/* On a phone (below 1024px) the block above is not drawn: a bar stands in its place and the controls are in a sheet (src/admin/filters.jsx).
+   The bar is the button, the dates that are applied, and a chip for every other filter that is on, each a button that removes it. */
+.a-filterbar { display: flex; flex-direction: column; gap: var(--w-space-2-5); margin-block-end: var(--w-space-3); }
+.a-filterbar__main { display: flex; flex-wrap: wrap; align-items: center; gap: var(--w-space-2) var(--w-space-3); }
+.a-filterbar__main .w-btn { gap: var(--w-space-2); }
+.a-filterbar__range { color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; }
+.a-chips { display: flex; flex-wrap: wrap; gap: var(--w-space-2); }
+.a-chip {
+  display: inline-flex; align-items: center; gap: var(--w-space-1-5); max-width: 100%; min-height: 36px; padding-block: var(--w-space-1); padding-inline: var(--w-space-3) var(--w-space-2-5);
+  border: 1px solid var(--w-field-border); border-radius: var(--w-radius-pill); background: var(--w-surface); color: var(--w-text);
+  font-size: var(--w-font-md); font-weight: var(--w-weight-medium); text-align: start; cursor: pointer;
+}
+.a-chip > span { min-width: 0; overflow-wrap: anywhere; }
+.a-chip svg { flex: none; color: var(--w-text-2); }
+@media (hover: hover) { .a-chip:hover { background: var(--w-surface-2); } }
+/* The sheet: the two dates side by side, every other control the whole width. */
+.a-filter-sheet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--w-space-4) var(--w-space-3); align-items: start; }
+.a-filter-sheet > * { grid-column: 1 / -1; min-width: 0; }
+.a-filter-sheet > .a-filter-date { grid-column: auto; }
 .a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); }
 .a-scans { list-style: none; margin: 0; padding: 0; background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); overflow: hidden; }
 .a-scan { display: grid; gap: var(--w-space-1) var(--w-space-3-5); grid-template-columns: auto 1fr auto; align-items: center; padding: var(--w-space-3) var(--w-space-4); border-block-end: 1px solid var(--w-border); }
