@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
 import { BUILDING_NAME_MAX_LENGTH } from '../shared/contract.js'
-import { test, expect, he, en, ru, BUILDING_ADDRESS, BUILDING_NAME, ADMIN_EMAIL, adminSignIn, allowConsoleErrors } from './fixtures.js'
+import { test, expect, he, en, ru, BUILDING_ADDRESS, BUILDING_NAME, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, allowConsoleErrors } from './fixtures.js'
 
 const COMPUTER = { width: 1280, height: 800 }
 const SIZES = [['on a phone', null], ['on a computer', COMPUTER]]
@@ -192,7 +192,7 @@ async function loginFits(page, what, name) {
 }
 const signBackIn = async (page) => {
   await page.getByRole('button', { name: 'כניסת פיתוח' }).click()
-  await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible() // the first screen: the address is /admin
+  await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES.home })).toBeVisible() // the first screen, Home: the address is /admin
 }
 /** Signs the committee in again by the request (a test that signed out ends here), and puts the scratch schema's texts back. */
 async function signInAndRestore(page) {
@@ -342,9 +342,9 @@ for (const [what, longName] of [['one word of 80 letters', WORD], ['80 character
           expect(out.x, 'the icons are inside the screen').toBeGreaterThanOrEqual(0)
           expect(first.x + first.width, 'the icons are inside the screen').toBeLessThanOrEqual(size.width)
           expect(brand.x, 'the brand does not run into the icons (on a Hebrew screen it is on the right of them)').toBeGreaterThanOrEqual(first.x + first.width - 1)
-          // the tab bar still has its four buttons on the 360 px screen (#103)
+          // the tab bar still has its five buttons on the 360 px screen (#103 had four, Home is the fifth)
           const tabs = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button')
-          await expect(tabs).toHaveCount(4)
+          await expect(tabs).toHaveCount(5)
           for (const tab of await tabs.all()) {
             const box = await tab.boundingBox()
             expect(box.x).toBeGreaterThanOrEqual(0)

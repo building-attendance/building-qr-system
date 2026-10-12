@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, SCREEN_TITLES, SCREEN_NAV, adminSignIn, openScreen, clearScans, allowConsoleErrors,
-  changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS,
+  changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS,
 } from './fixtures.js'
 import { SCAN_ERROR_POINT_INACTIVE } from '../shared/contract.js'
 import { formatDateTime } from '../shared/datetime.js'
@@ -1046,7 +1046,7 @@ test('the help is a screen of its own with every topic on it, nothing to press, 
 })
 
 // ---- the sheet under "עוד" and the first screen --------------------------------------------------------------------------
-// On a phone the tab bar has four buttons and the fourth, "עוד", opens a sheet with the other four screens: a real dialog (the Modal
+// On a phone the tab bar has five buttons and the last, "עוד", opens a sheet with the other four screens: a real dialog (the Modal
 // of every form of the app), so focus goes in, Esc and a tap outside close it, and the focus goes back to the button. The unit test
 // (tests/components/admin-tab.test.jsx) proves the behaviour in jsdom; this proves it in the two real browsers.
 
@@ -1359,5 +1359,26 @@ test('the cards of Home open their screens, and each number is the one that scre
     else await expect(historyRows(page), `${where}: the visits that were not counted`).toHaveCount(shown.number)
     if (isPhoneLayout(page)) await expect(page.getByRole('button', { name: /^הסרת סינון: סוג/ })).toBeVisible()
     else await expect(page.getByLabel('סוג')).toHaveValue('not_counted')
+  }
+})
+
+test('the cell of a provider that was deleted opens the History filtered to it, and the filter says so, on a phone and on a computer', async ({ page }) => {
+  await stubHome(page) // its week has a provider that is no longer in the list of providers (its visits stay), and one that is switched off
+  await adminSignIn(page, 'home')
+  const gone = HOME_PROVIDERS.find((p) => p.company === null)
+  for (const size of [null, COMPUTER]) {
+    if (size) await page.setViewportSize(size)
+    const where = size ? 'computer' : 'phone'
+    await page.goto('/admin#home')
+    const row = homeRow(page, gone.name)
+    await expect(row.getByRole('rowheader'), `${where}: the row says it was deleted`).toContainText('נותן שירות שנמחק')
+    const cell = row.getByRole('cell').nth(gone.counts.findIndex((n) => n > 0))
+    await expect(cell).toHaveText(String(Math.max(...gone.counts)))
+    await cell.getByRole('link').click()
+    await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
+    // the filter is on, in plain sight, and never widened to everyone's visits
+    if (isPhoneLayout(page)) await expect(page.getByRole('button', { name: 'הסרת סינון: נותן שירות שנמחק' })).toBeVisible()
+    else await expect(page.getByLabel('נותן שירות')).toHaveValue(gone.id)
+    await expect(page.getByRole('main').getByRole('listitem'), `${where}: no visit of anyone else`).toHaveCount(0)
   }
 })

@@ -48,14 +48,15 @@ occurs, or names a screen that is not scanned, fails. Fix a violation rather tha
 ## Visual regression
 
 `e2e/visual.spec.js` takes a picture of the key screens and compares it with the baseline image in
-`e2e/__screenshots__/visual.spec.js/` (`name.png`; 68 files, about 125 KB at most each). It is there to catch design drift
+`e2e/__screenshots__/visual.spec.js/` (`name.png`; 72 files, about 125 KB at most each). It is there to catch design drift
 that no behaviour test sees, and to show the owner the exact image diff of every intended change to a screen. It covers,
 each in the light and the dark theme:
 
 - the provider app in Hebrew: the sign-in list, the password screen, home with a visit, "recorded" and "too far", and in
   English (left to right) and Arabic (right to left): the sign-in list and home, on a 390 px phone;
-- the committee app in Hebrew, at 360 px and at 1280 px: the seven screens (history, points, providers, agent, settings, audit log and help),
-  the history of a building with no points, the dialog of a point (with the map) and the dialog
+- the committee app in Hebrew, at 360 px and at 1280 px: Home (a fixed week of invented visits, `stubHome`, with the clock at ten in the
+  morning of its last day, so that the greeting is always the same) and the seven other screens (history, points, providers, agent,
+  settings, audit log and help), the history of a building with no points, the dialog of a point (with the map) and the dialog
   of a provider; and the sheet that the "More" button of the phone's tab bar opens (at 360 px, and at 768 px, the widest
   screen that has the tab bar: a computer has the side rail instead);
 - the filters of the History tab below 1024 px: the sheet that its filter button opens (with the defaults), at 360 px and at 768 px, where it
