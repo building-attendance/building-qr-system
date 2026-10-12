@@ -178,9 +178,10 @@ controls, the QR code, logos or checkmarks.**
 - **Why:** one set of tokens keeps the light and dark themes in step: a colour written in place passes in one theme and
   fails in the other. The sizes follow the same rule: spacing (`--w-space-*`), radius (`--w-radius-*`) and font size
   (`--w-font-*`) are three families of tokens, defined once on `:root` in `src/ui/base.css` next to the weight tokens, and
-  a size that has a token is written as the token. Their values are the ones the apps already used, so this step changed
-  no pixel. A size that is on no scale yet stays a literal whose count may only go down, until the next step consolidates
-  the scales. One typeface is already pinned.
+  a size that has a token is written as the token. The scales are consolidated (the rare radii and font sizes
+  were folded into their neighbours), and a size that must keep its exact value, such as the room above the tab bar, is a
+  named layout constant (`--w-layout-*`, next to them), so no literal is left in a spacing, radius or font-size declaration.
+  One typeface is already pinned.
 - **Source:** this project; Refactoring UI (the advice to fix the spacing, sizing and type scales in advance;
   [book](https://refactoringui.com/), expert opinion, paraphrased).
 - **Check:** `tests/contrast.test.js`, `tests/typography.test.js`, and `tests/design-css.test.js` (a literal of a size that

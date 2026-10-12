@@ -26,10 +26,5 @@
       "reason": "The left-to-right half of the chevron above: the chevron of a select sits at the end of the field, which is the right edge when the page is left to right, and background-position has no logical keyword that Chromium supports."
     }
   ],
-  "literalBudget": {
-    "src/admin/admin.css": 10,
-    "src/admin/views/ProvidersView.jsx": 1,
-    "src/ui/ui.css": 2,
-    "src/worker/components.jsx": 1
-  }
+  "literalBudget": {}
 }

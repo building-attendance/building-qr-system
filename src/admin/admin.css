@@ -30,7 +30,7 @@
 .a-side__foot .a-tools { justify-content: space-between; padding-inline: var(--w-space-1); }
 .a-user { padding: var(--w-space-2-5) var(--w-space-3); border-radius: var(--w-radius-md); background: var(--w-surface-2); }
 .a-user strong { display: block; overflow-wrap: anywhere; }
-.a-user span { color: var(--w-text-3); font-size: var(--w-font-sm); overflow-wrap: anywhere; }
+.a-user span { color: var(--w-text-3); font-size: var(--w-font-md); overflow-wrap: anywhere; }
 
 .a-top {
   display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-2); position: sticky; top: 0; z-index: 10;
@@ -47,7 +47,7 @@
 /* Five equal columns that may shrink below their content (minmax(0, ...) and min-width: 0), so a long label can never push the bar
    wider than the screen; the label (`.a-nav-label`) stays on one line. */
 .a-tab {
-  min-width: 0; min-height: 62px; padding-inline: var(--w-space-1); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px;
+  min-width: 0; min-height: 62px; padding-inline: var(--w-space-1); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--w-space-1);
   border: 0; background: none; color: var(--w-text-3); font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); cursor: pointer;
 }
 /* The text of a tab button, in the tab bar and in the side rail: one line. The ellipsis is the last resort and should never show, because
@@ -57,8 +57,8 @@
 @media (min-width: 1024px) { .a-tabbar { display: none; } }
 
 /* ----- page frame ----- */
-.a-main { flex: 1; min-width: 0; width: 100%; max-width: 1120px; margin-inline: auto; padding: var(--w-space-4) var(--w-space-5) calc(96px + env(safe-area-inset-bottom)); }
-@media (min-width: 1024px) { .a-main { padding: 36px var(--w-space-10) var(--w-space-16); } }
+.a-main { flex: 1; min-width: 0; width: 100%; max-width: 1120px; margin-inline: auto; padding: var(--w-space-4) var(--w-space-5) calc(var(--w-layout-tabbar-clearance) + env(safe-area-inset-bottom)); }
+@media (min-width: 1024px) { .a-main { padding: var(--w-space-10) var(--w-space-10) var(--w-space-16); } }
 .a-head { display: flex; align-items: flex-start; justify-content: space-between; gap: var(--w-space-3); margin-block-end: var(--w-space-5); }
 .a-head > :first-child { flex: 1 1 14rem; min-width: 0; }
 .a-head .a-actions { flex: none; gap: var(--w-space-1); flex-wrap: nowrap; }
@@ -106,8 +106,8 @@
 /* The tile's actions live in its header, as icons, so the tile has no row of buttons at the bottom. The negative margins
    line the icons' glyphs up with the card padding (each icon sits inside a 44px touch target). The auto margin at the start keeps
    them at the end of the row when they wrap below the title. */
-.a-card__tools { display: flex; align-items: center; flex: none; margin-block: -9px -9px; margin-inline: auto calc(-1 * var(--w-space-2-5)); }
-.a-card__title { font-size: var(--w-font-2xl); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.a-card__tools { display: flex; align-items: center; flex: none; margin-block: calc(-1 * var(--w-layout-icon-inset)); margin-inline: auto calc(-1 * var(--w-space-2-5)); }
+.a-card__title { font-size: var(--w-font-3xl); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
 .a-card__sub { color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; }
 .a-meta { display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); }
 .a-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: var(--w-space-1-5) var(--w-space-3-5); font-size: var(--w-font-md); }
@@ -126,7 +126,7 @@
    scrolling region that cannot take focus cannot be scrolled with the keys (axe: scrollable-region-focusable). */
 .a-phones:focus-visible { border-radius: var(--w-radius-md); } /* the focus outline (.a-app :focus-visible) follows the corners of the boxes */
 
-.a-badge { display: inline-flex; align-items: center; gap: var(--w-space-1-5); padding: 3px var(--w-space-2-5); border-radius: var(--w-radius-pill); font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); background: var(--w-surface-2); color: var(--w-text-2); white-space: nowrap; }
+.a-badge { display: inline-flex; align-items: center; gap: var(--w-space-1-5); padding: var(--w-space-1) var(--w-space-2-5); border-radius: var(--w-radius-pill); font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); background: var(--w-surface-2); color: var(--w-text-2); white-space: nowrap; }
 .a-badge--ok { background: var(--w-success-bg); color: var(--w-success); }
 .a-badge--warn { background: var(--w-warn-bg); color: var(--w-warn); }
 .a-badge--danger { background: var(--w-danger-bg); color: var(--w-danger); }
@@ -194,7 +194,7 @@ select.a-input {
 .a-disclosure { margin: 0; } /* the button inside sets the size and the weight */
 .a-disclosure__btn {
   display: flex; align-items: center; gap: var(--w-space-3); width: 100%; min-height: 56px; padding: var(--w-space-3) var(--w-space-4-5); background: var(--w-surface);
-  border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); color: var(--w-text); font-size: var(--w-font-2xl); font-weight: var(--w-weight-semibold);
+  border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); color: var(--w-text); font-size: var(--w-font-3xl); font-weight: var(--w-weight-semibold);
   text-align: start; cursor: pointer;
 }
 @media (hover: hover) { .a-disclosure__btn:hover { background: var(--w-surface-2); } }
@@ -249,12 +249,12 @@ select.a-input {
 }
 
 /* ----- toasts ----- */
-.a-toasts { position: fixed; inset-inline: var(--w-space-4); bottom: calc(76px + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; gap: var(--w-space-2); pointer-events: none; }
+.a-toasts { position: fixed; inset-inline: var(--w-space-4); bottom: calc(var(--w-layout-toast-clearance) + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; gap: var(--w-space-2); pointer-events: none; }
 @media (min-width: 1024px) { .a-toasts { inset-inline: auto; inset-inline-start: var(--w-space-6); bottom: var(--w-space-6); width: 380px; } }
 .a-toast { pointer-events: auto; display: flex; gap: var(--w-space-2-5); align-items: flex-start; padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-lg); background: var(--w-surface-2); border: 1px solid var(--w-border); box-shadow: var(--w-shadow); }
-.a-toast svg { flex: none; margin-block-start: 1px; }
+.a-toast svg { flex: none; margin-block-start: var(--w-layout-optical-nudge); }
 .a-toast span { flex: 1; }
-.a-toast button { flex: none; width: 44px; height: 44px; margin: calc(-1 * var(--w-space-3)) calc(-1 * var(--w-space-2)); display: grid; place-items: center; border: 0; border-radius: var(--w-radius-xs); background: none; color: var(--w-text-2); cursor: pointer; }
+.a-toast button { flex: none; width: 44px; height: 44px; margin: calc(-1 * var(--w-space-3)) calc(-1 * var(--w-space-2)); display: grid; place-items: center; border: 0; border-radius: var(--w-radius-sm); background: none; color: var(--w-text-2); cursor: pointer; }
 .a-toast button:hover { background: var(--w-surface); color: var(--w-text); }
 .a-toast--ok svg { color: var(--w-success); }
 .a-toast--error { border-color: var(--w-danger-line); }
@@ -264,12 +264,12 @@ select.a-input {
 .a-empty { display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--w-space-2-5); padding: var(--w-space-12) var(--w-space-5); background: var(--w-surface); border: 1px dashed var(--w-border); border-radius: var(--w-radius-2xl); }
 .a-empty__title { font-size: var(--w-font-3xl); }
 .a-empty__icon { width: 64px; height: 64px; display: grid; place-items: center; border-radius: var(--w-radius-2xl); background: var(--w-info-bg); color: var(--w-info); }
-.a-loading { display: grid; place-items: center; padding: 60px 0; }
+.a-loading { display: grid; place-items: center; padding: var(--w-space-16) 0; }
 
 /* ----- login ----- */
 .a-login { position: relative; flex: 1; min-height: 100vh; min-height: 100dvh; display: grid; place-items: center; padding: var(--w-space-5); }
 .a-login__tools { position: absolute; inset-block-start: max(var(--w-space-3-5), env(safe-area-inset-top)); inset-inline-end: var(--w-space-5); }
-.a-login__card { width: 100%; max-width: 440px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--w-space-4); padding: 34px var(--w-space-6) var(--w-space-6); background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-4xl); }
+.a-login__card { width: 100%; max-width: 440px; display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--w-space-4); padding: var(--w-space-8) var(--w-space-6) var(--w-space-6); background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-3xl); }
 /* The building's name under the title, in the committee's own words: it wraps inside the card, whatever its length. */
 .a-login__building { max-width: 100%; font-size: var(--w-font-3xl); line-height: 1.25; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; margin-block-start: calc(-1 * var(--w-space-2)); }
 .a-login__mark { width: 72px; height: 72px; display: grid; place-items: center; border-radius: var(--w-radius-3xl); background: var(--w-info-bg); color: var(--w-info); }
