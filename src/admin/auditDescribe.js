@@ -30,7 +30,8 @@ const VALUE_MAX = 80 // characters of one value on the screen: a long descriptio
 const UNKNOWN_ACTION = 'פעולה לא מוכרת'
 
 const isObject = (value) => value !== null && typeof value === 'object' && !Array.isArray(value)
-const has = (object, key) => Object.hasOwn(object, key)
+// Not Object.hasOwn: it is ES2022 (Safari 15.4), newer than the browsers of build.target in vite.config.js (eslint.config.js).
+const has = (object, key) => Object.prototype.hasOwnProperty.call(object, key)
 const isCount = (value) => Number.isInteger(value) && value >= 0
 const clip = (text) => {
   const chars = Array.from(text)
