@@ -26,11 +26,12 @@ const inBoth = Object.fromEntries(Object.entries(globals.node).filter(([name]) =
 // eslint-plugin-es-x knows what each edition of ECMAScript added. Every one of its presets for what came after ES2020 is on
 // (each year from 2021, its Intl part, and `esnext`), taken from the plugin by name, so that a newer version of the plugin
 // brings a newer edition in by itself. The line is the `es2020` of the target, not a table of versions, so it is a little
-// stricter than the four browsers (`replaceAll` is in all of them, `Promise.any` in all but Firefox 78).
+// stricter than the four browsers (`replaceAll` is in all of them, `Promise.any` in all but Firefox 78). Only the names are
+// listed first: reading one of the plugin's old, deprecated presets prints a warning.
 const AFTER_ES2020 = /^flat\/no-new-in-es(20(2[1-9]|[3-9]\d)|next)(-intl-api)?$/
 const afterES2020 = Object.assign(
   {},
-  ...Object.entries(esX.configs).filter(([name]) => AFTER_ES2020.test(name)).map(([, preset]) => preset.rules),
+  ...Object.keys(esX.configs).filter((name) => AFTER_ES2020.test(name)).map((name) => esX.configs[name].rules),
 )
 
 // The syntax of those editions that Vite lowers to build.target (checked with Vite 8's own transform): what Vite builds may use
@@ -70,16 +71,22 @@ const BROWSER_TARGET = {
   // ES2018, so in none of the presets above, but Safari reads it only from 16.4 (and Vite does not lower a pattern, see above).
   'es-x/no-regexp-lookbehind-assertions': 'error',
   // A call of `.at(...)` on anything, the plain and the optional call and `['at']`. Reading a field named `at` is not a call.
+  // And AbortSignal's two newer methods when the class is reached through the global object (`window.AbortSignal.timeout`).
   'no-restricted-syntax': [
     'error',
     { selector: "CallExpression > MemberExpression.callee[computed=false][property.name='at']", message: AT_IS_NEWER },
     { selector: "CallExpression > MemberExpression.callee[computed=true][property.value='at']", message: AT_IS_NEWER },
+    { selector: "MemberExpression[object.property.name='AbortSignal'][property.name='timeout']", message: newerThan('AbortSignal.timeout', '16') },
+    { selector: "MemberExpression[object.property.name='AbortSignal'][property.name='any']", message: newerThan('AbortSignal.any', '17.4') },
   ],
   // Built-ins of the web platform, not of ECMAScript, so the plugin does not know them: the ones that a modern habit reaches for.
+  // A name on its own (`structuredClone`) and the same name read from the global object (`window.structuredClone`,
+  // `globalThis.crypto.randomUUID`): structuredClone and randomUUID are refused on any object, which here is only ever that one.
   'no-restricted-globals': ['error', { name: 'structuredClone', message: newerThan('structuredClone', '15.4') }],
   'no-restricted-properties': [
     'error',
-    { object: 'crypto', property: 'randomUUID', message: `${newerThan('crypto.randomUUID', '15.4')} Use uuid() of src/worker/uuid.js.` },
+    { property: 'structuredClone', message: newerThan('structuredClone', '15.4') },
+    { property: 'randomUUID', message: `${newerThan('crypto.randomUUID', '15.4')} Use uuid() of src/worker/uuid.js.` },
     { object: 'AbortSignal', property: 'timeout', message: newerThan('AbortSignal.timeout', '16') },
     { object: 'AbortSignal', property: 'any', message: newerThan('AbortSignal.any', '17.4') },
   ],

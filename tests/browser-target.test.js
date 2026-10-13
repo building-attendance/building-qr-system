@@ -46,6 +46,15 @@ const NEWER = [
   ['export const both = (a, b) => new Set(a).union(new Set(b))', 'es-x/no-set-prototype-union', 'ES2025, Safari 17'],
   ['export const id = () => crypto.randomUUID()', 'no-restricted-properties', 'the web platform, Safari 15.4'],
   ['export const signal = () => AbortSignal.timeout(5000)', 'no-restricted-properties', 'the web platform, Safari 16'],
+  // The same, read from the global object (the review of #203).
+  ['export const copy = (detail) => window.structuredClone(detail)', 'no-restricted-properties', 'the web platform, Safari 15.4'],
+  ["export const copy = (detail) => globalThis['structuredClone'](detail)", 'no-restricted-properties', 'the web platform, Safari 15.4'],
+  ['export const id = () => globalThis.crypto.randomUUID()', 'no-restricted-properties', 'the web platform, Safari 15.4'],
+  ['export const id = () => { const { randomUUID } = crypto; return randomUUID() }', 'no-restricted-properties', 'the web platform, Safari 15.4'],
+  ['export const signal = () => window.AbortSignal.timeout(5000)', 'no-restricted-syntax', 'the web platform, Safari 16'],
+  ['export const signal = (signals) => globalThis.AbortSignal.any(signals)', 'no-restricted-syntax', 'the web platform, Safari 17.4'],
+  ["export const own = (detail) => globalThis.Object.hasOwn(detail, 'name')", 'es-x/no-object-hasown', 'ES2022, Safari 15.4'],
+  ['export const later = () => globalThis.Promise.withResolvers()', 'es-x/no-promise-withresolvers', 'ES2024, Safari 17.4'],
   ['export const domain = (email) => /(?<=@)\\w+/.exec(email)', 'es-x/no-regexp-lookbehind-assertions', 'ES2018, but Safari 16.4'],
   ['export const indices = (text) => /a/d.exec(text)', 'es-x/no-regexp-d-flag', 'ES2022, Safari 15'],
 ]
@@ -54,6 +63,8 @@ const NEWER = [
 const ALLOWED = [
   'export const time = (entry) => entry.at', // a field named `at` (the time of a scan or of an audit entry), not the method
   'export const time = ({ at }) => at',
+  'export const wait = (options) => options.timeout ?? options.any', // fields named like AbortSignal's methods
+  'export const signal = (controller) => controller.signal', // AbortController is older than the target
   'export const last = (days) => days[days.length - 1]',
   "export const own = (detail) => Object.prototype.hasOwnProperty.call(detail, 'name')",
   // An array's methods of ES5 and ES2019, with the names of an iterator's helpers of ES2025.
@@ -115,13 +126,14 @@ describe('the code that runs in the browser uses only what build.target has', ()
 
 describe('the rules of eslint-plugin-es-x', () => {
   // Every rule of every preset that the plugin has for an edition after ES2020 (and `esnext`), read from the plugin here and not
-  // from eslint.config.js, so that a rule left out of the configuration is seen.
-  const after2020 = Object.entries(esX.configs)
-    .filter(([name]) => {
+  // from eslint.config.js, so that a rule left out of the configuration is seen. Only the names are listed first: reading one of
+  // the plugin's old, deprecated presets prints a warning.
+  const after2020 = Object.keys(esX.configs)
+    .filter((name) => {
       const edition = /^flat\/no-new-in-es(\d{4}|next)(-intl-api)?$/.exec(name)?.[1]
       return edition === 'next' || Number(edition) > 2020
     })
-    .flatMap(([, preset]) => Object.keys(preset.rules))
+    .flatMap((name) => Object.keys(esX.configs[name].rules))
   const severity = (config, rule) => (Array.isArray(config.rules[rule]) ? config.rules[rule][0] : config.rules[rule])
 
   // A piece of code for each rule that src/ and shared/ may break, because Vite lowers that syntax.
