@@ -84,18 +84,35 @@ async function throttle(page, profile, { network = true } = {}) {
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: profile.cpu })
 }
 
-/** Counts the requests of the page and the bytes that crossed the network, from `start()` on. */
+/**
+ * Counts the requests of the page and the bytes that crossed the network, from `start()` on. A request belongs to the sample
+ * that was open when it finished, even though its size is known only a moment later, and `read()` waits for those moments.
+ */
 function traffic(page) {
   let counts = { requests: 0, api: 0, bytes: 0 }
-  page.on('requestfinished', async (request) => {
-    counts.requests++
-    if (new URL(request.url()).pathname.startsWith('/api/')) counts.api++
-    const sizes = await request.sizes().catch(() => null)
-    if (sizes && !(await request.response())?.fromServiceWorker()) counts.bytes += sizes.responseBodySize + sizes.responseHeadersSize
+  let pending = []
+  page.on('requestfinished', (request) => {
+    const sample = counts
+    sample.requests++
+    if (new URL(request.url()).pathname.startsWith('/api/')) sample.api++
+    pending.push(
+      (async () => {
+        const sizes = await request.sizes().catch(() => null)
+        const response = await request.response().catch(() => null)
+        if (sizes && !response?.fromServiceWorker()) sample.bytes += sizes.responseBodySize + sizes.responseHeadersSize
+      })(),
+    )
   })
   return {
-    start: () => (counts = { requests: 0, api: 0, bytes: 0 }),
-    read: () => ({ ...counts }),
+    start: () => {
+      counts = { requests: 0, api: 0, bytes: 0 }
+      pending = []
+    },
+    read: async () => {
+      const sample = counts
+      await Promise.all(pending)
+      return { ...sample }
+    },
   }
 }
 
@@ -135,6 +152,26 @@ const commit = () => {
 }
 const machine = () => ({ cpu: os.cpus()[0]?.model?.trim() ?? 'unknown', cores: os.cpus().length, platform: `${os.platform()} ${os.release()}` })
 
+// The journeys that did not end as expected: a baseline is written only from a run in which every journey passed.
+const failed = []
+test.afterEach(() => {
+  const info = test.info()
+  if (info.status !== info.expectedStatus) failed.push(info.titlePath.slice(-2).join(' > '))
+})
+
+/** Why this run cannot be the baseline, or null when it can: every journey passed, with RUNS samples of every measure. */
+function notABaseline() {
+  if (RUNS < 10) return `a baseline needs at least 10 runs, and this one made ${RUNS}`
+  if (failed.length) return `a journey failed (${failed.join('; ')})`
+  for (const profile of PROFILES) {
+    for (const metric of Object.keys(METRICS)) {
+      const n = results[profile.key]?.[metric]?.length ?? 0
+      if (n !== RUNS) return `${profile.key} ${metric} has ${n} of ${RUNS} runs`
+    }
+  }
+  return null
+}
+
 test.afterAll(() => {
   if (!Object.keys(results).length) return
   const run = {
@@ -169,9 +206,17 @@ test.afterAll(() => {
       lines.push(`    ${words}: ${now.median} / ${now.p95}, ${now.requests} requests (${now.api} to the API), ${Math.round(now.bytes / 1024)} KB over the network${compared}`)
     }
   }
+  if (lines.some((line) => line.endsWith('OVER THE 20% LINE'))) {
+    lines.push('  Once over the line can be noise: run it again. A median over the line in two runs in a row is a regression (docs/testing.md, "Timing a scan").')
+  }
   if (process.env.PERF_UPDATE_BASELINE === '1') {
-    fs.writeFileSync(BASELINE, `${JSON.stringify(run, null, 2)}\n`)
-    lines.push(`  written as the new baseline: ${path.relative(process.cwd(), BASELINE)}`)
+    const refused = notABaseline()
+    if (refused) {
+      lines.push(`  NOT written as the baseline: ${refused}. The baseline stays as it was.`)
+    } else {
+      fs.writeFileSync(BASELINE, `${JSON.stringify(run, null, 2)}\n`)
+      lines.push(`  written as the new baseline: ${path.relative(process.cwd(), BASELINE)}`)
+    }
   }
   console.log(lines.join('\n'))
 })
@@ -204,7 +249,7 @@ for (const profile of PROFILES) {
         meter.start()
         await page.goto(scanLink)
         await expect(page.getByRole('heading', { name: TITLES.success })).toBeVisible({ timeout: 60_000 })
-        record(profile, 'daily', (await marks(page)).success, meter.read())
+        record(profile, 'daily', (await marks(page)).success, await meter.read())
       }
     })
 
@@ -227,12 +272,12 @@ for (const profile of PROFILES) {
         const meter = traffic(page)
         await page.goto(scanLink)
         await expect(page.getByRole('list').getByRole('button').first()).toBeVisible({ timeout: 60_000 })
-        record(profile, 'first_list', (await marks(page)).names, meter.read())
+        record(profile, 'first_list', (await marks(page)).names, await meter.read())
         meter.start()
         await signIn(page, PEOPLE.ploni)
         await expect(page.getByRole('heading', { name: TITLES.success })).toBeVisible({ timeout: 60_000 })
         const seen = await marks(page)
-        record(profile, 'first_checkin', seen.success - seen.submit, meter.read())
+        record(profile, 'first_checkin', seen.success - seen.submit, await meter.read())
         await context.close()
         expect(errors, 'console errors on a new phone').toEqual([])
       }
@@ -249,7 +294,7 @@ for (const profile of PROFILES) {
         meter.start()
         await page.goto(scanLink)
         await expect(page.getByRole('heading', { name: TITLES.queued })).toBeVisible({ timeout: 60_000 })
-        record(profile, 'offline', (await marks(page)).queued, meter.read())
+        record(profile, 'offline', (await marks(page)).queued, await meter.read())
         // Forget the saved visit before the network returns, so that the next run is the same first visit of the day.
         await page.evaluate((key) => globalThis.localStorage.removeItem(key), QUEUE_KEY)
         await page.goto('about:blank')

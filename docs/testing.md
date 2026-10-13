@@ -161,11 +161,15 @@ the p95 of each journey, its requests and the bytes that crossed the network, an
 number of runs, and `PERF_UPDATE_BASELINE=1` makes the run the new baseline.
 
 **When to run it:** before and after a change to the provider app's scan flow, the service worker or the PWA files, or
-anything that the provider app downloads. Put the two lines that matter in the pull request. A median over the 20% line
-needs a reason there. A new baseline is committed only with the change that explains it.
+anything that the provider app downloads. Put the two lines that matter in the pull request. A median over the 20% line in
+two runs in a row is a regression and needs a reason there; once over the line is a reason to run it again, not a finding.
+A new baseline is committed only with the change that explains it, and only from a complete run: the run refuses to write
+one with fewer than 10 runs, with a journey that failed, or with a journey missing.
 
 **How to read it:** compare runs of one computer only (the baseline names the computer that measured it), with nothing heavy
-running beside it: the CPU slowdown multiplies whatever the computer is doing. Two runs in a row show how much is noise.
+running beside it: the CPU slowdown multiplies whatever the computer is doing. The noise is real: on 13/10/2026 two runs of
+the same commit on the baseline's computer differed by up to 28% in a median, which is why one run over the line proves
+nothing.
 
 **What it cannot show:** the GPS of a real phone (the browser here answers at once), the time of the server on Vercel and
 Neon (the API runs on this computer, and the latency of the profile stands for the distance), and Safari (WebKit has no
