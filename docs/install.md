@@ -84,8 +84,8 @@ they change, so check each provider's current limits before you rely on them.
 which use the GitHub CLI.
 
 - `git`, and the GitHub CLI `gh`, signed in (`gh auth login`), for section 3.8.
-- Node 24 (the version in [`.nvmrc`](../.nvmrc)) and `npm ci` in a clone of your repository, only for the recovery
-  command in section 3.6 and for backups (section 3.9).
+- Node 24, release 24.15 or later (`engines` in [`package.json`](../package.json)), and `npm ci` in a clone of your
+  repository, only for the recovery command in section 3.6 and for backups (section 3.9).
 
 **Rules to follow all the way through** (from [`AGENTS.md`](../AGENTS.md) and [secrets.md](runbooks/secrets.md)):
 
@@ -172,8 +172,9 @@ touched. Once the database is connected, **Redeploy** **(check in the trial inst
    letters added when that name is taken (`building-qr-system-2xir` in the trial): do not keep it.
 3. Leave everything else as Vercel detects it: the Application Preset is Vite, the Root Directory is `./`, and the Build and
    Output Settings show the **Build Command from `vercel.json`**, `node scripts/vercel-build.mjs`, and the Output
-   Directory `dist`: do not override them. The Node version comes from `engines` in `package.json` (`24.x`), and the
-   project's Node.js Version should say 24.x.
+   Directory `dist`: do not override them. The Node version comes from `engines` in `package.json` (`^24.15.0`). Vercel
+   takes only the major from it, so the build runs on Vercel's newest Node 24, and the project's Node.js Version should
+   say 24.x.
 4. Open the Environment Variables part of the import screen and add the two database variables from section 3.2:
    `DATABASE_URL` and `DATABASE_URL_UNPOOLED`. These two are what the first deploy needs. Each row has "Environments"
    (Production and Preview, Production, Preview, or Development; the default is "Production and Preview") and a
