@@ -116,23 +116,29 @@ and, at the end, a summary of the problems.
 The three steps:
 
 1. `GET /api/health` until the domain serves the commit that was deployed. It asks every 10 s for up to 5 minutes, because
-   the promotion can lag behind the event.
+   the promotion can lag behind the event. When two merges land a few minutes apart, the later one can be promoted before
+   this run sees its own commit. So when the domain serves another commit, the run asks GitHub (the compare API, with the
+   job's read-only token) whether that commit is newer and contains the deployed one. If it is, step 1 passes
+   (`production serves <other>, a newer commit that contains <commit>`), steps 2 and 3 are skipped, and the run of the
+   newer commit checks them against its own files.
 2. `GET /` returns the app page with its root element.
 3. `GET /api/health/db` with a read-only agent key: the database answers, and its newest migration is the newest file in
    `db/migrations/` of that commit. It needs the secret `SMOKE_AGENT_KEY`. Without it this step is skipped with a warning
    (`warn 3/3`) and the run still passes. How to set it is at the top of `smoke.yml`: make a key in the Agent tab of
    `/admin`, then run `gh secret set SMOKE_AGENT_KEY` and paste the key at the prompt, never on the command line.
 
-If step 1 fails, steps 2 and 3 are skipped, because they would test a different deployment.
+If step 1 fails, or passes on a newer commit, steps 2 and 3 are skipped, because they would test a different deployment.
 
 **What an issue means.** An issue titled `Smoke test failed after deploying <commit>` (label `bug`) means that a deploy broke
 something, or did not take effect. It links to the run. Read the `FAIL` line there, then go to [incident.md](incident.md)
 (the owner's short page is [something-broke.md](something-broke.md)):
 
-- `production does not serve <commit>, it serves <other>`: after 5 minutes the domain still serves another deployment. Look
-  in Vercel: did the build fail, was the deployment never promoted? This is also what the run shows after an Instant
-  Rollback, when a later merge is built but not promoted until you promote it. If it only needed more time, run the job
-  again from the Actions tab (**Re-run all jobs**).
+- `production does not serve <commit>, it serves <other>`: after 5 minutes the domain still serves another deployment, and
+  it is not a newer commit that contains this one (it is older, or on another line). Look in Vercel: did the build fail,
+  was the deployment never promoted? This is also what the run shows after an Instant Rollback, when a later merge is
+  built but not promoted until you promote it. If it only needed more time, run the job again from the Actions tab
+  (**Re-run all jobs**). When the line ends with `GitHub did not say whether it contains <commit>`, GitHub's API did not
+  answer, so the run could not tell a newer commit from an older one: re-run it.
 - `GET /` is not the app page: the deployment serves something that cannot start the app. Roll the code back.
 - `the database is at <old file>, the code expects <new file>`: the deployment is live but its migration did not run. Look
   in the build log for the `Deploy gate:` line, and read "A failed migration" below. Fix forward: never edit a merged

@@ -8,20 +8,29 @@
 // case that ADR 0002 closes in the build and that this checks again from the outside). Three steps, each prints one line:
 //   1. GET /api/health until the production domain serves the expected commit (a promotion can lag behind the
 //      deployment event, and a CDN can answer from its cache for a moment, so it polls with a cache-busting query).
+//      A later merge can be promoted before this run sees its own commit (two merges a few minutes apart). So when the
+//      domain serves another commit, the run asks GitHub whether that commit is newer and contains the expected one
+//      (the compare API, base...head is "ahead"). If it is, step 1 passes, and steps 2 and 3 are left to the smoke run of
+//      that newer commit, which compares with its own vercel.json and its own migrations. An older commit (an Instant
+//      Rollback), one on another line, or no answer from GitHub keeps the old rule: wait, then fail.
 //   2. GET / returns the app page with its root element, and sends the Content-Security-Policy of vercel.json of the
 //      checked-out commit, exactly (enforcing or report-only, whichever vercel.json sets).
 //   3. GET /api/health/db with the agent key: the database answers, and its newest migration is the newest file in
 //      db/migrations of the checked-out commit. Without a key this step is a warning, not a failure.
-// Steps 2 and 3 only run when step 1 passed, because otherwise they would test a different deployment.
+// Steps 2 and 3 only run when the domain serves the expected commit itself, because otherwise they would test a
+// different deployment.
 //
 // The environment: EXPECTED_SHA and SMOKE_BASE_URL (both required; the address is the production domain of this copy, in
 // the workflow the variable of the same name of the environment "smoke"), SMOKE_AGENT_KEY (optional), and for a quick
 // local try SMOKE_TIMEOUT_MS and SMOKE_INTERVAL_MS (how long and how often step 1 polls). There is no default address: a
-// copy of the repository would otherwise test the first installation's site.
+// copy of the repository would otherwise test the first installation's site. For the question to GitHub: GITHUB_REPOSITORY
+// and GITHUB_API_URL (GitHub Actions sets both) and GITHUB_TOKEN (the job's read-only token, optional for a public
+// repository). Without GITHUB_REPOSITORY (a run by hand) nothing is asked and the old rule applies.
 //
 // The key goes only into the Authorization header of one request, never into a log line, and the request does not follow
-// a redirect. Nothing the server answers is printed except the known fields of the two health routes, cleaned so that a
-// response cannot write a line or a workflow command into the log. Node built-ins and the global fetch only, no install.
+// a redirect. The GitHub token likewise goes only to the GitHub API, with no redirect followed, and is never printed.
+// Nothing the server answers is printed except the known fields of the two health routes, cleaned so that a response
+// cannot write a line or a workflow command into the log. Node built-ins and the global fetch only, no install.
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { migrationFiles, DEFAULT_DIR } from '../server/migrate.js'
@@ -37,6 +46,10 @@ const REQUEST_TIMEOUT_MS = 20_000
 // The element that main.jsx mounts the app into (index.html).
 const ROOT_ELEMENT = /<div\b[^>]*\bid\s*=\s*["']?root["']?[\s>/]/i
 const FULL_SHA = /^[0-9a-f]{40}$/
+// What /api/health says it serves: the short SHA (7 characters) of the build. Checked before it goes into a URL.
+const SERVED_SHA = /^[0-9a-f]{7,40}$/
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
+export const DEFAULT_GITHUB_API = 'https://api.github.com'
 const VERCEL_JSON = fileURLToPath(new URL('../vercel.json', import.meta.url))
 export const POLICY_HEADERS = Object.freeze(['Content-Security-Policy', 'Content-Security-Policy-Report-Only'])
 
@@ -104,9 +117,53 @@ export function readConfig(env) {
     baseUrl: parseBaseUrl(base),
     sha,
     key,
+    github: readGitHub(env),
     timeoutMs: wholeNumber('SMOKE_TIMEOUT_MS', env.SMOKE_TIMEOUT_MS, DEFAULT_TIMEOUT_MS),
     intervalMs: wholeNumber('SMOKE_INTERVAL_MS', env.SMOKE_INTERVAL_MS, DEFAULT_INTERVAL_MS),
   }
+}
+
+/**
+ * Where to ask whether a commit is newer: { api, repo, token }, or null when GITHUB_REPOSITORY is not set (a run by hand),
+ * so that nothing is asked. The token is optional (a public repository answers without one) and must fit in a header.
+ */
+function readGitHub(env) {
+  const repo = String(env.GITHUB_REPOSITORY ?? '').trim()
+  if (!repo) return null
+  if (!REPOSITORY.test(repo)) throw new Error('GITHUB_REPOSITORY is not owner/repository')
+  const rawApi = String(env.GITHUB_API_URL ?? '').trim() || DEFAULT_GITHUB_API
+  let api
+  try {
+    api = new URL(rawApi)
+  } catch {
+    throw new Error('GITHUB_API_URL is not a web address')
+  }
+  if (api.protocol !== 'https:') throw new Error('GITHUB_API_URL must be an https address, because the token is sent to it')
+  const token = String(env.GITHUB_TOKEN ?? '').trim() || null
+  if (token && !/^[\x21-\x7e]+$/.test(token)) throw new Error('GITHUB_TOKEN holds a character that cannot be sent in a header')
+  return { api: api.href.replace(/\/+$/, ''), repo, token }
+}
+
+/**
+ * Whether `other` (what the domain serves) is a newer commit that contains `sha`: GitHub's compare of sha...other says
+ * "ahead" and 0 behind. Always resolves: { newer: true | false } when GitHub answered, or { problem } when it did not, so
+ * that a caller can keep the old rule. The token goes only to the API address, and a redirect is not followed.
+ */
+export async function containsCommit({ github, sha, other, fetch: fetchFn }) {
+  if (!SERVED_SHA.test(other)) return { newer: false }
+  const url = `${github.api}/repos/${github.repo}/compare/${sha}...${other}?per_page=1`
+  const headers = { accept: 'application/vnd.github+json', 'x-github-api-version': '2022-11-28' }
+  if (github.token) headers.authorization = `Bearer ${github.token}`
+  let res
+  try {
+    res = await fetchFn(url, { headers, redirect: 'manual', signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS) })
+  } catch (err) {
+    return { problem: `no answer (${printable(err?.cause?.code ?? err?.name ?? 'error')})` }
+  }
+  if (res.status !== 200) return { problem: `HTTP ${res.status}` }
+  const body = parseObject(await res.text())
+  if (!body || typeof body.status !== 'string') return { problem: 'not a comparison' }
+  return { newer: body.status === 'ahead' && body.behind_by === 0 }
 }
 
 /** One GET. Always resolves: { status, text, headers } or { problem } (no answer). The query makes a cached answer impossible. */
@@ -145,24 +202,41 @@ function readHealth(answer) {
 }
 
 /**
- * Step 1. Polls until the domain serves `sha`, or the time is up. `now` and `sleep` are injected, so a test needs no wait.
- * Returns { ok, line }.
+ * Step 1. Polls until the domain serves `sha`, or a newer commit that contains it, or the time is up. `newer(commit)`
+ * answers like containsCommit ({ newer } or { problem }), or is null when nothing may be asked. `now` and `sleep` are
+ * injected, so a test needs no wait. Returns { ok, line, newerCommit } (newerCommit: what the domain serves instead).
  */
-export async function waitForCommit({ baseUrl, sha, fetch: fetchFn, sleep, now, timeoutMs, intervalMs }) {
+export async function waitForCommit({ baseUrl, sha, fetch: fetchFn, sleep, now, timeoutMs, intervalMs, newer = null }) {
   const want = sha.slice(0, 7)
   const start = now()
   const deadline = start + timeoutMs
+  // One question per commit that the domain serves: whether a commit contains another one never changes. An answer that
+  // did not come is asked again at the next check.
+  const known = new Map()
   let checks = 0
   for (;;) {
     checks++
     const seen = readHealth(await get(fetchFn, now, baseUrl, '/api/health'))
-    const seconds = Math.round((now() - start) / 1000)
+    const counted = () => `${checks} ${checks === 1 ? 'check' : 'checks'}, ${Math.round((now() - start) / 1000)} s`
     if (seen.ok && seen.commit === want) {
-      return { ok: true, line: `production serves ${want} (${checks} ${checks === 1 ? 'check' : 'checks'}, ${seconds} s)` }
+      return { ok: true, line: `production serves ${want} (${counted()})`, newerCommit: null }
+    }
+    let unknown = ''
+    if (seen.ok && seen.commit && newer) {
+      if (!known.has(seen.commit)) {
+        const answer = await newer(seen.commit)
+        if (answer.problem) unknown = `; GitHub did not say whether it contains ${want} (${answer.problem})`
+        else known.set(seen.commit, answer.newer)
+      }
+      if (known.get(seen.commit) === true) {
+        const other = printable(seen.commit, 40)
+        return { ok: true, line: `production serves ${other}, a newer commit that contains ${want} (${counted()})`, newerCommit: other }
+      }
     }
     const left = deadline - now()
     if (left <= 0) {
-      return { ok: false, line: `production does not serve ${want}, ${seen.words} (${checks} checks over ${seconds} s)` }
+      const seconds = Math.round((now() - start) / 1000)
+      return { ok: false, line: `production does not serve ${want}, ${seen.words}${unknown} (${checks} checks over ${seconds} s)`, newerCommit: null }
     }
     await sleep(Math.min(intervalMs, left))
   }
@@ -246,8 +320,8 @@ export async function runSmoke({
 }) {
   // Whatever a line is made of, the key is cut out of it before it is written (the lines are cleaned already: this is a
   // second net, for example against a server that repeats the key in a field that is printed).
-  const hidden = String(env.SMOKE_AGENT_KEY ?? '').trim()
-  const mask = (line) => (hidden ? line.split(hidden).join('[key]') : line)
+  const hidden = [String(env.SMOKE_AGENT_KEY ?? '').trim(), String(env.GITHUB_TOKEN ?? '').trim()].filter(Boolean)
+  const mask = (line) => hidden.reduce((text, secret) => text.split(secret).join('[key]'), line)
   const log = (line) => write(mask(line))
   const warn = (line) => writeWarning(mask(line))
   let config
@@ -257,7 +331,7 @@ export async function runSmoke({
     log(`FAIL setup: ${err.message}`)
     return { exitCode: 1, failures: [err.message], warnings: [] }
   }
-  const { baseUrl, sha, key, timeoutMs, intervalMs } = config
+  const { baseUrl, sha, key, github, timeoutMs, intervalMs } = config
   const failures = []
   const warnings = []
   const report = (tag, step, result) => {
@@ -265,10 +339,13 @@ export async function runSmoke({
     if (!result.ok) failures.push(result.line)
   }
 
-  const served = await waitForCommit({ baseUrl, sha, fetch: fetchFn, sleep, now, timeoutMs, intervalMs })
+  const newer = github ? (other) => containsCommit({ github, sha, other, fetch: fetchFn }) : null
+  const served = await waitForCommit({ baseUrl, sha, fetch: fetchFn, sleep, now, timeoutMs, intervalMs, newer })
   report(served.ok ? 'ok  ' : 'FAIL', 1, served)
 
-  if (served.ok) {
+  if (served.newerCommit) {
+    log(`skip 2/3 and 3/3: they would compare ${served.newerCommit} with the files of ${sha.slice(0, 7)}; the smoke run of ${served.newerCommit} checks them`)
+  } else if (served.ok) {
     const home = await checkHome({ baseUrl, fetch: fetchFn, now, policy })
     report(home.ok ? 'ok  ' : 'FAIL', 2, home)
 
@@ -288,7 +365,11 @@ export async function runSmoke({
     for (const failure of failures) log(`  - ${failure}`)
     return { exitCode: 1, failures, warnings }
   }
-  const note = warnings.length ? ` (${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'})` : ''
+  const note = served.newerCommit
+    ? ` (production already serves ${served.newerCommit}, which contains it)`
+    : warnings.length
+      ? ` (${warnings.length} ${warnings.length === 1 ? 'warning' : 'warnings'})`
+      : ''
   log(`Smoke test passed for ${sha.slice(0, 7)} on ${baseUrl}${note}`)
   return { exitCode: 0, failures, warnings }
 }
