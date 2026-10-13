@@ -383,7 +383,7 @@ Do these in order. After step 5 every change to the default branch needs a pull 
    Vercel (Hobby) deployed this push to the repository of a free organization, and the smoke test ran after it and passed.
 4. **Wait for the checks.** In the Actions tab, on that push, the four checks must be green: `guards`, `unit`,
    `e2e (android-chrome)` and `e2e (iphone-webkit)`. In the trial they took about 23 seconds, 3 minutes, 3.5 minutes and
-   5 minutes. Each e2e check comes last, after the parts of its project (`e2e (<project>) part <n>`). If they did not start, run `gh workflow run ci.yml --repo <owner>/<repo>`. The smoke test should show its
+   5 minutes. `unit` and each e2e check come last, after their parts (`unit part <n>`, `e2e (<project>) part <n>`). If they did not start, run `gh workflow run ci.yml --repo <owner>/<repo>`. The smoke test should show its
    three steps as `ok`. A required check that has never run blocks every pull request, which is why the rulesets wait for
    this step.
 5. **Apply the two rulesets,** from the root of a clone, with your own owner and repository name in the address

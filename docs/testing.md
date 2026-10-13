@@ -122,12 +122,12 @@ line) and `scripts/check-tests.mjs` (a test is not deleted, renamed away or skip
 breaking those rules; they are heuristics, not a replacement for reading the diff. The rules about removing a test and
 about the size budget (`npm run size`, `scripts/check-bundle-size.json`) are in [`AGENTS.md`](../AGENTS.md), "Testing".
 
-Each E2E project runs in parts side by side (`.github/workflows/e2e.yml`, called by `ci.yml`: Chromium in 2, WebKit in 3),
-each part a job with its own Postgres container that runs its share of the tests (`--shard`). The required check of a
-project (`e2e (android-chrome)`, `e2e (iphone-webkit)`) is a small job that passes only when every part passed. A failed
-part shows as `e2e (<project>) part <n>`, with its own report: the HTML report and the traces of a failed part are the
-artifact `playwright-<project>-part-<n>`. To run one part on your machine, give the same option:
-`npx playwright test --project=iphone-webkit --shard=2/3`.
+The unit tests and each E2E project run in parts side by side, each part a job with its own Postgres container that runs
+its share of the tests (`--shard`): `unit` in 2 parts (`ci.yml`), Chromium in 2 and WebKit in 3 (`.github/workflows/e2e.yml`,
+called by `ci.yml`). Each required check (`unit`, `e2e (android-chrome)`, `e2e (iphone-webkit)`) is a small job that
+passes only when every one of its parts passed. A failed part shows as `unit part <n>` or `e2e (<project>) part <n>`; the
+HTML report and the traces of a failed E2E part are the artifact `playwright-<project>-part-<n>`. To run one part on your
+machine, give the same option: `npx vitest run --shard=1/2`, `npx playwright test --project=iphone-webkit --shard=2/3`.
 
 On CI, Playwright retries a failed test once and then fails the run anyway (`failOnFlakyTests` in `playwright.config.js`).
 The retry only tells the two cases apart in the report: a test that failed twice is broken, and a test that passed on its
