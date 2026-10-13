@@ -1,12 +1,15 @@
 // The timing of the scan (npm run perf:scan, docs/testing.md "Timing a scan"). No browser and no database: the run is
 // checked for being kept out of the E2E run (so CI never measures, and a measurement never slows CI), for its own ports and
-// schema, and the baseline that it compares with is checked for its shape.
+// schema; the baseline that it compares with is checked for its shape, and the step that writes a baseline for what it
+// refuses.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
+import os from 'node:os'
 import path from 'node:path'
 import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
+import { JOURNEYS, PROFILE_KEYS, acceptBaseline, whyNotABaseline } from '../scripts/perf/baseline.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const perfConfig = 'playwright.perf.config.js'
@@ -33,12 +36,15 @@ describe('the timing of the scan is not part of the E2E run, so that CI never me
     expect(fs.existsSync(path.join(root, where)), 'its testDir exists').toBe(true)
   })
 
-  it('is run by npm run perf:scan with that config, and by no other script', () => {
+  it('is run by npm run perf:scan, and npm run perf:scan:baseline promotes a run only when Playwright exited 0', () => {
     const { scripts } = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'))
     expect(scripts['perf:scan']).toBe(`playwright test --config ${perfConfig}`)
+    // `&&`: the baseline step runs only after the whole run passed, fixture teardown included (a console error fails a test
+    // there, after the test's own hooks), so a run with a failure can never become the baseline.
+    expect(scripts['perf:scan:baseline']).toBe(`playwright test --config ${perfConfig} && node scripts/perf/baseline.mjs`)
     expect(scripts['test:e2e']).toBe('playwright test')
     for (const [name, command] of Object.entries(scripts)) {
-      if (name !== 'perf:scan') expect(command, name).not.toContain(perfConfig)
+      if (!name.startsWith('perf:scan')) expect(command, name).not.toContain(perfConfig)
     }
   })
 
@@ -118,5 +124,55 @@ describe('the baseline that a run compares with', () => {
         expect(numbers.p95).toBeGreaterThanOrEqual(numbers.median)
       }
     }
+    expect(whyNotABaseline(baseline), 'the committed baseline passes the rule that wrote it').toBeNull()
+  })
+})
+
+describe('the step that makes a run the baseline (scripts/perf/baseline.mjs)', () => {
+  /** A run as the spec writes it: every journey of every profile with `n` samples. */
+  const aRun = ({ runs = 10, n = runs, commit = 'abc1234', drop = null } = {}) => ({
+    commit,
+    runs,
+    results: Object.fromEntries(
+      PROFILE_KEYS.map((profile) => [
+        profile,
+        Object.fromEntries(
+          Object.keys(JOURNEYS)
+            .filter((journey) => `${profile} ${journey}` !== drop)
+            .map((journey) => [journey, { n, median: 100, p95: 120 }]),
+        ),
+      ]),
+    ),
+  })
+  let dir
+  const files = () => ({ last: path.join(dir, 'last.json'), baseline: path.join(dir, 'baseline.json') })
+  const accept = (run, commit = 'abc1234') => {
+    dir = fs.mkdtempSync(path.join(os.tmpdir(), 'perf-baseline-'))
+    const { last, baseline } = files()
+    if (run !== undefined) fs.writeFileSync(last, typeof run === 'string' ? run : JSON.stringify(run))
+    fs.writeFileSync(baseline, '{"old": true}')
+    const result = acceptBaseline({ last, baseline, commit })
+    return { ...result, baseline: JSON.parse(fs.readFileSync(baseline, 'utf8')) }
+  }
+  afterEach(() => dir && fs.rmSync(dir, { recursive: true, force: true }))
+
+  it('makes a complete run of this commit the baseline', () => {
+    const result = accept(aRun())
+    expect(result.written).toBe(true)
+    expect(result.baseline).toEqual(aRun())
+  })
+
+  it.each([
+    ['fewer than 10 runs', aRun({ runs: 2 }), 'at least 10 runs'],
+    ['a journey with fewer samples (it failed halfway)', aRun({ n: 9 }), 'slow-4g daily has 9 of 10 runs'],
+    ['a journey missing', aRun({ drop: 'unthrottled offline' }), 'unthrottled offline has 0 of 10 runs'],
+    ['a run of another commit', aRun({ commit: 'fff0000' }), 'measured fff0000'],
+    ['no run at all', undefined, 'there is no last run'],
+    ['a run that is not JSON', '{not json', 'not readable JSON'],
+  ])('refuses %s, and leaves the baseline as it was', (_what, run, reason) => {
+    const result = accept(run)
+    expect(result.written).toBe(false)
+    expect(result.reason).toContain(reason)
+    expect(result.baseline).toEqual({ old: true })
   })
 })

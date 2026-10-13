@@ -10,25 +10,23 @@
 // performance.now() (a MutationObserver sees the heading come into the DOM), so Playwright's own polling adds nothing.
 //
 // The run prints the median, the p95, the requests and the bytes of each journey, compares each median with
-// scripts/perf/scan-baseline.json, and writes itself to node_modules/.cache/bqr-e2e/perf/last-scan-timing.json.
-// PERF_UPDATE_BASELINE=1 makes the run the new baseline: commit it with the change that explains it.
+// scripts/perf/scan-baseline.json, and writes itself to node_modules/.cache/bqr-e2e/perf/last-scan-timing.json. It never
+// writes the baseline: `npm run perf:scan:baseline` does, after the whole run passed (scripts/perf/baseline.mjs).
 //
 // What it cannot show: a real phone's GPS (the browser here answers at once), the server's own time on Vercel and Neon (the
 // API runs on this computer; the latency of the profile stands for the distance), and Safari (WebKit has no throttling).
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { execFileSync } from 'node:child_process'
 import { devices } from '@playwright/test'
 import { test, expect, he, POINTS, PEOPLE, SAMPLE_POINT, OFFLINE_NOISE, signIn, clearScans, allowConsoleErrors } from '../../e2e/fixtures.js'
+import { BASELINE, LAST_RUN, JOURNEYS, PROFILE_KEYS, headCommit, whyNotABaseline } from './baseline.mjs'
 
 const RUNS = Number(process.env.PERF_RUNS || 10)
 const POINT = POINTS.gym // location required, assigned to Ploni
 const scanLink = `/scan?code=${POINT}`
 const NEAR = { latitude: SAMPLE_POINT.lat, longitude: SAMPLE_POINT.lng, accuracy: 10 }
 const QUEUE_KEY = 'qr.queue.v1'
-const BASELINE = path.join(import.meta.dirname, 'scan-baseline.json')
-const LAST = path.resolve(import.meta.dirname, '../../node_modules/.cache/bqr-e2e/perf/last-scan-timing.json')
 // A median more than this much slower than the baseline is called out (docs/testing.md, "Timing a scan").
 const LINE = 0.2
 
@@ -39,6 +37,8 @@ const PROFILES = [
   { key: 'slow-4g', label: 'Slow 4G (150 ms, 1.6 Mbps down, 750 kbps up) and CPU x4', latency: 150, down: (1.6 * 1024 * 1024) / 8, up: (750 * 1024) / 8, cpu: 4 },
   { key: 'unthrottled', label: 'no throttling (the speed of this computer)', latency: 0, down: -1, up: -1, cpu: 1 },
 ]
+
+if (PROFILES.map((p) => p.key).join() !== PROFILE_KEYS.join()) throw new Error('PROFILES and PROFILE_KEYS of scripts/perf/baseline.mjs differ')
 
 const TITLES = {
   list: he['login.title'],
@@ -136,46 +136,15 @@ function summary(samples) {
   return { n: ms.length, median, p95, min: ms[0], max: ms.at(-1), requests: most('requests'), api: most('api'), bytes: most('bytes') }
 }
 
-const METRICS = {
-  daily: 'daily scan, signed in: navigation to "recorded"',
-  first_list: 'first scan on a new phone: navigation to the list of names',
-  first_checkin: 'first scan on a new phone: "sign in" tap to "recorded"',
-  offline: 'no reception: navigation to "saved on the phone"',
-}
-
-const commit = () => {
-  try {
-    return execFileSync('git', ['rev-parse', '--short=7', 'HEAD'], { encoding: 'utf8' }).trim()
-  } catch {
-    return null
-  }
-}
 const machine = () => ({ cpu: os.cpus()[0]?.model?.trim() ?? 'unknown', cores: os.cpus().length, platform: `${os.platform()} ${os.release()}` })
 
-// The journeys that did not end as expected: a baseline is written only from a run in which every journey passed.
-const failed = []
-test.afterEach(() => {
-  const info = test.info()
-  if (info.status !== info.expectedStatus) failed.push(info.titlePath.slice(-2).join(' > '))
-})
-
-/** Why this run cannot be the baseline, or null when it can: every journey passed, with RUNS samples of every measure. */
-function notABaseline() {
-  if (RUNS < 10) return `a baseline needs at least 10 runs, and this one made ${RUNS}`
-  if (failed.length) return `a journey failed (${failed.join('; ')})`
-  for (const profile of PROFILES) {
-    for (const metric of Object.keys(METRICS)) {
-      const n = results[profile.key]?.[metric]?.length ?? 0
-      if (n !== RUNS) return `${profile.key} ${metric} has ${n} of ${RUNS} runs`
-    }
-  }
-  return null
-}
+// Every run starts without a last run, so that `npm run perf:scan:baseline` can never take one from before.
+test.beforeAll(() => fs.rmSync(LAST_RUN, { force: true }))
 
 test.afterAll(() => {
   if (!Object.keys(results).length) return
   const run = {
-    commit: commit(),
+    commit: headCommit(),
     measuredAt: new Date().toISOString(),
     runs: RUNS,
     point: 'location required (POINTS.gym of the sample data)',
@@ -183,8 +152,8 @@ test.afterAll(() => {
     profiles: Object.fromEntries(PROFILES.map((p) => [p.key, p.label])),
     results: Object.fromEntries(Object.entries(results).map(([key, metrics]) => [key, Object.fromEntries(Object.entries(metrics).map(([m, s]) => [m, summary(s)]))])),
   }
-  fs.mkdirSync(path.dirname(LAST), { recursive: true })
-  fs.writeFileSync(LAST, `${JSON.stringify(run, null, 2)}\n`)
+  fs.mkdirSync(path.dirname(LAST_RUN), { recursive: true })
+  fs.writeFileSync(LAST_RUN, `${JSON.stringify(run, null, 2)}\n`)
 
   const baseline = fs.existsSync(BASELINE) ? JSON.parse(fs.readFileSync(BASELINE, 'utf8')) : null
   const lines = [`Scan timing at ${run.commit ?? 'this checkout'}, ${RUNS} runs each (median / p95, ms):`]
@@ -194,7 +163,7 @@ test.afterAll(() => {
   for (const profile of PROFILES) {
     if (!run.results[profile.key]) continue
     lines.push(`  ${profile.label}`)
-    for (const [metric, words] of Object.entries(METRICS)) {
+    for (const [metric, words] of Object.entries(JOURNEYS)) {
       const now = run.results[profile.key][metric]
       if (!now) continue
       const before = baseline?.results?.[profile.key]?.[metric]
@@ -209,15 +178,8 @@ test.afterAll(() => {
   if (lines.some((line) => line.endsWith('OVER THE 20% LINE'))) {
     lines.push('  Once over the line can be noise: run it again. A median over the line in two runs in a row is a regression (docs/testing.md, "Timing a scan").')
   }
-  if (process.env.PERF_UPDATE_BASELINE === '1') {
-    const refused = notABaseline()
-    if (refused) {
-      lines.push(`  NOT written as the baseline: ${refused}. The baseline stays as it was.`)
-    } else {
-      fs.writeFileSync(BASELINE, `${JSON.stringify(run, null, 2)}\n`)
-      lines.push(`  written as the new baseline: ${path.relative(process.cwd(), BASELINE)}`)
-    }
-  }
+  const reason = whyNotABaseline(run)
+  lines.push(reason ? `  This run cannot be the baseline: ${reason}.` : '  To make a run the baseline: npm run perf:scan:baseline (it writes only after the whole run passed).')
   console.log(lines.join('\n'))
 })
 

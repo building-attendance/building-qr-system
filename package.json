@@ -19,6 +19,7 @@
     "test:e2e": "playwright test",
     "screenshots": "playwright test --config playwright.screenshots.config.js",
     "perf:scan": "playwright test --config playwright.perf.config.js",
+    "perf:scan:baseline": "playwright test --config playwright.perf.config.js && node scripts/perf/baseline.mjs",
     "icons": "node scripts/make-icons.mjs",
     "size": "vite build && node scripts/check-bundle-size.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
