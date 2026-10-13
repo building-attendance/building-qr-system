@@ -36,7 +36,10 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   // A focused test (an `only`) left in the code would silently skip the rest of the suite: refuse it on CI.
   forbidOnly: !!process.env.CI,
+  // The retry on CI is for the report: it tells a flaky test from a broken one. A test that passes only on its retry still
+  // fails the run, so a flake is fixed instead of hidden (docs/testing.md, "CI").
   retries: process.env.CI ? 1 : 0,
+  failOnFlakyTests: !!process.env.CI,
   // On GitHub Actions the failures become annotations on the pull request, and the HTML report is uploaded when a run fails.
   reporter: process.env.CI
     ? [['github'], ['html', { open: 'never', outputFolder: paths.reportDir }]]
