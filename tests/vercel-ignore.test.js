@@ -69,12 +69,16 @@ describe('which files can be left undeployed', () => {
       'scripts/check-bundle-size.json',
       'scripts/hooks/check-edit.mjs',
       'scripts/screenshots/shoot.spec.js',
+      'scripts/perf/scan-timing.spec.mjs',
+      'scripts/perf/scan-baseline.json',
+      'scripts/perf/baseline.mjs',
       'LICENSE',
       'eslint.config.js',
       'jsconfig.json',
       'vitest.config.js',
       'playwright.config.js',
       'playwright.screenshots.config.js',
+      'playwright.perf.config.js',
     ]) {
       expect(isSkippable(file), file).toBe(true)
     }
@@ -106,6 +110,8 @@ describe('which files can be left undeployed', () => {
       'scripts/check-dir/nested.mjs',
       'docs', // a file named like the folder, without the slash
       'tests',
+      'scripts/perf', // likewise for the folder of the scan timing
+      'scripts/performance/anything.mjs', // a folder whose name only starts the same
       '',
     ]) {
       expect(isSkippable(file), file).toBe(false)
