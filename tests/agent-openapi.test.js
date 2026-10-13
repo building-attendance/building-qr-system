@@ -590,10 +590,10 @@ describe('the real agent API answers what the document says', () => {
     }
     const leavingScan = results[7].json.scan
     await post(`/api/admin/scans/${leavingScan.id}/void`, { reason: 'test' })
-    // A scan that the one-time import of the old system wrote: no phone is known for it (device_id is null) and nobody voided it.
+    // A scan for which no phone is known (device_id is null) and that nobody voided.
     await db.pool.query(
       `insert into scans (id, point_id, provider_id, point_name, provider_name, checked_in_at, local_date, source, outcome, flags)
-       values ($1, $2, $3, 'Lobby', 'Sparkle Cleaning', '2026-01-05T08:00:00Z', '2026-01-05', 'online', 'accepted', '{legacy_import}')`,
+       values ($1, $2, $3, 'Lobby', 'Sparkle Cleaning', '2026-01-05T08:00:00Z', '2026-01-05', 'online', 'accepted', '{}')`,
       [randomUUID(), lobby.id, cleaner.id],
     )
     expect((await call('DELETE', `/api/admin/points/${gone.id}`, { cookie })).status).toBe(200)
@@ -675,7 +675,7 @@ describe('the real agent API answers what the document says', () => {
     if (scans.some((s) => typeof s.received_at !== 'string')) problems.push('A seed scan has no received_at: it is never null.')
     if (!seen(scans, 'voided').has(true) || !seen(scans, 'voided').has(false)) problems.push('The seed scans are not both voided and not voided.')
     const flags = new Set(scans.flatMap((s) => s.flags))
-    for (const flag of ['offline_sync', 'clock_skew', 'demo', 'location_stale', 'location_outside_radius', 'legacy_import']) if (!flags.has(flag)) problems.push(`No seed scan carries the flag ${flag}.`)
+    for (const flag of ['offline_sync', 'clock_skew', 'demo', 'location_stale', 'location_outside_radius']) if (!flags.has(flag)) problems.push(`No seed scan carries the flag ${flag}.`)
     if (!scans.some((s) => !points.some((p) => p.id === s.point_id))) problems.push('No seed scan is at a deleted point.')
     if (!scans.some((s) => !providers.some((p) => p.id === s.provider_id))) problems.push('No seed scan is by a deleted provider.')
     if (!nullAndNot(points, 'lat') || !nullAndNot(points, 'lng') || !nullAndNot(points, 'service_type')) problems.push('The seed points do not have both a null and a value in lat, lng and service_type.')

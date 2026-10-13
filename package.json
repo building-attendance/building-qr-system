@@ -23,7 +23,6 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:create-admin": "node scripts/create-admin.mjs",
     "db:seed-dev": "node scripts/dev-seed.mjs",
-    "db:import-firestore": "node scripts/import-firestore.mjs",
     "db:backup": "node scripts/backup-db.mjs"
   },
   "dependencies": {

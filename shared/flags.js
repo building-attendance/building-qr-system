@@ -2,8 +2,8 @@
 // agent, never a reason to refuse a scan. Runs in the browser and on the server.
 //
 // Where a flag is written, in code, always through these constants (an unknown name is an import error, a typo in a
-// string is not): server/scanLogic.js (location and clock flags), server/scans.js (demo) and server/importFirestore.js
-// (legacy_import). Where a flag is described for a reader, the description is kept in step by tests/agent-docs.test.js:
+// string is not): server/scanLogic.js (location and clock flags) and server/scans.js (demo). Where a flag is described for
+// a reader, the description is kept in step by tests/agent-docs.test.js:
 //   - server/schemaDoc.js (GET /api/agent/v1/schema, the `flags` object)
 //   - docs/agent-api.md (the list under "Flags are signals, not verdicts")
 //   - src/admin/views/HistoryView.jsx (FLAGS, the Hebrew label of each flag in the committee's history screen)
@@ -16,7 +16,6 @@ export const FLAG_LOCATION_STALE = 'location_stale'
 export const FLAG_OFFLINE_SYNC = 'offline_sync'
 export const FLAG_CLOCK_SKEW = 'clock_skew'
 export const FLAG_DEMO = 'demo'
-export const FLAG_LEGACY_IMPORT = 'legacy_import'
 
 /** Every flag, in the order that the documents list them. Frozen: nothing may add one at run time. */
 export const SCAN_FLAGS = Object.freeze([
@@ -26,5 +25,4 @@ export const SCAN_FLAGS = Object.freeze([
   FLAG_OFFLINE_SYNC,
   FLAG_CLOCK_SKEW,
   FLAG_DEMO,
-  FLAG_LEGACY_IMPORT,
 ])

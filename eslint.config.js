@@ -103,10 +103,4 @@ export default defineConfig([
     files: ['e2e/**/*.js'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
-
-  // The kill switch of the old app's service worker, a separate deployable (legacy-redirect/, on Firebase Hosting).
-  {
-    files: ['legacy-redirect/public/sw.js'],
-    languageOptions: { globals: globals.serviceworker },
-  },
 ])

@@ -65,14 +65,8 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
     screen (and of the Settings screen in the committee app) shows the id of the new commit: the first 7 characters of it,
     the same as the `commit` of `GET /api/health`.
 
-## Printed QR
-
-14. [ ] The first installation only: a copy that never printed codes for the old app skips this item. Scan a printed QR
-    from before the move (`building-qr-system.web.app`, the old Firebase address that `legacy-redirect/` forwards): it
-    lands on the new address with the right point, and signing in and checking in works.
-
 ## Crashes
 
-15. [ ] If the crash screen ("Something went wrong on this screen") showed up during this pass, tap "Reload the app"
+14. [ ] If the crash screen ("Something went wrong on this screen") showed up during this pass, tap "Reload the app"
     and sign in: the phone sends the report of that crash by itself (a crash before sign-in waits on the phone until
     the next sign-in), and nothing about it is shown to the person.

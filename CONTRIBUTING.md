@@ -104,14 +104,13 @@ api/index.js           the Vercel entry point (every /api/* is routed to it in v
 server/                the API: routes/, access (who may call what, enforced by the router), auth, scans (the rules), google (verification), db, migrate
 shared/                code that runs in both the browser and the server: shared/datetime.js writes every date and time a person sees, always DD/MM/YYYY and HH:MM; shared/contract.js holds the values that the phone and the server must agree on (the offline sync limits, the GPS limits, the words of a scan, the form limits, the QR token)
 db/migrations/         the DB schema
-scripts/               migration, creating an admin, the development seed, the CI guards, the text rules and the edit hook, the screenshots, and the one-time import from Firestore (first installation only)
+scripts/               migration, creating an admin, the development seed, the CI guards, the text rules and the edit hook, and the screenshots
 src/worker, src/i18n   the service provider app (src/pages/WorkerApp.jsx)
 src/admin              the committee app (src/pages/AdminApp.jsx)
 src/ui                 what both apps share: the colour tokens, light and dark, and the screen that replaces a broken one (ErrorBoundary: a message with "Try again" and "Reload the app" instead of a blank page; it logs the error's name only)
 tests/                 vitest (logic, the API against a real Postgres in a temporary schema, i18n, tests/components for components)
 e2e/                   Playwright (PWA, the service provider app, the committee app, an axe accessibility scan of both, and visual.spec.js: baseline images of the key screens, made and compared in CI only) on a Pixel and an iPhone
 docs/                  install guide, releases, privacy, the agent API, the runbooks, the decisions (adr/) and the screenshots
-legacy-redirect/       a redirect site for the old printed QR codes (first installation only)
 .github/               the workflows, the rulesets, the issue and pull request templates
 ```
 

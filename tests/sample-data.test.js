@@ -3,14 +3,14 @@
 import { describe, it, expect } from 'vitest'
 import { haversineMeters, parseQrToken } from '../server/scanLogic.js'
 import {
-  SAMPLE_POINT, SAMPLE_FAR_POINT, SAMPLE_COARSE_POINT, SAMPLE_PROVIDER_NAMES, SAMPLE_LEGACY_TOKENS,
+  SAMPLE_POINT, SAMPLE_FAR_POINT, SAMPLE_PROVIDER_NAMES, SAMPLE_LEGACY_TOKENS,
 } from '../scripts/sample-data.mjs'
 
 const metersBetween = (a, b) => haversineMeters(a.lat, a.lng, b.lat, b.lng)
 
 describe('sample locations', () => {
   it('are valid coordinates, as the admin API validates them', () => {
-    for (const p of [SAMPLE_POINT, SAMPLE_FAR_POINT, SAMPLE_COARSE_POINT]) {
+    for (const p of [SAMPLE_POINT, SAMPLE_FAR_POINT]) {
       expect(Math.abs(p.lat)).toBeLessThanOrEqual(90)
       expect(Math.abs(p.lng)).toBeLessThanOrEqual(180)
     }
@@ -21,11 +21,6 @@ describe('sample locations', () => {
     const d = metersBetween(SAMPLE_POINT, SAMPLE_FAR_POINT)
     expect(d).toBeGreaterThan(5400)
     expect(d).toBeLessThan(5700)
-  })
-  it('keep the coarse point a few hundred metres from the sample point', () => {
-    const d = metersBetween(SAMPLE_POINT, SAMPLE_COARSE_POINT)
-    expect(d).toBeGreaterThan(200)
-    expect(d).toBeLessThan(1000)
   })
 })
 

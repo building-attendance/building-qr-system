@@ -114,9 +114,3 @@ for this repository.
 
 The project is open under the MIT license ([LICENSE](LICENSE)). By taking part you agree to follow the
 [Code of Conduct](CODE_OF_CONDUCT.md).
-
-## History
-
-The project replaced an older Firebase app on 01/10/2026. What is left of that move, and the redirect site for the QR
-codes that were already printed, is in [legacy-redirect/README.md](legacy-redirect/README.md). A new installation does not
-use any of it.

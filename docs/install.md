@@ -43,9 +43,6 @@ The limits, plainly:
   is for you to judge against Vercel's fair use guidelines; if it does not, the paid plan is the answer. Hobby has no team
   features, so the Vercel project belongs to one person's account.
 - **The address is printed in every QR code** (`APP_BASE_URL`). Choose it before you print a sign (section 2).
-- **Parts for the first installation only, which a copy does not use:** `legacy-redirect/` (it forwards the QR codes
-  that the old Firebase app printed), `npm run db:import-firestore` (the move from Firebase), and item 14 of the
-  [iOS checklist](manual-ios-checklist.md).
 
 What it costs. Every service has a free plan that this app fits on. The numbers below are the ones the runbooks rely on;
 they change, so check each provider's current limits before you rely on them.
