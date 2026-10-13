@@ -32,8 +32,7 @@ Map of the repository (`CONTRIBUTING.md` has the structure, `README.md` the arch
 - `shared/`: code for the browser and the server. `datetime.js` writes every date and time a person sees, `contract.js`
   holds the values the phone and the server must agree on, `types.js` the shapes they exchange, `secretLike.js` tells a
   string that looks like a key, a hash or a token (the audit screen and the agent never show one).
-- `tests/`, `e2e/`, `scripts/` (tooling and CI guards), `docs/` (start at `testing.md`, `agent-loop.md` and `design.md`),
-  `legacy-redirect/` (the redirect site for the old printed QR codes).
+- `tests/`, `e2e/`, `scripts/` (tooling and CI guards), `docs/` (start at `testing.md`, `agent-loop.md` and `design.md`).
 
 ## Commands
 
@@ -255,7 +254,7 @@ before you change the loop or answer for what it does.
   logs counts only.
 - The committee's agent is its analyst (owner decision of 08/10/2026): the agent API (`/api/agent/v1/`, read-only) may
   show everything that the committee app shows and manages, the audit log and the committee members' names and e-mails
-  included, and never a secret: a point's QR token or legacy id, a hash of a password, a token or a key, a key's prefix,
+  included, and never a secret: a point's QR token, a hash of a password, a token or a key, a key's prefix,
   a phone's label or browser string (phone health goes out as numbers per provider, never a row per phone), an IP
   address, `app_errors`, `alert_pings` or a Google subject. Every agent answer is built field by field (never
   `select *` or a whole row), so a column added later does not reach the agent by itself, and a detail of the audit log
@@ -345,7 +344,7 @@ reviewing agent should apply it too.
 - An endpoint under `/api` without the right authorization check (committee member, service provider, agent key, or the
   cron secret for `/cron/`), or any write through the agent API (it is read-only) other than the guard's bookkeeping
   for its key (`last_used_at` and the usage count).
-- An agent answer that can carry a secret (a QR token or legacy id, a hash, a key's prefix, a phone's label or browser
+- An agent answer that can carry a secret (a QR token, a hash, a key's prefix, a phone's label or browser
   string, an IP address, a Google subject), one built from a whole row instead of field by field, an audit detail that
   goes out without the allow-list of its action, or the per-key rate limit removed, raised or skipped on a route without
   the owner's decision.
