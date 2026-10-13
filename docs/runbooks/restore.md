@@ -424,3 +424,14 @@ copy keeps its own drill log here, or removes them.
   took 16.2 s. All scratch databases and files were deleted afterwards. The steps worked as written; the runbook now names
   `--exit-on-error`, the `PG...` form and the Neon CLI commands that the drill used. Still to do: a drill with a dump of
   production, onto a check branch.
+- `13/10/2026`: the first restore of a dump of production. The newest daily dump, made that day by the scheduled task,
+  was restored on the owner's computer only, into a throwaway database of a local PostgreSQL 18.6 (127.0.0.1), with the
+  command of step 3 (`pg_restore --no-owner --no-privileges --exit-on-error`): no error, 0.5 s. Production was not
+  contacted. All 26 tables (the app's 17 and the 9 of Neon Auth) have the row counts of the dump's own data blocks (138
+  rows in all); the newest migration is 014; the copy carries the `production` marker, so the repository's tools refuse
+  it; the six append-only triggers are there, and a delete from `audit_log` and a truncate of `scans` were refused. The
+  database was dropped afterwards. This proves that the dumps restore; a restore onto a Neon branch of production is still
+  to be tried (the drill of 03/10/2026 made a database on Neon, on the non-production project). Found on the way: no dump
+  had been made from 05/10 to 13/10, because the scheduled task started during the laptop's short standby wakes and was
+  killed by its one-hour limit. The task now waits for a network and also runs after an unlock, and the owner's phone gets
+  a push when the backup's healthchecks.io check goes down.
