@@ -82,6 +82,7 @@ npm run test:unit     # Vitest: logic, the API against Postgres, i18n, contrast,
 npm run test:e2e      # Playwright: Chromium as a Pixel 7 and WebKit as an iPhone 14
 npm test              # both
 npm run screenshots   # takes the README pictures again (not a test, and CI never runs it)
+npm run perf:scan     # times the provider's scan on a throttled phone and compares it with the baseline (not a test, and CI never runs it; docs/testing.md)
 ```
 
 - **A quick loop:** run one file, for example `npx vitest run tests/<file>.test.js`, or one folder

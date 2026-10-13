@@ -10,7 +10,8 @@ Contents: [Setup](#one-time-setup-on-a-new-machine) | [How an E2E run is set up]
 [Running one spec, and reading a failure](#running-one-spec-or-one-project-and-reading-a-failure) |
 [Offline tests](#offline-tests) | [Accessibility](#accessibility) | [Visual regression](#visual-regression) |
 [Two E2E runs on one machine](#two-e2e-runs-on-one-machine) |
-[The icons](#the-icons) | [CI](#ci) | [The smoke test](#the-smoke-test) | [What is not automated](#what-is-not-automated)
+[The icons](#the-icons) | [CI](#ci) | [The smoke test](#the-smoke-test) | [Timing a scan](#timing-a-scan) |
+[What is not automated](#what-is-not-automated)
 
 ## One-time setup on a new machine
 
@@ -134,6 +135,49 @@ without the variable fails and says so) and opens an issue labelled `bug` when t
 ([`deploy-and-rollback.md`](runbooks/deploy-and-rollback.md), "The smoke test after a deploy"). The variable decides where
 the secret `SMOKE_AGENT_KEY` is sent, so it lives in an environment, whose variables only the owner of a personal
 repository (an admin of an organization's) can change, and never in a repository variable, which any collaborator can.
+
+## Timing a scan
+
+`npm run perf:scan` measures how long the service provider's scan takes on a phone, so that "faster" or "slower" is a
+number and not a feeling. It is a measurement, not a test: CI never runs it (a shared runner's timings are noise), and
+`tests/perf-scan.test.js` keeps it out of the E2E run. It reuses the E2E setup (`playwright.perf.config.js`: the
+production build, the API, a scratch schema with the sample data) on its own ports (3700, 3701) and schema (`perf`), and
+needs the same `.env.local` as the unit tests.
+
+Three journeys, at the sample point that requires the location (every point of a real building does), 10 runs each:
+
+- **Daily scan:** a provider who signed in on this phone before opens the scan link, until the heading "the visit was
+  recorded". The service worker serves the app; only the API goes to the network.
+- **First scan on a new phone:** a browser that never opened the app, until the list of names appears (the person can act),
+  then from the tap on "sign in" to "recorded".
+- **No reception:** the daily scan with the network off, until "saved on the phone".
+
+Each runs in two profiles: **Slow 4G and CPU x4** (the network numbers of Lighthouse's mobile profile: 150 ms, 1.6 Mbps down,
+750 kbps up, "roughly the bottom 25% of 4G connections", applied by the Chrome DevTools Protocol to every request; and
+Lighthouse's default CPU slowdown for a mid-tier phone), and **no throttling**, for reference. A time is taken inside the
+page (`performance.now()` when the heading comes into the DOM), not by Playwright's polling. The run prints the median and
+the p95 of each journey, its requests and the bytes that crossed the network, and compares each median with
+`scripts/perf/scan-baseline.json`; a median more than 20% slower is marked `OVER THE 20% LINE`. `PERF_RUNS` changes the
+number of runs. The run never writes the baseline.
+
+**When to run it:** before and after a change to the provider app's scan flow, the service worker or the PWA files, or
+anything that the provider app downloads. Put the two lines that matter in the pull request. A median over the 20% line in
+two runs in a row is a regression and needs a reason there; once over the line is a reason to run it again, not a finding.
+
+**A new baseline:** `npm run perf:scan:baseline`, committed only with the change that explains it. It is the same run,
+then `scripts/perf/baseline.mjs`, joined with `&&`: the baseline is written only when Playwright exited 0, that is after
+every journey passed and every fixture was torn down (the E2E page fixture fails a test for a console error at teardown,
+after the test's own hooks, so the run itself cannot tell). Even then the script refuses, and says why, a run with fewer
+than 10 runs, a journey with fewer samples or none, or a run of another commit than the checkout's.
+
+**How to read it:** compare runs of one computer only (the baseline names the computer that measured it), with nothing heavy
+running beside it: the CPU slowdown multiplies whatever the computer is doing. The noise is real: on 13/10/2026 two runs of
+the same commit on the baseline's computer differed by up to 28% in a median, which is why one run over the line proves
+nothing.
+
+**What it cannot show:** the GPS of a real phone (the browser here answers at once), the time of the server on Vercel and
+Neon (the API runs on this computer, and the latency of the profile stands for the distance), and Safari (WebKit has no
+throttling): the iPhone is still checked by hand ([`manual-ios-checklist.md`](manual-ios-checklist.md)).
 
 ## What is not automated
 
