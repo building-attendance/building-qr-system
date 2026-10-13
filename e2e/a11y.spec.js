@@ -15,7 +15,7 @@ import ar from '../src/i18n/ar.js'
 import { PROVIDER_TOKEN_PREFIX } from '../shared/contract.js'
 import {
   test, expect, he, en, ru, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, adminSignIn, clearScans, allowConsoleErrors, expectNoA11yViolations,
-  changeFilters, openFilters,
+  changeFilters, openFilters, SCREEN_TITLES, stubHome, homeSummary,
 } from './fixtures.js'
 
 // No service worker: this spec answers some requests itself (page.route), and a page that a service worker controls
@@ -417,7 +417,23 @@ test.describe('committee app', () => {
     await scanBothThemes(page, 'committee: sign-in', { exclude: [GOOGLE_BUTTON] })
 
     await page.getByRole('button', { name: 'כניסת פיתוח' }).click()
-    await signedIn(page)
+    await signedIn(page, SCREEN_TITLES.home) // the first screen, with no screen in the address, is Home
+    // Home of a week with no visit: every provider is a row of empty cells that read "0", and none of them is a link
+    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table')).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
+    await scanBothThemes(page, 'committee phone: home, no visits this week')
+    // A new installation has nothing in it: Home says to start with a point and a provider (the numbers are answered here, as if it were new).
+    const emptyBuilding = homeSummary({
+      providers: [],
+      counts: { points: { active: 0, total: 0 }, providers: { active: 0, total: 0 }, visits_not_counted: 0, waiting: { phones: 0, visits: 0 } },
+    })
+    const homeRoute = /\/api\/admin\/home$/
+    const answerEmpty = (route) => route.fulfill({ json: emptyBuilding })
+    await page.route(homeRoute, answerEmpty)
+    await page.reload()
+    await expect(page.getByRole('heading', { level: 2, name: 'עוד אין נקודות ונותני שירות' })).toBeVisible()
+    await scanBothThemes(page, 'committee phone: home, nothing in the building yet')
+    await page.unroute(homeRoute, answerEmpty)
     await openTab(page, 'history', 'היסטוריית נוכחות')
     await expect(page.getByText('אין נוכחויות בטווח הזה')).toBeVisible()
     await scanBothThemes(page, 'committee phone: history, empty')
@@ -499,13 +515,17 @@ test.describe('committee app with the sample data filled in', () => {
     },
   })
 
-  test('the seven screens and the sheet under "עוד", on a phone and on a computer', async ({ page }) => {
+  test('the eight screens and the sheet under "עוד", on a phone and on a computer', async ({ page }) => {
     allowConsoleErrors(page, /status of 401/) // the first load of /admin, before the sign-in
     await markPloniOutdated(page)
+    await stubHome(page) // Home's week table with a week of visits of every size (the sample data has none), so that every step of its colour is scanned
     await adminSignIn(page)
     await signedIn(page)
     await expect(page.getByRole('banner')).toContainText(BUILDING_NAME) // the top bar says the name of the building, not the plain brand
     // (every screen is named by a plain string, so that tests/a11y-report.test.js can read the names from this file)
+    await openTab(page, 'home', SCREEN_TITLES.home)
+    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table').getByRole('link').first()).toBeVisible()
+    await scanBothThemes(page, 'committee phone: home')
     await openTab(page, 'points', 'נקודות סריקה')
     await scanBothThemes(page, 'committee phone: points')
     await openTab(page, 'providers', 'נותני שירות')
@@ -590,6 +610,9 @@ test.describe('committee app with the sample data filled in', () => {
     // The side rail replaces the top bar and the tab bar. The screens are the same markup at any width, so a few of
     // them are enough to see the rail (its two groups and the line between them) and the wider layout.
     await page.setViewportSize(COMPUTER)
+    await openTab(page, 'home', SCREEN_TITLES.home)
+    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table').getByRole('link').first()).toBeVisible()
+    await scanBothThemes(page, 'committee computer: home')
     await openTab(page, 'points', 'נקודות סריקה')
     await expect(page.getByRole('complementary')).toContainText(BUILDING_NAME) // the side rail says the name of the building too
     await scanBothThemes(page, 'committee computer: points')

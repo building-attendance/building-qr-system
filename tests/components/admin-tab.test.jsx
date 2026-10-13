@@ -2,9 +2,9 @@
 // The tab of the committee app follows the address (#history). The real AdminApp, signed in, with the network (`api`)
 // answered by the test: every screen gets an empty list, which is enough to show its heading.
 //
-// Seven screens. History, points and providers (the work group) are buttons of the tab bar of the phone and of the side rail; agent,
-// settings, audit and help (the management group) are in the side rail and, on a phone, in the sheet that the fourth button of the bar,
-// "עוד", opens. The first screen is the history, and the old address #committee lands on the settings.
+// Eight screens. Home, history, points and providers (the work group) are buttons of the tab bar of the phone and of the side rail; agent,
+// settings, audit and help (the management group) are in the side rail and, on a phone, in the sheet that the fifth button of the bar,
+// "עוד", opens. The first screen is Home (it was the history before Home came), and the old address #committee lands on the settings.
 //
 // What went wrong: the tab was read from the address once, in the first render, and the listener for a change of the address
 // was attached later, in an effect. A change that came in between was lost and the app stayed on the first tab. A link that is
@@ -25,6 +25,8 @@ const TITLE_SUFFIX = ' · נוכחות בבניין'
 // (`nav`, in the side rail and in the tab bar), the heading that its screen draws, and whether it is a button of the tab bar of the phone
 // (`bar`) or one of the screens under "עוד". In the order of the side rail; the first one is the screen that opens by default.
 const TABS = [
+  // Home's h1 is a greeting that follows the hour (HomeView.jsx), so it is found by the three greetings and the first word of ADMIN's name.
+  { key: 'home', label: 'בית', nav: 'בית', heading: /^(בוקר טוב|צהריים טובים|ערב טוב), Sample$/, bar: true },
   { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', heading: 'היסטוריית נוכחות', bar: true },
   { key: 'points', label: 'נקודות', nav: 'נקודות', heading: 'נקודות סריקה', bar: true },
   { key: 'providers', label: 'נותני שירות', nav: 'ספקים', heading: 'נותני שירות', bar: true },
@@ -47,10 +49,21 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
+// What GET /api/admin/home answers for a building with nothing in it: enough for the screen to draw its heading.
+const HOME = {
+  days: ['2026-10-06', '2026-10-07', '2026-10-08', '2026-10-09', '2026-10-10', '2026-10-11', '2026-10-12'],
+  week: { providers: [], totals: [0, 0, 0, 0, 0, 0, 0] },
+  counts: {
+    points: { active: 0, total: 0 }, providers: { active: 0, total: 0 }, committee_members: { active: 1 }, agent_keys: { active: 0 },
+    visits_not_counted: 0, waiting: { phones: 0, visits: 0 },
+  },
+}
+
 function answerLikeTheServer() {
   api.mockImplementation(async (path) => {
     if (path === '/admin/config') return { google_client_id: '', dev_login: false }
     if (path === '/admin/me') return { admin: ADMIN }
+    if (path === '/admin/home') return HOME
     if (path === '/admin/points') return { points: [] }
     if (path === '/admin/providers') return { providers: [] }
     if (path.startsWith('/admin/scans')) return { scans: [], next_cursor: null }
@@ -63,7 +76,7 @@ function answerLikeTheServer() {
 }
 
 const heading = (tab) => screen.findByRole('heading', { level: 1, name: byKey[tab].heading })
-// The page that is shown now, by the headings of the seven screens. At most one of them is there.
+// The page that is shown now, by the headings of the eight screens. At most one of them is there.
 const shown = () => TABS.filter((t) => screen.queryByRole('heading', { level: 1, name: t.heading })).map((t) => t.key)
 // Both navigations are in the page (the side rail and the tab bar of the phone: CSS hides one), so a screen of the bar is found twice: first
 // in the side rail, then in the bar. A screen under "עוד" is in the side rail only, until the sheet is open.
@@ -97,13 +110,13 @@ describe('the tab that the address names when the app opens', () => {
   })
 
   it.each([['no hash', ''], ['an empty hash', '#'], ['a name that is not a tab', '#nowhere'], ['a tab with something after it', '#points/x'], ['the wrong case', '#Points']])(
-    'opens the first tab (the history) for %s',
+    'opens the first tab (Home) for %s',
     async (_what, hash) => {
       answerLikeTheServer()
       window.history.replaceState(null, '', `/${hash}`)
       render(<AdminApp />)
       await heading(FIRST)
-      expect(FIRST).toBe('history')
+      expect(FIRST).toBe('home')
       expect(shown()).toEqual([FIRST])
       expect(current(FIRST)).toEqual(['page', 'page'])
       expect(moreButton().getAttribute('aria-current')).toBeNull()
@@ -118,8 +131,8 @@ describe('the tab that the address names when the app opens', () => {
     ['the first tab with a query', '#history?provider=1&from=2026-10-01', 'history'],
     ['a tab with an empty query', '#providers?', 'providers'],
     ['a renamed tab with a query', '#committee?x=1', 'settings'],
-    ['a name that is not a tab, with a query', '#nowhere?x=1', 'history'],
-    ['a tab with a query but the wrong case', '#Points?x=1', 'history'],
+    ['a name that is not a tab, with a query', '#nowhere?x=1', 'home'],
+    ['a tab with a query but the wrong case', '#Points?x=1', 'home'],
   ])('opens the tab before the ? for %s', async (_what, hash, key) => {
     answerLikeTheServer()
     window.history.replaceState(null, '', `/${hash}`)
@@ -172,7 +185,7 @@ describe('changing the tab while the app is open', () => {
   it('follows a change of the address, and a change back, and goes to the first tab when the address names none', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('history')
+    await heading(FIRST)
 
     await openByAddress('#points')
     await heading('points')
@@ -188,14 +201,14 @@ describe('changing the tab while the app is open', () => {
     expect(shown()).toEqual(['audit'])
 
     await openByAddress('#nowhere')
-    await heading('history')
-    expect(shown()).toEqual(['history'])
+    await heading(FIRST)
+    expect(shown()).toEqual([FIRST])
   })
 
   it('follows an address with a query to another tab, and leaves the tab as it is when only the query changes', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('history')
+    await heading(FIRST)
 
     await openByAddress('#points?x=1')
     await heading('points')
@@ -216,7 +229,7 @@ describe('changing the tab while the app is open', () => {
   it('follows the back button', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('history')
+    await heading(FIRST)
     await openByAddress('#providers')
     await heading('providers')
     await openByAddress('#agent')
@@ -256,7 +269,7 @@ describe('changing the tab while the app is open', () => {
   it('scrolls to the top and puts the focus on the content when the screen changes, also to a screen under "עוד"', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('history')
+    await heading(FIRST)
     window.scrollTo.mockClear()
     fireEvent.click(moreButton())
     fireEvent.click(within(sheet()).getByRole('button', { name: 'הגדרות' }))
@@ -267,31 +280,31 @@ describe('changing the tab while the app is open', () => {
 })
 
 describe('the tab bar of the phone and the side rail', () => {
-  it('has exactly four buttons in the bar: history, points, providers and "עוד", in this order', async () => {
+  it('has exactly five buttons in the bar: home, history, points, providers and "עוד", in this order', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('history')
-    expect(within(bar()).getAllByRole('button').map((b) => b.textContent)).toEqual(['היסטוריה', 'נקודות', 'ספקים', 'עוד'])
+    await heading(FIRST)
+    expect(within(bar()).getAllByRole('button').map((b) => b.textContent)).toEqual(['בית', 'היסטוריה', 'נקודות', 'ספקים', 'עוד'])
   })
 
-  it('has all seven screens in the side rail, in two groups with a separator between them', async () => {
+  it('has all eight screens in the side rail, Home first, in two groups with a separator between them', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('history')
+    await heading(FIRST)
     expect(within(rail()).getAllByRole('button').map((b) => b.textContent)).toEqual(
-      ['היסטוריה', 'נקודות', 'ספקים', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'עזרה'],
+      ['בית', 'היסטוריה', 'נקודות', 'ספקים', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'עזרה'],
     )
     expect(within(rail()).getAllByRole('separator')).toHaveLength(1)
-    // the separator is between the third and the fourth button
+    // the separator is between the fourth and the fifth button
     expect([...rail().children].map((n) => (n.tagName === 'HR' ? '|' : n.textContent))).toEqual([
-      'היסטוריה', 'נקודות', 'ספקים', '|', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'עזרה',
+      'בית', 'היסטוריה', 'נקודות', 'ספקים', '|', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'עזרה',
     ])
   })
 
   it('says that "עוד" opens a dialog, and whether it is open', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
-    await heading('history')
+    await heading(FIRST)
     expect(moreButton().getAttribute('aria-haspopup')).toBe('dialog')
     expect(moreButton().getAttribute('aria-expanded')).toBe('false')
     fireEvent.click(moreButton())

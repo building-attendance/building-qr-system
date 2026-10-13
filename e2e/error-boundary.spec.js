@@ -8,7 +8,7 @@
 // answer and a stored session without provider details is removed when it is read, see e2e/provider.spec.js. A screen of the
 // provider app that still breaks on a shape it cannot draw is the list of today's visits, so the tests route that one. If
 // the app is made to tolerate that answer too, this test needs the next real way to break a screen, not a hook in the app.)
-import { test, expect, he, en, PEOPLE, adminSignIn, signIn, allowConsoleErrors, isErrorReport, expectErrorReport } from './fixtures.js'
+import { test, expect, he, en, PEOPLE, SCREEN_TITLES, adminSignIn, signIn, allowConsoleErrors, isErrorReport, expectErrorReport } from './fixtures.js'
 
 // The service worker is not what is tested here, and a page that it controls can send a request round the test's route.
 test.use({ serviceWorkers: 'block' })
@@ -150,10 +150,10 @@ test('a broken screen of the committee app is Hebrew, on a phone and on a comput
   await page.unroute(ADMIN_ME)
   const report = page.waitForRequest(isErrorReport(ADMIN_ERRORS))
   await tryAgain.click()
-  await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible() // the first screen of the committee app
+  await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES.home })).toBeVisible() // the first screen of the committee app: Home (the address is /admin)
   await expect(heading).toHaveCount(0)
   // The committee app sends the crash with its cookie, through its own API client: the tab that was open, the name of the error, no message.
-  await expectErrorReport(await report, [{ kind: 'crash', place: 'committee:history', name: 'Error' }])
+  await expectErrorReport(await report, [{ kind: 'crash', place: 'committee:home', name: 'Error' }])
   await expect.poll(() => outboxOf(page)).toBeNull()
   expect(crashes).toEqual(['Screen crash (committee app): Error'])
 })

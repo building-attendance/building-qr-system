@@ -5,6 +5,11 @@
 //
 // What is NOT for people keeps its machine format on purpose: the API and the agent read ISO dates (2026-10-01,
 // 2026-10-01T18:00:00Z), which cannot be misread as day-month or month-day.
+//
+// One exception, with its conditions (AGENTS.md, owner decision of 12/10/2026): the column heads of a table of consecutive days may write
+// each day as DD/MM (`formatDayShort`), only when the table shows its whole range in DD/MM/YYYY right above it and each head carries its
+// full date for a screen reader. Anywhere else a day keeps its year. tests/dates.test.js pins that `formatDayShort` is used by the Home
+// screen's week table and nowhere else.
 
 // The building's time zone is written once, in shared/contract.js (the server stores `scans.local_date` in the same zone).
 // It is re-exported here so that the code that imports it from this file keeps working.
@@ -84,6 +89,30 @@ export function isoDay(value = new Date()) {
 export function formatDay(ymd) {
   const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd ?? '')
   return match && isRealDay(match[1], match[2], match[3]) ? `${match[3]}/${match[2]}/${match[1]}` : '-'
+}
+
+/**
+ * '2026-10-01' as '01/10': the day and the month, '-' when it is not a real day.
+ *
+ * ONLY for the column heads of a table of consecutive days, and only when the table shows its whole range in DD/MM/YYYY right above it
+ * (its caption) and every head carries its full date (`formatDay`) for a screen reader: the exception that the owner decided on 12/10/2026
+ * (AGENTS.md, Rules for every change). A day anywhere else is written by `formatDay`, with its year. tests/dates.test.js fails when another
+ * file uses this function.
+ */
+export function formatDayShort(ymd) {
+  const full = formatDay(ymd)
+  return full === '-' ? full : full.slice(0, 5)
+}
+
+/**
+ * The hour of the moment in the building's time zone, 0 to 23 (so the 00:30 of a night is 0, never 24), or null when there is no moment.
+ * It is the building's clock and not the device's, as every time a person sees (the greeting of the Home screen decides by it).
+ * @param {Date | string | number} [now]  default: now
+ * @returns {number | null}
+ */
+export function buildingHour(now = new Date()) {
+  const p = parts(now)
+  return p ? Number(p.hour) : null
 }
 
 /** True for a day that exists on the calendar: 29/02 only in a leap year, no 31st in a 30-day month. */
