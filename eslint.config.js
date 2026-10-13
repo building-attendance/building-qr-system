@@ -81,19 +81,24 @@ const BROWSER_TARGET = {
     'error',
     { selector: "CallExpression > MemberExpression.callee[computed=false][property.name='at']", message: AT_IS_NEWER },
     { selector: "CallExpression > MemberExpression.callee[computed=true][property.value='at']", message: AT_IS_NEWER },
+    { selector: abortSignalMethod('abort'), message: newerThan('AbortSignal.abort', '15') },
     { selector: abortSignalMethod('timeout'), message: newerThan('AbortSignal.timeout', '16') },
     { selector: abortSignalMethod('any'), message: newerThan('AbortSignal.any', '17.4') },
   ],
-  // Built-ins of the web platform, not of ECMAScript, so the plugin does not know them: the ones that a modern habit reaches for.
-  // A name on its own (`structuredClone`) and the same name read from the global object (`window.structuredClone`,
-  // `globalThis.crypto.randomUUID`): structuredClone and randomUUID are refused on any object, which here is only ever that one.
+  // Built-ins of the web platform, not of ECMAScript, so the plugin does not know them: the ones that a modern habit reaches for,
+  // not the whole platform. A name on its own (`structuredClone`) and the same name read from the global object
+  // (`window.structuredClone`, `globalThis.crypto.randomUUID`): a name that belongs to nothing else here (structuredClone,
+  // randomUUID, throwIfAborted) is refused on any object. Of AbortSignal, every member newer than Safari 14 but `reason`, which
+  // is also a field throughout this app (and reads as undefined there rather than throwing).
   'no-restricted-globals': ['error', { name: 'structuredClone', message: newerThan('structuredClone', '15.4') }],
   'no-restricted-properties': [
     'error',
     { property: 'structuredClone', message: newerThan('structuredClone', '15.4') },
     { property: 'randomUUID', message: `${newerThan('crypto.randomUUID', '15.4')} Use uuid() of src/worker/uuid.js.` },
+    { object: 'AbortSignal', property: 'abort', message: newerThan('AbortSignal.abort', '15') },
     { object: 'AbortSignal', property: 'timeout', message: newerThan('AbortSignal.timeout', '16') },
     { object: 'AbortSignal', property: 'any', message: newerThan('AbortSignal.any', '17.4') },
+    { property: 'throwIfAborted', message: newerThan('AbortSignal.prototype.throwIfAborted', '15.4') },
   ],
 }
 

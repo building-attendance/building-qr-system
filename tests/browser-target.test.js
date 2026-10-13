@@ -57,6 +57,9 @@ const NEWER = [
   ["export const signal = (signals) => window.AbortSignal['any'](signals)", 'no-restricted-syntax', 'the web platform, Safari 17.4'],
   ['export const signal = () => window.AbortSignal?.timeout(5000)', 'no-restricted-syntax', 'the web platform, Safari 16'],
   ["export const signal = () => AbortSignal['timeout'](5000)", 'no-restricted-properties', 'the web platform, Safari 16'],
+  ["export const done = () => AbortSignal.abort('cancelled')", 'no-restricted-properties', 'the web platform, Safari 15'],
+  ["export const done = () => window.AbortSignal.abort('cancelled')", 'no-restricted-syntax', 'the web platform, Safari 15'],
+  ['export const check = (signal) => signal.throwIfAborted()', 'no-restricted-properties', 'the web platform, Safari 15.4'],
   ['export const last = (days) => Array.prototype.at.call(days, -1)', 'es-x/no-array-prototype-at', 'ES2022, Safari 15.4'],
   ["export const own = (detail) => globalThis.Object.hasOwn(detail, 'name')", 'es-x/no-object-hasown', 'ES2022, Safari 15.4'],
   ['export const later = () => globalThis.Promise.withResolvers()', 'es-x/no-promise-withresolvers', 'ES2024, Safari 17.4'],
@@ -71,6 +74,8 @@ const ALLOWED = [
   'export const wait = (options) => options.timeout ?? options.any', // fields named like AbortSignal's methods
   "export const wait = (options) => options['timeout'] ?? options.request.any",
   'export const signal = (controller) => controller.signal', // AbortController is older than the target
+  "export const stop = (controller) => controller.abort('timeout')", // AbortController.prototype.abort, Safari 11.1
+  'export const stopped = (signal) => signal.aborted',
   'export const last = (days) => days[days.length - 1]',
   "export const own = (detail) => Object.prototype.hasOwnProperty.call(detail, 'name')",
   // An array's methods of ES5 and ES2019, with the names of an iterator's helpers of ES2025.
