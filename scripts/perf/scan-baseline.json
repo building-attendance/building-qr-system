@@ -1,6 +1,6 @@
 {
-  "commit": "9ae761a",
-  "measuredAt": "2026-10-13T14:55:03.126Z",
+  "commit": "160065a",
+  "measuredAt": "2026-10-13T15:08:26.422Z",
   "runs": 10,
   "point": "location required (POINTS.gym of the sample data)",
   "machine": {
@@ -16,40 +16,40 @@
     "slow-4g": {
       "daily": {
         "n": 10,
-        "median": 569,
-        "p95": 721,
-        "min": 409,
-        "max": 721,
+        "median": 726,
+        "p95": 931,
+        "min": 493,
+        "max": 931,
         "requests": 16,
         "api": 8,
         "bytes": 3451
       },
       "first_list": {
         "n": 10,
-        "median": 3277,
-        "p95": 3999,
-        "min": 2637,
-        "max": 3999,
+        "median": 2814,
+        "p95": 3413,
+        "min": 2525,
+        "max": 3413,
         "requests": 10,
         "api": 3,
         "bytes": 369483
       },
       "first_checkin": {
         "n": 10,
-        "median": 603,
-        "p95": 925,
-        "min": 486,
-        "max": 925,
-        "requests": 5,
+        "median": 694,
+        "p95": 904,
+        "min": 459,
+        "max": 904,
+        "requests": 6,
         "api": 5,
-        "bytes": 2292
+        "bytes": 45755
       },
       "offline": {
         "n": 10,
-        "median": 1162,
-        "p95": 2146,
-        "min": 420,
-        "max": 2146,
+        "median": 1003,
+        "p95": 2030,
+        "min": 434,
+        "max": 2030,
         "requests": 8,
         "api": 0,
         "bytes": 0
@@ -58,40 +58,40 @@
     "unthrottled": {
       "daily": {
         "n": 10,
-        "median": 92,
-        "p95": 113,
-        "min": 66,
-        "max": 113,
+        "median": 98,
+        "p95": 115,
+        "min": 64,
+        "max": 115,
         "requests": 15,
         "api": 8,
-        "bytes": 3451
+        "bytes": 2971
       },
       "first_list": {
         "n": 10,
-        "median": 248,
-        "p95": 337,
-        "min": 204,
-        "max": 337,
+        "median": 277,
+        "p95": 333,
+        "min": 229,
+        "max": 333,
         "requests": 10,
         "api": 3,
-        "bytes": 369483
+        "bytes": 369476
       },
       "first_checkin": {
         "n": 10,
-        "median": 86,
-        "p95": 113,
-        "min": 72,
-        "max": 113,
+        "median": 102,
+        "p95": 118,
+        "min": 71,
+        "max": 118,
         "requests": 5,
         "api": 5,
         "bytes": 2292
       },
       "offline": {
         "n": 10,
-        "median": 192,
-        "p95": 237,
-        "min": 49,
-        "max": 237,
+        "median": 188,
+        "p95": 255,
+        "min": 59,
+        "max": 255,
         "requests": 7,
         "api": 0,
         "bytes": 0
