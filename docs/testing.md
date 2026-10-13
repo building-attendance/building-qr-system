@@ -11,7 +11,8 @@ Contents: [Setup](#one-time-setup-on-a-new-machine) | [How an E2E run is set up]
 [Offline tests](#offline-tests) | [Accessibility](#accessibility) | [Visual regression](#visual-regression) |
 [Two E2E runs on one machine](#two-e2e-runs-on-one-machine) |
 [The icons](#the-icons) | [CI](#ci) | [The smoke test](#the-smoke-test) | [Timing a scan](#timing-a-scan) |
-[Timing the committee and agent API](#timing-the-committee-and-agent-api) | [What is not automated](#what-is-not-automated)
+[Timing the committee and agent API](#timing-the-committee-and-agent-api) |
+[Timing the committee's screens](#timing-the-committees-screens) | [What is not automated](#what-is-not-automated)
 
 ## One-time setup on a new machine
 
@@ -241,6 +242,86 @@ reason to run it again, twice in a row is a regression.
 production's is far smaller) and the network of a phone. The numbers compare a change before and after on one computer;
 the plan is the evidence that does not depend on the computer, so a query that is fixed gets a unit test of its plan,
 which CI runs.
+
+## Timing the committee's screens
+
+`npm run perf:screens` measures how long each screen of the committee app takes to show its content on a year of data, on a
+phone and on a computer. It is the third timing, after the scan and the API, and like them a measurement and not a test: CI
+never runs it (a shared runner's timings are noise), and `tests/perf-screens.test.js` checks what it is made of and that
+nothing else runs it. It needs the same `.env.local` as the unit tests; a local PostgreSQL gives numbers that can be
+compared. A run takes about 10 minutes (the build, the data, then the visits on both devices).
+
+**How it is set up:** `playwright.screens-perf.config.js` reads `playwright.config.js` as the scan timing does (the production
+build and its preview, the API, the time zone), on its own ports (3720, 3721) and schema (`perf_screens`). The API starts on
+the year of data of `scripts/perf/year-data.mjs` at x1 (the data of the section above), not on the dev seed. The schema is
+dropped at the end, and only because the generator made it (`scripts/perf/screen-teardown.mjs`). The browser part is
+`scripts/perf/screen-timing.playwright.mjs`; the screens, the targets, the numbers, the report and the baseline step are
+`scripts/perf/screen-report.mjs`, which has no browser in it and is what the unit tests import. The spec is not called
+`*.spec.mjs` on purpose: `playwright.perf.config.js` runs every `*.spec.mjs` of `scripts/perf`, and the scan timing must not
+run this.
+
+**What it measures:** two devices, both Chromium (WebKit has no throttling):
+
+- **A phone:** a Pixel 7 screen with Slow 4G (150 ms, 1.6 Mbps down, 750 kbps up) and CPU x4: the profile of the scan timing,
+  and the test keeps the numbers equal.
+- **A computer:** a 1280 x 720 window with no throttling: the speed of the machine that measures.
+
+On each device a committee member of the generated data signs in once with the development shortcut of the local server, with no
+throttling, and the service worker takes the page over, as it does for a member who has used the app before. Then, for each
+screen below, one visit that is not counted (it also checks that the screen shows the year of data, so a screen that loaded
+empty fails the run) and 10 visits (`PERF_RUNS` changes the number): `about:blank`, then a fresh navigation to the screen, so
+that nothing of the last visit is left, not even the committee app's memory of its last answers. A time is taken inside the page
+with `performance.now()`: from the start of the navigation to the moment the screen's content is in the DOM (a MutationObserver
+sees it, so Playwright's polling adds nothing). That is the time of the DOM, a frame before the pixels. The screens, each with
+the element that means "loaded", read from its component in `src/admin/views/`:
+
+- **home:** the heading of the week table.
+- **history:** the History as it opens, the last 7 days: the first day heading of the list (100 visits).
+  **history_more:** "load more" once, from the click until the next 100 rows are in the list.
+  **history_refused:** the type "not counted" (a link opens it), the refused visits of the last 7 days: the first day heading.
+  **history_csv:** the Excel export of a year, from the click until the file is on the disk. On the phone the DevTools network
+  conditions do not slow Chromium's download manager (a 3.4 MB file took 0.3 s on both devices), so there the page asks for the
+  address of the link itself and reads the answer to the last byte.
+- **points, providers, agent:** the heading and the first card. **settings:** the first member card and the field of the
+  building's name (it comes with a request of its own). **audit:** the audit log with no date, the first day heading (50 entries).
+- **help:** the guide has no data, so it shows what the shell alone costs (the app's code, who is signed in, the first draw).
+
+Where the time went is read from the Resource Timing of the page, in four parts: **code** (from the start to the app's first request:
+its code loaded from the service worker, parsed and run), **boot** (from there to the end of the two requests that every screen waits
+for, who is signed in), **data** (from there to the end of the requests that the screen's content waits for) and **draw** (from
+there to the content in the DOM: the browser's own work). They are medians, so they add up to the median only about.
+
+**Targets** (set before the first measurement, 13/10/2026, D3 of the plan): the p95 of a screen at x1 is within 1 s on the computer
+and within 2.5 s on the throttled phone, and the Excel export of a year within 5 s on the computer. The export has no target on the
+phone (the table shows "-"): the file is about 3.4 MB, which the throttled 1.6 Mbps takes about 17.5 s to receive whatever the
+server does, so the time is bound by the bandwidth and says nothing about the app; its note gives the size and the bandwidth.
+With 10 visits the p95 is the slowest visit, so the notes say `OVER TARGET (the median too)` when the median is over as well, and
+when it is not they say how many visits were over and which one was the slowest (`the slowest is visit 7`; visit 1 is the first
+after the warm-up, a cold start): a slow first visit, or one visit that went slow by itself, is a reason to run it again, and a
+median over the target is a finding. The visits are in the run file in the order they were made (`samples`).
+
+**How to run it:** `npm run perf:screens`. `PERF_RUNS=3 npm run perf:screens -- --grep phone` is a quick try of one device (a
+partial run can never become the baseline). The run is written to `node_modules/.cache/bqr-e2e/perf/last-screen-timing.json`, and
+its tables in Markdown, for a pull request, next to it (`last-screen-timing.md`). **A new baseline:** `npm run perf:screens:baseline`,
+committed with the change that explains it. It is the same run, then `scripts/perf/screen-report.mjs --promote`, joined with
+`&&`: the baseline is written only when Playwright exited 0, and the script refuses, and says why, a run with fewer than 10 visits
+of a screen, a screen missing on a device, a run of another commit than the checkout's and a run of a checkout with uncommitted
+changes (so commit the code first, run the baseline from the clean checkout, and commit the baseline after).
+
+**How to read it:** one table for each device. `median` and `p95` are in ms, `target` is the p95 that was set before the first
+measurement, `req` and `KB` are the requests that finished and the bytes that crossed the network, and `baseline` is the median
+of `scripts/perf/screen-baseline.json` and the change. A median more than 20% and more than 10 ms slower than the baseline is
+marked `OVER THE 20% LINE`. Compare runs of one computer only (the baseline names the computer that measured it), with nothing
+heavy running beside it: the CPU slowdown multiplies whatever the computer is doing. A median over the line once is a reason to
+run it again, twice in a row is a regression.
+
+**What it cannot show:** the time of Vercel and Neon (the API and the database run on this computer, and the latency of the
+profile stands for the distance), a first visit with an empty cache (the app's code is then downloaded: the scan timing's first
+scan shows what that costs for the provider app), the answers of the real building (a year of invented data), Safari (WebKit has
+no throttling: the iPhone is checked by hand, [`manual-ios-checklist.md`](manual-ios-checklist.md)) and a real phone's processor
+(CPU x4 stands for a mid-tier one). The local setup does not compress its answers (they carry no `content-encoding`), so the
+bytes of a screen, and above all of the export (about 3.4 MB for a year of visits, which the phone's 1.6 Mbps takes about 18 s to receive), are the
+uncompressed sizes: a host that compresses text sends fewer.
 
 ## What is not automated
 

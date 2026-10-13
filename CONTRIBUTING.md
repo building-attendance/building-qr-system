@@ -84,6 +84,7 @@ npm test              # both
 npm run screenshots   # takes the README pictures again (not a test, and CI never runs it)
 npm run perf:scan     # times the provider's scan on a throttled phone and compares it with the baseline (not a test, and CI never runs it; docs/testing.md)
 npm run perf:api      # times every committee and agent API route on a year of invented data and compares it with the baseline (not a test, and CI never runs it; docs/testing.md)
+npm run perf:screens  # times each committee screen on a year of invented data, on a throttled phone and on a computer, and compares it with the baseline (not a test, and CI never runs it; docs/testing.md)
 ```
 
 - **A quick loop:** run one file, for example `npx vitest run tests/<file>.test.js`, or one folder
