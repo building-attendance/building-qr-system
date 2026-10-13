@@ -1,0 +1,101 @@
+{
+  "commit": "dcb120c",
+  "measuredAt": "2026-10-13T14:17:57.572Z",
+  "runs": 10,
+  "point": "location required (POINTS.gym of the sample data)",
+  "machine": {
+    "cpu": "Intel(R) Core(TM) Ultra 7 255H",
+    "cores": 16,
+    "platform": "win32 10.0.26300"
+  },
+  "profiles": {
+    "slow-4g": "Slow 4G (150 ms, 1.6 Mbps down, 750 kbps up) and CPU x4",
+    "unthrottled": "no throttling (the speed of this computer)"
+  },
+  "results": {
+    "slow-4g": {
+      "daily": {
+        "n": 10,
+        "median": 786,
+        "p95": 955,
+        "min": 511,
+        "max": 955,
+        "requests": 16,
+        "api": 8,
+        "bytes": 3451
+      },
+      "first_list": {
+        "n": 10,
+        "median": 2781,
+        "p95": 3590,
+        "min": 2430,
+        "max": 3590,
+        "requests": 10,
+        "api": 3,
+        "bytes": 369483
+      },
+      "first_checkin": {
+        "n": 10,
+        "median": 500,
+        "p95": 912,
+        "min": 426,
+        "max": 912,
+        "requests": 7,
+        "api": 5,
+        "bytes": 46908
+      },
+      "offline": {
+        "n": 10,
+        "median": 1239,
+        "p95": 2560,
+        "min": 473,
+        "max": 2560,
+        "requests": 8,
+        "api": 0,
+        "bytes": 0
+      }
+    },
+    "unthrottled": {
+      "daily": {
+        "n": 10,
+        "median": 72,
+        "p95": 93,
+        "min": 65,
+        "max": 93,
+        "requests": 15,
+        "api": 8,
+        "bytes": 3451
+      },
+      "first_list": {
+        "n": 10,
+        "median": 243,
+        "p95": 264,
+        "min": 209,
+        "max": 264,
+        "requests": 10,
+        "api": 3,
+        "bytes": 369483
+      },
+      "first_checkin": {
+        "n": 10,
+        "median": 81,
+        "p95": 93,
+        "min": 73,
+        "max": 93,
+        "requests": 5,
+        "api": 5,
+        "bytes": 2292
+      },
+      "offline": {
+        "n": 10,
+        "median": 193,
+        "p95": 295,
+        "min": 69,
+        "max": 295,
+        "requests": 7,
+        "api": 0,
+        "bytes": 0
+      }
+    }
+  }
+}
