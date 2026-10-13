@@ -44,7 +44,8 @@ The ones that matter most:
 You do not need Google, Vercel or a production database to work on the code. To host your own deployment, see
 [docs/install.md](docs/install.md).
 
-1. Install Node 24 (the version is in [`.nvmrc`](.nvmrc)).
+1. Install Node 24, release 24.15 or later (`engines` in [`package.json`](package.json)). [`.nvmrc`](.nvmrc) says 24,
+   so `nvm install` takes the newest Node 24.
 2. `npm install`
 3. `npx playwright install chromium webkit` (about 350 MB, needed for the browser tests).
 4. Copy `.env.example` to `.env.local` and fill in `DATABASE_URL` (and `DATABASE_URL_UNPOOLED`). Point them at a
