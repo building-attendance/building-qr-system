@@ -2,10 +2,10 @@
 #   guards                 migrations only move forward, tests are not removed, the PR title, ESLint, the type check,
 #                          the size budget of the built app, an audit of the production dependencies (and a warning,
 #                          never a failure, for the development ones)
-#   unit                   Vitest, against a Postgres 18 container (production runs Postgres 18 on Neon)
+#   unit                   Vitest, against a Postgres 18 container (production runs Postgres 18 on Neon), in 2 parts
 #   e2e (android-chrome)   Playwright, Chromium as a Pixel 7, in 2 parts (e2e.yml)
 #   e2e (iphone-webkit)    Playwright, WebKit as an iPhone 14, in 3 parts (e2e.yml)
-#                          Each e2e check is a small job that passes only when every part of its project passed (below).
+#                          unit and each e2e check are small jobs that pass only when every one of their parts passed.
 # They run on every pull request, on every push to the default branch and, once the repository has a merge queue, on each
 # merge group (see the trigger below).
 # Every third-party action is pinned to a full commit SHA (the tag is in the comment): a tag can be moved, a SHA cannot.
@@ -161,16 +161,23 @@ jobs:
             echo "::warning title=Development dependency advisory::npm audit found a high or critical advisory in a development dependency (the log of this step lists it). It does not block the merge; update it, or merge the Dependabot pull request that fixes it."
           fi
 
-  unit:
-    name: unit
+  # The unit tests in parts side by side, each part a job with its own Postgres container that runs its share of the test
+  # files (Vitest --shard: 54 and 53 of 107 files). The required check `unit` is the small job after them, which passes only
+  # when every part passed, like the e2e checks below.
+  unit-parts:
+    name: unit part ${{ matrix.part }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        part: [1, 2]
     services:
       postgres:
         # Pinned to a digest, like the actions: the tag postgres:18 moves with every patch release. This is the multi-arch
         # index of postgres:18 as Docker Hub had it on 2026-10-02. It is updated by hand (Dependabot does not update
         # service-container images in a workflow): to move it, resolve postgres:18 again and replace the digest here and in
-        # the e2e job.
+        # e2e.yml.
         image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722
         env:
           POSTGRES_PASSWORD: postgres
@@ -194,7 +201,25 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      - run: npx vitest run --reporter=default --reporter=github-actions
+      - name: Run this part of the tests
+        env:
+          PART: ${{ matrix.part }}
+          PARTS: ${{ strategy.job-total }}
+        run: npx vitest run --shard="$PART/$PARTS" --reporter=default --reporter=github-actions
+
+  unit:
+    name: unit
+    needs: unit-parts
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every part passed
+        env:
+          RESULT: ${{ needs.unit-parts.result }}
+        run: |
+          echo "The parts of unit: $RESULT"
+          [ "$RESULT" = success ]
 
   # The end-to-end tests: one call of e2e.yml per Playwright project, which runs the project in parts side by side (each
   # with its own Postgres container), then one job per project that is the required check. It is named exactly like the
