@@ -26,6 +26,7 @@ export const SKIP_DIRS = Object.freeze([
   '.claude/',
   'scripts/hooks/',
   'scripts/screenshots/',
+  'scripts/perf/', // the timing of the scan (npm run perf:scan): a Playwright spec, its baseline and the step that writes it
 ])
 
 /** Files at the root that only the tests, the linters and the editors read. */
@@ -36,6 +37,7 @@ export const SKIP_FILES = Object.freeze([
   'vitest.config.js',
   'playwright.config.js',
   'playwright.screenshots.config.js',
+  'playwright.perf.config.js',
 ])
 
 /** True when a change to this file can be left undeployed. */
