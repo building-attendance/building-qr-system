@@ -718,6 +718,19 @@ describe('the lists of the contract', () => {
     for (const key of retired) expect(keys, `committee:${key} is retired, so it must not be a tab again`).not.toContain(key)
   })
 
+  it('accepts a report from the Home screen (committee:home) from the committee, and only from the committee', async () => {
+    expect(CLIENT_PLACES).toContain('committee:home')
+    expect(parseClientErrorReport({ events: [{ kind: 'crash', place: 'committee:home', name: 'TypeError' }] }, 'committee_app')).toEqual([
+      expect.objectContaining({ kind: 'crash', place: 'committee:home' }),
+    ])
+    // every key that an installed app can send stays: Home adds one and removes none
+    for (const place of ['committee:history', 'committee:points', 'committee:providers', 'committee:agent', 'committee:settings', 'committee:audit', 'committee:help', 'committee:committee']) {
+      expect(CLIENT_PLACES, place).toContain(place)
+    }
+    // the provider's endpoint takes only the provider's own keys
+    expect(parseClientErrorReport({ events: [{ kind: 'crash', place: 'committee:home', name: 'TypeError' }] }, 'provider_app')).toEqual([])
+  })
+
   it('accepts a report that an older committee app sends from the screen that was split (committee:committee)', async () => {
     expect(parseClientErrorReport({ events: [{ kind: 'crash', place: 'committee:committee', name: 'TypeError' }] }, 'committee_app')).toEqual([
       expect.objectContaining({ kind: 'crash', place: 'committee:committee' }),

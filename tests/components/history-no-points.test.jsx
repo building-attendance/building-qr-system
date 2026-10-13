@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// The History screen is the first screen of the committee app, and a new installation has no points: its empty list must tell the person
+// A new installation has no points, and the History screen shows an empty list: it must tell the person
 // to start by adding points (with a button to the Points screen), not to widen the dates. The real HistoryView, with the network (`api`)
 // answered by the test. HistoryView loads the points for its filter already, so the message needs no request of its own.
 import { describe, it, expect, vi, afterEach } from 'vitest'
