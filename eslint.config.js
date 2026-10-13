@@ -4,15 +4,86 @@
 // (no semicolons, single quotes, two spaces, long lines) is kept by the people and the agents who write it.
 //
 // What it checks: `@eslint/js` recommended for every file (unused variables and imports, undefined names, unreachable
-// code, and the like), and the React hooks rules for the app in `src/`. The globals of each folder say where the code
+// code, and the like), the React hooks rules for the app in `src/`, and, for the code that runs in the browser, no built-in
+// that the browsers of build.target lack (eslint-plugin-es-x, below). The globals of each folder say where the code
 // runs (browser, Node, or both), so that a browser name used in server code is an error.
 import js from '@eslint/js'
 import globals from 'globals'
 import reactHooks from 'eslint-plugin-react-hooks'
+import esX from 'eslint-plugin-es-x'
 import { defineConfig, globalIgnores } from 'eslint/config'
 
 // The names that Node and the browser both define (console, setTimeout, URL, fetch, ...).
 const inBoth = Object.fromEntries(Object.entries(globals.node).filter(([name]) => name in globals.browser))
+
+// The code that runs in the browser: what Vite builds into the two apps (src/, and shared/, which the server imports too) and
+// the theme script that Vite copies as it is (public/theme-boot.js). build.target in vite.config.js is ES2020 with Chrome 87,
+// Edge 88, Firefox 78 and Safari 14, on purpose: the service providers' phones are not known. Vite lowers the syntax of the
+// code to that target, but it adds no built-in that a browser lacks: `days.at(-1)` reaches Safari 14 as it is written and
+// throws a TypeError there, which stops the screen. So this code may use only the built-ins of ES2020 and of those browsers.
+// tests/browser-target.test.js shows what is refused and what is not, and pins the target that this is written for.
+//
+// eslint-plugin-es-x knows what each edition of ECMAScript added. Every one of its presets for what came after ES2020 is on
+// (each year from 2021, its Intl part, and `esnext`), taken from the plugin by name, so that a newer version of the plugin
+// brings a newer edition in by itself. The line is the `es2020` of the target, not a table of versions, so it is a little
+// stricter than the four browsers (`replaceAll` is in all of them, `Promise.any` in all but Firefox 78).
+const AFTER_ES2020 = /^flat\/no-new-in-es(20(2[1-9]|[3-9]\d)|next)(-intl-api)?$/
+const afterES2020 = Object.assign(
+  {},
+  ...Object.entries(esX.configs).filter(([name]) => AFTER_ES2020.test(name)).map(([, preset]) => preset.rules),
+)
+
+// The syntax of those editions that Vite lowers to build.target (checked with Vite 8's own transform): what Vite builds may use
+// it, the theme script that Vite copies as it is may not. Regular expressions are not on this list on purpose: Vite turns a
+// pattern that the target cannot read (the `d` or the `v` flag, a lookbehind) into `new RegExp(...)`, which still throws on
+// the old phone, when it runs instead of when it loads.
+const LOWERED_BY_VITE = [
+  'no-numeric-separators', // 1_000
+  'no-logical-assignment-operators', // a ??= b
+  'no-class-instance-fields',
+  'no-class-static-fields',
+  'no-class-private-fields',
+  'no-class-private-methods',
+  'no-class-static-block',
+  'no-private-in', // #field in object
+].map((rule) => `es-x/${rule}`)
+const afterES2020NotLowered = Object.fromEntries(Object.entries(afterES2020).filter(([rule]) => !LOWERED_BY_VITE.includes(rule)))
+
+// The plugin's aggressive mode (on below) reports a method of a prototype (`rows.findLast(...)`, `rows.toSorted()`) on any
+// value, because without TypeScript it knows the type of few. These rules keep the plugin's default instead, which reports
+// them only on a value that it knows: the helpers of an iterator that have the names of an array's methods of ES5 and ES2019
+// (aggressive mode would refuse every `rows.map(...)`; `map.values().map(...)` is still refused), and `at`, which is also
+// the name of a field in this app (the time of a scan or of an audit entry, `entry.at`): its call is refused below instead.
+const SAME_NAME_AS_OLDER = [
+  'no-array-prototype-at',
+  'no-string-prototype-at',
+  ...['every', 'filter', 'find', 'flatmap', 'foreach', 'map', 'reduce', 'some'].map((method) => `no-iterator-prototype-${method}`),
+].map((rule) => `es-x/${rule}`)
+
+const AT_IS_NEWER =
+  'Array.prototype.at and String.prototype.at are ES2022 (Safari 15.4): Safari 14, a browser of build.target in vite.config.js, ' +
+  'throws a TypeError. Use list[list.length - 1] or text[i].'
+const newerThan = (what, since) => `${what} is in Safari only from ${since}: Safari 14, a browser of build.target in vite.config.js, lacks it.`
+
+const BROWSER_TARGET = {
+  ...Object.fromEntries(SAME_NAME_AS_OLDER.map((rule) => [rule, ['error', { aggressive: false }]])),
+  // ES2018, so in none of the presets above, but Safari reads it only from 16.4 (and Vite does not lower a pattern, see above).
+  'es-x/no-regexp-lookbehind-assertions': 'error',
+  // A call of `.at(...)` on anything, the plain and the optional call and `['at']`. Reading a field named `at` is not a call.
+  'no-restricted-syntax': [
+    'error',
+    { selector: "CallExpression > MemberExpression.callee[computed=false][property.name='at']", message: AT_IS_NEWER },
+    { selector: "CallExpression > MemberExpression.callee[computed=true][property.value='at']", message: AT_IS_NEWER },
+  ],
+  // Built-ins of the web platform, not of ECMAScript, so the plugin does not know them: the ones that a modern habit reaches for.
+  'no-restricted-globals': ['error', { name: 'structuredClone', message: newerThan('structuredClone', '15.4') }],
+  'no-restricted-properties': [
+    'error',
+    { object: 'crypto', property: 'randomUUID', message: `${newerThan('crypto.randomUUID', '15.4')} Use uuid() of src/worker/uuid.js.` },
+    { object: 'AbortSignal', property: 'timeout', message: newerThan('AbortSignal.timeout', '16') },
+    { object: 'AbortSignal', property: 'any', message: newerThan('AbortSignal.any', '17.4') },
+  ],
+}
 
 export default defineConfig([
   globalIgnores([
@@ -85,6 +156,21 @@ export default defineConfig([
   {
     files: ['shared/**/*.js'],
     languageOptions: { globals: inBoth },
+  },
+
+  // The code that runs in the browser uses only what the browsers of build.target have (see AFTER_ES2020 at the top): what
+  // Vite builds may use the syntax that Vite lowers, the theme script that Vite copies as it is may not.
+  {
+    files: ['src/**/*.{js,jsx}', 'shared/**/*.js'],
+    plugins: { 'es-x': esX },
+    settings: { 'es-x': { aggressive: true } },
+    rules: { ...afterES2020NotLowered, ...BROWSER_TARGET },
+  },
+  {
+    files: ['public/theme-boot.js'],
+    plugins: { 'es-x': esX },
+    settings: { 'es-x': { aggressive: true } },
+    rules: { ...afterES2020, ...BROWSER_TARGET },
   },
 
   // Vitest tests run in Node. Vitest is configured without globals (vitest.config.js), so every test imports `describe`,
