@@ -65,6 +65,11 @@ const AT_IS_NEWER =
   'Array.prototype.at and String.prototype.at are ES2022 (Safari 15.4): Safari 14, a browser of build.target in vite.config.js, ' +
   'throws a TypeError. Use list[list.length - 1] or text[i].'
 const newerThan = (what, since) => `${what} is in Safari only from ${since}: Safari 14, a browser of build.target in vite.config.js, lacks it.`
+// A method of AbortSignal when the class is read from an object (`window.AbortSignal.timeout`, `window['AbortSignal']['any']`).
+// `AbortSignal.timeout` itself is no-restricted-properties' (below), which also sees `const { timeout } = AbortSignal`.
+const abortSignalMethod = (method) =>
+  `MemberExpression:matches([computed=false][property.name='${method}'], [computed=true][property.value='${method}'])` +
+  ":matches([object.computed=false][object.property.name='AbortSignal'], [object.computed=true][object.property.value='AbortSignal'])"
 
 const BROWSER_TARGET = {
   ...Object.fromEntries(SAME_NAME_AS_OLDER.map((rule) => [rule, ['error', { aggressive: false }]])),
@@ -76,8 +81,8 @@ const BROWSER_TARGET = {
     'error',
     { selector: "CallExpression > MemberExpression.callee[computed=false][property.name='at']", message: AT_IS_NEWER },
     { selector: "CallExpression > MemberExpression.callee[computed=true][property.value='at']", message: AT_IS_NEWER },
-    { selector: "MemberExpression[object.property.name='AbortSignal'][property.name='timeout']", message: newerThan('AbortSignal.timeout', '16') },
-    { selector: "MemberExpression[object.property.name='AbortSignal'][property.name='any']", message: newerThan('AbortSignal.any', '17.4') },
+    { selector: abortSignalMethod('timeout'), message: newerThan('AbortSignal.timeout', '16') },
+    { selector: abortSignalMethod('any'), message: newerThan('AbortSignal.any', '17.4') },
   ],
   // Built-ins of the web platform, not of ECMAScript, so the plugin does not know them: the ones that a modern habit reaches for.
   // A name on its own (`structuredClone`) and the same name read from the global object (`window.structuredClone`,

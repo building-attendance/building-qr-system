@@ -53,6 +53,11 @@ const NEWER = [
   ['export const id = () => { const { randomUUID } = crypto; return randomUUID() }', 'no-restricted-properties', 'the web platform, Safari 15.4'],
   ['export const signal = () => window.AbortSignal.timeout(5000)', 'no-restricted-syntax', 'the web platform, Safari 16'],
   ['export const signal = (signals) => globalThis.AbortSignal.any(signals)', 'no-restricted-syntax', 'the web platform, Safari 17.4'],
+  ["export const signal = () => window['AbortSignal'].timeout(5000)", 'no-restricted-syntax', 'the web platform, Safari 16'],
+  ["export const signal = (signals) => window.AbortSignal['any'](signals)", 'no-restricted-syntax', 'the web platform, Safari 17.4'],
+  ['export const signal = () => window.AbortSignal?.timeout(5000)', 'no-restricted-syntax', 'the web platform, Safari 16'],
+  ["export const signal = () => AbortSignal['timeout'](5000)", 'no-restricted-properties', 'the web platform, Safari 16'],
+  ['export const last = (days) => Array.prototype.at.call(days, -1)', 'es-x/no-array-prototype-at', 'ES2022, Safari 15.4'],
   ["export const own = (detail) => globalThis.Object.hasOwn(detail, 'name')", 'es-x/no-object-hasown', 'ES2022, Safari 15.4'],
   ['export const later = () => globalThis.Promise.withResolvers()', 'es-x/no-promise-withresolvers', 'ES2024, Safari 17.4'],
   ['export const domain = (email) => /(?<=@)\\w+/.exec(email)', 'es-x/no-regexp-lookbehind-assertions', 'ES2018, but Safari 16.4'],
@@ -64,6 +69,7 @@ const ALLOWED = [
   'export const time = (entry) => entry.at', // a field named `at` (the time of a scan or of an audit entry), not the method
   'export const time = ({ at }) => at',
   'export const wait = (options) => options.timeout ?? options.any', // fields named like AbortSignal's methods
+  "export const wait = (options) => options['timeout'] ?? options.request.any",
   'export const signal = (controller) => controller.signal', // AbortController is older than the target
   'export const last = (days) => days[days.length - 1]',
   "export const own = (detail) => Object.prototype.hasOwnProperty.call(detail, 'name')",
