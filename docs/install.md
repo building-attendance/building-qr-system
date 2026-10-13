@@ -377,13 +377,13 @@ Do these in order. After step 5 every change to the default branch needs a pull 
      skipped. You may delete both files, or leave them. To run an agent loop of your own you would change that login and
      set up its secret and app, as the header of `claude.yml` explains: that is a separate decision, not part of the
      install. `release.yml` runs only by hand and a copy can ignore it. `scorecard.yml` reports the repository's security
-     habits and may be deleted. Keep `ci.yml` and `smoke.yml`.
+     habits and may be deleted. Keep `ci.yml`, `e2e.yml` (which `ci.yml` calls for the end-to-end tests) and `smoke.yml`.
 
    This push starts the checks and a production deployment, which is also the first run of the smoke test. In the trial,
    Vercel (Hobby) deployed this push to the repository of a free organization, and the smoke test ran after it and passed.
 4. **Wait for the checks.** In the Actions tab, on that push, the four checks must be green: `guards`, `unit`,
    `e2e (android-chrome)` and `e2e (iphone-webkit)`. In the trial they took about 23 seconds, 3 minutes, 3.5 minutes and
-   5 minutes. If they did not start, run `gh workflow run ci.yml --repo <owner>/<repo>`. The smoke test should show its
+   5 minutes. Each e2e check comes last, after the parts of its project (`e2e (<project>) part <n>`). If they did not start, run `gh workflow run ci.yml --repo <owner>/<repo>`. The smoke test should show its
    three steps as `ok`. A required check that has never run blocks every pull request, which is why the rulesets wait for
    this step.
 5. **Apply the two rulesets,** from the root of a clone, with your own owner and repository name in the address

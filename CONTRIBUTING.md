@@ -147,8 +147,8 @@ new one builds, and installed apps keep running old code for days, so the databa
   - `guards`: migrations only move forward, tests are not removed, the pull request title, ESLint, the type check, a
     dependency audit, and the size of the built app against its budget (`npm run size`)
   - `unit`
-  - `e2e (android-chrome)`
-  - `e2e (iphone-webkit)`
+  - `e2e (android-chrome)` and `e2e (iphone-webkit)`: each passes when every part of its project passed (the parts run
+    side by side, see [`docs/testing.md`](docs/testing.md), "CI")
 - **A pull request, then an approval:** `master` is protected by rulesets
   ([`.github/rulesets/`](.github/rulesets/README.md)). Changes arrive only through a pull request, and a code owner
   approves it.
