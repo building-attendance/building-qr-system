@@ -11,7 +11,7 @@ Contents: [Setup](#one-time-setup-on-a-new-machine) | [How an E2E run is set up]
 [Offline tests](#offline-tests) | [Accessibility](#accessibility) | [Visual regression](#visual-regression) |
 [Two E2E runs on one machine](#two-e2e-runs-on-one-machine) |
 [The icons](#the-icons) | [CI](#ci) | [The smoke test](#the-smoke-test) | [Timing a scan](#timing-a-scan) |
-[What is not automated](#what-is-not-automated)
+[Timing the committee and agent API](#timing-the-committee-and-agent-api) | [What is not automated](#what-is-not-automated)
 
 ## One-time setup on a new machine
 
@@ -185,6 +185,62 @@ nothing.
 **What it cannot show:** the GPS of a real phone (the browser here answers at once), the time of the server on Vercel and
 Neon (the API runs on this computer, and the latency of the profile stands for the distance), and Safari (WebKit has no
 throttling): the iPhone is still checked by hand ([`manual-ios-checklist.md`](manual-ios-checklist.md)).
+
+## Timing the committee and agent API
+
+`npm run perf:api` measures how long the committee's screens and the committee's agent wait for the API on a year of data.
+Scans, refused visits and the audit log are never deleted, so a query that reads them "since ever" gets slower every year;
+this shows it on invented data first. Like the scan timing it is a measurement, not a test: CI never runs it.
+`tests/perf-api.test.js` and `tests/perf-year-data.test.js` check what it is made of. It needs the same `.env.local` as
+the unit tests; a local PostgreSQL gives numbers that can be compared, a remote database mostly measures the network.
+
+**The data** (`scripts/perf/year-data.mjs`), in two sizes, each made fresh in the scratch schema `perf_api`:
+
+- **x1, a real building's year:** 25 points (2 switched off), 10 service providers (one of them the demo account), 3
+  committee members, about 40 visits a day over the 365 building days that end yesterday (about 14,600, more on Sunday
+  to Thursday, few on Saturday), refused visits about 5% of that, about 1% voided (each with its `scan.void` entry), a
+  few of the demo account, 3,000 audit entries, and an agent key that asked once every 5 minutes for 90 days.
+- **x10:** ten times the visits, the refused visits and the audit entries: a big building, or several years.
+
+Every value is invented, and the same day makes the same rows. The generator refuses a name that is not a scratch schema
+or that belongs to another tool (`dev_ui`, `e2e`, `perf`, `screenshots`), refuses a database that is marked production
+before its first write, drops only a schema that it made itself (it marks it), and writes only on a connection whose
+search path is that schema alone. `node scripts/perf/year-data.mjs <schema> [--scale=1|10]` makes one by hand,
+`--drop` removes it.
+
+**What it measures:** for each size, the local API (`server/dev.mjs`) on its own port (3711), signed in with its
+development shortcut, and every GET route that a committee screen opens, with the filters that the screen sends (the
+History list as it opens, "load more", one point, one provider, a whole year, "not counted", the Excel export of a year;
+the audit log as it opens and with each filter; Home, Points, Providers, Agent, Committee), then every route of the agent
+API (the scans, the counts of 366 days by each grouping, the refused visits, the audit log, the documents), each with a key
+of its own so that none comes near the limit of requests per minute. Each route is called 20 times after one warm-up, one
+request at a time, from the request to the last byte of the answer. Then each route is called once more inside the run's
+own process, through the app's router, to see which statements it runs, and each statement that reads is run again
+under `EXPLAIN (ANALYZE, BUFFERS)` in a read-only transaction. The schema is dropped at the end (`--keep` leaves it).
+
+**How to run it:** `npm run perf:api` (both sizes, a few minutes). `npm run perf:api -- --scale=1` runs one size,
+`--runs=5` a quick try, `--port=<port>` another port. The run is written to
+`node_modules/.cache/bqr-e2e/perf/last-api-timing.json`, and its tables in Markdown, for a pull request, next to it
+(`last-api-timing.md`). A new baseline: `npm run perf:api:baseline`, committed with the change that explains it; it is the
+same run, then `--promote`, joined with `&&`, and it refuses a run of one size, a run with fewer than 20 calls of a route,
+a route that did not answer 200 every time, a run of another commit, and a run of a checkout with uncommitted changes.
+
+**How to read it:** one table for each size. `median` and `p95` are in ms. `target` is the p95 that was set before the
+first measurement (13/10/2026): 300 ms at x1 and 1 s at x10 for a route, 5 s for the Excel export of a year, on this
+computer, so that Vercel and Neon, which are slower, still have room. `rows` is what the answer holds, `stmts` how many
+statements the route ran (the guard of the committee or of the key apart), and `rows read` how many rows those
+statements read from the tables that grow (scans, refused visits, the audit log, the agent keys' minutes), from the plan.
+`baseline` is the median of `scripts/perf/api-baseline.json` and the change. The notes say `OVER TARGET`, `OVER THE 20%
+LINE` (a median more than 20% and more than 1 ms slower than the baseline), `reads scans 100%` (the route reads at least
+half of a table that grows, whatever the index: it gets slower as that table grows), `full scan of` a table that grows,
+and an export that was cut at its limit. The plans of those routes are printed under the table, one line per node of
+the plan, with its rows, its loops and its time. Compare runs of one computer only; a median over the line once is a
+reason to run it again, twice in a row is a regression.
+
+**What it cannot show:** the time of Vercel and of the production database (the database here is on this computer, and
+production's is far smaller) and the network of a phone. The numbers compare a change before and after on one computer;
+the plan is the evidence that does not depend on the computer, so a query that is fixed gets a unit test of its plan,
+which CI runs.
 
 ## What is not automated
 

@@ -1,0 +1,2023 @@
+{
+  "commit": "f92b700",
+  "dirty": false,
+  "measuredAt": "2026-10-13T19:18:18.050Z",
+  "runs": 20,
+  "warmups": 1,
+  "machine": {
+    "cpu": "Intel(R) Core(TM) Ultra 7 255H",
+    "cores": 16,
+    "platform": "win32 10.0.26300",
+    "postgres": "18.6"
+  },
+  "targets": {
+    "route": {
+      "1": 300,
+      "10": 1000
+    },
+    "csv": {
+      "1": 5000,
+      "10": 5000
+    }
+  },
+  "scales": {
+    "1": {
+      "data": {
+        "points": 25,
+        "inactive_points": 2,
+        "providers": 10,
+        "demo_providers": 1,
+        "members": 3,
+        "scans": 14606,
+        "accepted": 14129,
+        "voided": 151,
+        "demo_scans": 68,
+        "refusals": 730,
+        "audit": 3000,
+        "api_keys": 2,
+        "api_key_usage": 25920
+      },
+      "routes": {
+        "config": {
+          "path": "/api/admin/config",
+          "target": 300,
+          "n": 20,
+          "median": 1.2,
+          "p95": 1.7,
+          "min": 0.9,
+          "max": 3.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 42,
+          "truncated": false,
+          "statements": 0,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "me": {
+          "path": "/api/admin/me",
+          "target": 300,
+          "n": 20,
+          "median": 2.6,
+          "p95": 3.9,
+          "min": 1.9,
+          "max": 3.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 111,
+          "truncated": false,
+          "statements": 0,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "home": {
+          "path": "/api/admin/home",
+          "target": 300,
+          "n": 20,
+          "median": 5.5,
+          "p95": 6.3,
+          "min": 4.2,
+          "max": 6.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 8,
+          "bytes": 1569,
+          "truncated": false,
+          "statements": 5,
+          "rowsRead": 232,
+          "readBy": {
+            "scans": 223,
+            "scan_refusals": 9
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history": {
+          "path": "/api/admin/scans?from=<weekFrom>&to=<today>&outcome=accepted&limit=100",
+          "target": 300,
+          "n": 20,
+          "median": 4.3,
+          "p95": 5.6,
+          "min": 3.5,
+          "max": 5.6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50382,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 223,
+          "readBy": {
+            "scans": 223
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_more": {
+          "path": "/api/admin/scans?from=<weekFrom>&to=<today>&outcome=accepted&limit=100&cursor=<historyCursor>",
+          "target": 300,
+          "n": 20,
+          "median": 4.5,
+          "p95": 6.2,
+          "min": 3.8,
+          "max": 6.3,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50523,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 223,
+          "readBy": {
+            "scans": 223
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_point": {
+          "path": "/api/admin/scans?from=<weekFrom>&to=<today>&point_id=<point>&outcome=accepted&limit=100",
+          "target": 300,
+          "n": 20,
+          "median": 2.6,
+          "p95": 3.3,
+          "min": 2.3,
+          "max": 3.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 10,
+          "bytes": 5001,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 223,
+          "readBy": {
+            "scans": 223
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_provider": {
+          "path": "/api/admin/scans?from=<weekFrom>&to=<today>&provider_id=<provider>&outcome=accepted&limit=100",
+          "target": 300,
+          "n": 20,
+          "median": 3.5,
+          "p95": 4.3,
+          "min": 2.9,
+          "max": 4.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 60,
+          "bytes": 30360,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 223,
+          "readBy": {
+            "scans": 223
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_year": {
+          "path": "/api/admin/scans?from=<yearFrom>&to=<today>&outcome=accepted&limit=100",
+          "target": 300,
+          "n": 20,
+          "median": 4.2,
+          "p95": 6.1,
+          "min": 3.4,
+          "max": 6.3,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50382,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 106,
+          "readBy": {
+            "scans": 106
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_year_point": {
+          "path": "/api/admin/scans?from=<yearFrom>&to=<today>&point_id=<point>&outcome=accepted&limit=100",
+          "target": 300,
+          "n": 20,
+          "median": 3.7,
+          "p95": 4.3,
+          "min": 3.1,
+          "max": 4.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50084,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 125,
+          "readBy": {
+            "scans": 125
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_year_provider": {
+          "path": "/api/admin/scans?from=<yearFrom>&to=<today>&provider_id=<provider>&outcome=accepted&limit=100",
+          "target": 300,
+          "n": 20,
+          "median": 3.9,
+          "p95": 6,
+          "min": 3.4,
+          "max": 6.6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50655,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 339,
+          "readBy": {
+            "scans": 339
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "not_counted": {
+          "path": "/api/admin/scan-refusals?from=<weekFrom>&to=<today>&limit=100",
+          "target": 300,
+          "n": 20,
+          "median": 2.3,
+          "p95": 2.7,
+          "min": 1.7,
+          "max": 2.8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 9,
+          "bytes": 3166,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 9,
+          "readBy": {
+            "scan_refusals": 9
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "csv_year": {
+          "path": "/api/admin/scans?from=<yearFrom>&to=<today>&outcome=accepted&format=csv",
+          "target": 5000,
+          "n": 20,
+          "median": 229.3,
+          "p95": 242.6,
+          "min": 218.6,
+          "max": 245.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 13864,
+          "bytes": 3578443,
+          "truncated": false,
+          "statements": 28,
+          "rowsRead": 14895,
+          "readBy": {
+            "scans": 14895
+          },
+          "fullScans": [],
+          "wholeReads": [
+            "scans 102%"
+          ]
+        },
+        "audit": {
+          "path": "/api/admin/audit?limit=50",
+          "target": 300,
+          "n": 20,
+          "median": 4.8,
+          "p95": 5.1,
+          "min": 4.1,
+          "max": 5.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 16940,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 51,
+          "readBy": {
+            "audit_log": 51
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "audit_more": {
+          "path": "/api/admin/audit?cursor=<auditCursor>&limit=50",
+          "target": 300,
+          "n": 20,
+          "median": 5.1,
+          "p95": 5.6,
+          "min": 4.1,
+          "max": 6.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 16899,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 51,
+          "readBy": {
+            "audit_log": 51
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "audit_week": {
+          "path": "/api/admin/audit?from=<weekFrom>&to=<today>&limit=50",
+          "target": 300,
+          "n": 20,
+          "median": 5.5,
+          "p95": 6.3,
+          "min": 4.1,
+          "max": 6.3,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 48,
+          "bytes": 16170,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 48,
+          "readBy": {
+            "audit_log": 48
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "audit_group_session": {
+          "path": "/api/admin/audit?group=session&limit=50",
+          "target": 300,
+          "n": 20,
+          "median": 4.1,
+          "p95": 5.7,
+          "min": 3.5,
+          "max": 6.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 16164,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 95,
+          "readBy": {
+            "audit_log": 95
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "audit_group_building": {
+          "path": "/api/admin/audit?group=building&limit=50",
+          "target": 300,
+          "n": 20,
+          "median": 3.6,
+          "p95": 4,
+          "min": 2.7,
+          "max": 4.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 10,
+          "bytes": 3981,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 3001,
+          "readBy": {
+            "audit_log": 3001
+          },
+          "fullScans": [
+            "audit_log"
+          ],
+          "wholeReads": [
+            "audit_log 100%"
+          ]
+        },
+        "audit_member": {
+          "path": "/api/admin/audit?actor_id=<member>&limit=50",
+          "target": 300,
+          "n": 20,
+          "median": 4.3,
+          "p95": 5,
+          "min": 3.4,
+          "max": 5.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 17180,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 97,
+          "readBy": {
+            "audit_log": 97
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "points": {
+          "path": "/api/admin/points",
+          "target": 300,
+          "n": 20,
+          "median": 3.4,
+          "p95": 3.8,
+          "min": 2.6,
+          "max": 3.8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 25,
+          "bytes": 11438,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 14606,
+          "readBy": {
+            "scans": 14606
+          },
+          "fullScans": [],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "providers": {
+          "path": "/api/admin/providers",
+          "target": 300,
+          "n": 20,
+          "median": 3.5,
+          "p95": 4.3,
+          "min": 2.6,
+          "max": 4.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 10,
+          "bytes": 3736,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 14616,
+          "readBy": {
+            "scans": 14616
+          },
+          "fullScans": [],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "provider_devices": {
+          "path": "/api/admin/providers/<provider>/devices",
+          "target": 300,
+          "n": 20,
+          "median": 1.8,
+          "p95": 2.4,
+          "min": 1.5,
+          "max": 2.8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 341,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "api_keys": {
+          "path": "/api/admin/api-keys",
+          "target": 300,
+          "n": 20,
+          "median": 10.3,
+          "p95": 11.5,
+          "min": 10,
+          "max": 13.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 2,
+          "bytes": 579,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 17239,
+          "readBy": {
+            "api_key_usage": 17239
+          },
+          "fullScans": [],
+          "wholeReads": [
+            "api_key_usage 67%"
+          ]
+        },
+        "admins": {
+          "path": "/api/admin/admins",
+          "target": 300,
+          "n": 20,
+          "median": 1.7,
+          "p95": 4,
+          "min": 1.3,
+          "max": 4.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 3,
+          "bytes": 574,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "building": {
+          "path": "/api/admin/building",
+          "target": 300,
+          "n": 20,
+          "median": 2.9,
+          "p95": 4.2,
+          "min": 1.7,
+          "max": 4.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 104,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_scans": {
+          "path": "/api/agent/v1/scans",
+          "target": 300,
+          "n": 20,
+          "median": 4.9,
+          "p95": 5.2,
+          "min": 4.2,
+          "max": 5.3,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 62994,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 106,
+          "readBy": {
+            "scans": 106,
+            "audit_log": 0
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_scans_year": {
+          "path": "/api/agent/v1/scans?from=<yearFrom>&to=<today>&limit=500",
+          "target": 300,
+          "n": 20,
+          "median": 9.5,
+          "p95": 11.8,
+          "min": 8.5,
+          "max": 14.5,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 500,
+          "bytes": 314757,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 531,
+          "readBy": {
+            "scans": 531,
+            "audit_log": 0
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_scans_csv": {
+          "path": "/api/agent/v1/scans?from=<yearFrom>&to=<today>&limit=500&format=csv",
+          "target": 300,
+          "n": 20,
+          "median": 10.5,
+          "p95": 12.7,
+          "min": 8.4,
+          "max": 14.8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 500,
+          "bytes": 168080,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 531,
+          "readBy": {
+            "scans": 531,
+            "audit_log": 0
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_counts": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>",
+          "target": 300,
+          "n": 20,
+          "median": 5.5,
+          "p95": 6.9,
+          "min": 4.9,
+          "max": 7.5,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 161,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 14606,
+          "readBy": {
+            "scans": 14606
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_counts_day": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>&group_by=day",
+          "target": 300,
+          "n": 20,
+          "median": 6.7,
+          "p95": 7.5,
+          "min": 6,
+          "max": 8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 365,
+          "bytes": 46013,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 14606,
+          "readBy": {
+            "scans": 14606
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_counts_provider": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>&group_by=provider",
+          "target": 300,
+          "n": 20,
+          "median": 11.6,
+          "p95": 14.2,
+          "min": 10.2,
+          "max": 14.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 9,
+          "bytes": 1800,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 14606,
+          "readBy": {
+            "scans": 14606
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_counts_point": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>&group_by=point",
+          "target": 300,
+          "n": 20,
+          "median": 12.3,
+          "p95": 13.6,
+          "min": 10.6,
+          "max": 13.8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 23,
+          "bytes": 3836,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 14606,
+          "readBy": {
+            "scans": 14606
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_counts_service_type": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>&group_by=service_type",
+          "target": 300,
+          "n": 20,
+          "median": 6.3,
+          "p95": 6.9,
+          "min": 5.6,
+          "max": 6.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 4,
+          "bytes": 557,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 14606,
+          "readBy": {
+            "scans": 14606
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_refusals": {
+          "path": "/api/agent/v1/refusals",
+          "target": 300,
+          "n": 20,
+          "median": 3.9,
+          "p95": 4.8,
+          "min": 2.9,
+          "max": 5,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 34652,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 101,
+          "readBy": {
+            "scan_refusals": 101
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_points": {
+          "path": "/api/agent/v1/points",
+          "target": 300,
+          "n": 20,
+          "median": 3.6,
+          "p95": 4.7,
+          "min": 2.9,
+          "max": 7.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 25,
+          "bytes": 8392,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_providers": {
+          "path": "/api/agent/v1/providers",
+          "target": 300,
+          "n": 20,
+          "median": 3.7,
+          "p95": 4.4,
+          "min": 3,
+          "max": 5.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 10,
+          "bytes": 4193,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 10,
+          "readBy": {
+            "scans": 10
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_building": {
+          "path": "/api/agent/v1/building",
+          "target": 300,
+          "n": 20,
+          "median": 2.6,
+          "p95": 3.2,
+          "min": 1.9,
+          "max": 3.8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 104,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_audit": {
+          "path": "/api/agent/v1/audit",
+          "target": 300,
+          "n": 20,
+          "median": 4.7,
+          "p95": 5.7,
+          "min": 4.1,
+          "max": 6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 33526,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 101,
+          "readBy": {
+            "audit_log": 101
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_audit_point": {
+          "path": "/api/agent/v1/audit?entity=point&entity_id=<point>",
+          "target": 300,
+          "n": 20,
+          "median": 5.3,
+          "p95": 6.2,
+          "min": 4.2,
+          "max": 6.5,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 24,
+          "bytes": 8867,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 24,
+          "readBy": {
+            "audit_log": 24
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_schema": {
+          "path": "/api/agent/v1/schema",
+          "target": 300,
+          "n": 20,
+          "median": 3.7,
+          "p95": 5.8,
+          "min": 3.2,
+          "max": 6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 33205,
+          "truncated": false,
+          "statements": 0,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_openapi": {
+          "path": "/api/agent/v1/openapi.json",
+          "target": 300,
+          "n": 20,
+          "median": 6.2,
+          "p95": 7.3,
+          "min": 4,
+          "max": 7.6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 72848,
+          "truncated": false,
+          "statements": 0,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_health": {
+          "path": "/api/agent/v1/health",
+          "target": 300,
+          "n": 20,
+          "median": 2.4,
+          "p95": 2.7,
+          "min": 1.9,
+          "max": 3.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 94,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "health_db": {
+          "path": "/api/health/db",
+          "target": 300,
+          "n": 20,
+          "median": 2.7,
+          "p95": 4,
+          "min": 2.1,
+          "max": 5.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 67,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        }
+      }
+    },
+    "10": {
+      "data": {
+        "points": 25,
+        "inactive_points": 2,
+        "providers": 10,
+        "demo_providers": 1,
+        "members": 3,
+        "scans": 146184,
+        "accepted": 141416,
+        "voided": 1533,
+        "demo_scans": 667,
+        "refusals": 7309,
+        "audit": 30000,
+        "api_keys": 2,
+        "api_key_usage": 25920
+      },
+      "routes": {
+        "config": {
+          "path": "/api/admin/config",
+          "target": 1000,
+          "n": 20,
+          "median": 1,
+          "p95": 1.7,
+          "min": 0.9,
+          "max": 1.7,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 42,
+          "truncated": false,
+          "statements": 0,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "me": {
+          "path": "/api/admin/me",
+          "target": 1000,
+          "n": 20,
+          "median": 1.7,
+          "p95": 2.6,
+          "min": 1.4,
+          "max": 3,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 111,
+          "truncated": false,
+          "statements": 0,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "home": {
+          "path": "/api/admin/home",
+          "target": 1000,
+          "n": 20,
+          "median": 6.4,
+          "p95": 7.1,
+          "min": 4.8,
+          "max": 7.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 8,
+          "bytes": 1612,
+          "truncated": false,
+          "statements": 5,
+          "rowsRead": 2330,
+          "readBy": {
+            "scans": 2221,
+            "scan_refusals": 109
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history": {
+          "path": "/api/admin/scans?from=<weekFrom>&to=<today>&outcome=accepted&limit=100",
+          "target": 1000,
+          "n": 20,
+          "median": 4.9,
+          "p95": 6.5,
+          "min": 3.9,
+          "max": 6.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50685,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 2221,
+          "readBy": {
+            "scans": 2221
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_more": {
+          "path": "/api/admin/scans?from=<weekFrom>&to=<today>&outcome=accepted&limit=100&cursor=<historyCursor>",
+          "target": 1000,
+          "n": 20,
+          "median": 5.2,
+          "p95": 5.8,
+          "min": 4,
+          "max": 6.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50396,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 2221,
+          "readBy": {
+            "scans": 2221
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_point": {
+          "path": "/api/admin/scans?from=<weekFrom>&to=<today>&point_id=<point>&outcome=accepted&limit=100",
+          "target": 1000,
+          "n": 20,
+          "median": 5.5,
+          "p95": 6.7,
+          "min": 3.7,
+          "max": 7,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 49898,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 2221,
+          "readBy": {
+            "scans": 2221
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_provider": {
+          "path": "/api/admin/scans?from=<weekFrom>&to=<today>&provider_id=<provider>&outcome=accepted&limit=100",
+          "target": 1000,
+          "n": 20,
+          "median": 4.5,
+          "p95": 5.4,
+          "min": 3.7,
+          "max": 5.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50670,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 2221,
+          "readBy": {
+            "scans": 2221
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_year": {
+          "path": "/api/admin/scans?from=<yearFrom>&to=<today>&outcome=accepted&limit=100",
+          "target": 1000,
+          "n": 20,
+          "median": 3.9,
+          "p95": 4.4,
+          "min": 3.1,
+          "max": 4.7,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50685,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 105,
+          "readBy": {
+            "scans": 105
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_year_point": {
+          "path": "/api/admin/scans?from=<yearFrom>&to=<today>&point_id=<point>&outcome=accepted&limit=100",
+          "target": 1000,
+          "n": 20,
+          "median": 3.8,
+          "p95": 5.3,
+          "min": 3,
+          "max": 6.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 49898,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 120,
+          "readBy": {
+            "scans": 120
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "history_year_provider": {
+          "path": "/api/admin/scans?from=<yearFrom>&to=<today>&provider_id=<provider>&outcome=accepted&limit=100",
+          "target": 1000,
+          "n": 20,
+          "median": 3.6,
+          "p95": 5.1,
+          "min": 2.8,
+          "max": 6.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 50670,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 302,
+          "readBy": {
+            "scans": 302
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "not_counted": {
+          "path": "/api/admin/scan-refusals?from=<weekFrom>&to=<today>&limit=100",
+          "target": 1000,
+          "n": 20,
+          "median": 3.1,
+          "p95": 3.8,
+          "min": 2.5,
+          "max": 4.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 34489,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 101,
+          "readBy": {
+            "scan_refusals": 101
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "csv_year": {
+          "path": "/api/admin/scans?from=<yearFrom>&to=<today>&outcome=accepted&format=csv",
+          "target": 5000,
+          "n": 20,
+          "median": 1594.6,
+          "p95": 1634,
+          "min": 1533.4,
+          "max": 1647.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100000,
+          "bytes": 25888044,
+          "truncated": true,
+          "statements": 200,
+          "rowsRead": 104200,
+          "readBy": {
+            "scans": 104200
+          },
+          "fullScans": [],
+          "wholeReads": [
+            "scans 71%"
+          ]
+        },
+        "audit": {
+          "path": "/api/admin/audit?limit=50",
+          "target": 1000,
+          "n": 20,
+          "median": 4,
+          "p95": 6.8,
+          "min": 3.2,
+          "max": 7.8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 16828,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 51,
+          "readBy": {
+            "audit_log": 51
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "audit_more": {
+          "path": "/api/admin/audit?cursor=<auditCursor>&limit=50",
+          "target": 1000,
+          "n": 20,
+          "median": 4.1,
+          "p95": 4.9,
+          "min": 3.6,
+          "max": 5.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 16958,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 51,
+          "readBy": {
+            "audit_log": 51
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "audit_week": {
+          "path": "/api/admin/audit?from=<weekFrom>&to=<today>&limit=50",
+          "target": 1000,
+          "n": 20,
+          "median": 4.2,
+          "p95": 5.1,
+          "min": 3.5,
+          "max": 5.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 16828,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 51,
+          "readBy": {
+            "audit_log": 51
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "audit_group_session": {
+          "path": "/api/admin/audit?group=session&limit=50",
+          "target": 1000,
+          "n": 20,
+          "median": 3.4,
+          "p95": 4.9,
+          "min": 2.6,
+          "max": 5.7,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 16159,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 84,
+          "readBy": {
+            "audit_log": 84
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "audit_group_building": {
+          "path": "/api/admin/audit?group=building&limit=50",
+          "target": 1000,
+          "n": 20,
+          "median": 7.3,
+          "p95": 7.8,
+          "min": 6.1,
+          "max": 8.5,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 19894,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 30001,
+          "readBy": {
+            "audit_log": 30001
+          },
+          "fullScans": [
+            "audit_log"
+          ],
+          "wholeReads": [
+            "audit_log 100%"
+          ]
+        },
+        "audit_member": {
+          "path": "/api/admin/audit?actor_id=<member>&limit=50",
+          "target": 1000,
+          "n": 20,
+          "median": 3.4,
+          "p95": 4.3,
+          "min": 2.9,
+          "max": 5,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 50,
+          "bytes": 17033,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 86,
+          "readBy": {
+            "audit_log": 86
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "points": {
+          "path": "/api/admin/points",
+          "target": 1000,
+          "n": 20,
+          "median": 9.1,
+          "p95": 9.8,
+          "min": 8.5,
+          "max": 10,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 25,
+          "bytes": 11461,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 146184,
+          "readBy": {
+            "scans": 146184
+          },
+          "fullScans": [],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "providers": {
+          "path": "/api/admin/providers",
+          "target": 1000,
+          "n": 20,
+          "median": 9,
+          "p95": 9.7,
+          "min": 8.4,
+          "max": 10.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 10,
+          "bytes": 3746,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 146194,
+          "readBy": {
+            "scans": 146194
+          },
+          "fullScans": [],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "provider_devices": {
+          "path": "/api/admin/providers/<provider>/devices",
+          "target": 1000,
+          "n": 20,
+          "median": 1.9,
+          "p95": 3,
+          "min": 1.4,
+          "max": 3.3,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 341,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "api_keys": {
+          "path": "/api/admin/api-keys",
+          "target": 1000,
+          "n": 20,
+          "median": 11,
+          "p95": 12.4,
+          "min": 9.8,
+          "max": 13.3,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 2,
+          "bytes": 579,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 17239,
+          "readBy": {
+            "api_key_usage": 17239
+          },
+          "fullScans": [],
+          "wholeReads": [
+            "api_key_usage 67%"
+          ]
+        },
+        "admins": {
+          "path": "/api/admin/admins",
+          "target": 1000,
+          "n": 20,
+          "median": 1.7,
+          "p95": 2.6,
+          "min": 1.3,
+          "max": 2.6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 3,
+          "bytes": 574,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "building": {
+          "path": "/api/admin/building",
+          "target": 1000,
+          "n": 20,
+          "median": 1.6,
+          "p95": 2.4,
+          "min": 1.2,
+          "max": 3.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 104,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_scans": {
+          "path": "/api/agent/v1/scans",
+          "target": 1000,
+          "n": 20,
+          "median": 4.6,
+          "p95": 5.6,
+          "min": 4,
+          "max": 5.6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 63297,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 105,
+          "readBy": {
+            "scans": 105,
+            "audit_log": 0
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_scans_year": {
+          "path": "/api/agent/v1/scans?from=<yearFrom>&to=<today>&limit=500",
+          "target": 1000,
+          "n": 20,
+          "median": 9.1,
+          "p95": 11.5,
+          "min": 8.4,
+          "max": 24.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 500,
+          "bytes": 314748,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 521,
+          "readBy": {
+            "scans": 521,
+            "audit_log": 0
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_scans_csv": {
+          "path": "/api/agent/v1/scans?from=<yearFrom>&to=<today>&limit=500&format=csv",
+          "target": 1000,
+          "n": 20,
+          "median": 9,
+          "p95": 10.9,
+          "min": 8.3,
+          "max": 10.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 500,
+          "bytes": 168013,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 521,
+          "readBy": {
+            "scans": 521,
+            "audit_log": 0
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_counts": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>",
+          "target": 1000,
+          "n": 20,
+          "median": 29.3,
+          "p95": 138.1,
+          "min": 28.3,
+          "max": 143.1,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 163,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 146183,
+          "readBy": {
+            "scans": 146183
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_counts_day": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>&group_by=day",
+          "target": 1000,
+          "n": 20,
+          "median": 30.8,
+          "p95": 35.9,
+          "min": 29.8,
+          "max": 132,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 365,
+          "bytes": 46378,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 146183,
+          "readBy": {
+            "scans": 146183
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_counts_provider": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>&group_by=provider",
+          "target": 1000,
+          "n": 20,
+          "median": 88.3,
+          "p95": 92.6,
+          "min": 85.3,
+          "max": 93.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 9,
+          "bytes": 1810,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 146184,
+          "readBy": {
+            "scans": 146184
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_counts_point": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>&group_by=point",
+          "target": 1000,
+          "n": 20,
+          "median": 90.2,
+          "p95": 92.6,
+          "min": 84.4,
+          "max": 92.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 23,
+          "bytes": 3860,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 146184,
+          "readBy": {
+            "scans": 146184
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_counts_service_type": {
+          "path": "/api/agent/v1/counts?from=<countsFrom>&to=<today>&group_by=service_type",
+          "target": 1000,
+          "n": 20,
+          "median": 31.9,
+          "p95": 36,
+          "min": 30.5,
+          "max": 131.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 4,
+          "bytes": 562,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 146183,
+          "readBy": {
+            "scans": 146183
+          },
+          "fullScans": [
+            "scans"
+          ],
+          "wholeReads": [
+            "scans 100%"
+          ]
+        },
+        "agent_refusals": {
+          "path": "/api/agent/v1/refusals",
+          "target": 1000,
+          "n": 20,
+          "median": 4.2,
+          "p95": 5,
+          "min": 3.3,
+          "max": 5.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 34501,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 101,
+          "readBy": {
+            "scan_refusals": 101
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_points": {
+          "path": "/api/agent/v1/points",
+          "target": 1000,
+          "n": 20,
+          "median": 3.2,
+          "p95": 3.7,
+          "min": 2.3,
+          "max": 5.2,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 25,
+          "bytes": 8392,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_providers": {
+          "path": "/api/agent/v1/providers",
+          "target": 1000,
+          "n": 20,
+          "median": 4.2,
+          "p95": 4.6,
+          "min": 3.5,
+          "max": 4.6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 10,
+          "bytes": 4193,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 10,
+          "readBy": {
+            "scans": 10
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_building": {
+          "path": "/api/agent/v1/building",
+          "target": 1000,
+          "n": 20,
+          "median": 3,
+          "p95": 3.9,
+          "min": 2.5,
+          "max": 4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 104,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_audit": {
+          "path": "/api/agent/v1/audit",
+          "target": 1000,
+          "n": 20,
+          "median": 5.3,
+          "p95": 6,
+          "min": 4.2,
+          "max": 6,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 33630,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 101,
+          "readBy": {
+            "audit_log": 101
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_audit_point": {
+          "path": "/api/agent/v1/audit?entity=point&entity_id=<point>",
+          "target": 1000,
+          "n": 20,
+          "median": 5.9,
+          "p95": 6.2,
+          "min": 5.2,
+          "max": 6.4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 100,
+          "bytes": 36785,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 262,
+          "readBy": {
+            "audit_log": 262
+          },
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_schema": {
+          "path": "/api/agent/v1/schema",
+          "target": 1000,
+          "n": 20,
+          "median": 4.5,
+          "p95": 5.3,
+          "min": 3.8,
+          "max": 5.9,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 33205,
+          "truncated": false,
+          "statements": 0,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_openapi": {
+          "path": "/api/agent/v1/openapi.json",
+          "target": 1000,
+          "n": 20,
+          "median": 4.8,
+          "p95": 5.5,
+          "min": 3.6,
+          "max": 6.8,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 72848,
+          "truncated": false,
+          "statements": 0,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "agent_health": {
+          "path": "/api/agent/v1/health",
+          "target": 1000,
+          "n": 20,
+          "median": 3.5,
+          "p95": 4.3,
+          "min": 2.5,
+          "max": 4.3,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 94,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        },
+        "health_db": {
+          "path": "/api/health/db",
+          "target": 1000,
+          "n": 20,
+          "median": 3,
+          "p95": 3.7,
+          "min": 2.4,
+          "max": 4,
+          "statuses": {
+            "200": 20
+          },
+          "failed": 0,
+          "rows": 1,
+          "bytes": 67,
+          "truncated": false,
+          "statements": 1,
+          "rowsRead": 0,
+          "readBy": {},
+          "fullScans": [],
+          "wholeReads": []
+        }
+      }
+    }
+  }
+}
