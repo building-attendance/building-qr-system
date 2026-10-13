@@ -1,0 +1,101 @@
+# One Playwright project of the end-to-end tests, in parts that run side by side, each part a job with its own Postgres
+# container, its own build and its own scratch schema. ci.yml calls this once per project, and a small job there, named
+# exactly like the required check (`e2e (android-chrome)`, `e2e (iphone-webkit)`), passes only when every part passed. So
+# the four required checks of .github/rulesets/ keep their names, and a copy's rulesets need no change.
+#
+# Why parts: the WebKit project took about 7 minutes and set the length of every CI run, of which about 6 were the tests.
+# Playwright's --shard splits the tests of a project between the parts (by count: 75 and 74 tests in two parts), and each
+# part pays the setup again (the container, npm ci, the browser, the build) but runs a share of the tests.
+#
+# It runs only when ci.yml calls it, under ci.yml's trigger, concurrency and permissions. Every third-party action is
+# pinned to a full commit SHA, the same ones as in ci.yml, and every value that a `run:` script reads goes in through env.
+name: E2E parts
+
+on:
+  workflow_call:
+    inputs:
+      project:
+        description: The Playwright project (playwright.config.js), for example iphone-webkit
+        required: true
+        type: string
+      browser:
+        description: The browser that the project needs, for npx playwright install (chromium or webkit)
+        required: true
+        type: string
+      parts:
+        description: The numbers of the parts, as a JSON list, for example [1, 2, 3]. Their count is the number of shards.
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  part:
+    name: e2e (${{ inputs.project }}) part ${{ matrix.part }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        part: ${{ fromJSON(inputs.parts) }}
+    services:
+      postgres:
+        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722 # the same digest as in ci.yml
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      DATABASE_URL_UNPOOLED: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # Only the browser this project needs. Playwright's own advice is not to cache the browsers, so they are downloaded.
+      # --with-deps runs apt-get on the runner, and a slow Ubuntu mirror has made it hang until the job's 30-minute limit
+      # (twice, on 06/10 and 07/10/2026). So each attempt gets 5 minutes and there are up to three: a hang costs minutes,
+      # not the job. Between attempts, whatever apt-get or dpkg left behind is stopped and finished, so that the next
+      # attempt does not wait for a lock.
+      - name: Install the browser and its system packages
+        timeout-minutes: 17
+        env:
+          BROWSER: ${{ inputs.browser }}
+        run: |
+          for attempt in 1 2 3; do
+            if timeout --kill-after=10 300 npx playwright install --with-deps "$BROWSER"; then exit 0; fi
+            echo "::warning::Installing $BROWSER failed or took more than 5 minutes (attempt $attempt of 3)"
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo dpkg --configure -a || true
+          done
+          exit 1
+      # playwright.config.js builds the app and starts the API (on a scratch schema of this part's container) and the
+      # preview. --shard runs this part's share of the project's tests.
+      - name: Run this part of the tests
+        env:
+          PROJECT: ${{ inputs.project }}
+          PART: ${{ matrix.part }}
+          PARTS: ${{ strategy.job-total }}
+        run: npx playwright test --project="$PROJECT" --shard="$PART/$PARTS"
+      - name: Keep the report and the traces of a failed run
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: playwright-${{ inputs.project }}-part-${{ matrix.part }}
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
+          if-no-files-found: ignore

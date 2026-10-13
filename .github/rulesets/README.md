@@ -6,7 +6,8 @@ copy needs no edit to them. The file names keep `master` from this repository.
 `master-gates.json` protects the default branch for everybody, with no bypass: it cannot be deleted or force-pushed,
 every change arrives through a pull request that is squash-merged (no approval is needed, so you can merge your own),
 and the branch must be up to date with the default branch with all four CI checks green: `guards`, `unit`, `e2e (android-chrome)`
-and `e2e (iphone-webkit)` (the job names in `.github/workflows/ci.yml`). Each check is bound to GitHub Actions
+and `e2e (iphone-webkit)` (the job names in `.github/workflows/ci.yml`; each e2e check is a job that passes only when
+every part of its project passed, and the parts, `e2e (<project>) part <n>`, are not required by name). Each check is bound to GitHub Actions
 (`integration_id` 15368 is the GitHub Actions app), so nothing else can report a status under the same name.
 
 It also requires every review conversation of the pull request to be resolved before it merges

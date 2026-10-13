@@ -3,8 +3,9 @@
 #                          the size budget of the built app, an audit of the production dependencies (and a warning,
 #                          never a failure, for the development ones)
 #   unit                   Vitest, against a Postgres 18 container (production runs Postgres 18 on Neon)
-#   e2e (android-chrome)   Playwright, Chromium as a Pixel 7
-#   e2e (iphone-webkit)    Playwright, WebKit as an iPhone 14
+#   e2e (android-chrome)   Playwright, Chromium as a Pixel 7, in 2 parts (e2e.yml)
+#   e2e (iphone-webkit)    Playwright, WebKit as an iPhone 14, in 3 parts (e2e.yml)
+#                          Each e2e check is a small job that passes only when every part of its project passed (below).
 # They run on every pull request, on every push to the default branch and, once the repository has a merge queue, on each
 # merge group (see the trigger below).
 # Every third-party action is pinned to a full commit SHA (the tag is in the comment): a tag can be moved, a SHA cannot.
@@ -195,69 +196,51 @@ jobs:
       - run: npm ci
       - run: npx vitest run --reporter=default --reporter=github-actions
 
-  e2e:
-    name: e2e (${{ matrix.project }})
+  # The end-to-end tests: one call of e2e.yml per Playwright project, which runs the project in parts side by side (each
+  # with its own Postgres container), then one job per project that is the required check. It is named exactly like the
+  # check of the rulesets and passes only when every part passed: a part that failed, was cancelled or was skipped (or a
+  # call that never ran) fails it, so a check can never turn green by itself. `always()` makes it run, and report, in
+  # every one of those cases. WebKit is the slowest project, so it has the most parts.
+  e2e-android-chrome-parts:
+    name: e2e (android-chrome) parts
+    uses: ./.github/workflows/e2e.yml
+    with:
+      project: android-chrome
+      browser: chromium
+      parts: "[1, 2]"
+
+  e2e-iphone-webkit-parts:
+    name: e2e (iphone-webkit) parts
+    uses: ./.github/workflows/e2e.yml
+    with:
+      project: iphone-webkit
+      browser: webkit
+      parts: "[1, 2, 3]"
+
+  e2e-android-chrome:
+    name: e2e (android-chrome)
+    needs: e2e-android-chrome-parts
+    if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - project: android-chrome
-            browser: chromium
-          - project: iphone-webkit
-            browser: webkit
-    services:
-      postgres:
-        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722 # the same digest as in the unit job
-        env:
-          POSTGRES_PASSWORD: postgres
-        ports:
-          - 5432:5432
-        options: >-
-          --health-cmd "pg_isready -U postgres"
-          --health-interval 5s
-          --health-timeout 5s
-          --health-retries 10
-    env:
-      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
-      DATABASE_URL_UNPOOLED: postgres://postgres:postgres@localhost:5432/postgres
+    timeout-minutes: 5
     steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
-        with:
-          node-version-file: .nvmrc
-          cache: npm
-      - run: npm ci
-      # Only the browser this project needs. Playwright's own advice is not to cache the browsers, so they are downloaded.
-      # --with-deps runs apt-get on the runner, and a slow Ubuntu mirror has made it hang until the job's 30-minute limit
-      # (twice, on 06/10 and 07/10/2026). So each attempt gets 5 minutes and there are up to three: a hang costs minutes,
-      # not the job. Between attempts, whatever apt-get or dpkg left behind is stopped and finished, so that the next
-      # attempt does not wait for a lock.
-      - name: Install the browser and its system packages
-        timeout-minutes: 17
+      - name: Every part passed
         env:
-          BROWSER: ${{ matrix.browser }}
+          RESULT: ${{ needs.e2e-android-chrome-parts.result }}
         run: |
-          for attempt in 1 2 3; do
-            if timeout --kill-after=10 300 npx playwright install --with-deps "$BROWSER"; then exit 0; fi
-            echo "::warning::Installing $BROWSER failed or took more than 5 minutes (attempt $attempt of 3)"
-            sudo pkill -9 -x apt-get || true
-            sudo pkill -9 -x dpkg || true
-            sudo dpkg --configure -a || true
-          done
-          exit 1
-      # playwright.config.js builds the app and starts the API (on a scratch schema of the container) and the preview.
-      - run: npx playwright test --project=${{ matrix.project }}
-      - name: Keep the report and the traces of a failed run
-        if: failure()
-        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: playwright-${{ matrix.project }}
-          path: |
-            playwright-report/
-            test-results/
-          retention-days: 7
-          if-no-files-found: ignore
+          echo "The parts of android-chrome: $RESULT"
+          [ "$RESULT" = success ]
+
+  e2e-iphone-webkit:
+    name: e2e (iphone-webkit)
+    needs: e2e-iphone-webkit-parts
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Every part passed
+        env:
+          RESULT: ${{ needs.e2e-iphone-webkit-parts.result }}
+        run: |
+          echo "The parts of iphone-webkit: $RESULT"
+          [ "$RESULT" = success ]
