@@ -1,5 +1,6 @@
 /** crypto.randomUUID needs a secure context; over plain http on a LAN (dev) fall back to getRandomValues. */
 export function uuid() {
+  // eslint-disable-next-line no-restricted-properties -- the one use, tested first: a browser without it (Safari 14) takes the fallback below
   if (typeof crypto.randomUUID === 'function') return crypto.randomUUID()
   const b = crypto.getRandomValues(new Uint8Array(16))
   b[6] = (b[6] & 0x0f) | 0x40

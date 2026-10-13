@@ -76,7 +76,7 @@ npm run size                         # builds the app and checks it against the 
 ## Tests
 
 ```bash
-npm run lint          # ESLint: must pass with no warnings (CI runs it in the guards check)
+npm run lint          # ESLint: must pass with no warnings (CI runs it in the guards check); it also refuses, in the code that runs in the browser, a built-in newer than build.target in vite.config.js
 npm run typecheck     # TypeScript checks the JavaScript (types are JSDoc comments): must pass (CI runs it in the guards check)
 npm run test:unit     # Vitest: logic, the API against Postgres, i18n, contrast, typography, components
 npm run test:e2e      # Playwright: Chromium as a Pixel 7 and WebKit as an iPhone 14

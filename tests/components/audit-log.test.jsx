@@ -9,7 +9,7 @@ import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-li
 import AuditView from '../../src/admin/views/AuditView.jsx'
 import SettingsView from '../../src/admin/views/SettingsView.jsx'
 import { ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
-import { ACTION_LABELS, GROUP_OPTIONS } from '../../src/admin/auditLabels.js'
+import { ACTION_LABELS, FIELD_LABELS, GPS_MODE_LABELS, GROUP_OPTIONS } from '../../src/admin/auditLabels.js'
 import { describeEntry, looksSecret } from '../../src/admin/auditDescribe.js'
 import { api } from '../../src/api/client.js'
 import { clearLoadCache } from '../../src/admin/loadCache.js'
@@ -469,6 +469,19 @@ describe('describeEntry', () => {
   it('survives a change whose sides are objects or lists, and a count that is not a number', () => {
     const described = describeEntry(entry({ detail: { changes: { name: { from: { a: 1 }, to: ['x'] }, lat: 'not an object' }, devices: '3', scans_kept: -1, provider_ids: 'x' } }))
     expect(described.lines).toEqual([])
+  })
+
+  // A known name is a key of the table itself, never one that every object inherits (what `in` would accept), and a detail that
+  // has a key named hasOwnProperty is read like any other (`detail.hasOwnProperty(key)` would throw).
+  it('knows only the names of its own tables: an inherited name is not an action, a GPS mode or a way to sign in', () => {
+    for (const action of ['constructor', 'toString', 'hasOwnProperty', '__proto__']) {
+      expect(describeEntry(entry({ action })).phrase.known, action).toBe(false)
+    }
+    const described = describeEntry(entry({
+      action: 'session.sign_in', entity: 'admin',
+      detail: { hasOwnProperty: 'x', method: 'toString', changes: { hasOwnProperty: { from: 1, to: 2 }, gps_mode: { from: 'constructor', to: 'required' } } },
+    }))
+    expect(described.lines).toEqual([{ kind: 'change', label: FIELD_LABELS.gps_mode, from: 'constructor', to: GPS_MODE_LABELS.required }])
   })
 })
 
