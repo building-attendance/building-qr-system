@@ -14,20 +14,20 @@ const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace
 const pkg = JSON.parse(fs.readFileSync(`${root}/package.json`, 'utf8'))
 const lock = JSON.parse(fs.readFileSync(`${root}/package-lock.json`, 'utf8'))
 
-// How npm compares (checkEngine in npm-install-checks): a Node prerelease counts.
-const NPM = { includePrerelease: true }
-
 /**
  * The packages of a lockfile that refuse a Node version that `range` accepts, as "name@version wants node <range>".
  * The root entry is the project itself, and npm never checks an optional package (a native binary for one platform).
- * A range that semver cannot read refuses every version, as it does in npm.
+ * A range that semver cannot read refuses every version, as it does in npm. Only Node's releases count: npm compares
+ * with `includePrerelease` (checkEngine in npm-install-checks), so on a prerelease Node such as 24.0.0-rc.1 it would
+ * refuse ">=24.0.0", but nobody runs the app on one, and counting them would flag every package that says ">=24.0.0"
+ * against a range like "24.x".
  */
 function refusers(range, packages) {
   const found = []
   for (const [path, entry] of Object.entries(packages)) {
     const wanted = entry.engines?.node
     if (path === '' || entry.optional || typeof wanted !== 'string') continue
-    if (semver.validRange(wanted, NPM) && semver.subset(range, wanted, NPM)) continue
+    if (semver.validRange(wanted) && semver.subset(range, wanted)) continue
     found.push(`${path.replace(/^.*node_modules\//, '')}@${entry.version} wants node ${wanted}`)
   }
   return found
@@ -35,7 +35,7 @@ function refusers(range, packages) {
 
 describe('engines.node', () => {
   it('is a range that npm reads, and the lockfile says the same', () => {
-    expect(semver.validRange(pkg.engines?.node, NPM)).toBeTruthy()
+    expect(semver.validRange(pkg.engines?.node)).toBeTruthy()
     expect(lock.packages[''].engines).toEqual(pkg.engines)
   })
 
@@ -50,6 +50,7 @@ describe('the check itself', () => {
     '': { name: 'building-qr-system', engines: { node: '24.x' } },
     'node_modules/jsdom': { version: '30.1.2', engines: { node: JSDOM } },
     'node_modules/old': { version: '1.0.0', engines: { node: '>=18' } },
+    'node_modules/data-urls': { version: '8.0.0', engines: { node: '^22.14.0 || >=24.0.0' } },
     'node_modules/@napi-rs/binary': { version: '1.0.0', optional: true, engines: { node: '^24.12' } },
     'node_modules/plain': { version: '1.0.0' },
   }
