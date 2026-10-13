@@ -188,15 +188,28 @@ issue or a pull request.
 
 If the new code is wrong but the deployment succeeded:
 
-1. Vercel dashboard, **Deployments**, find the last good production deployment, open its menu, **Instant Rollback**.
-   The owner does this in the dashboard.
-2. Instant Rollback re-promotes the older build as it was. It does **not** run a build, so `scripts/vercel-build.mjs` does
-   not run and **no migration runs**.
-3. Check `/api/health`: `commit` is the old one.
-4. Vercel then stops promoting new deployments by itself. A later merge builds and migrates as usual, but it goes live only
-   when the owner promotes it from the dashboard (read the notice that Vercel shows after the rollback).
+1. Vercel dashboard, the project's **Overview**, the **Production Deployment** tile: **Instant Rollback** (the same item is
+   in the menu of a deployment in **Deployments**). On the Hobby plan the dialog offers only the deployment that served
+   production just before the current one; a paid plan can choose an older one. Choose it, **Continue**, then
+   **Confirm Rollback**. The owner does this in the dashboard.
+2. Instant Rollback points the domain back at the older build as it was. It does **not** run a build, so
+   `scripts/vercel-build.mjs` does not run and **no migration runs**. The older deployment also keeps the environment
+   variables and the crons that it was built with: a secret rotated since that build is still the old value there.
+3. Check `/api/health`: `commit` is the old one. A rollback is not a deployment: GitHub gets no `deployment_status` event,
+   so the smoke test does not run, and this check is the only one.
+4. Vercel then stops promoting new deployments by itself (it turns off the auto-assignment of the production domain). A
+   later merge builds and migrates as usual, but it does not go live, and its smoke run fails with
+   `production does not serve <commit>`.
+5. **Undo** it when the fix is merged: open the deployment that should serve (**Deployments**, the deployment, its menu
+   **Deployment Actions**), **Promote**. The dialog says "This action will undo the current Instant Rollback". Leave
+   **Use project's Ignore Build Step** unchecked and press **Promote**. It does not build again, so the domain switches
+   without waiting for a build, the auto-assignment is on again, and the next merge goes live by itself. Vercel's documentation shows an
+   "Undo Rollback" button on the tile, but the dashboard did not have one (13/10/2026); the tile only says to promote a
+   deployment or to re-enable the auto-assignment. Check `/api/health` again: no smoke run follows a promote either.
 
 The old code works with the newer schema because migrations only add (expand) until a later release contracts them.
+Every rollback and every undo is a new build ID for the phones (the build ID is the commit), so an installed app that is
+opened in between offers its update banner each time.
 
 ## The database is never rolled back
 
@@ -212,3 +225,19 @@ lost or damaged, see `restore.md`.
 - Never run `npm run db:migrate` against production: it refuses it, and the marker (`public.environment_marker`) must not
   be edited to get past that.
 - Never `vercel env pull` from Production.
+
+## Drill log
+
+A rollback that was never tried is a hope, not a plan. Repeat the drill after any change to the Vercel project (a plan, a
+domain, the Git link) and every few months, when the deployment before the current one has the same app code (a merge of
+documents or CI that was deployed), so that nothing changes for a user. Add one entry here each time. The entries below are
+the first installation's own record: a copy keeps its own drill log here, or removes them.
+
+- `13/10/2026`: the first rollback drill, on production. The current deployment (1066d9b) and the one before it (dfeb0b6)
+  differed only in CI, documents and tests: no migration, the same `vercel.json`, the same app. A script read the public
+  `/api/health` every 2 s. Instant Rollback from the tile: the domain served the older commit by the time the owner
+  reported the click, `GET /` was the app page with its policy, the service worker answered, and the project's
+  auto-assignment of the production domain turned off. Undo with **Promote** of the newer deployment: no build, the domain
+  served the newer commit by the time the owner reported the click, and the auto-assignment was on again. Production served the older commit for 3 minutes 24 seconds in all, with no failed request
+  at either switch. Neither step made a GitHub deployment or a smoke run. Found on the way: there is no "Undo Rollback"
+  button (step 5 above now says Promote), and the Hobby plan offers only the previous deployment.
