@@ -4,7 +4,7 @@
 #                          never a failure, for the development ones)
 #   unit                   Vitest, against a Postgres 18 container (production runs Postgres 18 on Neon), in 2 parts
 #   e2e (android-chrome)   Playwright, Chromium as a Pixel 7, in 2 parts (e2e.yml)
-#   e2e (iphone-webkit)    Playwright, WebKit as an iPhone 14, in 3 parts (e2e.yml)
+#   e2e (iphone-webkit)    Playwright, WebKit as an iPhone 14, in 4 parts (e2e.yml)
 #                          unit and each e2e check are small jobs that pass only when every one of their parts passed.
 # They run on every pull request, on every push to the default branch and, once the repository has a merge queue, on each
 # merge group (see the trigger below).
@@ -225,7 +225,10 @@ jobs:
   # with its own Postgres container), then one job per project that is the required check. It is named exactly like the
   # check of the rulesets and passes only when every part passed: a part that failed, was cancelled or was skipped (or a
   # call that never ran) fails it, so a check can never turn green by itself. `always()` makes it run, and report, in
-  # every one of those cases. WebKit is the slowest project, so it has the most parts.
+  # every one of those cases. WebKit is the slowest project, so it has the most parts. --shard counts tests, not time, and
+  # keeps a file whole in the part where its first test falls, so the number of parts decides which files share one: with
+  # three, the first WebKit part held a11y, admin and building-address, the three slowest files, and ran about twice as
+  # long as the second; four is the fewest that moves building-address out of it.
   e2e-android-chrome-parts:
     name: e2e (android-chrome) parts
     uses: ./.github/workflows/e2e.yml
@@ -240,7 +243,7 @@ jobs:
     with:
       project: iphone-webkit
       browser: webkit
-      parts: "[1, 2, 3]"
+      parts: "[1, 2, 3, 4]"
 
   e2e-android-chrome:
     name: e2e (android-chrome)
