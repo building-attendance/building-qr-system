@@ -121,6 +121,11 @@ line) and `scripts/check-tests.mjs` (a test is not deleted, renamed away or skip
 breaking those rules; they are heuristics, not a replacement for reading the diff. The rules about removing a test and
 about the size budget (`npm run size`, `scripts/check-bundle-size.json`) are in [`AGENTS.md`](../AGENTS.md), "Testing".
 
+On CI, Playwright retries a failed test once and then fails the run anyway (`failOnFlakyTests` in `playwright.config.js`).
+The retry only tells the two cases apart in the report: a test that failed twice is broken, and a test that passed on its
+retry is flaky. A flaky test is fixed, not rerun until it is green: a check that is allowed to fail now and then teaches
+everyone to ignore it.
+
 ## The smoke test
 
 `.github/workflows/smoke.yml` is not a merge check: it runs after each production deployment (`scripts/smoke-check.mjs`
