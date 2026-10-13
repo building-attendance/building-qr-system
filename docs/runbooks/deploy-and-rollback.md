@@ -195,9 +195,14 @@ If the new code is wrong but the deployment succeeded:
 2. Instant Rollback points the domain back at the older build as it was. It does **not** run a build, so
    `scripts/vercel-build.mjs` does not run and **no migration runs**. The older deployment also keeps the environment
    variables and the crons that it was built with: a secret rotated since that build is still the old value there.
-3. Check `/api/health`: `commit` is the old one. A rollback is not a deployment: GitHub gets no `deployment_status` event,
-   so the smoke test does not run. Do not re-run the old commit's smoke run when a migration came after it: its step 3
-   expects the old commit's newest migration and fails on the newer one, which is the expected state after a rollback.
+3. Check that the older build serves and reaches the database. `/api/health`: `commit` is the old one. That route makes
+   no query, so check the database too: `/api/health/db` with the agent key (as in "How to see it" above) answers
+   `"ok": true`, and its `migration` may be newer than the old commit's newest file, which is expected after a rollback.
+   Without a key, open `/admin`: every screen of the committee app reads the database, so a list that loads means it
+   answers. If the database does not answer, the older build may hold database credentials that were rotated after it
+   was built (`secrets.md`): undo the rollback (step 5) and fix forward instead. A rollback is not a deployment: GitHub
+   gets no `deployment_status` event, so the smoke test does not run. Do not re-run the old commit's smoke run when a
+   migration came after it: its step 3 expects the old commit's newest migration and fails on the newer one.
 4. Vercel then stops promoting new deployments by itself (it turns off the auto-assignment of the production domain). A
    later merge builds and migrates as usual, but it does not go live, and its smoke run fails with
    `production does not serve <commit>`.
