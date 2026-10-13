@@ -81,11 +81,13 @@ jobs:
           BASE: ${{ steps.base.outputs.base }}
         run: node scripts/check-migrations.mjs --base "$BASE"
 
-      # Whether the branch that the change lands on (the target of a pull request, the pushed branch of a push) requires a
-      # pull request, as its active rulesets say. Reading them needs only the metadata permission, which the job's token
-      # always has. Only a push uses the answer (the step below); a pull request prints it, so that every pull request run
-      # shows that the token can still read it. An answer that cannot be read counts as "not required".
-      - name: Rulesets require a pull request
+      # Whether the branch that the change lands on (the target of a pull request, the pushed branch of a push) can only be
+      # changed by a pull request whose `guards` check passed, as its active rulesets say: a `pull_request` rule, and a
+      # `required_status_checks` rule that lists `guards` (GitHub returns each rule on its own, so both are looked for).
+      # Reading them needs only the metadata permission, which the job's token always has. Only a push uses the answer
+      # (the step below); a pull request prints it, so that every pull request run shows that the token can still read it.
+      # An answer that cannot be read counts as "not required".
+      - name: Rulesets require a pull request with guards green
         id: rules
         if: github.event_name == 'push' || github.event_name == 'pull_request'
         env:
@@ -93,8 +95,10 @@ jobs:
           REPOSITORY: ${{ github.repository }}
           BRANCH: ${{ github.base_ref || github.ref_name }}
         run: |
-          if required=$(gh api "repos/$REPOSITORY/rules/branches/$BRANCH" --jq 'any(.[]; .type == "pull_request")'); then
-            echo "A pull request is required to change $BRANCH: $required"
+          query='any(.[]; .type == "pull_request") and
+            any(.[]; .type == "required_status_checks" and any(.parameters.required_status_checks[]?; .context == "guards"))'
+          if required=$(gh api "repos/$REPOSITORY/rules/branches/$BRANCH" --jq "$query"); then
+            echo "A pull request with a green guards check is required to change $BRANCH: $required"
           else
             echo "::warning::Could not read the rulesets of $BRANCH: a push to it keeps the test guard."
             required=false
@@ -104,12 +108,12 @@ jobs:
       # PR_LABELS lets a pull request that has to remove a test say so with the allow-test-removal label.
       # Titles and labels are text that anyone can write: they go in through env and are read from process.env, never
       # pasted into the script of a `run:` step.
-      # Not in a merge queue, and not on a push to a branch whose rulesets require a pull request: neither run has pull
-      # request labels, so a removal that the owner allowed with the label would fail there for good (the push of #207's
-      # merge did, on 13/10/2026). The same change was already checked, with its labels, by the pull request's own run,
-      # which a pull request needs green before it can join the queue or merge (like the title check below). A push that no
-      # ruleset sends through a pull request is still checked: the one commit that docs/install.md pushes before the
-      # rulesets, any push to a copy without them, and a push whose rulesets could not be read.
+      # Not in a merge queue, and not on a push to a branch whose rulesets require a pull request with this job green (the
+      # step above): neither run has pull request labels, so a removal that the owner allowed with the label would fail
+      # there for good (the push of #207's merge did, on 13/10/2026). The same change was already checked, with its labels,
+      # by the pull request's own run, which it needs green before it can join the queue or merge (like the title check
+      # below). Any other push is still checked: the one commit that docs/install.md pushes before the rulesets, a push to
+      # a copy without them or whose rulesets do not require `guards`, and a push whose rulesets could not be read.
       - name: Tests are not removed or switched off
         if: >-
           steps.base.outputs.base != '' && github.event_name != 'merge_group' &&
