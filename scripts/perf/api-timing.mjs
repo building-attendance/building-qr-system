@@ -25,6 +25,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import net from 'node:net'
+import http from 'node:http'
 import path from 'node:path'
 import { spawn, execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
@@ -465,6 +466,31 @@ function portTaken(port) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
 
+// One kept-alive connection to the local server, as a browser keeps one: the time of a request is then the server's, not that of a
+// new connection. node:http and not fetch on purpose: measured on 13/10/2026 on Windows, fetch added about 15 ms to every request
+// on this loopback (a GET of /api/health took 16 ms with fetch and 1 ms with node:http), which would hide the server's own time.
+const newHttpAgent = () => new http.Agent({ keepAlive: true, maxSockets: 1 })
+let httpAgent = newHttpAgent()
+
+/**
+ * One HTTP request, its whole answer read: `{ status, headers, body }` (the headers in lower case, the body a Buffer).
+ * @param {string} url
+ * @param {{ method?: string, headers?: Record<string, string>, body?: string }} [options]
+ */
+function request(url, { method = 'GET', headers = {}, body } = {}) {
+  return new Promise((resolve, reject) => {
+    const sent = body === undefined ? headers : { ...headers, 'content-length': String(Buffer.byteLength(body)) }
+    const req = http.request(url, { method, headers: sent, agent: httpAgent }, (res) => {
+      const chunks = []
+      res.on('data', (chunk) => chunks.push(chunk))
+      res.on('end', () => resolve({ status: res.statusCode, headers: res.headers, body: Buffer.concat(chunks) }))
+      res.on('error', reject)
+    })
+    req.on('error', reject)
+    req.end(body)
+  })
+}
+
 /** Starts the local API on the scratch schema and resolves when it answers; `stop()` ends that process (by its own handle). */
 async function startApi(port) {
   const child = spawn(process.execPath, ['server/dev.mjs', `--schema=${PERF_API_SCHEMA}`], {
@@ -488,8 +514,8 @@ async function startApi(port) {
   for (;;) {
     if (exited) throw new Error(`The API stopped before it answered. Its last lines:\n${log}`)
     try {
-      const res = await fetch(`http://127.0.0.1:${port}/api/health`)
-      if (res.ok) return { stop, log: () => log }
+      const res = await request(`http://127.0.0.1:${port}/api/health`)
+      if (res.status === 200) return { stop, log: () => log }
     } catch {
       // not listening yet
     }
@@ -528,21 +554,20 @@ async function timeRoute(base, route, ctx, headers, runs) {
   let last
   for (let i = 0; i < WARMUPS + runs; i++) {
     const started = performance.now()
-    const res = await fetch(base + url, { headers })
-    const body = Buffer.from(await res.arrayBuffer())
+    const res = await request(base + url, { headers })
     const ms = performance.now() - started
     if (i < WARMUPS) continue
     times.push(ms)
     statuses[res.status] = (statuses[res.status] ?? 0) + 1
-    last = { res, body }
+    last = res
   }
   return {
     ...summary(times),
     statuses,
     failed: times.length - (statuses[200] ?? 0),
-    rows: rowsOf(last.res.headers.get('content-type'), last.body),
+    rows: rowsOf(last.headers['content-type'], last.body),
     bytes: last.body.length,
-    truncated: last.res.headers.get('x-truncated') === 'true',
+    truncated: last.headers['x-truncated'] === 'true',
   }
 }
 
@@ -568,13 +593,13 @@ async function timeScale({ scale, runs, port, keep, connectionString, today }) {
     const base = `http://127.0.0.1:${port}`
 
     // The committee member of the data signs in through the dev-only shortcut of this local server.
-    const login = await fetch(`${base}/api/admin/dev-login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: YEAR_DATA_MEMBER_EMAIL }) })
+    const login = await request(`${base}/api/admin/dev-login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email: YEAR_DATA_MEMBER_EMAIL }) })
     if (login.status !== 200) throw new Error(`The dev sign-in answered ${login.status}`)
-    const cookie = String(login.headers.get('set-cookie')).split(';')[0]
+    const cookie = String([login.headers['set-cookie']].flat()[0]).split(';')[0]
     const read = async (url) => {
-      const res = await fetch(base + url, { headers: { cookie } })
+      const res = await request(base + url, { headers: { cookie } })
       if (res.status !== 200) throw new Error(`GET ${url} answered ${res.status}`)
-      return res.json()
+      return JSON.parse(res.body.toString('utf8'))
     }
 
     // What the requests name: the busiest point and provider (their filters are the heavy case), the busiest member of the log,
@@ -670,9 +695,9 @@ async function timeScale({ scale, runs, port, keep, connectionString, today }) {
       // explained (so that the audit log and the list of keys that they read are the data's own). The keys live in the scratch schema,
       // are dropped with it and are never printed.
       for (const [n, route] of ROUTES.filter((r) => r.kind === 'agent').entries()) {
-        const res = await fetch(`${base}/api/admin/api-keys`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: `perf timing ${n + 1}` }) })
+        const res = await request(`${base}/api/admin/api-keys`, { method: 'POST', headers: { cookie, 'content-type': 'application/json' }, body: JSON.stringify({ name: `perf timing ${n + 1}` }) })
         if (res.status !== 201) throw new Error(`Minting an agent key answered ${res.status}`)
-        headersOf[route.key] = { authorization: `Bearer ${(await res.json()).key}` }
+        headersOf[route.key] = { authorization: `Bearer ${JSON.parse(res.body.toString('utf8')).key}` }
       }
       await timeAll('agent')
       await explainAll('agent')
@@ -683,6 +708,8 @@ async function timeScale({ scale, runs, port, keep, connectionString, today }) {
     return { data, routes }
   } finally {
     await server?.stop()
+    httpAgent.destroy() // the connection of this server; the next size starts a server of its own
+    httpAgent = newHttpAgent()
     await explainPool.end()
     if (!keep) await runNode(['scripts/perf/year-data.mjs', PERF_API_SCHEMA, '--drop'])
   }
@@ -758,6 +785,7 @@ async function main(argv) {
   lines.push(`The run: ${path.relative(process.cwd(), LAST_RUN)}; its tables in Markdown: ${path.relative(process.cwd(), LAST_TABLES)}`)
   console.log(lines.join('\n'))
   if (failed.length) process.exitCode = 1
+  httpAgent.destroy()
 }
 
 const isMain = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)

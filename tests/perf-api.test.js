@@ -70,12 +70,13 @@ describe('how the timing is run', () => {
 
   it('sends its requests only to the local server that it started', () => {
     const source = fs.readFileSync(TIMING, 'utf8')
-    const calls = [...source.matchAll(/fetch\(([^,)]+)/g)].map((m) => m[1].trim())
+    const calls = [...source.matchAll(/await request\(([^,)]+)/g)].map((m) => m[1].trim())
     expect(calls.length).toBeGreaterThan(0)
     for (const target of calls) expect(target, target).toMatch(/^(`\$\{base\}|base \+|`http:\/\/127\.0\.0\.1:\$\{port\})/)
     expect(source).toMatch(/const base = `http:\/\/127\.0\.0\.1:\$\{port\}`/)
+    expect(source, 'every request goes through request(), to the local server').not.toMatch(/\bfetch\(/)
     // The keys that it mints go into a header and nowhere else: never into a line that it prints.
-    for (const line of source.split('\n').filter((l) => /console\.|stdout\.write/.test(l))) expect(line).not.toMatch(/authorization|headersOf|json\(\)\)\.key/)
+    for (const line of source.split('\n').filter((l) => /console\.|stdout\.write/.test(l))) expect(line).not.toMatch(/authorization|headersOf|\)\.key\b/)
   })
 })
 
