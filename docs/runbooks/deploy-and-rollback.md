@@ -241,11 +241,14 @@ lost or damaged, see `restore.md`.
 
 A rollback that was never tried is a hope, not a plan. Repeat the drill after any change to the Vercel project (a plan, a
 domain, the Git link) and every few months, when the deployment before the current one has the same app code (a merge of
-documents or CI that was deployed), so that nothing changes for a user. Add one entry here each time. The entries below are
+documents or CI that was deployed) and was built after the last rotation of any secret of the project (the dates are in
+`secrets.md`): it keeps the environment it was built with, so an older one could not reach the database or its services,
+and the drill would be an outage. Then nothing changes for a user. Add one entry here each time. The entries below are
 the first installation's own record: a copy keeps its own drill log here, or removes them.
 
 - `13/10/2026`: the first rollback drill, on production. The current deployment (1066d9b) and the one before it (dfeb0b6)
-  differed only in CI, documents and tests: no migration, the same `vercel.json`, the same app. A script read the public
+  differed only in CI, documents and tests: no migration, the same `vercel.json`, the same app, and the older one was built
+  that day, after the last rotation in `secrets.md` (05/10/2026). A script read the public
   `/api/health` every 2 s. Instant Rollback from the tile: the domain served the older commit by the time the owner
   reported the click, `GET /` was the app page with its policy, the service worker answered, and the project's
   auto-assignment of the production domain turned off. Undo with **Promote** of the newer deployment: no build, the domain
