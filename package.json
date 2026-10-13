@@ -20,6 +20,8 @@
     "screenshots": "playwright test --config playwright.screenshots.config.js",
     "perf:scan": "playwright test --config playwright.perf.config.js",
     "perf:scan:baseline": "playwright test --config playwright.perf.config.js && node scripts/perf/baseline.mjs",
+    "perf:api": "node scripts/perf/api-timing.mjs",
+    "perf:api:baseline": "node scripts/perf/api-timing.mjs && node scripts/perf/api-timing.mjs --promote",
     "icons": "node scripts/make-icons.mjs",
     "size": "vite build && node scripts/check-bundle-size.mjs",
     "db:migrate": "node scripts/db-migrate.mjs",
