@@ -1,5 +1,5 @@
-// Thin fetch wrapper for the new /api. Always bounded by a timeout: a phone on one bar of signal
-// must never leave a spinner hanging (the old app could).
+// Thin fetch wrapper for the /api. Always bounded by a timeout: a phone on one bar of signal
+// must never leave a spinner hanging.
 
 /** @import { ErrorBody } from '../../shared/types.js' */
 

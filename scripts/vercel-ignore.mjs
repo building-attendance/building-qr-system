@@ -26,7 +26,6 @@ export const SKIP_DIRS = Object.freeze([
   '.claude/',
   'scripts/hooks/',
   'scripts/screenshots/',
-  'legacy-redirect/', // a separate Firebase site (legacy-redirect/README.md)
 ])
 
 /** Files at the root that only the tests, the linters and the editors read. */

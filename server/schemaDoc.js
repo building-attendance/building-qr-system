@@ -8,7 +8,7 @@ import { AUDIT_GROUPS } from './auditRead.js'
 import { AUDIT_ACTOR_TYPES } from './audit.js'
 import {
   FLAG_LOCATION_UNVERIFIED, FLAG_LOCATION_OUTSIDE_RADIUS, FLAG_LOCATION_STALE, FLAG_OFFLINE_SYNC, FLAG_CLOCK_SKEW,
-  FLAG_DEMO, FLAG_LEGACY_IMPORT,
+  FLAG_DEMO,
 } from '../shared/flags.js'
 import {
   OUTCOME_ACCEPTED, OUTCOME_REJECTED_FAR, OUTCOME_REJECTED_NO_LOCATION, SOURCE_ONLINE, SOURCE_OFFLINE_SYNC,
@@ -139,7 +139,7 @@ export const schemaDoc = {
     voided_at: 'UTC ISO time the scan was voided, or null when it is not voided',
     voided_by: 'The name of the committee member who voided the scan (their e-mail when they have no name), as it was when they did it, or null when the scan is not voided or no record names who',
     received_at: 'UTC ISO time the server received the scan. The server clock, which cannot be wrong: unlike checked_in_at it is not an estimate, so for an offline_sync scan it is the time of the upload',
-    device_id: "A random uuid for the sign-in of the phone that sent the scan, or null when it is not known (the old import has none). A sign-in belongs to one provider, and a phone that signs in again, or as another provider, gets a new id: so it tells apart the phones that one provider's scans came from, and it does not recognise the same physical phone across sign-ins or providers. Nothing else about the phone is available",
+    device_id: "A random uuid for the sign-in of the phone that sent the scan, or null when it is not known. A sign-in belongs to one provider, and a phone that signs in again, or as another provider, gets a new id: so it tells apart the phones that one provider's scans came from, and it does not recognise the same physical phone across sign-ins or providers. Nothing else about the phone is available",
   },
   // The counts (GET /counts, server/scanCounts.js). The row of the answer has all seven fields every time; a dimension that the request
   // did not group by is null. The sum of the counts is the number of scans that /scans returns for the same filters.
@@ -378,7 +378,6 @@ export const schemaDoc = {
       `${days(CLOCK_MAX_AGE_MS)} days, more than ${minutes(CLOCK_MAX_FUTURE_MS)} minutes in the future, missing or not believable; checked_in_at is then the server time of the upload, ` +
       'so the real day of the visit is not known.',
     [FLAG_DEMO]: 'Scanned with the demo account (test data). Hidden by default; use include_demo=true to see it.',
-    [FLAG_LEGACY_IMPORT]: 'Imported from the old Firebase system on 01/10/2026; its location and device details are not known.',
   },
   rules: {
     duplicate_window_minutes: SCAN_COOLDOWN_MINUTES,

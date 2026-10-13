@@ -23,8 +23,8 @@ const FALLBACK_CENTER = [32.0853, 34.7818]
 const ringColor = (el) => (el && getComputedStyle(el).getPropertyValue('--w-focus').trim()) || '#7cc0ff'
 
 /**
- * Click the map to place a point. The map is created once and updated in place: (unlike the old version)
- * typing in a coordinate field no longer snaps the view back or cancels the user's panning.
+ * Click the map to place a point. The map is created once and updated in place: typing in a coordinate field does not
+ * snap the view back or cancel the user's panning.
  * Shows the check-in radius as a circle, since that is what the coordinates are for.
  */
 export default function MapPicker({ lat, lng, radius, onPick, hint }) {

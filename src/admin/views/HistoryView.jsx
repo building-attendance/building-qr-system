@@ -24,7 +24,6 @@ const FLAGS = {
   offline_sync: { label: 'נשלח אחרי חוסר קליטה', tone: 'info' },
   clock_skew: { label: 'שעון הטלפון לא תקין', tone: 'warn' },
   demo: { label: 'דמו', tone: 'neutral' },
-  legacy_import: { label: 'מהמערכת הישנה', tone: 'neutral' },
 }
 const OUTCOMES = { [OUTCOME_REJECTED_FAR]: 'נדחתה: רחוק מהנקודה', [OUTCOME_REJECTED_NO_LOCATION]: 'נדחתה: חסר מיקום' }
 

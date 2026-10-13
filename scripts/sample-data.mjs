@@ -18,12 +18,6 @@ export const SAMPLE_POINT = Object.freeze({ lat: 34.1234, lng: 31.5678 })
 export const SAMPLE_FAR_POINT = Object.freeze({ lat: 34.1734, lng: 31.5678 })
 
 /**
- * The sample point as an old location typed with two decimals (about 430 m from it): the shape of coarse data in the
- * old Firestore records that the importer reads.
- */
-export const SAMPLE_COARSE_POINT = Object.freeze({ lat: 34.12, lng: 31.57 })
-
-/**
  * First names of the two Hebrew-speaking sample providers, by what they do. In an alphabetical list the gardener comes
  * before the cleaner: a test that sorts the providers by name relies on that order.
  */
@@ -31,8 +25,8 @@ export const SAMPLE_PROVIDER_NAMES = Object.freeze({ cleaner: 'פלוני', gard
 
 /**
  * Codes in the legacy format of the old app: BQR-<timestamp in ms>-<the same timestamp>-<6 characters>. The server
- * accepts any BQR- code of 6 to 80 letters, digits and hyphens (server/scanLogic.js), and the importer keeps such a
- * code as it is, so that printed QRs keep working.
+ * accepts any BQR- code of 6 to 80 letters, digits and hyphens (server/scanLogic.js): the points that the first
+ * installation imported from the old app kept such a code, so the signs printed with it keep working.
  */
 export const SAMPLE_LEGACY_TOKENS = Object.freeze({
   lobby: 'BQR-1000000000001-1000000000001-sampl1',

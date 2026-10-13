@@ -69,7 +69,6 @@ describe('which files can be left undeployed', () => {
       'scripts/check-bundle-size.json',
       'scripts/hooks/check-edit.mjs',
       'scripts/screenshots/shoot.spec.js',
-      'legacy-redirect/public/index.html',
       'LICENSE',
       'eslint.config.js',
       'jsconfig.json',

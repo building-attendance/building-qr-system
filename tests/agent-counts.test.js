@@ -22,7 +22,7 @@
 //   7. the row cap: an answer of COUNTS_MAX_ROWS rows is given and one of one row more is refused (and names group_by), never cut;
 //   8. the statement can use the date index and the moment index (asked of the database with explain), is built from scanWhere (the very
 //      conditions of the scans list) and reads named columns, never `*`;
-//   9. nothing secret is in the raw text of any answer (no QR code, legacy id, password, hash, key, phone, address), and a column that
+//   9. nothing secret is in the raw text of any answer (no QR code, password, hash, key, phone, address), and a column that
 //      is added to `scans` later does not reach the answer.
 // The data is fake.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
@@ -403,8 +403,6 @@ describe('GET /counts: the key, the validation and what must not come out', () =
     const cleaners = await w.makeProvider({ company: 'Acme Cleaners', contact_name: 'Dana', service_type: 'cleaning' })
     const point = await w.makePoint({ name: 'Atrium', service_type: 'cleaning' })
     secrets.qr = point.qr_token
-    secrets.legacy = 'legacy-marker-5521'
-    await w.db.pool.query('update points set legacy_id = $1 where id = $2', [secrets.legacy, point.id])
     secrets.password = 'pw-fake-secret-4821'
     const session = await call('POST', '/api/session', { body: { provider_id: cleaners.id, password: secrets.password, device_label: LABEL }, ip: IP })
     secrets.token = session.json.token
@@ -551,7 +549,7 @@ describe('GET /counts: the key, the validation and what must not come out', () =
     }
   })
 
-  it('shows nothing secret: no QR code, legacy id, password, hash, key, phone, address or label, in any grouping', async () => {
+  it('shows nothing secret: no QR code, password, hash, key, phone, address or label, in any grouping', async () => {
     const marker = 'secret-marker-9921'
     // A column that is added to `scans` later does not reach the answer: it is added now, with a value on every row.
     await w.db.pool.query(`alter table scans add column later_column text not null default '${marker}'`)
@@ -572,7 +570,7 @@ describe('GET /counts: the key, the validation and what must not come out', () =
     const text = raw.join('\n')
     const key = await w.currentKey()
     for (const secret of [
-      secrets.qr, QR_TOKEN_PREFIX, secrets.legacy, secrets.password, secrets.token, secrets.tokenHash, secrets.deviceId, LABEL, 'Phone-Marker-6612',
+      secrets.qr, QR_TOKEN_PREFIX, secrets.password, secrets.token, secrets.tokenHash, secrets.deviceId, LABEL, 'Phone-Marker-6612',
       IP, key, sha256(key), key.slice(0, 8), marker, 'later_column', 'device_id', 'client_time', 'received_at', 'checked_in', 'qr_token', 'legacy_id',
     ]) {
       expect(text, String(secret).slice(0, 20)).not.toContain(secret)

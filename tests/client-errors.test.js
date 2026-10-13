@@ -724,17 +724,18 @@ describe('the lists of the contract', () => {
       expect.objectContaining({ kind: 'crash', place: 'committee:home' }),
     ])
     // every key that an installed app can send stays: Home adds one and removes none
-    for (const place of ['committee:history', 'committee:points', 'committee:providers', 'committee:agent', 'committee:settings', 'committee:audit', 'committee:help', 'committee:committee']) {
+    for (const place of ['committee:history', 'committee:points', 'committee:providers', 'committee:agent', 'committee:settings', 'committee:audit', 'committee:help']) {
       expect(CLIENT_PLACES, place).toContain(place)
     }
     // the provider's endpoint takes only the provider's own keys
     expect(parseClientErrorReport({ events: [{ kind: 'crash', place: 'committee:home', name: 'TypeError' }] }, 'provider_app')).toEqual([])
   })
 
-  it('accepts a report that an older committee app sends from the screen that was split (committee:committee)', async () => {
-    expect(parseClientErrorReport({ events: [{ kind: 'crash', place: 'committee:committee', name: 'TypeError' }] }, 'committee_app')).toEqual([
-      expect.objectContaining({ kind: 'crash', place: 'committee:committee' }),
-    ])
+  // The key of the screen that was split into settings, help and audit is gone: the app is not in production yet, so no installed
+  // app sends it (owner decision of 13/10/2026). The three screens that replaced it are accepted.
+  it('skips the key of the screen that was split (committee:committee), and takes the three screens that replaced it', async () => {
+    expect(CLIENT_PLACES).not.toContain('committee:committee')
+    expect(parseClientErrorReport({ events: [{ kind: 'crash', place: 'committee:committee', name: 'TypeError' }] }, 'committee_app')).toEqual([])
     for (const place of ['committee:settings', 'committee:audit', 'committee:help']) {
       expect(parseClientErrorReport({ events: [{ kind: 'crash', place }] }, 'committee_app'), place).toHaveLength(1)
     }

@@ -666,17 +666,6 @@ describe('numbers in prose come from server/config.js', () => {
       Object.entries(got).filter(([, [served, constant]]) => served !== constant).map(([key, [served, constant]]) => `${SCHEMA}: ${key} is ${served} but server/config.js says ${constant}.`),
     )
   })
-
-  it('the date of the old import is the same in both documents', () => {
-    const date = (text) => /imported from the old Firebase system on (\d{2}\/\d{2}\/\d{4})/i.exec(text)?.[1]
-    const inSchema = date(schemaDoc.flags.legacy_import)
-    const inMd = date(mdText)
-    report(
-      !inSchema || !inMd
-        ? [`The legacy_import description no longer says "imported from the old Firebase system on DD/MM/YYYY" in ${!inSchema ? SCHEMA : MD}.`]
-        : inSchema === inMd ? [] : [`${MD} says the old data was imported on ${inMd}, ${SCHEMA} says ${inSchema}: make them the same.`],
-    )
-  })
 })
 
 // ======================================================================================================================
