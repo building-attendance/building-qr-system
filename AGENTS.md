@@ -157,7 +157,10 @@ the common ways of breaking this; they are heuristics, not a replacement for rea
 The same holds for the API and the offline sync payload (`POST /api/scans/sync`, its batch size, the fields of an item):
 
 - Never make an optional request field required, never rename or remove a field that an old client sends or reads, and
-  ignore fields that you do not know (a newer client may send them).
+  ignore fields that you do not know (a newer client may send them). One exception (owner decision of 13/10/2026: the
+  app is not in production yet, so no older committee screen is installed): `name` of `PUT /api/admin/building` becomes
+  required. It was optional only for a committee screen installed before the building had a name, which sends the
+  address alone.
 - A new rule must not reject what an old client sends in good faith. The old app decides from the error code what to do
   with a queued scan: a code it knows as permanent drops the scan on the phone, any other error keeps it for a retry
   (`SYNC_PERMANENT_ERROR_CODES` in `shared/contract.js`, read as `PERMANENT` in `src/worker/scanQueue.js`). So a new
@@ -321,7 +324,8 @@ reviewing agent should apply it too.
   `Intl.DateTimeFormat` outside it, a native date or time input, a month name or a weekday), or a day without its year
   anywhere but the column heads of a table of consecutive days that shows its full range and gives each head its full
   date for a screen reader (Rules for every change).
-- An API or offline-sync change that rejects requests from an older installed app.
+- An API or offline-sync change that rejects requests from an older installed app, but for the one exception of Database
+  and API changes: a request to `PUT /api/admin/building` without `name` may be refused.
 - Local tooling that could reach the production database: a bypass of `server/dbGuard.js` or `server/loadEnv.js`, or a
   marker check that trusts an environment variable.
 - A `console.*` call that logs a raw error object, or a Postgres `detail`, `where`, `table`, `column` or `parameters`; a
