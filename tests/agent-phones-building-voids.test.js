@@ -328,7 +328,7 @@ describe('GET /api/agent/v1/scans: voided_at and voided_by', () => {
     const insertVoided = async (id) =>
       db.pool.query(
         `insert into scans (id, point_id, provider_id, point_name, provider_name, checked_in_at, local_date, source, outcome, flags, voided_at, void_reason)
-         values ($1, $2, $3, 'Fake Point 1', 'Fake Cleaning', '2026-01-05T08:00:00Z', '2026-01-05', 'online', 'accepted', '{legacy_import}', now(), 'voided long ago')`,
+         values ($1, $2, $3, 'Fake Point 1', 'Fake Cleaning', '2026-01-05T08:00:00Z', '2026-01-05', 'online', 'accepted', '{}', now(), 'voided long ago')`,
         [id, world.points[0].id, world.a.id],
       )
     const withEntry = randomUUID()
@@ -549,13 +549,12 @@ describe('the shape of a scan for the committee and for the provider phones is w
 
 describe('no secret reaches /building, /providers or /scans (JSON and CSV)', () => {
   it('has none of the secrets of the seed in the raw text of any of the four answers', async () => {
-    // Secrets of every kind that AGENTS.md ("Safety") lists, put where the server keeps them. A point's code and legacy id, a phone's
-    // label (the browser string), a provider's password and its hash, a key and its fingerprint, the tokens of the phones and their
-    // hashes, a Google id, the address of the request.
-    await db.pool.query("update points set legacy_id = 'legacy-marker-5521' where id = $1", [world.points[0].id])
+    // Secrets of every kind that AGENTS.md ("Safety") lists, put where the server keeps them. A point's code, a phone's label (the
+    // browser string), a provider's password and its hash, a key and its fingerprint, the tokens of the phones and their hashes, a
+    // Google id, the address of the request.
     expect((await call('PUT', '/api/admin/building', { cookie, body: { address: 'Fake Street 7, Fake City', name: 'Fake Building' } })).status).toBe(200)
 
-    const points = (await db.pool.query('select qr_token, legacy_id from points')).rows
+    const points = (await db.pool.query('select qr_token from points')).rows
     const providers = (await db.pool.query('select password_hash from providers')).rows
     const phones = (await db.pool.query('select token_hash, label from provider_devices')).rows
     const members = (await db.pool.query('select google_sub from admins where google_sub is not null')).rows
@@ -563,7 +562,6 @@ describe('no secret reaches /building, /providers or /scans (JSON and CSV)', () 
     const key = await currentKey()
     const secrets = {
       'a QR token': points.map((p) => p.qr_token),
-      'a legacy id': points.map((p) => p.legacy_id).filter(Boolean),
       "a provider's password": [world.pwA, 'pw-fake-secret-B-7310', 'pw-fake-secret-C-2093', 'pw-fake-secret-D-5566'],
       "the hash of a provider's password": providers.map((p) => p.password_hash),
       'the token of a phone': [world.a1.token, world.a2.token, world.a3.token, world.b1.token, world.d1.token],
@@ -577,7 +575,6 @@ describe('no secret reaches /building, /providers or /scans (JSON and CSV)', () 
     }
     // The control: each kind of secret is really in the database, so that a test which finds none in the answers proves something.
     expect(points.length).toBeGreaterThanOrEqual(6)
-    expect(points.some((p) => p.legacy_id === 'legacy-marker-5521')).toBe(true)
     expect(providers.every((p) => typeof p.password_hash === 'string' && p.password_hash.length > 20)).toBe(true)
     expect(phones.some((p) => p.label === LABEL)).toBe(true)
     expect(members.length).toBeGreaterThan(0)

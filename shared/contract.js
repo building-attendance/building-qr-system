@@ -221,12 +221,9 @@ export const CLIENT_ERROR_KINDS = Object.freeze(['crash', 'unhandled', 'signed_o
  * of TABS in src/pages/AdminApp.jsx (tests/client-errors.test.js compares them). The sign-in screens are here although nobody is signed
  * in when they break: the app keeps the event on the device and sends it after the next sign-in. `provider:app` and `committee:app`
  * are for a crash outside any screen (the language provider, the boundary above everything). Each provider key starts with
- * `provider:` and each committee key with `committee:`, and the endpoint of a role takes only its own.
- *
- * `committee:committee` is a key of a screen that no longer exists (the screen that held the members, the building's details, the guide
- * and the audit log, now split into `settings`, `help` and `audit`). It stays because an installed app keeps running the JavaScript it
- * has for days or weeks and still reports its errors under it; the server skips a key that is not here, so removing it would silently
- * drop them (AGENTS.md, "Database and API changes"). Remove it only when no installed app can send it any more.
+ * `provider:` and each committee key with `committee:`, and the endpoint of a role takes only its own. The server skips a key that is
+ * not here, so removing the key of a screen that an installed app still has silently drops its reports (AGENTS.md, "Database and API
+ * changes").
  */
 export const CLIENT_PLACES = Object.freeze([
   'provider:login',
@@ -243,7 +240,6 @@ export const CLIENT_PLACES = Object.freeze([
   'committee:settings',
   'committee:audit',
   'committee:help',
-  'committee:committee', // retired: the screen was split (see above); only an older installed app still sends it
   'committee:app',
 ])
 

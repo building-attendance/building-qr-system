@@ -1,5 +1,4 @@
-/* Shared design system for the service-provider app (.w-app) and the committee app (.a-app).
-   Scoped to those roots so the legacy stylesheet is untouched.
+/* Shared design system for the service-provider app (.w-app) and the committee app (.a-app), scoped to those roots.
    Logical properties everywhere: the same CSS serves Hebrew/Arabic (RTL) and English/Russian (LTR). */
 
 .w-app, .a-app {

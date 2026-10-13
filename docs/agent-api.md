@@ -171,7 +171,7 @@ The last four fields are the details of a scan that the committee sees in its hi
 | `voided_at` | UTC ISO time the scan was voided, or null when it is not voided |
 | `voided_by` | The name of the committee member who voided it (their e-mail when they have no name), as it was when they did it. Null when the scan is not voided, or when no record names who |
 | `received_at` | UTC ISO time the server received the scan. Unlike `checked_in_at`, which is the best estimate of the visit, it is the server's clock and is never an estimate: for an `offline_sync` scan it is the time of the upload |
-| `device_id` | A random uuid for the sign-in of the phone that sent the scan, or null when it is not known (the old import has none). Nothing else about the phone is shown |
+| `device_id` | A random uuid for the sign-in of the phone that sent the scan, or null when it is not known. Nothing else about the phone is shown |
 
 `device_id` stands for a phone's sign-in, and a sign-in belongs to one provider. A phone that signs in again, or as another provider, gets a new
 id. So it tells apart the phones that one provider's scans came from (several ids: several phones, or the same phone signed in
@@ -503,9 +503,6 @@ key that is not in the table is never there, whatever the log holds.
     was not a believable time). Offline: the phone time was older than 7 days, more than 5 minutes in the future, missing
     or not believable; then `checked_in_at` is the server time of the upload, so the real day of the visit is not known.
   - `demo`: the demo account (hidden unless `include_demo=true`).
-  - `legacy_import`: imported from the old Firebase system on 01/10/2026; its location and device details are not known.
-    The flag is written by the one-time import of an old Firebase system's data (`npm run db:import-firestore`) and by
-    nothing else: the first installation ran it, and a copy that never ran it never sees the flag.
 - The same provider at the same point within 10 minutes is stored once.
 - Scans are kept. A committee member normally voids a scan (hidden unless `include_voided=true`); they can also delete a single row on purpose (test data), and then it is gone from the API.
 - Deleting a point does not delete its scans. An old scan can therefore carry a `point_id` that `/points` no longer lists: use `point_name` (the name at the time of the scan).

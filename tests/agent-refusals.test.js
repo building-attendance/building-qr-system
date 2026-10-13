@@ -116,7 +116,6 @@ beforeAll(async () => {
   world.open = await makePoint()
   world.inactive = await makePoint({ is_active: false })
   world.onlyB = await makePoint({ provider_ids: [world.b.id] })
-  await db.pool.query("update points set legacy_id = 'legacy-marker-5521' where id = $1", [world.open.id])
 
   // The refused visits that the server records itself, one of every kind that a request can cause. Each one carries a position (the
   // server must not keep it) and the code that was scanned (the same).
@@ -483,7 +482,7 @@ describe('a refusal is not attendance', () => {
 
 describe('no secret reaches /refusals', () => {
   it('has none of the secrets of the seed in the raw text of the answer, whole or in pages', async () => {
-    const points = (await db.pool.query('select qr_token, legacy_id from points')).rows
+    const points = (await db.pool.query('select qr_token from points')).rows
     const providers = (await db.pool.query('select password_hash from providers')).rows
     const phones = (await db.pool.query('select id, token_hash, label from provider_devices')).rows
     const refusedDevices = (await db.pool.query('select distinct device_id from scan_refusals where device_id is not null')).rows.map((r) => r.device_id)
@@ -493,7 +492,6 @@ describe('no secret reaches /refusals', () => {
     const secrets = {
       'a QR token': points.map((p) => p.qr_token),
       'the code that was scanned': [UNKNOWN_CODE, NONSENSE_CODE],
-      'a legacy id': points.map((p) => p.legacy_id).filter(Boolean),
       'a position': [String(GPS.lat), String(GPS.lng), '31.2468', '34.7918'],
       "a provider's password": [world.pwA, world.pwB],
       "the hash of a provider's password": providers.map((p) => p.password_hash),
@@ -508,7 +506,6 @@ describe('no secret reaches /refusals', () => {
     }
     // The control: each kind of secret is really in the database, so that a test which finds none in the answer proves something.
     expect(points.length).toBeGreaterThanOrEqual(3)
-    expect(points.some((p) => p.legacy_id === 'legacy-marker-5521')).toBe(true)
     expect(providers.every((p) => typeof p.password_hash === 'string' && p.password_hash.length > 20)).toBe(true)
     expect(phones.some((p) => p.label === LABEL)).toBe(true)
     expect(refusedDevices).toContain(world.phoneA.deviceId)

@@ -23,7 +23,6 @@
     "db:migrate": "node scripts/db-migrate.mjs",
     "db:create-admin": "node scripts/create-admin.mjs",
     "db:seed-dev": "node scripts/dev-seed.mjs",
-    "db:import-firestore": "node scripts/import-firestore.mjs",
     "db:backup": "node scripts/backup-db.mjs"
   },
   "dependencies": {
@@ -49,6 +48,7 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "eslint": "^10.12.0",
+    "eslint-plugin-es-x": "^9.7.0",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
     "jsdom": "^30.1.2",
