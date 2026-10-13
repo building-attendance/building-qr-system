@@ -84,11 +84,13 @@ jobs:
       # PR_LABELS lets a pull request that has to remove a test say so with the allow-test-removal label.
       # Titles and labels are text that anyone can write: they go in through env and are read from process.env, never
       # pasted into the script of a `run:` step.
-      # Not in a merge queue: a queue run has no pull request labels, so a removal that the owner allowed with the label
-      # would fail there for good. The same change was already checked, with its labels, by the pull request's own run,
-      # which a pull request needs green before it can join the queue (like the title check below).
+      # Not in a merge queue and not on a push to the default branch: neither run has pull request labels, so a removal
+      # that the owner allowed with the label would fail there for good (the push of #207's merge did, on 13/10/2026). The
+      # same change was already checked, with its labels, by the pull request's own run, which a pull request needs green
+      # before it can join the queue or merge, and master-gates (.github/rulesets/) lets nothing reach the default branch
+      # without a pull request (like the title check below).
       - name: Tests are not removed or switched off
-        if: steps.base.outputs.base != '' && github.event_name != 'merge_group'
+        if: steps.base.outputs.base != '' && github.event_name != 'merge_group' && github.event_name != 'push'
         env:
           BASE: ${{ steps.base.outputs.base }}
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
