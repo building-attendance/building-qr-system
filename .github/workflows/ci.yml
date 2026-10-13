@@ -83,7 +83,9 @@ jobs:
 
       # Whether the branch that the change lands on (the target of a pull request, the pushed branch of a push) can only be
       # changed by a pull request whose `guards` check passed, as its active rulesets say: a `pull_request` rule, and a
-      # `required_status_checks` rule that lists `guards` (GitHub returns each rule on its own, so both are looked for).
+      # `required_status_checks` rule that lists `guards` (GitHub returns each rule on its own, so both are looked for)
+      # from GitHub Actions, `integration_id` 15368 as in .github/rulesets/master-gates.json. A `guards` that a ruleset
+      # takes from another app, or from any source, could pass while this job failed, so it counts as "not required".
       # Reading them needs only the metadata permission, which the job's token always has. Only a push uses the answer
       # (the step below); a pull request prints it, so that every pull request run shows that the token can still read it.
       # An answer that cannot be read counts as "not required".
@@ -96,7 +98,8 @@ jobs:
           BRANCH: ${{ github.base_ref || github.ref_name }}
         run: |
           query='any(.[]; .type == "pull_request") and
-            any(.[]; .type == "required_status_checks" and any(.parameters.required_status_checks[]?; .context == "guards"))'
+            any(.[]; .type == "required_status_checks" and
+              any(.parameters.required_status_checks[]?; .context == "guards" and .integration_id == 15368))'
           if required=$(gh api "repos/$REPOSITORY/rules/branches/$BRANCH" --jq "$query"); then
             echo "A pull request with a green guards check is required to change $BRANCH: $required"
           else
