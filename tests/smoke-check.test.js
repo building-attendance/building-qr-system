@@ -32,11 +32,12 @@ const page = (body = PAGE, status = 200, headers = { [POLICY.name]: POLICY.value
   new Response(body, { status, headers: { 'content-type': 'text/html', ...headers } })
 
 /**
- * Runs the smoke test against a stub. `handlers` has one function per address: health(n), home(n) and db(n), each given
- * the number of the call (1, 2, ...) and returning a Response, or throwing to look like a network error. Everything that
- * is printed is collected in `lines`, and every request in `calls`.
+ * Runs the smoke test against a stub. `handlers` has one function per address: health(n), home(n), db(n), and compare(n)
+ * for a request to any other host (GitHub's compare API), each given the number of the call (1, 2, ...) and returning a
+ * Response, or throwing to look like a network error. Everything that is printed is collected in `lines`, and every
+ * request in `calls`. `counts.compare` exists only once GitHub was asked.
  */
-async function run({ health, home = () => page(), db, env = {}, migrationsDir, policy } = {}) {
+async function run({ health, home = () => page(), db, compare, env = {}, migrationsDir, policy } = {}) {
   let clock = 1_000_000
   const lines = []
   const calls = []
@@ -45,10 +46,11 @@ async function run({ health, home = () => page(), db, env = {}, migrationsDir, p
   const stub = async (url, init = {}) => {
     const address = new URL(url)
     calls.push({ url: address, init })
-    const name = address.pathname === '/api/health' ? 'health' : address.pathname === '/api/health/db' ? 'db' : 'home'
-    const handler = { health, home, db }[name]
+    const site = address.origin === BASE
+    const name = !site ? 'compare' : address.pathname === '/api/health' ? 'health' : address.pathname === '/api/health/db' ? 'db' : 'home'
+    const handler = { health, home, db, compare }[name]
     if (!handler) throw new Error(`the test did not expect a request to ${address.pathname}`)
-    counts[name]++
+    counts[name] = (counts[name] ?? 0) + 1
     return handler(counts[name])
   }
   const result = await runSmoke({
@@ -172,6 +174,127 @@ describe('step 1: the domain must serve the new commit', () => {
     const r = await run({ health: () => json({ ok: true, commit: OTHER }), env: { SMOKE_TIMEOUT_MS: '1000', SMOKE_INTERVAL_MS: '400' } })
     expect(r.sleeps).toEqual([400, 400, 200])
     expect(r.counts.health).toBe(4)
+  })
+})
+
+describe('step 1: a later merge was promoted first', () => {
+  // What GitHub Actions sets (GITHUB_REPOSITORY, GITHUB_API_URL) and the job's read-only token, made up.
+  const GH = { GITHUB_REPOSITORY: 'example-org/example-repo', GITHUB_API_URL: 'https://api.github.com', GITHUB_TOKEN: 'ghs_TEST_token_0123456789abcdef' }
+  const ahead = () => json({ status: 'ahead', ahead_by: 1, behind_by: 0 })
+  const behind = () => json({ status: 'behind', ahead_by: 0, behind_by: 2 })
+  const serves = (commit) => () => json({ ok: true, commit })
+
+  it('passes when the domain serves a newer commit that contains the deployed one, and leaves steps 2 and 3 to its run', async () => {
+    const r = await run({ health: serves(OTHER), compare: ahead, db: dbOk, env: { ...GH, SMOKE_AGENT_KEY: KEY } })
+    expect(r.exitCode).toBe(0)
+    expect(r.failures).toEqual([])
+    expect(r.warnings).toEqual([])
+    expect(r.counts).toEqual({ health: 1, home: 0, db: 0, compare: 1 })
+    expect(r.sleeps).toEqual([])
+    expect(r.lines[0]).toBe(`ok   1/3 production serves ${OTHER}, a newer commit that contains ${SHORT} (1 check, 0 s)`)
+    expect(r.output).toContain(`skip 2/3 and 3/3: they would compare ${OTHER} with the files of ${SHORT}; the smoke run of ${OTHER} checks them`)
+    expect(r.lines.at(-1)).toBe(`Smoke test passed for ${SHORT} on ${BASE} (production already serves ${OTHER}, which contains it)`)
+  })
+
+  it('asks the compare API of the repository, with the deployed commit as the base, the token, and no redirect', async () => {
+    const r = await run({ health: serves(OTHER), compare: ahead, env: GH })
+    const asked = r.calls.find((call) => call.url.origin !== BASE)
+    expect(asked.url.href).toBe(`https://api.github.com/repos/example-org/example-repo/compare/${SHA}...${OTHER}?per_page=1`)
+    expect(asked.init.headers.authorization).toBe(`Bearer ${GH.GITHUB_TOKEN}`)
+    expect(asked.init.redirect).toBe('manual')
+    // The token goes to GitHub only, never to the site.
+    for (const call of r.calls.filter((c) => c.url.origin === BASE)) expect(JSON.stringify(call.init)).not.toContain(GH.GITHUB_TOKEN)
+  })
+
+  it('asks without a token when there is none (a public repository answers anyway)', async () => {
+    const r = await run({ health: serves(OTHER), compare: ahead, env: { GITHUB_REPOSITORY: GH.GITHUB_REPOSITORY } })
+    expect(r.exitCode).toBe(0)
+    const asked = r.calls.find((call) => call.url.origin !== BASE)
+    expect(asked.url.origin).toBe('https://api.github.com')
+    expect(asked.init.headers.authorization).toBeUndefined()
+  })
+
+  it('still fails for an older commit (an Instant Rollback) or one on another line, and asks once per commit', async () => {
+    for (const answer of [behind, () => json({ status: 'diverged', ahead_by: 1, behind_by: 1 })]) {
+      const r = await run({ health: serves(OTHER), compare: answer, db: dbOk, env: { ...GH, SMOKE_AGENT_KEY: KEY } })
+      expect(r.exitCode).toBe(1)
+      expect(r.failures).toEqual([`production does not serve ${SHORT}, it serves ${OTHER} (31 checks over 300 s)`])
+      expect(r.counts).toEqual({ health: 31, home: 0, db: 0, compare: 1 })
+      expect(r.output).toContain('skip 2/3 and 3/3: they would test a different deployment')
+    }
+  })
+
+  it('does not take "ahead" when the newer commit is also behind (it does not contain the deployed one)', async () => {
+    const r = await run({ health: serves(OTHER), compare: () => json({ status: 'ahead', ahead_by: 1, behind_by: 1 }), env: { ...GH, SMOKE_TIMEOUT_MS: '20000' } })
+    expect(r.exitCode).toBe(1)
+  })
+
+  it('waits through the older deployment, then passes on the newer one, and asks about each commit once', async () => {
+    const older = 'aaaaaaa'
+    const r = await run({
+      health: (n) => json({ ok: true, commit: n < 3 ? older : OTHER }),
+      compare: (n) => (n === 1 ? behind() : ahead()),
+      env: GH,
+    })
+    expect(r.exitCode).toBe(0)
+    expect(r.counts).toEqual({ health: 3, home: 0, db: 0, compare: 2 })
+    expect(r.calls.filter((c) => c.url.origin !== BASE).map((c) => c.url.pathname.split('...')[1])).toEqual([older, OTHER])
+  })
+
+  it('passes normally, with steps 2 and 3, when the deployed commit shows up itself (nothing is asked of GitHub)', async () => {
+    const r = await run({ health: healthy, db: dbOk, env: { ...GH, SMOKE_AGENT_KEY: KEY } })
+    expect(r.exitCode).toBe(0)
+    expect(r.counts).toEqual({ health: 1, home: 1, db: 1 })
+  })
+
+  it('keeps the old rule when GitHub does not answer, asks again at every check, and says why in the failure', async () => {
+    const error = await run({ health: serves(OTHER), compare: () => new Response('x', { status: 500 }), env: { ...GH, SMOKE_TIMEOUT_MS: '20000' } })
+    expect(error.exitCode).toBe(1)
+    expect(error.counts.compare).toBe(3)
+    expect(error.failures[0]).toBe(`production does not serve ${SHORT}, it serves ${OTHER}; GitHub did not say whether it contains ${SHORT} (HTTP 500) (3 checks over 20 s)`)
+    const none = await run({
+      health: serves(OTHER),
+      compare: () => {
+        throw Object.assign(new TypeError('fetch failed'), { cause: { code: 'ECONNRESET' } })
+      },
+      env: { ...GH, SMOKE_TIMEOUT_MS: '20000' },
+    })
+    expect(none.failures[0]).toContain('(no answer (ECONNRESET))')
+    // A redirect (a renamed repository) is not followed, and is not an answer either.
+    const moved = await run({ health: serves(OTHER), compare: () => new Response('', { status: 301, headers: { location: 'https://api.github.com/x' } }), env: { ...GH, SMOKE_TIMEOUT_MS: '20000' } })
+    expect(moved.failures[0]).toContain('(HTTP 301)')
+    const odd = await run({ health: serves(OTHER), compare: () => json({ message: 'Not Found' }), env: { ...GH, SMOKE_TIMEOUT_MS: '20000' } })
+    expect(odd.failures[0]).toContain('(not a comparison)')
+  })
+
+  it('never puts a served value that is not a short SHA into the address it asks', async () => {
+    const r = await run({ health: serves('../../x?y'), compare: ahead, env: { ...GH, SMOKE_TIMEOUT_MS: '20000' } })
+    expect(r.exitCode).toBe(1)
+    expect(r.counts.compare).toBeUndefined()
+  })
+
+  it('asks nothing without GITHUB_REPOSITORY (a run by hand): the old rule', async () => {
+    const r = await run({ health: serves(OTHER), compare: ahead, env: { GITHUB_TOKEN: GH.GITHUB_TOKEN, SMOKE_TIMEOUT_MS: '20000' } })
+    expect(r.exitCode).toBe(1)
+    expect(r.counts.compare).toBeUndefined()
+  })
+
+  it('prints the token in no line, in any outcome', async () => {
+    const runs = [
+      await run({ health: serves(OTHER), compare: ahead, env: GH }),
+      await run({ health: serves(OTHER), compare: behind, env: { ...GH, SMOKE_TIMEOUT_MS: '20000' } }),
+      await run({ health: () => json({ ok: true, commit: GH.GITHUB_TOKEN }), compare: ahead, env: { ...GH, SMOKE_TIMEOUT_MS: '20000' } }),
+    ]
+    for (const r of runs) expect(r.output).not.toContain(GH.GITHUB_TOKEN)
+  })
+
+  it('refuses a repository name, an API address or a token that it could not use safely', () => {
+    const base = { EXPECTED_SHA: SHA, SMOKE_BASE_URL: BASE }
+    expect(() => readConfig({ ...base, GITHUB_REPOSITORY: 'no-slash' })).toThrow('GITHUB_REPOSITORY is not owner/repository')
+    expect(() => readConfig({ ...base, GITHUB_REPOSITORY: 'a/b', GITHUB_API_URL: 'http://api.example.test' })).toThrow('must be an https address')
+    expect(() => readConfig({ ...base, GITHUB_REPOSITORY: 'a/b', GITHUB_TOKEN: 'two words' })).toThrow('GITHUB_TOKEN holds a character')
+    expect(readConfig({ ...base, GITHUB_REPOSITORY: 'a/b' }).github).toEqual({ api: 'https://api.github.com', repo: 'a/b', token: null })
+    expect(readConfig(base).github).toBeNull()
   })
 })
 

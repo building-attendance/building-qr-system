@@ -8,7 +8,9 @@
 # Why it tests the production domain and not the deployment URL: the unique URL of a deployment can sit behind Vercel
 # Deployment Protection, which answers a GitHub runner with a login page, and the domain is what the people use. The
 # promotion of a deployment can lag behind the event, so the script waits (up to 5 minutes) until the domain serves the
-# commit before it judges anything.
+# commit before it judges anything. When two merges land a few minutes apart, the later one can be promoted first: then
+# the domain serves a newer commit that contains this one, the run passes, and the run of that commit checks the rest.
+# The script asks GitHub's compare API about it, with the job's read-only token (GITHUB_TOKEN below).
 #
 # The domain is the variable SMOKE_BASE_URL of the environment "smoke" (Settings, Environments), set once from the
 # repository folder with
@@ -79,6 +81,8 @@ jobs:
           EXPECTED_SHA: ${{ github.event.deployment.sha }}
           SMOKE_BASE_URL: ${{ vars.SMOKE_BASE_URL }}
           SMOKE_AGENT_KEY: ${{ secrets.SMOKE_AGENT_KEY }}
+          # Read only (permissions above): it only asks GitHub whether the commit that the domain serves contains this one.
+          GITHUB_TOKEN: ${{ github.token }}
         run: node scripts/smoke-check.mjs
 
   # Opens the issue when the smoke test failed. A job of its own, so that the job that runs the checked-out code never holds
