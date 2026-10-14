@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, SCREEN_TITLES, SCREEN_NAV, adminSignIn, openScreen, clearScans, allowConsoleErrors,
-  changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS, ADMIN_EMAIL, accountButton, openAccountMenu, signOut,
+  changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS, HOME_NOW, ADMIN_EMAIL, accountButton, openAccountMenu, signOut,
 } from './fixtures.js'
 import { SCAN_ERROR_POINT_INACTIVE } from '../shared/contract.js'
 import { formatDateTime, formatDay } from '../shared/datetime.js'
@@ -1367,10 +1367,16 @@ test('the history of a building with no points says to add points, with a button
 // What Home shows and where each of its links goes is in tests/components/home.test.jsx, with the network answered by the test. These run in
 // real browsers, on a phone and on a computer, and where it matters with real visits through the real server.
 
-const homeTable = (page) => page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table')
-/** The row of the week table of one provider (by a word of its name), and the cells of a row, in the order of the page. */
-const homeRow = (page, name) => homeTable(page).getByRole('row').filter({ has: page.getByRole('rowheader', { name }) })
-const homeTotals = (page) => homeTable(page).getByRole('row').filter({ has: page.getByRole('rowheader', { name: 'סך הכול' }) })
+const HOME_TITLE = 'השבוע בבניין'
+const HOME_PROVIDERS_TITLE = 'נותני שירות השבוע'
+/** The summary card, the table of its bars (named by the range), and the section of the providers. */
+const homeCard = (page) => page.getByRole('region', { name: HOME_TITLE })
+const homeTable = (page) => homeCard(page).getByRole('table')
+const homeProviders = (page) => page.getByRole('region', { name: HOME_PROVIDERS_TITLE })
+/** The row of one provider (by a word of its name): a list item with one link. */
+const homeRow = (page, name) => homeProviders(page).getByRole('listitem').filter({ hasText: name })
+/** The bar of a day that has visits: a link named by its full date and its count. */
+const homeBar = (page, day) => homeTable(page).getByRole('link', { name: new RegExp(`^${formatDay(day)}:`) })
 const historyRows = (page) => page.getByRole('main').getByRole('listitem')
 const box = async (locator) => {
   const found = await locator.boundingBox()
@@ -1378,11 +1384,13 @@ const box = async (locator) => {
   return found
 }
 
-test('the app opens on Home when the address names no screen, greets the member, and keeps Home through a reload and Back', async ({ page }) => {
+test('the app opens on Home when the address names no screen, greets the member with the date, and keeps Home through a reload and Back', async ({ page }) => {
   await adminSignIn(page, 'home')
   await expect(page).toHaveURL(/\/admin$/)
   // the sample member is "Dev Admin": the greeting is by the hour of the building, and the first word of the name
-  await expect(page.getByRole('heading', { level: 1, name: /^(בוקר טוב|צהריים טובים|ערב טוב), Dev$/ })).toBeVisible()
+  const greeting = page.getByRole('heading', { level: 1, name: /^(בוקר טוב|צהריים טובים|ערב טוב), Dev$/ })
+  await expect(greeting).toBeVisible()
+  await expect(page.getByRole('main').getByText(/^\d{2}\/\d{2}\/\d{4}$/).first(), 'the date of the day, under the greeting').toBeVisible()
   await expect(homeTable(page)).toBeVisible()
   await expect(page).toHaveTitle(/^בית · /)
   const nav = page.getByRole('navigation', { name: isPhoneLayout(page) ? 'ניווט ראשי (טלפון)' : 'ניווט ראשי', exact: true })
@@ -1399,7 +1407,8 @@ test('the app opens on Home when the address names no screen, greets the member,
   await expect(homeTable(page)).toBeVisible()
 })
 
-test('the week table of Home runs from the right (the oldest day) to the left (today), its cells are at least 24 by 24, and the page does not scroll sideways, on a phone and on a computer', async ({ page }) => {
+test('the summary card of Home draws its bars from the right (the oldest day) to the left (today), each under its date, with targets that are big enough and no sideways scroll, on a phone and on a computer', async ({ page }) => {
+  await page.clock.setFixedTime(new Date(HOME_NOW)) // the last day of the stub is today, so that its head and its bar are the ones that say so
   await stubHome(page)
   await adminSignIn(page, 'home')
   for (const size of [null, COMPUTER]) {
@@ -1407,52 +1416,84 @@ test('the week table of Home runs from the right (the oldest day) to the left (t
     const where = size ? 'computer' : 'phone'
     await expect(homeTable(page)).toBeVisible()
 
-    // The columns: the days in the order the server gives them, and the page is right to left, so the oldest is the right-most day.
-    // The range stands above the table in full (its caption, the name of the table), the heads write DD/MM and are named by the full date,
-    // and the heading names the box once: no second caption says it again.
+    // The range stands right above the bars in full, the element just before the table with nothing between them, and is the name of the table;
+    // each head writes DD/MM and is named by the full date (the exception of AGENTS.md: both conditions are in the page).
     const range = `${formatDay(HOME_DAYS[0])} עד ${formatDay(HOME_DAYS.at(-1))}`
     await expect(homeTable(page), `${where}: the table is named by its range`).toHaveAccessibleName(range)
-    const caption = homeTable(page).getByText(range, { exact: true })
-    await expect(caption, `${where}: the range is written, in DD/MM/YYYY`).toBeVisible()
-    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByText('נוכחות ב-7 הימים האחרונים'), `${where}: the heading is not said again in the table`).toHaveCount(0)
+    const written = homeCard(page).getByText(range, { exact: true })
+    await expect(written, `${where}: the range is written, in DD/MM/YYYY`).toBeVisible()
     const dayHeads = HOME_DAYS.map((day) => formatDay(day)) // the name of a head is its full date, for a screen reader
     for (const day of HOME_DAYS) await expect(homeTable(page).getByText(`${day.slice(8)}/${day.slice(5, 7)}`, { exact: true }), `${where}: the head writes DD/MM`).toBeVisible()
     const heads = await Promise.all(dayHeads.map((name) => box(homeTable(page).getByRole('columnheader', { name, exact: true }))))
     for (let i = 1; i < heads.length; i++) {
       expect(heads[i - 1].x, `${where}: ${dayHeads[i - 1]} is to the right of ${dayHeads[i]}`).toBeGreaterThan(heads[i].x)
     }
-    expect((await box(caption)).y + (await box(caption)).height, `${where}: the range is right above the heads`).toBeLessThanOrEqual(heads[0].y + 1)
-    const names = await box(homeRow(page, 'פלוני').getByRole('rowheader'))
-    expect(names.x, `${where}: the names are at the right, before the oldest day`).toBeGreaterThan(heads[0].x)
+    const writtenBox = await box(written)
+    expect(writtenBox.y + writtenBox.height, `${where}: the range is above the heads`).toBeLessThanOrEqual(heads[0].y)
+    expect(await written.evaluate((el) => el.nextElementSibling?.tagName), `${where}: the table is the next thing after the range`).toBe('TABLE')
+    const tableBox = await box(homeTable(page))
+    expect(tableBox.y - (writtenBox.y + writtenBox.height), `${where}: the range is right above the bars (no total between them)`).toBeGreaterThanOrEqual(0)
+    expect(tableBox.y - (writtenBox.y + writtenBox.height), `${where}: and close to them`).toBeLessThanOrEqual(10)
+    const totalBox = await box(homeCard(page).getByText(/^\d+ ביקור(ים)?$/))
+    expect(totalBox.y + totalBox.height, `${where}: the total is above the range`).toBeLessThanOrEqual(writtenBox.y)
+    await expect(homeTable(page).getByRole('columnheader', { name: dayHeads.at(-1), exact: true }), `${where}: today's head says so`).toHaveAttribute('aria-current', 'date')
 
-    // The cells line up under their days, in a provider's row and in the totals.
-    for (const row of [homeRow(page, 'פלוני'), homeTotals(page)]) {
-      const cells = await row.getByRole('cell').all()
-      expect(cells, `${where}: a cell for each day`).toHaveLength(HOME_DAYS.length)
-      for (const [i, cell] of cells.entries()) {
-        const found = await box(cell)
-        expect(Math.abs(found.x + found.width / 2 - (heads[i].x + heads[i].width / 2)), `${where}: the cell of ${dayHeads[i]} is under its head`).toBeLessThanOrEqual(1)
-      }
+    // The bars: one for each day (the stub has visits every day), each under its own head, which is under the bar (the heads are drawn last).
+    const bars = await Promise.all(HOME_DAYS.map((day) => box(homeBar(page, day))))
+    for (const [i, found] of bars.entries()) {
+      expect(Math.abs(found.x + found.width / 2 - (heads[i].x + heads[i].width / 2)), `${where}: the bar of ${dayHeads[i]} is over its head`).toBeLessThanOrEqual(1)
+      expect(found.y + found.height, `${where}: the bar of ${dayHeads[i]} ends where its head begins`).toBeLessThanOrEqual(heads[i].y + 1)
+      expect(found.width, `${where}: the width of a bar`).toBeGreaterThanOrEqual(24)
+      expect(found.height, `${where}: the height of a bar`).toBeGreaterThanOrEqual(44)
     }
+    // the count is written in each bar: 4 6 6 7 10 15 2 (the totals of the stub)
+    const totals = HOME_DAYS.map((_, i) => HOME_PROVIDERS.reduce((sum, p) => sum + p.counts[i], 0))
+    for (const [i, day] of HOME_DAYS.entries()) await expect(homeBar(page, day), `${where}: the count of ${dayHeads[i]}`).toContainText(String(totals[i]))
+    await expect(homeCard(page).getByText(`${totals.reduce((a, b) => a + b, 0)} ביקורים`, { exact: true }), `${where}: the total of the seven days`).toBeVisible()
 
-    // Every cell that has visits is a target of at least 24 by 24 (T1), and 44 high.
-    const links = await homeTable(page).getByRole('link').all()
-    expect(links.length, `${where}: cells with visits`).toBeGreaterThan(10)
-    for (const link of links) {
-      const found = await box(link)
-      expect(found.width, `${where}: the width of a cell link`).toBeGreaterThanOrEqual(24)
-      expect(found.height, `${where}: the height of a cell link`).toBeGreaterThanOrEqual(44)
+    // Every provider is one row and one link, at least 44 high; so is every tile and every row of the short list.
+    for (const p of HOME_PROVIDERS) {
+      const row = homeRow(page, p.name)
+      await expect(row.getByRole('link'), `${where}: the row of ${p.name} is one link`).toHaveCount(1)
+      expect((await box(row.getByRole('link'))).height, `${where}: the row of ${p.name}`).toBeGreaterThanOrEqual(44)
     }
-    // the six cards (the stub has phones that wait, so the sixth is there): each is one link, and at least 44 high
+    // the four tiles (the stub has phones that wait, so the fourth is there) and the two rows: each is one link, and at least 44 high
     for (const label of [/נותני שירות פעילים/, /נקודות פעילות/, /ביקורים שלא נקלטו/, /טלפונים עם ביקורים/, /חברי הוועד/, /מפתחות אייג'נט פעילים/]) {
-      expect((await box(page.getByRole('main').getByRole('link', { name: label }))).height, `${where}: the card ${label}`).toBeGreaterThanOrEqual(44)
+      expect((await box(page.getByRole('main').getByRole('link', { name: label }))).height, `${where}: the link ${label}`).toBeGreaterThanOrEqual(44)
     }
 
-    // Nothing scrolls sideways, the box of the table included: it fits, and its own scrolling is only for what could not.
+    // Nothing scrolls sideways, and nothing in the card is wider than the card.
     expect(await noHorizontalScroll(page), `${where}: the page`).toBe(true)
-    const { scrollWidth, clientWidth } = await page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).evaluate((el) => ({ scrollWidth: el.scrollWidth, clientWidth: el.clientWidth }))
-    expect(scrollWidth, `${where}: the box of the table`).toBeLessThanOrEqual(clientWidth + 1)
+    const card = await box(homeCard(page))
+    for (const found of [...heads, ...bars]) {
+      expect(found.x, `${where}: inside the card, at the right`).toBeGreaterThanOrEqual(card.x - 1)
+      expect(found.x + found.width, `${where}: inside the card, at the left`).toBeLessThanOrEqual(card.x + card.width + 1)
+    }
   }
+})
+
+test('the focus ring of a bar of Home is the colour of the text on the card, the one that can be seen on it, in the light theme and the dark one', async ({ page }) => {
+  await stubHome(page)
+  await adminSignIn(page, 'home')
+  for (const scheme of ['light', 'dark']) {
+    await page.emulateMedia({ colorScheme: scheme })
+    await expect(page.locator('html')).toHaveAttribute('data-theme', scheme)
+    const bar = homeBar(page, HOME_DAYS[2])
+    // The Tab key goes first, so that the focus that follows is a keyboard's and :focus-visible applies (WebKit's Tab key does not stop at
+    // links, as Safari's does not, so the focus of the bar itself is given by the script).
+    await page.keyboard.press('Tab')
+    await bar.focus()
+    await expect(bar).toBeFocused()
+    expect(await bar.evaluate((el) => el.matches(':focus-visible')), `${scheme}: the ring is drawn for a keyboard`).toBe(true)
+    const { ring, text, card } = await bar.evaluate((el) => {
+      const hero = el.closest('section')
+      return { ring: getComputedStyle(el).outlineColor, text: getComputedStyle(hero).color, card: getComputedStyle(hero).backgroundColor }
+    })
+    expect(ring, `${scheme}: the ring is the colour of the text on the card`).toBe(text)
+    expect(ring, `${scheme}: and it is not the colour of the card (the light theme's --w-focus is, 1:1)`).not.toBe(card)
+    expect(await bar.evaluate((el) => getComputedStyle(el).outlineStyle)).toBe('solid')
+  }
+  await page.emulateMedia({ colorScheme: 'light' })
 })
 
 test('the window crossing 1024 px while on Home keeps the screen as it is: the same table, no loading state, no new request', async ({ page }) => {
@@ -1465,17 +1506,22 @@ test('the window crossing 1024 px while on Home keeps the screen as it is: the s
   const table = await homeTable(page).elementHandle()
   const before = requests
   const loading = page.getByRole('status').filter({ hasText: 'טוען' })
-  for (const width of [1280, 800, 1280, 360]) {
+  for (const width of [1280, 1024, 1023, 800, 1280, 360, 320]) {
     await page.setViewportSize({ width, height: 900 })
     await expect(homeTable(page)).toBeVisible()
     await expect(loading).toHaveCount(0)
     await expect(page.getByRole('navigation', { name: width < 1024 ? 'ניווט ראשי (טלפון)' : 'ניווט ראשי', exact: true }).getByRole('button', { name: 'בית', exact: true })).toHaveAttribute('aria-current', 'page')
+    expect(await noHorizontalScroll(page), `no sideways scroll at ${width}`).toBe(true)
+    // the card and the providers: side by side from 1024 px, one under the other below it
+    const [card, providers] = await Promise.all([box(homeCard(page)), box(homeProviders(page))])
+    if (width >= 1024) expect(Math.abs(card.y - providers.y), `side by side at ${width}`).toBeLessThanOrEqual(1)
+    else expect(providers.y, `one under the other at ${width}`).toBeGreaterThan(card.y + card.height)
   }
   expect(await table.evaluate((el) => el.isConnected), 'the table is the same element, not drawn again').toBe(true)
   expect(requests, 'no request for the numbers').toBe(before)
 })
 
-test('a cell of Home opens the History of exactly those visits, a total opens everyone\'s, and Back returns to Home, on a phone and on a computer', async ({ page, playwright }) => {
+test('a bar of Home opens the History of exactly those visits, a provider opens its week, "לכל ההיסטוריה" opens everyone\'s, and Back returns to Home, on a phone and on a computer', async ({ page, playwright }) => {
   const tag = randomUUID().slice(0, 6)
   await adminSignIn(page)
   // two visits of Ploni today, at two throwaway points (a second visit at the same point would be in the cooldown), through the real server
@@ -1497,30 +1543,46 @@ test('a cell of Home opens the History of exactly those visits, a total opens ev
     for (const size of [null, COMPUTER]) {
       if (size) await page.setViewportSize(size)
       const where = size ? 'computer' : 'phone'
+      const providerFilterOn = async () => {
+        if (isPhoneLayout(page)) return (await page.getByRole('button', { name: /^הסרת סינון: נותן שירות/ }).count()) > 0
+        return (await page.getByLabel('נותן שירות').inputValue()) !== ''
+      }
 
-      // Ploni's cell for today (the last column) says 2, and opens the History of Ploni on that day: two rows, nothing else
+      // Today's bar (the last link of the card) says 2 and opens the History of that day for everyone: the two visits, nothing else
       await page.goto('/admin#home')
       await expect(homeTable(page)).toBeVisible()
-      const cell = homeRow(page, PEOPLE.ploni.name).getByRole('cell').last()
-      await expect(cell, `${where}: today's cell of Ploni`).toHaveText('2')
-      await cell.getByRole('link').click()
+      const today = homeTable(page).getByRole('link').last()
+      await expect(today, `${where}: today's bar of the building`).toContainText('2')
+      await expect(today).toHaveAccessibleName(/: 2 ביקורים$/)
+      await today.click()
       await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
       await expect(historyRows(page).filter({ hasText: tag }), `${where}: the two visits`).toHaveCount(2)
       await expect(historyRows(page), `${where}: and no other row`).toHaveCount(2)
       await expect(page, `${where}: the address of the link is tidied`).toHaveURL(/#history$/)
+      expect(await providerFilterOn(), `${where}: a day is for everyone, no provider filter`).toBe(false)
+
+      // Back is Home, and the row of Ploni opens the History of Ploni for the seven days: exactly as many rows as the row counts
+      await page.goBack()
+      await expect(homeTable(page)).toBeVisible()
+      const row = homeRow(page, PEOPLE.ploni.name)
+      const counted = Number(/(\d+)(?:ביקורים|ביקור)$/.exec((await row.textContent()) ?? '')?.[1])
+      expect(counted, `${where}: the total of Ploni's row`).toBeGreaterThanOrEqual(2)
+      await row.getByRole('link').click()
+      await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
+      await expect(historyRows(page).filter({ hasText: tag }), `${where}: the two visits, and the rows are all Ploni's`).toHaveCount(2)
+      await expect(historyRows(page), `${where}: as many rows as the total of the row`).toHaveCount(counted)
       if (isPhoneLayout(page)) await expect(page.getByRole('button', { name: /^הסרת סינון: נותן שירות/ })).toBeVisible()
       else await expect(page.getByLabel('נותן שירות')).toHaveValue(ploni.id)
 
-      // Back is Home, and the total of today opens everyone's visits of that day: the same two
+      // Back is Home, and "לכל ההיסטוריה" opens everyone's visits of the seven days: as many rows as the total of the card
       await page.goBack()
       await expect(homeTable(page)).toBeVisible()
-      const total = homeTotals(page).getByRole('cell').last()
-      await expect(total, `${where}: today's total`).toHaveText('2')
-      await total.getByRole('link').click()
+      const total = Number(/^(\d+) ביקור/.exec((await homeCard(page).getByText(/^\d+ ביקור(ים)?$/).textContent()) ?? '')?.[1])
+      expect(total, `${where}: the total of the card`).toBeGreaterThanOrEqual(2)
+      await homeProviders(page).getByRole('link', { name: 'לכל ההיסטוריה' }).click()
       await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
-      await expect(historyRows(page), `${where}: the visits of the day`).toHaveCount(2)
-      if (isPhoneLayout(page)) await expect(page.getByRole('button', { name: /^הסרת סינון: נותן שירות/ })).toHaveCount(0)
-      else await expect(page.getByLabel('נותן שירות')).toHaveValue('')
+      await expect(historyRows(page), `${where}: as many rows as the total of the card`).toHaveCount(total)
+      expect(await providerFilterOn(), `${where}: everyone's, no provider filter`).toBe(false)
     }
   } finally {
     await phone.dispose()
@@ -1528,11 +1590,12 @@ test('a cell of Home opens the History of exactly those visits, a total opens ev
   }
 })
 
-test('the cards of Home open their screens, and each number is the one that screen shows, on a phone and on a computer', async ({ page }) => {
+test('the tiles and the rows of Home open their screens, and each number is the one that screen shows, on a phone and on a computer', async ({ page }) => {
   await adminSignIn(page, 'home')
+  // A tile reads "<number><label>[מתוך <total>]", a row of the short list "<label><number>".
   const numbers = async (label) => {
     const text = (await page.getByRole('main').getByRole('link', { name: label }).textContent()) ?? ''
-    const [, number, total] = /^(\d+).*?(?:מתוך (\d+))?$/.exec(text) ?? []
+    const [, number, total] = /^(\d+).*?(?:מתוך (\d+))?$/.exec(text) ?? /(\d+)$/.exec(text) ?? []
     return { number: Number(number), total: total === undefined ? undefined : Number(total) }
   }
   for (const size of [null, COMPUTER]) {
@@ -1549,12 +1612,12 @@ test('the cards of Home open their screens, and each number is the one that scre
 
     let shown = await openCard(/נותני שירות פעילים/)
     await expect(page.getByRole('heading', { level: 1, name: 'נותני שירות' })).toBeVisible()
-    await expect(page.getByRole('article'), `${where}: every provider the card counts`).toHaveCount(shown.total)
+    await expect(page.getByRole('article'), `${where}: every provider the tile counts`).toHaveCount(shown.total)
     await expect(page.getByRole('article').getByText('פעיל', { exact: true }), `${where}: the active ones`).toHaveCount(shown.number)
 
     shown = await openCard(/נקודות פעילות/)
     await expect(page.getByRole('heading', { level: 1, name: 'נקודות סריקה' })).toBeVisible()
-    await expect(page.getByRole('article'), `${where}: every point the card counts`).toHaveCount(shown.total)
+    await expect(page.getByRole('article'), `${where}: every point the tile counts`).toHaveCount(shown.total)
     await expect(page.getByRole('article').getByText('פעילה', { exact: true }), `${where}: the active ones`).toHaveCount(shown.number)
 
     shown = await openCard(/חברי הוועד/)
@@ -1565,7 +1628,7 @@ test('the cards of Home open their screens, and each number is the one that scre
     await expect(page.getByRole('heading', { level: 1, name: "גישה לאייג'נט" })).toBeVisible()
     await expect(page.getByRole('article').getByText('פעיל', { exact: true }), `${where}: the keys that are not cancelled`).toHaveCount(shown.number)
 
-    // the visits that were not counted: the History of the seven days, of the type "not counted", with exactly the rows the card says
+    // the visits that were not counted: the History of the seven days, of the type "not counted", with exactly the rows the tile says
     shown = await openCard(/ביקורים שלא נקלטו/)
     await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
     if (shown.number === 0) await expect(page.getByRole('heading', { level: 2, name: 'אין ביקורים שלא נקלטו בטווח הזה' })).toBeVisible()
@@ -1575,19 +1638,20 @@ test('the cards of Home open their screens, and each number is the one that scre
   }
 })
 
-test('the cell of a provider that was deleted opens the History filtered to it, and the filter says so, on a phone and on a computer', async ({ page }) => {
+test('the row of a provider that was deleted opens the History filtered to it, and the filter says so, on a phone and on a computer', async ({ page }) => {
   await stubHome(page) // its week has a provider that is no longer in the list of providers (its visits stay), and one that is switched off
   await adminSignIn(page, 'home')
   const gone = HOME_PROVIDERS.find((p) => p.company === null)
+  const off = HOME_PROVIDERS.find((p) => p.company !== null && !p.is_active)
   for (const size of [null, COMPUTER]) {
     if (size) await page.setViewportSize(size)
     const where = size ? 'computer' : 'phone'
     await page.goto('/admin#home')
+    await expect(homeRow(page, off.name), `${where}: the row of the provider that is off says so`).toContainText('מושבת')
     const row = homeRow(page, gone.name)
-    await expect(row.getByRole('rowheader'), `${where}: the row says it was deleted`).toContainText('נותן שירות שנמחק')
-    const cell = row.getByRole('cell').nth(gone.counts.findIndex((n) => n > 0))
-    await expect(cell).toHaveText(String(Math.max(...gone.counts)))
-    await cell.getByRole('link').click()
+    await expect(row, `${where}: the row says it was deleted`).toContainText('נותן שירות שנמחק')
+    await expect(row.getByRole('link'), `${where}: its total`).toContainText(String(gone.counts.reduce((a, b) => a + b, 0)))
+    await row.getByRole('link').click()
     await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
     // the filter is on, in plain sight, and never widened to everyone's visits
     if (isPhoneLayout(page)) await expect(page.getByRole('button', { name: 'הסרת סינון: נותן שירות שנמחק' })).toBeVisible()

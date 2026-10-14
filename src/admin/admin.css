@@ -121,56 +121,120 @@
 .a-grid { display: grid; gap: var(--w-space-3-5); grid-template-columns: repeat(auto-fill, minmax(min(100%, 320px), 1fr)); }
 
 /* ----- the home screen (src/admin/views/HomeView.jsx) ----- */
-.a-home { display: flex; flex-direction: column; gap: var(--w-space-6); }
-.a-home__title { font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); line-height: 1.2; margin-block-end: var(--w-space-3); }
-/* The week table: a row for each provider, a column for each day. When the table is wider than the screen it scrolls inside this box and
-   the page does not; the box takes the focus (axe: scrollable-region-focusable), and the provider's name stays in place at its start while
-   the days move. The box starts at today (HomeView scrolls it there), the end of the row. */
-.a-week { position: relative; overflow-x: auto; background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); }
-/* On a phone the box runs from edge to edge of the screen (it takes back the padding of the page), so that the seven days have room for their
-   dates; the box has no side edges there. From 1024px it is a rounded box inside the page. */
-@media (max-width: 1023px) { .a-week { margin-inline: calc(-1 * var(--w-space-5)); border-inline-width: 0; border-radius: 0; } }
-.a-week:focus-visible { outline-offset: -3px; } /* inside the box: the box clips an outline that is drawn outside it */
-.a-week table { width: 100%; border-collapse: separate; border-spacing: 0; }
-/* :where() gives this rule no weight of its own, so the classes below decide the padding and the weight of each kind of cell. */
-:where(.a-week th, .a-week td) { padding: 0; border-block-end: 1px solid var(--w-border); font-weight: var(--w-weight-regular); }
-.a-week tbody tr:last-child > *, .a-week tfoot tr > * { border-block-end: 0; }
-/* The range of the table, in full, above its heads: DD/MM/YYYY to DD/MM/YYYY, as the filter bar of the History says it. */
-.a-week__range { caption-side: top; padding: var(--w-space-2-5) var(--w-space-3); color: var(--w-text-2); font-size: var(--w-font-md); text-align: start; border-block-end: 1px solid var(--w-border); }
-.a-week__who { position: sticky; inset-inline-start: 0; z-index: 1; width: 64px; min-width: 64px; padding: var(--w-space-1-5); background: var(--w-surface); border-inline-end: 1px solid var(--w-border); text-align: start; }
-.a-week__name { display: block; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
-.a-week__company { display: block; color: var(--w-text-2); font-size: var(--w-font-xs); overflow-wrap: anywhere; }
-.a-week__who .a-badge { margin-block-start: var(--w-space-0-5); padding-inline: var(--w-space-1-5); white-space: normal; text-align: center; }
-/* The name column is as wide as the screen can spare: the days keep their 36px, and what is left goes to the name (a long name wraps inside it). */
-@media (min-width: 360px) { .a-week__who { width: 96px; min-width: 96px; } }
-@media (min-width: 640px) { .a-week__who { width: 144px; min-width: 144px; } }
-/* Seven heads and seven counts fit 320px beside the 64px name column only when each column needs 36.5px or less. Rubik's figures are
-   wider than Heebo's (a head "08/10" in 13px semibold is 40.6px, a total of three digits in 17px bold 37.8px with its padding), so a head is
-   12px regular (35.5px) and a count 16px (35.8px in bold). Measured in Chromium and WebKit; e2e/reflow.spec.js holds the table to 320px. */
-.a-week__day { min-width: 36px; padding-block: var(--w-space-2); color: var(--w-text-2); font-size: var(--w-font-2xs); font-weight: var(--w-weight-regular); text-align: center; }
-.a-week__cell { min-width: 36px; padding: var(--w-space-0-5); text-align: center; }
-.a-week tfoot > tr > * { border-block-start: 1px solid var(--w-border); background: var(--w-surface-2); }
-.a-week tfoot .a-week__who { font-weight: var(--w-weight-semibold); }
-/* A number of visits. The step (1 to 4) deepens the background; the number is always written, so colour is never the only carrier (V2). */
-.a-count {
-  display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: var(--w-radius-sm);
-  color: var(--w-text); font-size: var(--w-font-base); font-weight: var(--w-weight-semibold); font-variant-numeric: tabular-nums; text-decoration: none;
+/* One column on a phone, in the order of the page: the summary card, the providers, the tiles, the short list. From 1024px the summary card
+   and the providers stand side by side, in halves (the content is 696px wide at 1024px, and a provider row needs about 290px for its seven
+   dots), and from 1280px the card has three fifths of the row, as the design canvas draws it. The tiles and the list take the rows under them. */
+.a-home { display: flex; flex-direction: column; gap: var(--w-space-5); }
+@media (min-width: 1024px) {
+  .a-home { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; }
+  .a-tiles, .a-links { grid-column: 1 / -1; }
 }
-.a-count--1 { background: var(--w-count-1); }
-.a-count--2 { background: var(--w-count-2); }
-.a-count--3 { background: var(--w-count-3); }
-.a-count--4 { background: var(--w-count-4); }
-.a-count--total { font-weight: var(--w-weight-bold); }
-.a-count:focus-visible { outline-offset: -3px; } /* inside the cell: the box of the table clips an outline that is drawn outside it */
-@media (hover: hover) { .a-count:hover { box-shadow: inset 0 0 0 2px var(--w-info); } }
-/* The cards: two columns on a phone, three from 768px. Each card is one link; its number is the biggest thing in it. */
-.a-grid--stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-@media (min-width: 768px) { .a-grid--stats { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.a-stat { gap: var(--w-space-1); min-height: 44px; color: var(--w-text); text-decoration: none; }
-@media (hover: hover) { .a-stat:hover { background: var(--w-surface-2); } }
-.a-stat__value { font-size: var(--w-font-4xl); font-weight: var(--w-weight-bold); line-height: 1.1; font-variant-numeric: tabular-nums; }
-.a-stat__label { color: var(--w-text-2); overflow-wrap: anywhere; }
-.a-stat__note { color: var(--w-text-3); font-size: var(--w-font-md); overflow-wrap: anywhere; }
+@media (min-width: 1280px) {
+  .a-home { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .a-hero { grid-column: span 3; }
+  .a-prov { grid-column: span 2; }
+}
+
+/* The summary card (--w-hero and the text on it, --w-on-hero, 4.5:1 in both themes). Everything on it is --w-on-hero: the focus ring too,
+   because --w-focus on --w-hero is 1:1 in the light theme. */
+.a-hero { position: relative; display: flex; flex-direction: column; gap: var(--w-space-3-5); padding: var(--w-space-5); border-radius: var(--w-radius-4xl); background: var(--w-hero); color: var(--w-on-hero); box-shadow: var(--w-shadow-raised); }
+@media (min-width: 1024px) { .a-hero { padding: var(--w-space-6); } }
+.a-hero a:focus-visible { outline-color: var(--w-on-hero); }
+.a-hero h2 { font-size: var(--w-font-base); font-weight: var(--w-weight-medium); }
+/* The range stands right above the bars (the #202 exception for the DD/MM heads asks for it, and tests/dates.test.js holds the order): it is
+   the element before the table, with only 6px of the card's 14px gap under it, so that it reads as the line of the bars (the two classes:
+   `.a-app p` resets the margin of a paragraph with more weight than one class). */
+.a-hero .a-hero__range { font-size: var(--w-font-xs); margin-block-end: calc(-1 * var(--w-space-2)); }
+.a-hero__total { display: flex; align-items: baseline; gap: var(--w-space-2); font-size: var(--w-font-xl); }
+.a-hero__num { font-size: calc(var(--w-font-4xl) * 1.7); font-weight: var(--w-weight-bold); line-height: 1; font-variant-numeric: tabular-nums; }
+
+/* The days: seven equal columns. The heads come first in the markup (where a screen reader looks for them) and are drawn under the bars. The
+   bars are in the cells; a bar's height is its number against the busiest day (--bar, 0 to 1) between a short stub and --a-bar-max. */
+.a-bars { --a-bar-max: 78px; --a-bar-min: 8px; width: 100%; table-layout: fixed; border-collapse: collapse; }
+.a-bars th, .a-bars td { padding: 0; }
+.a-bars thead { display: table-footer-group; }
+/* A head is 12px and a day is written DD/MM, about 36px wide in Rubik: it fits a column from a 340px phone up, and below that it breaks after
+   its slash (ShortDay), two short lines in a column of 34px. Today's head is bold. */
+.a-bars__head { padding-block-start: var(--w-space-2); font-size: var(--w-font-2xs); font-weight: var(--w-weight-regular); line-height: 1.2; text-align: center; }
+.a-bars__head[aria-current='date'] { font-weight: var(--w-weight-bold); }
+.a-bars__cell { vertical-align: bottom; }
+.a-bar { display: flex; flex-direction: column; align-items: center; justify-content: flex-end; gap: var(--w-space-1-5); height: 106px; border-radius: var(--w-radius-sm); color: inherit; text-decoration: none; }
+.a-bar__n { font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); line-height: 1.2; font-variant-numeric: tabular-nums; }
+/* The bar is --w-on-hero at 60%, which is 3:1 against --w-hero in both themes (tests/contrast.test.js reads this number), and the day of
+   today is the whole colour. The number above it is always written, so height and shade are never the only carriers. */
+.a-bar__fill { width: 100%; max-width: 30px; height: max(var(--a-bar-min), calc(var(--bar) * var(--a-bar-max))); border-radius: var(--w-radius-pill); background: var(--w-on-hero); opacity: 0.6; }
+.a-bar.is-today .a-bar__fill { opacity: 1; }
+@media (hover: hover) {
+  a.a-bar:hover .a-bar__fill { opacity: 1; }
+  a.a-bar:hover .a-bar__n { text-decoration: underline; }
+}
+@media (min-width: 1024px) {
+  .a-bars { --a-bar-max: 100px; }
+  .a-bar { height: 130px; }
+  .a-bar__n { font-size: var(--w-font-md); }
+  .a-bar__fill { max-width: 44px; }
+}
+/* The heads are 13px only where the card is wide (3/5 of the row): at 1024px it is a half, with 43px columns, and 13px heads would touch. */
+@media (min-width: 1280px) { .a-bars__head { font-size: var(--w-font-xs); } }
+
+/* The providers of the week: a card of rows on a phone; from 1024px the section is the card (the design canvas), and the list has no card of its own. */
+.a-prov { display: flex; flex-direction: column; gap: var(--w-space-3); }
+.a-prov__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--w-space-3); }
+.a-prov h2 { font-size: var(--w-font-3xl); font-weight: var(--w-weight-semibold); line-height: 1.2; }
+.a-prov__all { display: inline-flex; align-items: center; min-height: 44px; padding-inline: var(--w-space-2); color: var(--w-info); font-weight: var(--w-weight-medium); text-decoration: none; white-space: nowrap; }
+.a-prov__list { list-style: none; margin: 0; padding: var(--w-space-1-5); display: flex; flex-direction: column; background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); }
+@media (min-width: 1024px) {
+  .a-prov { padding: var(--w-space-5); border-radius: var(--w-radius-4xl); background: var(--w-surface); box-shadow: var(--w-shadow); gap: var(--w-space-1-5); }
+  .a-prov__list { padding: 0; border-radius: 0; background: none; box-shadow: none; }
+}
+.a-prov__row { display: flex; align-items: center; gap: var(--w-space-3); min-height: 56px; padding: var(--w-space-3) var(--w-space-2-5); border-radius: var(--w-radius-2xl); color: inherit; text-decoration: none; }
+@media (hover: hover) { .a-prov__row:hover, .a-links__row:hover { background: var(--w-surface-2); } .a-prov__all:hover { text-decoration: underline; } }
+/* The mark before the name: a tint and its ink (the pairs of tests/contrast.test.js), or the grey of a provider that is off or was deleted. */
+.a-prov__avatar { flex: none; width: 42px; height: 42px; display: grid; place-items: center; border-radius: var(--w-radius-pill); font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); background: var(--w-tint-violet); color: var(--w-tint-violet-ink); }
+.a-prov__avatar--mint { background: var(--w-tint-mint); color: var(--w-tint-mint-ink); }
+.a-prov__avatar--peach { background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
+.a-prov__avatar--sky { background: var(--w-tint-sky); color: var(--w-tint-sky-ink); }
+.a-prov__avatar--off { background: var(--w-surface-2); color: var(--w-text-2); }
+.a-prov__main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--w-space-1-5); }
+.a-prov__line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--w-space-1) var(--w-space-2); max-width: 100%; }
+.a-prov__name { min-width: 0; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.a-prov__company { max-width: 100%; color: var(--w-text-2); font-size: var(--w-font-xs); overflow-wrap: anywhere; }
+/* A dot for each day, the oldest at the start: a filled dot for a day with a visit, a ring for a day without one (shape as well as colour,
+   3:1 against the card), and a halo around the dot of today. */
+.a-dots { display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); }
+.a-dot { width: 12px; height: 12px; border: 2px solid var(--w-field-border); border-radius: var(--w-radius-pill); }
+.a-dot.is-on { border-color: var(--w-primary); background: var(--w-primary); }
+.a-dot.is-today { box-shadow: 0 0 0 2px var(--w-surface), 0 0 0 4px var(--w-focus-ring); }
+.a-prov__total { flex: none; display: flex; flex-direction: column; align-items: center; }
+.a-prov__num { font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.a-prov__unit { color: var(--w-text-2); font-size: var(--w-font-2xs); }
+
+/* The tiles: two columns on a phone, as many as fit from 768px. Each is one link; its number is the biggest thing in it. Four tones (the
+   pairs of tests/contrast.test.js): violet, the plain surface, peach and sky. */
+.a-tiles { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--w-space-3); }
+@media (min-width: 768px) { .a-tiles { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: var(--w-space-5); } }
+.a-tile { min-height: 120px; display: flex; flex-direction: column; gap: var(--w-space-1); padding: var(--w-space-4); border-radius: var(--w-radius-3xl); background: var(--w-tint-violet); color: var(--w-tint-violet-ink); text-decoration: none; }
+.a-tile--plain { background: var(--w-surface); color: var(--w-text); box-shadow: var(--w-shadow); }
+.a-tile--peach { background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
+.a-tile--sky { background: var(--w-tint-sky); color: var(--w-tint-sky-ink); }
+@media (hover: hover) { .a-tile:hover { box-shadow: inset 0 0 0 2px var(--w-info-line); } .a-tile--plain:hover { box-shadow: var(--w-shadow), inset 0 0 0 2px var(--w-info-line); } }
+.a-tile__value { font-size: var(--w-font-4xl); font-weight: var(--w-weight-bold); line-height: 1.1; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.a-tile__label { font-size: var(--w-font-md); font-weight: var(--w-weight-medium); line-height: 1.35; overflow-wrap: anywhere; }
+.a-tile__note { font-size: var(--w-font-xs); overflow-wrap: anywhere; }
+.a-tile--plain .a-tile__note { color: var(--w-text-2); }
+
+/* The short list: the committee's members and the agent's keys, a row each (two columns from 1024px). */
+.a-links { list-style: none; margin: 0; padding: var(--w-space-1) var(--w-space-1-5); display: flex; flex-direction: column; background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); }
+.a-links > li + li { border-block-start: 1px solid var(--w-border); }
+.a-links__row { display: flex; align-items: center; gap: var(--w-space-3); min-height: 52px; padding-inline: var(--w-space-3); border-radius: var(--w-radius-2xl); color: inherit; text-decoration: none; }
+.a-links__label { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.a-links__n { font-weight: var(--w-weight-semibold); font-variant-numeric: tabular-nums; }
+.a-links__row svg { flex: none; color: var(--w-text-3); }
+@media (min-width: 1024px) {
+  .a-links { flex-direction: row; }
+  .a-links > li { flex: 1 1 0; min-width: 0; }
+  .a-links > li + li { border-block-start: 0; border-inline-start: 1px solid var(--w-border); }
+}
 
 /* The button that deletes (or cancels a visit): a red tint with red text in both themes, the pair that tests/contrast.test.js holds to AA. */
 .w-btn--danger, .w-btn--danger:hover { background: var(--w-danger-bg); color: var(--w-danger); }

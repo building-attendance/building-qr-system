@@ -437,13 +437,15 @@ function committeeScreens(width) {
   })
 
   // Home, with a fixed week of visits (invented, `stubHome`) and the clock at ten in the morning of its last day: the greeting is "בוקר טוב" and the
-  // days of the table are the ones in the picture. The member is the sample one, "Dev Admin", so the greeting says "Dev".
+  // days of the card are the ones in the picture (today is the last of them, so its bar is the whole colour and its head is bold). The member
+  // is the sample one, "Dev Admin", so the greeting says "Dev".
   test('the home screen', async ({ page }) => {
     await page.clock.setFixedTime(new Date(HOME_NOW))
     await stubHome(page)
     await committeeSignedIn(page, 'home')
     await expect(page.getByRole('heading', { level: 1, name: 'בוקר טוב, Dev' })).toBeVisible()
-    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table').getByRole('link').first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'השבוע בבניין' }).getByRole('table').getByRole('link').first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'נותני שירות השבוע' }).getByRole('listitem').first()).toBeVisible()
     await shotBothThemes(page, `committee-${width}-home`)
   })
 
