@@ -8,7 +8,8 @@ icons, CI or the smoke test.
 
 Contents: [Setup](#one-time-setup-on-a-new-machine) | [How an E2E run is set up](#how-an-e2e-run-is-set-up) |
 [Running one spec, and reading a failure](#running-one-spec-or-one-project-and-reading-a-failure) |
-[Offline tests](#offline-tests) | [Accessibility](#accessibility) | [Visual regression](#visual-regression) |
+[Offline tests](#offline-tests) | [Accessibility](#accessibility) |
+[The page of the shared components](#the-page-of-the-shared-components) | [Visual regression](#visual-regression) |
 [Two E2E runs on one machine](#two-e2e-runs-on-one-machine) |
 [The icons](#the-icons) | [CI](#ci) | [The smoke test](#the-smoke-test) | [Timing a scan](#timing-a-scan) |
 [Timing the committee and agent API](#timing-the-committee-and-agent-api) |
@@ -46,6 +47,17 @@ The offline tests run on `android-chrome` only: Playwright's WebKit cannot take 
 through `expectNoA11yViolations` in `e2e/fixtures.js`. A new screen or dialog gets a scan there. A problem that is a design
 decision goes in `e2e/a11y-baseline.js` with its reason, matched exactly (screen, rule, element); an entry that no longer
 occurs, or names a screen that is not scanned, fails. Fix a violation rather than baseline it.
+
+## The page of the shared components
+
+A shared component of the committee app can be tested in a real browser before any screen uses it, and without the screens
+around it: `e2e/harness.js` builds the page in `e2e/harness/` with Vite (the app's own CSS and components, outside the app's
+build, into the run's cache folder; about a tenth of a second) and the test's page serves it to itself at `/__harness/`
+(`page.route`, so no server or port is added; the spec blocks service workers, as `e2e/a11y.spec.js` does). The page holds a
+card with the "more" menu (`Menu` in `src/admin/ui.jsx`), a box that clips, a tile at the bottom of the screen, every button,
+chip and field, and a dialog and a sheet; `?dir=ltr` lays it out left to right, and the theme follows the device. What jsdom
+cannot show is tested there: `e2e/components.spec.js` (the keys of the menu as the browser handles them, where it stands on the
+screen, the dialog at both widths) and the scans of the open menu in `e2e/a11y.spec.js`.
 
 ## Visual regression
 

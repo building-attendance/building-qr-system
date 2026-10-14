@@ -1,8 +1,8 @@
 import {
-  cloneElement, createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
+  Fragment, cloneElement, createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { IconAlert, IconCheck, IconX } from './icons.jsx'
+import { IconAlert, IconCheck, IconMore, IconX } from './icons.jsx'
 import { formatDay, parseDay, editDay } from '../../shared/datetime.js'
 
 const appRoot = () => document.querySelector('.a-app') ?? document.body // portals must stay inside .a-app (design tokens)
@@ -11,10 +11,10 @@ const appRoot = () => document.querySelector('.a-app') ?? document.body // porta
 
 /**
  * An action shown as just its icon: the app's way of offering the secondary actions on a tile and in a page header.
- * `label` is both the accessible name and the tooltip. The icon is grey and turns the palette blue on hover, while
- * pressed and on focus; there is no frame or fill.
+ * `label` is both the accessible name and the tooltip. The icon is grey and turns violet on hover, while pressed and on
+ * focus; there is no frame or fill.
  *   tone "default": grey.      tone "danger": red, used only for removing something.
- *   tone "primary": a filled blue round button, the single main action of a page (adding something).
+ *   tone "primary": a filled violet round button, the single main action of a page (adding something).
  * With `href` it is a link (a download), otherwise a button.
  */
 export function IconButton({ icon: Icon, label, onClick, tone = 'default', size = 24, href, download, disabled, ...rest }) {
@@ -115,9 +115,11 @@ export function useDirty(value) {
  * saving"; the question puts the person back in the form otherwise, with everything as it was. The close button and the
  * dialog's own Cancel button are chosen on purpose, so they call `onClose` at once.
  *
- * `size` is the width of the dialog on a computer: "sm", "md" (the default) or "lg". "sheet" is what a phone shows from the bottom (the screens
- * under "עוד", and the filters of the History tab and the audit log): it stays at the bottom of the screen at every width, with only its top
- * corners rounded, at most 480 px wide. A sheet with a footer (the filters) clears the home indicator under the footer, one without under its body.
+ * On a phone (below 640 px) every dialog is a sheet that rises from the bottom of the screen, with a handle at its top and the close
+ * button in its head (owner decision of 14/10/2026); on a computer it stands in the middle of the screen. `size` is its width there: "sm"
+ * or "md" (the default). "sheet" stays at the bottom at every width (the screens under "עוד", and the filters of the History tab and
+ * the audit log), at most 480 px wide. A sheet with a footer (the filters) clears the home indicator under the footer, one without under
+ * its body. The handle is only drawn (admin.css): the close button and a tap outside close the sheet, a swipe does not.
  *
  * `busy` says that the form's save is on its way: Esc and a tap outside then do nothing at all, and the close button is
  * disabled (a form disables its own Cancel the same way). The save closes the dialog itself when it works, and leaves the
@@ -220,7 +222,7 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
                 become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}
             <div className="a-modal__head">
               <h2 id={titleId}>{title}</h2>
-              <IconButton icon={IconX} label="סגירה" onClick={onClose} disabled={busy} />
+              <IconButton icon={IconX} label="סגירה" onClick={onClose} disabled={busy} size={20} />
             </div>
             <div className="a-modal__body">{children}</div>
             {footer && <div className="a-modal__foot">{footer}</div>}
@@ -237,6 +239,150 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
           danger
           onAnswer={(discard) => { setAsking(false); if (discard) closeRef.current() }}
         />
+      )}
+    </>
+  )
+}
+
+/* ------------------------------------------------------------ more menu */
+
+const MENU_GAP = 4 // px between the button and its menu
+const MENU_EDGE = 8 // px that the menu keeps from the edges of the screen
+
+/**
+ * The "more" button of a tile or a row, and the menu of actions that it opens: a tile shows its edit action, and every other action is
+ * in this menu (AGENTS.md, "Rules for every change"). It follows the menu button pattern of the WAI-ARIA Authoring Practices
+ * (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/).
+ *
+ * `label` names the button and its menu with the thing they act on ("עוד פעולות ללובי"): a screen reader goes through tiles that look
+ * alike, and the name tells them apart. It is the tooltip too. `items` are the actions, each `{ label, icon, onSelect, danger, disabled }`,
+ * in the order of the rule (the actions of the screen, then switch off / on); an entry that is false or null is left out, for an action
+ * that one tile has and another has not. The action that deletes is marked `danger`: it is red, after a separator and last, wherever it
+ * stands in `items`, so that no screen can put it anywhere else. A `disabled` item stays in the menu and takes the focus (a person can
+ * still read it), but choosing it does nothing. With no item at all there is no button.
+ *
+ * The keyboard: Enter, Space or the down arrow on the button opens the menu on its first item, the up arrow on its last. In the menu the
+ * up and down arrows go from item to item (past the last to the first, and back), Home and End to the first and the last, Enter and
+ * Space choose, Esc closes the menu and gives the focus back to the button (and closes nothing else: not the dialog that the menu may be
+ * in), and Tab closes it and goes on from the button. A tap or a click outside closes it as well, and gives the focus back to the button
+ * unless what was tapped takes the focus itself. Choosing an item closes the menu and gives the focus back to the button before the
+ * action runs, so the dialog that an action opens (a question before deleting) gives the focus back to the button when it closes.
+ *
+ * The menu is in the page right after its button, not in a portal: inside a dialog (aria-modal) a menu out of the dialog would be out of
+ * the reach of a screen reader. Its position is fixed, so a box that clips what it holds (the rounded list of the History) cannot cut
+ * it: it stands under the button with its end at the end of the button, over the button when there is no room under it, inside the screen.
+ */
+export function Menu({ label, items, icon: Icon = IconMore }) {
+  const [open, setOpen] = useState(false)
+  const buttonRef = useRef(null)
+  const menuRef = useRef(null)
+  const firstRef = useRef(0) // the item that takes the focus when the menu opens: 0 the first, -1 the last
+  const buttonId = useId()
+  const menuId = useId()
+  const listed = items.filter(Boolean)
+  const actions = [...listed.filter((item) => !item.danger), ...listed.filter((item) => item.danger)]
+
+  /** Closes the menu; `refocus` gives the focus back to the button. */
+  const hide = (refocus) => {
+    setOpen(false)
+    if (refocus) buttonRef.current?.focus()
+  }
+  const show = (first) => {
+    firstRef.current = first
+    setOpen(true)
+  }
+
+  // Where the menu stands, and the item that takes the focus: before the menu is painted. The place is worked out again when the page
+  // (or a box in it) scrolls or the window changes its size while the menu is open, because a fixed box does not move with the page.
+  useLayoutEffect(() => {
+    if (!open) return undefined
+    const menu = menuRef.current
+    const place = () => {
+      const button = buttonRef.current.getBoundingClientRect()
+      const { width, height } = menu.getBoundingClientRect()
+      const start = getComputedStyle(menu).direction === 'rtl' ? button.left : button.right - width // the end of the menu at the end of the button
+      const below = button.bottom + MENU_GAP
+      const above = button.top - MENU_GAP - height
+      menu.style.left = `${Math.max(MENU_EDGE, Math.min(start, document.documentElement.clientWidth - MENU_EDGE - width))}px`
+      menu.style.top = `${below + height <= window.innerHeight - MENU_EDGE || above < MENU_EDGE ? below : above}px`
+    }
+    place()
+    const entries = menu.querySelectorAll('[role="menuitem"]')
+    entries[firstRef.current < 0 ? entries.length - 1 : 0].focus()
+    // A tap or a click outside the menu and its button closes the menu. On something that takes no focus (text, the page) the focus goes
+    // back to the button, and the press is kept from taking it away again: the browser moves the focus to the page on a press there.
+    // (mousedown and not pointerdown: a phone sends it for a tap and not for the touch that starts a scroll, and it is the event whose
+    // default moves the focus.)
+    const outside = (e) => {
+      if (menu.contains(e.target) || buttonRef.current.contains(e.target)) return
+      setOpen(false)
+      if (e.target.closest?.(FOCUSABLE)) return
+      e.preventDefault()
+      buttonRef.current.focus()
+    }
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true) // true: the scroll of a box inside the page moves the button too
+    document.addEventListener('mousedown', outside)
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+      document.removeEventListener('mousedown', outside)
+    }
+  }, [open])
+
+  const onButtonKey = (e) => {
+    if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return // Enter and Space click the button
+    e.preventDefault()
+    show(e.key === 'ArrowUp' ? -1 : 0)
+  }
+  const onMenuKey = (e) => {
+    const entries = [...menuRef.current.querySelectorAll('[role="menuitem"]')]
+    const at = entries.indexOf(document.activeElement)
+    const go = (i) => {
+      e.preventDefault() // the arrows, Home and End must not scroll the page
+      entries[(i + entries.length) % entries.length].focus()
+    }
+    if (e.key === 'ArrowDown') go(at + 1)
+    else if (e.key === 'ArrowUp') go(at < 0 ? -1 : at - 1)
+    else if (e.key === 'Home') go(0)
+    else if (e.key === 'End') go(-1)
+    else if (e.key === 'Escape') {
+      e.preventDefault()
+      e.stopPropagation() // the dialog that the menu may sit in listens for Esc on the document: only the menu closes
+      hide(true)
+    } else if (e.key === 'Tab') hide(true) // not prevented: the browser moves the focus on from the button
+  }
+  const choose = (item) => {
+    if (item.disabled) return
+    hide(true)
+    item.onSelect()
+  }
+
+  if (!actions.length) return null
+  return (
+    <>
+      <button
+        ref={buttonRef} type="button" id={buttonId} className="a-menu-btn" aria-label={label} title={label}
+        aria-haspopup="menu" aria-expanded={open} aria-controls={open ? menuId : undefined}
+        onClick={() => (open ? hide(true) : show(0))} onKeyDown={onButtonKey}
+      >
+        <Icon size={22} />
+      </button>
+      {open && (
+        <div ref={menuRef} id={menuId} className="a-menu" role="menu" aria-labelledby={buttonId} onKeyDown={onMenuKey}>
+          {actions.map((item, i) => (
+            <Fragment key={item.label}>
+              {item.danger && i > 0 && !actions[i - 1].danger && <div className="a-menu__sep" role="separator" />}
+              <button
+                type="button" role="menuitem" tabIndex={-1} className={`a-menu__item${item.danger ? ' a-menu__item--danger' : ''}`}
+                aria-disabled={item.disabled || undefined} onClick={() => choose(item)}
+              >
+                {item.icon && <item.icon size={20} />}
+                <span>{item.label}</span>
+              </button>
+            </Fragment>
+          ))}
+        </div>
       )}
     </>
   )

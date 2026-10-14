@@ -61,7 +61,7 @@ const ALLOWED = {
   'connect-src': ["'self'", 'https://accounts.google.com/gsi/'],
   // The frame of Google's sign-in button.
   'frame-src': ['https://accounts.google.com/gsi/'],
-  // Heebo comes with the app (@fontsource-variable/heebo).
+  // Rubik comes with the app (@fontsource-variable/rubik).
   'font-src': ["'self'"],
   'manifest-src': ["'self'"],
   // The service worker (sw.js, and the workbox file that it imports).

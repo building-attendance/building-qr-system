@@ -70,7 +70,7 @@ test.describe('light and dark', () => {
 
     await page.getByLabel(he['theme.label']).selectOption('light')
     await expect(theme).toHaveAttribute('data-theme', 'light')
-    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(244, 245, 247)')
+    await expect(page.locator('body')).toHaveCSS('background-color', 'rgb(247, 245, 255)')
 
     await page.reload()
     await expect(theme).toHaveAttribute('data-theme', 'light') // remembered, though the device is still dark

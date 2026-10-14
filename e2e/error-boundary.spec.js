@@ -119,7 +119,7 @@ test('the broken screen speaks the language and wears the theme that the person 
     const box = el.closest('[lang]')
     return { lang: box.getAttribute('lang'), dir: box.getAttribute('dir'), background: getComputedStyle(box).backgroundColor }
   })
-  expect(root).toEqual({ lang: 'en', dir: 'ltr', background: 'rgb(244, 245, 247)' }) // the light page background, --w-bg
+  expect(root).toEqual({ lang: 'en', dir: 'ltr', background: 'rgb(247, 245, 255)' }) // the light page background, --w-bg
 
   await page.setViewportSize(COMPUTER)
   await expect(heading).toBeVisible()

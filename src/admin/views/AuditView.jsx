@@ -226,7 +226,7 @@ export default function AuditView() {
 
       {cursor && status === 'ready' && (
         <div style={{ display: 'grid', placeItems: 'center', marginBlockStart: 'var(--w-space-4-5)' }}>
-          <button className="w-btn w-btn--ghost w-btn--small" onClick={more} disabled={busy}>{busy ? 'טוען…' : 'טעינת עוד'}</button>
+          <button className="w-btn w-btn--quiet w-btn--small" onClick={more} disabled={busy}>{busy ? 'טוען…' : 'טעינת עוד'}</button>
         </div>
       )}
     </>

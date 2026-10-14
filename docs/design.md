@@ -1,9 +1,10 @@
 # Design rules
 
-The rules for what a person sees and touches. The visual identity stays as it is (Heebo, the current colours): the
-focus is UX, forms, errors, states, right-to-left layout and consistency. Where every source comes from, and which ones
-were turned down: [`design/sources.md`](design/sources.md). What the apps measure today, and the pilots and sessions with
-users: [`design/baseline.md`](design/baseline.md) and [`design/research/`](design/research/).
+The rules for what a person sees and touches. The visual identity is direction B of the redesign (owner decision of
+14/10/2026): one typeface, Rubik, and a violet palette in a light and a dark theme (V1). It replaced Heebo and the blue
+palette. The focus of these rules is UX, forms, errors, states, right-to-left layout and consistency. Where every source
+comes from, and which ones were turned down: [`design/sources.md`](design/sources.md). What the apps measure today, and
+the pilots and sessions with users: [`design/baseline.md`](design/baseline.md) and [`design/research/`](design/research/).
 
 - **Scope:** every change to a screen, form, dialog, style or text a person sees, in both apps.
 - **Precedence when sources disagree:** `AGENTS.md` > WCAG > research (GOV.UK) > platform guidance (Apple HIG) > expert
@@ -181,7 +182,17 @@ controls, the QR code, logos or checkmarks.**
   a size that has a token is written as the token. The scales are consolidated (the rare radii and font sizes
   were folded into their neighbours), and a size that must keep its exact value, such as the room above the tab bar, is a
   named layout constant (`--w-layout-*`, next to them), so no literal is left in a spacing, radius or font-size declaration.
-  One typeface is already pinned.
+  The colours are tokens of each theme in `src/ui/ui.css` (the dark block, and the light one that sets every token again),
+  in these families: the surfaces (`--w-bg`, `--w-surface`, `--w-surface-2`, `--w-surface-3`); the lines (`--w-border`,
+  and `--w-field-border` with its `-hover`, 3:1 or more on every surface); the text (`--w-text`, `-2`, `-3`); the primary
+  colour (`--w-primary`, `-hover`) and the colour of the text on it (`--w-on-primary`, white in light and dark in dark,
+  because white on the light violet of the dark theme fails); the focus (`--w-focus`, `--w-focus-ring`); the four states,
+  each with its background and its line (`--w-success`, `--w-warn`, `--w-danger`, `--w-info`, `-bg`, `-line`); the
+  summary card and its text (`--w-hero`, `--w-on-hero`); four tints for tiles, chips and badges, each with the ink that is
+  read on it (`--w-tint-violet`, `-peach`, `-mint`, `-sky`, and `-ink`); the steps of the count cells (`--w-count-1` to
+  `4`); and the overlay and the three shadows (`--w-overlay`, `--w-shadow` for a card, `--w-shadow-raised` for the summary
+  card, `--w-shadow-pop` for a menu or a sheet). The page around the apps and the browser's bar take `--w-bg`. One
+  typeface, Rubik, is pinned, with every subset (Hebrew, Latin, Cyrillic, Arabic) in the offline precache.
 - **Source:** this project; Refactoring UI (the advice to fix the spacing, sizing and type scales in advance;
   [book](https://refactoringui.com/), expert opinion, paraphrased).
 - **Check:** `tests/contrast.test.js`, `tests/typography.test.js`, and `tests/design-css.test.js` (a literal of a size that

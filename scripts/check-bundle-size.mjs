@@ -32,11 +32,13 @@
 // plus about 10 percent, rounded up to a whole KiB (half a KiB for the provider app's CSS: a whole KiB would leave it more
 // than 20 percent under its budget, and the note below would print on every run); the budget for the number of files is the
 // measured number plus 2. On 14/10/2026 the map (Leaflet, with its stylesheet) and the QR library left the committee chunk for
-// lazy chunks of their own: the committee chunk's two budgets went down to its new size by the same rule, the lazy chunks got
-// budgets by the same rule (half a KiB for their CSS, for the reason above), and the number of files in the precache went up
-// by the four new files (the map's JavaScript and CSS, the QR library, and the small chunk of the bundler's own helpers that
-// the entry and those chunks now share), every file of the app being in the precache. JSON has no comments, so that is
-// written here. A budget is raised only in a pull request that says why, and the owner decides
+// lazy chunks of their own: the committee chunk's two budgets went down to its new size by the same rule (half a KiB for its
+// CSS, for the reason above), the lazy chunks got budgets by the same rule (half a KiB for their CSS too), and the number of
+// files in the precache went up by the four new files (the map's JavaScript and CSS, the QR library, and the small chunk of
+// the bundler's own helpers that the entry and those chunks now share), every file of the app being in the precache. The
+// precache's total went up by what the split costs (about 1.5 KB: each file is compressed on its own, and the helpers'
+// chunk is new), to the measured total rounded up to a whole KiB, the rule of its raise in #223. JSON has no comments, so
+// that is written here. A budget is raised only in a pull request that says why, and the owner decides
 // (AGENTS.md, "Testing" and the P1 review rules); it is lowered when the app gets smaller. The script and the budgets sit
 // under scripts/check-*, so the agent loop cannot change them (AGENTS.md, "The agent loop").
 //

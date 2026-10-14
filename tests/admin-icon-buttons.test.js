@@ -56,10 +56,10 @@ describe('icon button styling', () => {
     expect(css).not.toMatch(/\.a-icon-btn--danger:hover:not\(:disabled\)\s*\{[^}]*--w-info/)
   })
 
-  it('the primary one is a filled round button with white icon', () => {
+  it('the primary one is a filled round button with its icon in --w-on-primary (white in light, dark in dark)', () => {
     const primary = rule('.a-icon-btn--primary, .a-icon-btn--primary:focus-visible')
     expect(primary).toContain('background: var(--w-primary)')
-    expect(primary).toContain('color: #fff')
+    expect(primary).toContain('color: var(--w-on-primary)')
     expect(primary).toContain('border-radius: 50%')
   })
 })

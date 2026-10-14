@@ -42,7 +42,7 @@ export default function ThemeSwitch({ labels }) {
   return (
     <label className="w-theme w-theme--bare">
       <Icon size={24} />
-      {/* blur: after a choice the picker must not stay "focused", or the icon would stay blue */}
+      {/* blur: after a choice the picker must not stay "focused", or the icon would stay violet */}
       <select value={theme} onChange={(e) => { setTheme(e.target.value); e.target.blur() }} aria-label={labels.label}>
         {THEMES.map((value) => <option key={value} value={value}>{labels[value]}</option>)}
       </select>
