@@ -86,7 +86,8 @@ const COMMITTEE_LOADS =
   'import{a as r,b as s}from"./index-AAA111.js";' +
   'const M=r(()=>s(()=>import("./MapPicker-EEE555.js"),__vite__mapDeps([0,1,2])));' +
   'const Q=()=>s(()=>import("./browser-FFF666.js"),[]);\n'
-// The lazy chunks of the committee in the fake folder: the map (with its stylesheet) and the QR library.
+// The lazy chunks of the committee in the fake folder: the map (with its stylesheet) and a second one, so that the guard is
+// tried on more than one (the real build has the map only).
 const LAZY = { js: ['assets/MapPicker-EEE555.js', 'assets/browser-FFF666.js'], css: ['assets/MapPicker-EEE555.css'] }
 
 function defaultFiles() {
@@ -234,7 +235,7 @@ describe("check-bundle-size: the committee app's lazy chunks", () => {
     expect(namedFiles('', names)).toEqual([])
   })
 
-  it('finds the map with its stylesheet and the QR library, which the committee chunk loads, and nothing else', () => {
+  it('finds the map with its stylesheet and the second lazy chunk, which the committee chunk loads, and nothing else', () => {
     expect(committeeLazyFiles(codeOf(), ENTRY, COMMITTEE)).toEqual(LAZY)
   })
 
@@ -274,7 +275,7 @@ describe("check-bundle-size: the committee app's lazy chunks", () => {
   })
 
   it('fails, naming it, on a file of code that neither index.html nor any chunk names: no budget would measure it', () => {
-    // the committee chunk no longer names the QR library (a new way of loading a chunk, or a leftover of an older build)
+    // the committee chunk no longer names its second lazy chunk (a new way of loading a chunk, or a leftover of an older build)
     const code = codeOf({ 'assets/AdminApp-BBB222.js': COMMITTEE_LOADS.replace('import("./browser-FFF666.js")', 'null') })
     expect(() => committeeLazyFiles(code, ENTRY, COMMITTEE)).toThrow(/assets\/browser-FFF666\.js: .*no budget would measure it/)
     // a stylesheet too, and a file that only an unnamed file names is unnamed as well
@@ -381,7 +382,7 @@ describe('check-bundle-size: measuring a built folder', () => {
       entryCss: sizeOnDisk(dir, 'assets/index-AAA111.css'),
       committeeJs: sizeOnDisk(dir, 'assets/AdminApp-BBB222.js'),
       committeeCss: sizeOnDisk(dir, 'assets/AdminApp-BBB222.css'),
-      // the map and the QR library; not workbox-window, which the provider's entry loads by itself
+      // the map and the second lazy chunk; not workbox-window, which the provider's entry loads by itself
       committeeLazyJs: sizeOnDisk(dir, 'assets/MapPicker-EEE555.js') + sizeOnDisk(dir, 'assets/browser-FFF666.js'),
       committeeLazyCss: sizeOnDisk(dir, 'assets/MapPicker-EEE555.css'),
       // each file once: the two icons that the manifest lists twice are counted once, and sw.js itself is not in it

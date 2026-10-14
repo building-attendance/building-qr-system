@@ -1,19 +1,18 @@
 // @vitest-environment jsdom
-// The map of the point form (Leaflet) and the QR library are files of their own, downloaded the first time they are used
-// (src/admin/views/PointsView.jsx, src/admin/qr.js), so that the committee app's own file does not carry them to every screen.
+// The map of the point form (Leaflet) is a file of its own, downloaded the first time the form opens
+// (src/admin/views/PointsView.jsx), so that the committee app's own file does not carry it to every screen.
 // Design rule S1 (docs/design.md): while the map downloads, the app's loading look stands in the map's place; when the download
 // fails, that place says so, the form keeps everything that was typed and can still be saved, and the next step is to refresh the
 // page (a browser keeps the failure of a module's download for as long as the page is open), which asks first when something
-// typed would be lost (F4). The QR image of a point does the same in its dialog. The network (`api`) is answered by the test, each
-// of the two downloads is a promise that the test settles when it wants (the map itself is a stub: Leaflet needs a real layout),
-// and the reload of the page is counted instead of made.
+// typed would be lost (F4). The network (`api`) is answered by the test, the download is a promise that the test settles when it
+// wants (the map itself is a stub: Leaflet needs a real layout), and the reload of the page is counted instead of made.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { api } from '../../src/api/client.js'
 import { reloadApp } from '../../src/ui/crash.js'
 
-// What each download does when it is asked for: the test sets it before the screen asks.
-const download = vi.hoisted(() => ({ map: vi.fn(), qr: vi.fn() }))
+// What the download does when it is asked for: the test sets it before the screen asks.
+const download = vi.hoisted(() => ({ map: vi.fn() }))
 
 vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
 vi.mock('../../src/ui/crash.js', async (importOriginal) => ({ ...(await importOriginal()), reloadApp: vi.fn() }))
@@ -28,16 +27,11 @@ vi.mock('../../src/admin/MapPicker.jsx', async () => {
     ),
   }
 })
-vi.mock('qrcode', async () => {
-  await download.qr()
-  return { default: { toDataURL: async () => 'data:image/png;base64,iVBORw0KGgo=' } }
-})
 
 const WAIT = { timeout: 4000 }
 const MAP = { name: 'מפה לסימון מיקום הנקודה' }
 const MAP_FAILED = 'לא הצלחנו לטעון את המפה. אפשר להקליד את קו הרוחב וקו האורך, או לרענן את הדף.'
 const HINT = 'לחצו על המפה כדי לסמן איפה הנקודה. העיגול הוא הרדיוס שבו נחשבת נוכחות.'
-const QR_FAILED = 'לא הצלחנו ליצור את קוד ה-QR. בדקו את החיבור ורעננו את הדף.'
 const REFRESH = { name: 'רענון הדף' }
 
 /** Lets the promises that are already settled run their callbacks. */
@@ -57,8 +51,8 @@ const lobby = {
 }
 
 /**
- * The Points screen of a new page load: the modules are loaded afresh, so the map and the QR library have not been downloaded yet
- * (a page keeps a download, and its failure, for as long as it is open, and so does the lazy map of PointsView).
+ * The Points screen of a new page load: the modules are loaded afresh, so the map has not been downloaded yet (a page keeps a
+ * download, and its failure, for as long as it is open, and so does the lazy map of PointsView).
  */
 async function show() {
   vi.resetModules()
@@ -83,7 +77,7 @@ afterEach(() => {
   vi.clearAllMocks()
 })
 
-// A page keeps a download that worked (here: the mock keeps a module that loaded), so each describe tries the failure first.
+// A page keeps a download that worked (here: the mock keeps a module that loaded), so the failure is tried first.
 describe('the map of the point form', () => {
   it('puts the error in its place when the download fails, keeps the form, and refreshes the page, asking first when something was typed', async () => {
     const map = deferred()
@@ -150,39 +144,5 @@ describe('the map of the point form', () => {
     expect(edit.getByRole('application', MAP)).toBeTruthy()
     expect(edit.queryByRole('status')).toBeNull()
     expect(download.map).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe('the QR image of a point', () => {
-  it('shows the loading look, then the error with "refresh the page" when the QR library does not download', async () => {
-    const qr = deferred()
-    download.qr.mockImplementationOnce(() => qr.promise)
-    await show()
-    fireEvent.click(lobbyTile().getByRole('button', { name: 'QR והדפסה' }))
-    const dialog = within(screen.getByRole('dialog', { name: 'QR: לובי' }))
-    const downloadButton = () => dialog.getByRole('button', { name: 'הורדה' })
-
-    expect(dialog.getByRole('status')).toBeTruthy()
-    expect(downloadButton().disabled, 'nothing to download yet').toBe(true)
-
-    qr.reject(new TypeError('Failed to fetch dynamically imported module'))
-    const alert = await dialog.findByRole('alert', {}, WAIT)
-    expect(alert.textContent).toContain(QR_FAILED)
-    expect(dialog.queryByRole('status')).toBeNull()
-    expect(downloadButton().disabled).toBe(true)
-    expect(dialog.getByRole('button', { name: 'הדפסת שלט' }), 'printing stays: it says so by itself if it cannot make its QR').toBeTruthy()
-
-    fireEvent.click(within(alert).getByRole('button', REFRESH)) // nothing is typed in this dialog: no question
-    expect(reloadApp).toHaveBeenCalledTimes(1)
-  })
-
-  it('shows the image once the QR library is here', async () => {
-    await show()
-    fireEvent.click(lobbyTile().getByRole('button', { name: 'QR והדפסה' }))
-    const dialog = within(screen.getByRole('dialog', { name: 'QR: לובי' }))
-    const image = await dialog.findByRole('img', { name: 'קוד QR של הנקודה לובי' }, WAIT)
-    expect(image.getAttribute('src')).toMatch(/^data:image\/png;base64,/)
-    expect(dialog.queryByRole('alert')).toBeNull()
-    expect(dialog.getByRole('button', { name: 'הורדה' }).disabled).toBe(false)
   })
 })

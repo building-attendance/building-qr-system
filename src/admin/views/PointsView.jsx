@@ -238,7 +238,7 @@ const isLocalAddress = (url) => {
 function QrDialog({ point, onClose, onPrint, onChanged }) {
   const toast = useToast()
   const confirm = useConfirm()
-  const qr = useQrImage(point.qr_url)
+  const src = useQrImage(point.qr_url)
   const [busy, run] = useAction(toast, errorText)
   const local = isLocalAddress(point.qr_url)
 
@@ -263,21 +263,10 @@ function QrDialog({ point, onClose, onPrint, onChanged }) {
         </div>
       )}
       <div className="a-qr">
-        {qr.src && <img src={qr.src} alt={`קוד QR של הנקודה ${point.name}`} />}
-        {!qr.src && !qr.failed && <Spinner />}
-        {qr.failed && (
-          <div className="w-banner w-banner--warn" role="alert">
-            <IconAlert />
-            {/* as in MapFailed; nothing is typed in this dialog, so the reload asks nothing */}
-            <div className="w-banner__body">
-              <p>לא הצלחנו ליצור את קוד ה-QR. בדקו את החיבור ורעננו את הדף.</p>
-              <button type="button" className="w-btn w-btn--small w-btn--quiet" style={{ marginBlockStart: 'var(--w-space-2)' }} onClick={() => reloadApp()}>רענון הדף</button>
-            </div>
-          </div>
-        )}
+        {src ? <img src={src} alt={`קוד QR של הנקודה ${point.name}`} /> : <Spinner />}
         <div className="a-actions" style={{ justifyContent: 'center' }}>
           <button className="w-btn w-btn--small" onClick={() => onPrint([point], 'single')}><IconPrinter size={20} />הדפסת שלט</button>
-          <button className="w-btn w-btn--quiet w-btn--small" disabled={!qr.src} onClick={() => downloadDataUrl(qr.src, `qr-${safeFileName(point.name)}.png`)}>
+          <button className="w-btn w-btn--quiet w-btn--small" disabled={!src} onClick={() => downloadDataUrl(src, `qr-${safeFileName(point.name)}.png`)}>
             <IconDownload size={20} />הורדה
           </button>
           <button className="w-btn w-btn--quiet w-btn--small" onClick={async () => toast.ok((await copyText(point.qr_url)) ? 'הקישור הועתק' : 'ההעתקה נכשלה')}>

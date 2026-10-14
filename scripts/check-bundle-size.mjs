@@ -14,7 +14,7 @@
 //   - the committee app's chunk: the JavaScript and the CSS of the AdminApp chunk, which the provider's phone never loads
 //     (found by the `AdminApp-` file name prefix that Vite gives the lazily loaded chunk);
 //   - the committee app's lazy chunks: the JavaScript and the CSS that the committee app downloads only when a screen uses
-//     them (the map of the point form, the QR library). They are found by name, not by a list: every file that the AdminApp
+//     them (the map of the point form). They are found by name, not by a list: every file that the AdminApp
 //     chunk names, and every file that those name in turn, apart from the entry's own files (a chunk loads another one by
 //     its file name, so a new lazy chunk of the committee is measured here by itself). And every JavaScript and CSS file
 //     under assets/ must be one of the entry's, the committee chunk, a committee lazy chunk or a chunk that the entry
@@ -31,14 +31,13 @@
 // How the budgets were set: on 08/10/2026, on master after #138, from `npm run build`. Each budget is the measured size
 // plus about 10 percent, rounded up to a whole KiB (half a KiB for the provider app's CSS: a whole KiB would leave it more
 // than 20 percent under its budget, and the note below would print on every run); the budget for the number of files is the
-// measured number plus 2. On 14/10/2026 the map (Leaflet, with its stylesheet) and the QR library left the committee chunk for
-// lazy chunks of their own: the committee chunk's two budgets went down to its new size by the same rule (half a KiB for its
-// CSS, for the reason above), the lazy chunks got budgets by the same rule (half a KiB for their CSS too), and the number of
-// files in the precache went up by the four new files (the map's JavaScript and CSS, the QR library, and the small chunk of
-// the bundler's own helpers that the entry and those chunks now share), every file of the app being in the precache. The
-// precache's total went up by what the split costs (about 1.5 KB: each file is compressed on its own, and the helpers'
-// chunk is new), to the measured total rounded up to a whole KiB, the rule of its raise in #223. JSON has no comments, so
-// that is written here. A budget is raised only in a pull request that says why, and the owner decides
+// measured number plus 2. On 14/10/2026 the map (Leaflet, with its stylesheet) left the committee chunk for a lazy chunk of
+// its own: the committee chunk's two budgets went down to its new size by the same rule (half a KiB for its CSS, for the
+// reason above), the lazy chunks got budgets by the same rule (half a KiB for their CSS too), and the number of files in the
+// precache went up by the map's two files (its JavaScript and its CSS), every file of the app being in the precache. The
+// provider app loads the same files as before. The precache's total went up by what the split costs (about 1 KB: the two
+// files are compressed on their own), to the measured total rounded up to a whole KiB, the rule of its raise in #223. JSON
+// has no comments, so that is written here. A budget is raised only in a pull request that says why, and the owner decides
 // (AGENTS.md, "Testing" and the P1 review rules); it is lowered when the app gets smaller. The script and the budgets sit
 // under scripts/check-*, so the agent loop cannot change them (AGENTS.md, "The agent loop").
 //
