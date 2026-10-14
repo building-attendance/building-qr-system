@@ -20,6 +20,11 @@
   --w-success-bg: #12352a;
   --w-warn: #ffc58a;
   --w-warn-bg: #3a2410;
+  /* The solid amber of the status circle of a result screen that is neither good nor refused (saved on the phone, the position is needed),
+     with --w-on-primary on it (tests/contrast.test.js). Its own token because --w-warn is also text and the icon of a banner: in the light theme
+     the circle is the brighter amber of the design canvas (#B4530A, 5.0:1 with white), which is too close to 4.5:1 to be text on the peach tint.
+     In the dark theme it is the same colour as --w-warn. */
+  --w-warn-solid: #ffc58a;
   --w-danger: #ff8a8a;
   --w-danger-bg: #3a1418;
   --w-info: #c9c2ff;
@@ -84,6 +89,7 @@
   --w-success-bg: #e3f5ec;
   --w-warn: #8a3e05;
   --w-warn-bg: #fff1e3;
+  --w-warn-solid: #b4530a;
   --w-danger: #c0262d;
   --w-danger-bg: #fde8e9;
   --w-info: #3f31b8;
@@ -345,7 +351,7 @@
   --w-ring-tint: var(--w-tint-violet); --w-ring-disc: var(--w-primary);
 }
 .w-result--success { --w-ring-disc: var(--w-success); }
-.w-result--warn { --w-ring-tint: var(--w-warn-bg); --w-ring-disc: var(--w-warn); }
+.w-result--warn { --w-ring-tint: var(--w-warn-bg); --w-ring-disc: var(--w-warn-solid); }
 .w-result--danger { --w-ring-tint: var(--w-danger-bg); --w-ring-disc: var(--w-danger); }
 .w-result__main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--w-space-4-5); }
 .w-ring { flex: none; width: 148px; height: 148px; border-radius: 50%; display: grid; place-items: center; background: var(--w-ring-tint); }
