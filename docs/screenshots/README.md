@@ -6,8 +6,9 @@ like before installing anything. Both apps are in Hebrew, in the light theme (on
 **They show only the fake sample data** that `scripts/dev-seed.mjs` makes in a scratch schema (an invented building, five
 invented providers, four points on an invented position, and sixteen visits that `scripts/screenshots/seed-history.mjs`
 adds). No real name, address, phone number or coordinate is in them, and none may be: look at every picture before you
-commit it. The dates and times in them are relative to the day that they were taken: the visits are one to five days old, and
-the check-in of the provider app is made at the moment of the run. Every point in them checks the location, as the committee
+commit it. The dates and times in them are relative to the day that they were taken: the visits are one to five days old, the
+check-in of the provider app is made at the moment of the run, and the Home screen greets by the hour of the run and shows
+the seven days that end on that day. Every point in them checks the location, as the committee
 app saves points: `seed-history.mjs` sets that in the run's own schema, while the sample seed keeps the older modes that the
 end-to-end tests use.
 
@@ -16,9 +17,11 @@ end-to-end tests use.
 | `provider-phone-sign-in.png` | The provider app on a phone: a scan link opens the list of names to pick from |
 | `provider-phone-check-in.png` | The same app after signing in: the check-in is recorded |
 | `provider-phone-saved-offline.png` | The same app with no network: the visit is kept on the phone and is sent by itself later |
+| `committee-phone-home.png` | The committee app on a phone: the Home screen, the summary card of the week (the screen that opens first) |
 | `committee-phone-points.png` | The committee app on a phone: the Points tab |
 | `committee-phone-history.png` | The committee app on a phone: the History tab, scrolled to the visits |
-| `committee-computer-points.png` | The committee app on a computer (1280 px wide): the Points tab with the side rail |
+| `committee-computer-home.png` | The committee app on a computer (1280 px wide): the Home screen with the side rail |
+| `committee-computer-points.png` | The same, the Points tab |
 | `committee-computer-history.png` | The same, the History tab |
 | `committee-computer-help.png` | The same, the help screen ("How to work with the system") |
 | `committee-computer-points-dark.png` | The same, the Points tab in the dark theme |
