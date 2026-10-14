@@ -9,6 +9,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, within, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { api } from '../../src/api/client.js'
+import { choose } from './tile-menu.js'
 import { reloadApp } from '../../src/ui/crash.js'
 
 // What the download does when it is asked for: the test sets it before the screen asks.
@@ -66,7 +67,7 @@ async function show() {
   render(<ToastProvider><ConfirmProvider><PointsView /></ConfirmProvider></ToastProvider>)
   await screen.findByText(lobby.name, {}, WAIT)
 }
-const lobbyTile = () => within(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article'))
+const lobbyTile = () => screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article')
 const openNewPoint = () => {
   fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
   return within(screen.getByRole('dialog', { name: 'נקודה חדשה' }))
@@ -139,7 +140,7 @@ describe('the map of the point form', () => {
 
     // once it is here, another form shows the map at once, with no second download
     fireEvent.click(form.getByRole('button', { name: 'ביטול' }))
-    fireEvent.click(lobbyTile().getByRole('button', { name: /^עריכה/ }))
+    choose(lobbyTile(), 'עריכה')
     const edit = within(screen.getByRole('dialog', { name: 'עריכת נקודה: לובי' }))
     expect(edit.getByRole('application', MAP)).toBeTruthy()
     expect(edit.queryByRole('status')).toBeNull()

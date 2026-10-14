@@ -28,7 +28,7 @@ const TABS = [
   // Home's h1 is a greeting that follows the hour (HomeView.jsx), so it is found by the three greetings and the first word of ADMIN's name.
   { key: 'home', label: 'בית', nav: 'בית', heading: /^(בוקר טוב|צהריים טובים|ערב טוב), Sample$/, bar: true },
   { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', heading: 'היסטוריית נוכחות', bar: true },
-  { key: 'points', label: 'נקודות', nav: 'נקודות', heading: 'נקודות סריקה', bar: true },
+  { key: 'points', label: 'נקודות', nav: 'מיקומים', heading: 'נקודות סריקה', bar: true }, // the button says "מיקומים", the title and the window say "נקודות"
   { key: 'providers', label: 'נותני שירות', nav: 'ספקים', heading: 'נותני שירות', bar: true },
   { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', heading: "גישה לאייג'נט", bar: false },
   { key: 'settings', label: 'הגדרות', nav: 'הגדרות', heading: 'הגדרות', bar: false },
@@ -36,6 +36,7 @@ const TABS = [
   { key: 'help', label: 'איך עובדים עם המערכת', nav: 'עזרה', heading: 'איך עובדים עם המערכת', bar: false },
 ]
 const MORE = TABS.filter((t) => !t.bar)
+const BAR_NAMES = TABS.filter((t) => t.bar).map((t) => t.nav) // the buttons of the tab bar but the last, "עוד"
 const byKey = Object.fromEntries(TABS.map((t) => [t.key, t]))
 const FIRST = TABS[0].key
 
@@ -288,37 +289,35 @@ describe('the tab bar of the phone and the side rail', () => {
     answerLikeTheServer()
     render(<AdminApp />)
     await heading(FIRST)
-    expect(within(bar()).getAllByRole('button').map((b) => b.textContent)).toEqual(['בית', 'היסטוריה', 'נקודות', 'ספקים', 'עוד'])
+    expect(within(bar()).getAllByRole('button').map((b) => b.textContent)).toEqual([...BAR_NAMES, 'עוד'])
   })
 
   it('has all eight screens in the side rail, Home first, in two groups with a separator between them', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
     await heading(FIRST)
-    expect(within(rail()).getAllByRole('button').map((b) => b.textContent)).toEqual(
-      ['בית', 'היסטוריה', 'נקודות', 'ספקים', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'עזרה'],
-    )
+    expect(within(rail()).getAllByRole('button').map((b) => b.textContent)).toEqual(TABS.map((t) => t.nav))
     expect(within(rail()).getAllByRole('separator')).toHaveLength(1)
     // the separator is between the fourth and the fifth button
-    expect([...rail().children].map((n) => (n.tagName === 'HR' ? '|' : n.textContent))).toEqual([
-      'בית', 'היסטוריה', 'נקודות', 'ספקים', '|', 'אייג׳נט', 'הגדרות', 'יומן פעולות', 'עזרה',
-    ])
+    expect([...rail().children].map((n) => (n.tagName === 'HR' ? '|' : n.textContent))).toEqual([...BAR_NAMES, '|', ...MORE.map((t) => t.nav)])
   })
 
   // The bar floats, and only the current button says its name (the others are an icon): the name of each stays in the page, visually hidden
   // (`w-sr`), so every button has its accessible name. Which one is visible is the current one, or "עוד" while a screen under it is open.
   const saysItsName = () => within(bar()).getAllByRole('button').map((b) => [b.textContent, !b.querySelector('.a-nav-label').classList.contains('w-sr')])
+  /** What `saysItsName` is when `current` (a key of TABS, or 'more') is the button that says its name. */
+  const sayingOnly = (current) => [...TABS.filter((t) => t.bar).map((t) => [t.nav, t.key === current]), ['עוד', current === 'more']]
 
   it('shows the name of the current button only, and every other button keeps its name for a screen reader', async () => {
     answerLikeTheServer()
     window.history.replaceState(null, '', '/#points')
     render(<AdminApp />)
     await heading('points')
-    expect(saysItsName()).toEqual([['בית', false], ['היסטוריה', false], ['נקודות', true], ['ספקים', false], ['עוד', false]])
-    for (const name of ['בית', 'היסטוריה', 'נקודות', 'ספקים', 'עוד']) expect(within(bar()).getByRole('button', { name, exact: true })).toBeTruthy()
-    fireEvent.click(within(bar()).getByRole('button', { name: 'ספקים', exact: true }))
+    expect(saysItsName()).toEqual(sayingOnly('points'))
+    for (const name of [...BAR_NAMES, 'עוד']) expect(within(bar()).getByRole('button', { name, exact: true })).toBeTruthy()
+    fireEvent.click(within(bar()).getByRole('button', { name: byKey.providers.nav, exact: true }))
     await heading('providers')
-    expect(saysItsName()).toEqual([['בית', false], ['היסטוריה', false], ['נקודות', false], ['ספקים', true], ['עוד', false]])
+    expect(saysItsName()).toEqual(sayingOnly('providers'))
   })
 
   it('shows "עוד" as the one that says its name while a screen under it is open', async () => {
@@ -326,7 +325,7 @@ describe('the tab bar of the phone and the side rail', () => {
     window.history.replaceState(null, '', '/#settings')
     render(<AdminApp />)
     await heading('settings')
-    expect(saysItsName()).toEqual([['בית', false], ['היסטוריה', false], ['נקודות', false], ['ספקים', false], ['עוד', true]])
+    expect(saysItsName()).toEqual(sayingOnly('more'))
   })
 
   it('says that "עוד" opens a dialog, and whether it is open', async () => {

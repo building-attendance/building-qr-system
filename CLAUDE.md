@@ -10,7 +10,7 @@
   `git push origin v*`). This is a guardrail against the usual command, not a security boundary (ADR 0003): when a deny
   rule blocks something, do not look for another way to do it (`gh api` included), ask the owner.
 - The same file wires an edit hook: after every Edit, Write or MultiEdit, `scripts/hooks/check-edit.mjs` checks the file
-  for an em dash and, in `src/`, `server/` and `shared/`, for a date that `shared/datetime.js` did not write. The rules
+  for an em dash or an en dash and, in `src/`, `server/` and `shared/`, for a date that `shared/datetime.js` did not write. The rules
   are in `scripts/text-rules.mjs`. If the hook reports a problem, fix it before moving on: the edit is already saved.
 - Personal settings go in `.claude/settings.local.json`. It is ignored by git, like everything else in `.claude/`
   except `settings.json` and `skills/`. The project's skills live in `.claude/skills/`, each with its `LICENSE` and a

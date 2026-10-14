@@ -1,10 +1,7 @@
-// Helpers for the tests of the tiles of the committee app: a tile shows its edit action and a "more" button, and every other action is in
-// the menu of that button (AGENTS.md, "Rules for every change"; Menu in src/admin/ui.jsx). Both are named after the thing they act on, so
-// a test finds them in the tile (`within(tile)`), by the beginning of their names.
+// Helpers for the tests of the tiles of the committee app: a tile shows one "more" button, and every action, edit first, is in the menu of
+// that button (AGENTS.md, "Rules for every change"; Menu in src/admin/ui.jsx). The button is named after the thing it acts on, so a test
+// finds it in the tile (`within(tile)`), by the beginning of its name.
 import { within, fireEvent } from '@testing-library/react'
-
-/** The edit button of a tile: "עריכה: <name>". */
-export const editButton = (tile) => within(tile).getByRole('button', { name: /^עריכה/ })
 
 /** The "more" button of a tile: "עוד פעולות ל<name>". */
 export const moreButton = (tile) => within(tile).getByRole('button', { name: /^עוד פעולות/ })

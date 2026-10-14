@@ -21,11 +21,13 @@ import { applyUpdate, isUpdateReady, subscribeUpdate } from '../worker/update.js
 import { IconHome, IconPin, IconUsers, IconList, IconRobot, IconClock, IconInfo, IconSettings, IconMore, IconChevron, IconAlert, IconRefresh } from '../admin/icons.jsx'
 
 // The screens of the committee app, in the order of the side rail (a computer). `label` is the name of the screen as a page: the title of the
-// document and the list under "עוד". `nav` is the name on its button in the side rail and in the tab bar of the phone. Two screens have a
-// `nav` shorter than their `label`, and each was measured (e2e/admin.spec.js), not guessed. The providers' button says "ספקים" because
-// "נותני שירות" wrapped onto two lines in a fifth of a 360 px screen, which is the share of each of the five buttons of the bar when it
-// was a bar of labels. The help's says "עזרה" because "איך עובדים עם המערכת" is 168 px wide and the name on a button of the side rail has
-// 157 px. The sheet under "עוד" has room for the whole name of a screen, so it shows the `label`.
+// document and the list under "עוד". `nav` is the name on its button in the side rail and in the tab bar of the phone. Three screens have a
+// `nav` that is not their `label`. Two are shorter, and each was measured (e2e/admin.spec.js), not guessed. The providers' button says
+// "ספקים" because "נותני שירות" wrapped onto two lines in a fifth of a 360 px screen, which is the share of each of the five buttons of the
+// bar when it was a bar of labels. The help's says "עזרה" because "איך עובדים עם המערכת" is 168 px wide and the name on a button of the
+// side rail has 157 px. The points' says "מיקומים" (owner decision of 14/10/2026): only the navigation calls the screen that, and its
+// title, its buttons and menus, and the provider app keep "נקודה". The sheet under "עוד" has room for the whole name of a
+// screen, so it shows the `label`.
 //
 // `group` is where the screen sits. The side rail shows all eight, the work group and then the management group with a separator
 // between them. The tab bar of the phone has five buttons: the four screens of the work group, in this order (Home first), and "עוד" (more),
@@ -36,7 +38,7 @@ const GROUP_MANAGE = 'manage'
 const TABS = [
   { key: 'home', label: 'בית', nav: 'בית', icon: IconHome, View: HomeView, group: GROUP_WORK },
   { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', icon: IconList, View: HistoryView, group: GROUP_WORK },
-  { key: 'points', label: 'נקודות', nav: 'נקודות', icon: IconPin, View: PointsView, group: GROUP_WORK },
+  { key: 'points', label: 'נקודות', nav: 'מיקומים', icon: IconPin, View: PointsView, group: GROUP_WORK },
   { key: 'providers', label: 'נותני שירות', nav: 'ספקים', icon: IconUsers, View: ProvidersView, group: GROUP_WORK },
   { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconRobot, View: AgentView, group: GROUP_MANAGE, sub: 'מפתחות לסוכן ה-AI של הוועד', tint: 'violet' },
   { key: 'settings', label: 'הגדרות', nav: 'הגדרות', icon: IconSettings, View: SettingsView, group: GROUP_MANAGE, sub: 'חברי הוועד ופרטי הבניין', tint: 'sky' },

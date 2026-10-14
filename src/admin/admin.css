@@ -7,7 +7,7 @@
 .a-side { display: none; }
 @media (min-width: 1024px) {
   .a-side {
-    display: flex; flex-direction: column; gap: var(--w-space-1-5); flex: none; width: 250px; height: calc(100vh - 2 * var(--w-space-4)); margin: var(--w-space-4); position: sticky; top: var(--w-space-4); z-index: 10;
+    display: flex; flex-direction: column; gap: var(--w-space-1-5); flex: none; width: 280px; height: calc(100vh - 2 * var(--w-space-4)); margin: var(--w-space-4); position: sticky; top: var(--w-space-4); z-index: 10;
     overflow-y: auto; align-self: flex-start; padding: var(--w-space-5) var(--w-space-3-5); background: var(--w-surface); border-radius: var(--w-radius-4xl); box-shadow: var(--w-shadow);
   }
 }
@@ -24,9 +24,9 @@
   background: none; color: var(--w-text); text-align: start; cursor: pointer; font-weight: var(--w-weight-medium); font-size: var(--w-font-base);
 }
 @media (hover: hover) { .a-nav__item:hover { background: var(--w-surface-2); } }
-/* The line between the work screens and the management screens in the side rail, and the quieter look of the second group. */
+/* The line between the work screens and the management screens in the side rail. The two groups look alike: every item, and its icon, has the same
+   size, colour and weight (owner decision of 14/10/2026); the line is all that sets the second group apart. */
 .a-nav__sep { width: 100%; height: 0; margin-block: var(--w-space-2); border: 0; border-block-start: 1px solid var(--w-border); }
-.a-nav__sep ~ .a-nav__item { min-height: 46px; color: var(--w-text-2); font-size: var(--w-font-md); font-weight: var(--w-weight-regular); }
 /* The current screen is a violet pill, in the rail and in the tab bar; the chosen mode of the account popover is filled the same way. */
 .a-nav__item[aria-current='page'], .a-tab[aria-current='page'], .a-seg input:checked + span { background: var(--w-primary); color: var(--w-on-primary); font-weight: var(--w-weight-semibold); }
 
@@ -48,19 +48,25 @@
    Settings. On the card of a member who is switched off the photo is grey, like the rest of the tile. */
 .a-face { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
 .a-card.is-off .a-face { filter: grayscale(1); }
-/* The account button at the foot of the side rail: the avatar, the name and the e-mail, and a chevron that turns up while the popover is open. */
+/* The account button at the foot of the side rail: the avatar, the name and the e-mail, and a chevron that turns up while the popover is open.
+   Its gaps and its side padding are 8px, not 10: in a rail of 280px they leave the e-mail 158px, enough for an address of about 21 characters
+   ("matan1988b@gmail.com" is 149px at 13px: with 10px, in a box of 150px, it fitted by one pixel and the next letter made an ellipsis). */
 .a-account-btn {
-  display: flex; align-items: center; gap: var(--w-space-2-5); width: 100%; margin-block-start: auto; padding: var(--w-space-2-5); border: 0; border-radius: var(--w-radius-2xl);
+  display: flex; align-items: center; gap: var(--w-space-2); width: 100%; margin-block-start: auto; padding: var(--w-space-2-5) var(--w-space-2); border: 0; border-radius: var(--w-radius-2xl);
   background: var(--w-bg); color: var(--w-text); text-align: start; cursor: pointer;
 }
 @media (hover: hover) { .a-account-btn:hover { background: var(--w-surface-2); } }
 .a-account-btn > svg { flex: none; color: var(--w-text-3); transform: rotate(90deg); }
 .a-account-btn[aria-expanded='true'] > svg { transform: rotate(-90deg); }
 /* A name over an e-mail (the member's own account: any length, wrapped anywhere). The e-mail is an inline run (it is left to right inside a
-   right-to-left page), so its lines start at the start edge like the name's. */
+   right-to-left page), so its lines start at the start edge like the name's. In the rail's button it is one line (owner decision of 14/10/2026,
+   an address that broke into two lines was hard to read): a box as wide as the address or as the room there is, whichever is less, that
+   keeps the start of the address and ends a longer one with an ellipsis (it is left to right, so the start is its left). The whole address
+   is its `title` and is written in the account menu, where it wraps. */
 .a-who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .a-who strong { display: block; font-weight: var(--w-weight-semibold); }
 .a-who span { color: var(--w-text-3); font-size: var(--w-font-xs); }
+.a-who .a-who__mail { display: inline-block; max-width: 100%; vertical-align: top; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 
 /* The account popover (src/admin/AccountMenu.jsx) takes the look of the "more" menu further down (.a-menu); these are its own parts. */
 .a-account { width: 300px; gap: var(--w-space-1); }
@@ -303,13 +309,14 @@
 .a-card.is-off .a-card__title { color: var(--w-text-2); }
 /* A card that holds one short form (the building's address), set under a list of cards: it does not stretch across a wide screen. */
 .a-card--form { margin-block-start: var(--w-space-6); max-width: 640px; }
-/* The head of a tile (the pattern of every tile): who it is (a mark, the title and a second line) at the start, and its tools at the end: the edit
-   action when it has one, and the "more" menu that holds every other action (AGENTS.md, "Rules for every change"). They share one row while
-   the title fits on one line beside the tools (its flex-basis is its own width). A longer title, or a name with a long word, would be
-   squeezed into the few pixels that the tools leave on a phone and cut in the middle of a word, so then the tools wrap below it, at the end
-   of the row, and the title gets the whole width. */
-.a-card__top { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--w-space-3); }
-.a-card__top > :first-child { flex: 1 1 auto; min-width: 0; }
+/* The head of a tile (the pattern of every tile): who it is (a mark, the title and a second line) at the start, and its one tool at the end:
+   the "more" button, whose menu holds every action, edit first (AGENTS.md, "Rules for every change"). They are always one row, on a computer
+   and on a phone (owner decision of 14/10/2026): the button never wraps below the title. The tools keep their own width and the title block
+   takes what they leave (a basis of 0, and it may shrink to nothing), so a long title wraps over more lines instead of pushing the button
+   down, and a long word with no space in it breaks wherever it must (`overflow-wrap: anywhere` on the title and the second line), so it can
+   never push the button or the tile out sideways (e2e/admin.spec.js measures it at 320, 360 and 1280 px). */
+.a-card__top { display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-3); }
+.a-card__top > :first-child { flex: 1 1 0; min-width: 0; }
 .a-card__id { display: flex; align-items: center; gap: var(--w-space-2-5); }
 .a-card__id > :last-child { flex: 1; min-width: 0; }
 .a-card__tools { display: flex; align-items: center; flex: none; gap: var(--w-space-2); margin-inline-start: auto; }
