@@ -34,8 +34,9 @@ The ones that matter most:
   until it moves to `src/i18n`.
 - **Everything is written in English:** code comments, commit messages, issues, pull requests and documents. Only the
   app's own interface text is in other languages (see the UI text rule above).
-- **The committee app lists the actions of every tile and row in one order:** the actions of that screen, then edit,
-  then switch off / on, and last the red trash can (red is only for deleting).
+- **A tile or row of the committee app shows its edit action (when it has one) and a "more" button:** every other action
+  is in the menu of that button, in one order: the actions of that screen, then switch off / on, then a separator and the
+  red delete, last (red is only for deleting).
 - **Never delete or skip a test to make CI pass.** If a test fails, either your change has a bug or the app has one:
   fix it, or report it in the pull request. Do not change the test to hide it.
 

@@ -99,7 +99,7 @@ deleting (see `AGENTS.md`, Rules for every change).**
 - **Source:** Impeccable
   [`clarify`](https://github.com/pbakaus/impeccable/blob/main/skill/reference/clarify.md), "Actions and navigation";
   Vercel, Feedback, "Confirm destructive actions or provide Undo window" (expert opinion).
-- **Check:** `review`. `e2e/admin.spec.js` measures the order of the actions (the red trash can last), not the wording
+- **Check:** `review`. `e2e/admin.spec.js` measures the order of the actions in the menu of each tile (the red delete last), not the wording
   or the confirmation.
 
 ## States

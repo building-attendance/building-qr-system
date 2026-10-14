@@ -734,12 +734,12 @@ test('the menu of a tile works by keyboard and by touch, and a dialog opened fro
 
 // ---- a long name in a tile and in the head of a dialog ---------------------------------------------------------------------
 
-// On a phone, the four icons of a point's tile left its title a column of about 100 px, and a long word of the name (an English
-// "Maintenance" or a Russian word) was cut in the middle. Now the icons wrap below the title, at the end of the row, when the title
-// does not fit on one line beside them, and the title gets the whole width. The same name in the head of a dialog wraps over several
+// On a phone, the tools of a point's tile (its edit button and its "more" button) leave its title a column of about 100 px, and a
+// long word of the name (an English "Maintenance" or a Russian word) would be cut in the middle. So the tools wrap below the title, at
+// the end of the row, when the title does not fit on one line beside them, and the title gets the whole width. The same name in the head of a dialog wraps over several
 // lines, and the close button stays at the top of the head instead of the middle of it. 360 px is the narrowest phone in use (the
 // two E2E devices are 390 and 412 wide), and the computer shows the tile in a column of its own width.
-test('a long point name is readable in its tile and in the head of a dialog: no word is cut across lines, the icons keep their order and end of the row, and the close button is at the top', async ({ page }) => {
+test('a long point name is readable in its tile and in the head of a dialog: no word is cut across lines, the buttons keep their order and end of the row, and the close button is at the top', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
   await adminSignIn(page)
   const name = `Maintenance switchboard room north ${randomUUID().slice(0, 6)}`
