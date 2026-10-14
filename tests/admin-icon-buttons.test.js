@@ -144,8 +144,8 @@ describe('the same design on a phone and on a computer', () => {
 })
 
 describe('the tiles and headers of the committee screens', () => {
-  // The actions of a tile are the items of the "more" menu of its card (`items={[ ... ]}` of a <Menu>, one item to a line); the rows of the
-  // History still have their icons (`a-scan__tools`) until they move to the menu too.
+  // The actions of a tile are the items of the "more" menu of its card, and those of a History row the items of the menu of that row
+  // (`items={[ ... ]}` of a <Menu>, one item to a line).
   const menus = (f) => [...read(f).matchAll(/<Menu\b[\s\S]*?items=\{\[([\s\S]*?)\]\}/g)].map((m) => m[1])
   const itemsOf = (menu) => menu.split(/\r?\n/).filter((line) => /\{ label:/.test(line))
 
@@ -169,15 +169,28 @@ describe('the tiles and headers of the committee screens', () => {
         expect(list.at(-1), `${f}: the last action in the menu of a tile is the trash can`).toContain('danger: true')
         expect(list.slice(0, -1).filter((line) => line.includes('danger')), `${f}: it is the only red one`).toEqual([])
       }
-      const found = [...read(f).matchAll(/className="a-scan__tools">([\s\S]*?)\n\s*<\/div>/g)].map((m) => m[1])
-      for (const group of found) {
-        groups++
-        // from the last button of the group to its end there is that button only, and it is the trash can
-        const fromLast = group.slice(group.lastIndexOf('<IconButton'))
-        expect(fromLast, `${f}: the last action of a row is the trash can`).toContain('icon={IconTrash}')
-      }
+      expect(read(f), `${f}: no row keeps a row of icons of its own`).not.toContain('a-scan__tools')
     }
     expect(groups, 'points, providers, committee, agent keys and history rows').toBe(5)
+  })
+
+  it('a row of the History shows its "more" button and nothing else, with the actions of the visit in its menu: cancel or restore, then the red delete', () => {
+    const src = read('HistoryView.jsx')
+    const row = src.match(/<li key=\{s\.id\}[\s\S]*?<\/li>/)?.[0] ?? ''
+    expect(row, 'a row of the History is found').toContain('a-scan__time')
+    expect(row, 'the row has its menu').toContain('<Menu')
+    expect(row, 'and no icon button of its own').not.toContain('<IconButton')
+    const [menu, ...others] = menus('HistoryView.jsx')
+    expect(others, 'one menu for the rows').toEqual([])
+    expect(itemsOf(menu).map((line) => line.match(/label: '([^']+)'/)[1])).toEqual(['שחזור הנוכחות', 'ביטול הנוכחות', 'מחיקת הנוכחות לצמיתות'])
+    // the first two are the actions of a visit that was accepted (a refused attempt has neither), one for each state
+    const [restore, cancel, remove] = itemsOf(menu)
+    expect(restore).toContain('OUTCOME_ACCEPTED && s.voided &&')
+    expect(cancel).toContain('OUTCOME_ACCEPTED && !s.voided &&')
+    expect(remove, 'the delete is for every row').not.toContain('OUTCOME_ACCEPTED')
+    expect(src, 'the button names the visit it acts on').toMatch(/label=\{`עוד פעולות לביקור: \$\{s\.point_name\} · \$\{s\.provider_name\} · \$\{formatDateTime\(s\.checked_in_at\)\}`\}/)
+    // a refused visit (the list of visits that were not counted) is read only: no menu
+    expect(src.match(/function RefusalRow[\s\S]*?\n}\n/)?.[0] ?? '').not.toContain('<Menu')
   })
 
   it('a tile shows its edit action (when it has one) and its "more" menu, and no icon button of its own', () => {
@@ -232,8 +245,7 @@ describe('the tiles and headers of the committee screens', () => {
     expect(src).toMatch(/adminApi\(`\/scans\/\$\{s\.id\}`, \{ method: 'DELETE' \}\)/)
     expect(src).toContain('אי אפשר לשחזר אותה')
     expect(src).toContain('אפשר לבטל אותה במקום')
-    // the trash can is outside the "accepted only" condition: a refused attempt can be cleaned up too
-    expect(src).toMatch(/<\/div>\s*<\/li>/)
-    expect(src).toMatch(/\)\}\s*<IconButton icon=\{IconTrash\} label="מחיקת הנוכחות לצמיתות"/)
+    // the delete is outside the "accepted only" condition: a refused attempt can be cleaned up too
+    expect(src).toMatch(/\n\s*\{ label: 'מחיקת הנוכחות לצמיתות', icon: IconTrash, danger: true, disabled: busy, onSelect: \(\) => remove\(s\) \},\r?\n/)
   })
 })
