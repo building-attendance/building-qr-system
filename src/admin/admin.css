@@ -3,60 +3,105 @@
 .a-app { min-height: 100vh; min-height: 100dvh; display: flex; flex-direction: column; }
 @media (min-width: 1024px) { .a-app { flex-direction: row; } }
 
-/* ----- navigation: side rail on desktop, top bar + tab bar on phones ----- */
+/* ----- navigation (direction B): a floating side rail on a computer; a top row and a floating tab bar on a phone ----- */
 .a-side { display: none; }
 @media (min-width: 1024px) {
   .a-side {
-    display: flex; flex-direction: column; gap: var(--w-space-1-5); flex: none; width: 248px; height: 100vh; position: sticky; top: 0; overflow-y: auto;
-    padding: var(--w-space-6) var(--w-space-3-5); background: var(--w-surface); border-inline-end: 1px solid var(--w-border);
+    display: flex; flex-direction: column; gap: var(--w-space-1-5); flex: none; width: 250px; height: calc(100vh - 2 * var(--w-space-4)); margin: var(--w-space-4); position: sticky; top: var(--w-space-4); z-index: 10;
+    overflow-y: auto; align-self: flex-start; padding: var(--w-space-5) var(--w-space-3-5); background: var(--w-surface); border-radius: var(--w-radius-4xl); box-shadow: var(--w-shadow);
   }
 }
-.a-brand { display: flex; align-items: center; gap: var(--w-space-3); padding: var(--w-space-1-5) var(--w-space-3) var(--w-space-4-5); font-weight: var(--w-weight-bold); font-size: var(--w-font-xl); }
-/* The brand text is the building's name (typed by the committee, up to 80 characters, in any language) or the name of the app. It wraps
-   inside what is left beside the mark and stops at three lines in the side rail and two in the top bar, with an ellipsis: a long name can
-   never push the icons off a 360 px phone or make the rail taller than the screen. The whole name is in the page for a screen reader. */
-.a-brand__text { min-width: 0; line-height: 1.25; overflow-wrap: anywhere; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }
-.a-brand__mark { width: 38px; height: 38px; border-radius: var(--w-radius-sm); display: grid; place-items: center; background: var(--w-info-bg); color: var(--w-info); flex: none; }
+/* The brand is the building's name (typed by the committee, up to 80 characters, in any language) or the name of the app, and under it what
+   the app is. The name wraps inside what the row leaves and stops at three lines in the side rail and two in the top bar, with an ellipsis:
+   a long name can never push the account button off a 360 px phone or make the rail taller than the screen. The whole name is in the page
+   for a screen reader. */
+.a-brand { display: flex; flex-direction: column; gap: var(--w-space-0-5); min-width: 0; padding: var(--w-space-1-5) var(--w-space-3) var(--w-space-4-5); }
+.a-brand__text { min-width: 0; font-size: var(--w-font-xl); font-weight: var(--w-weight-bold); line-height: 1.25; overflow-wrap: anywhere; overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; }
+.a-brand__sub { color: var(--w-text-3); font-size: var(--w-font-xs); }
 .a-nav { display: flex; flex-direction: column; gap: var(--w-space-1); }
 .a-nav__item {
-  display: flex; align-items: center; gap: var(--w-space-3); width: 100%; min-height: 48px; padding-inline: var(--w-space-3-5); border: 0; border-radius: var(--w-radius-md);
-  background: none; color: var(--w-text-2); text-align: start; cursor: pointer; font-weight: var(--w-weight-medium); font-size: var(--w-font-lg); text-decoration: none;
+  display: flex; align-items: center; gap: var(--w-space-3); width: 100%; min-height: 48px; padding-inline: var(--w-space-3-5); border: 0; border-radius: var(--w-radius-pill);
+  background: none; color: var(--w-text); text-align: start; cursor: pointer; font-weight: var(--w-weight-medium); font-size: var(--w-font-base);
 }
-.a-nav__item:hover { background: var(--w-surface-2); color: var(--w-text); }
-/* The line between the work screens and the management screens in the side rail. */
+.a-nav__item:hover { background: var(--w-surface-2); }
+/* The line between the work screens and the management screens in the side rail, and the quieter look of the second group. */
 .a-nav__sep { width: 100%; height: 0; margin-block: var(--w-space-2); border: 0; border-block-start: 1px solid var(--w-border); }
-.a-nav__item[aria-current='page'] { background: var(--w-info-bg); color: var(--w-info); font-weight: var(--w-weight-semibold); }
-.a-side__foot { margin-block-start: auto; display: flex; flex-direction: column; gap: var(--w-space-1-5); }
-/* The provider-app, light/dark and sign-out icons: identical on a phone (top bar) and a computer (side rail). */
-.a-tools { display: flex; align-items: center; gap: var(--w-space-0-5); flex: none; }
-.a-side__foot .a-tools { justify-content: space-between; padding-inline: var(--w-space-1); }
-.a-user { padding: var(--w-space-2-5) var(--w-space-3); border-radius: var(--w-radius-md); background: var(--w-surface-2); }
-.a-user strong { display: block; overflow-wrap: anywhere; }
-.a-user span { color: var(--w-text-3); font-size: var(--w-font-md); overflow-wrap: anywhere; }
+.a-nav__sep ~ .a-nav__item { min-height: 46px; color: var(--w-text-2); font-size: var(--w-font-md); font-weight: var(--w-weight-regular); }
+/* The current screen is a violet pill, in the rail and in the tab bar; the chosen mode of the account popover is filled the same way. */
+.a-nav__item[aria-current='page'], .a-tab[aria-current='page'], .a-seg label:has(:checked) { background: var(--w-primary); color: var(--w-on-primary); font-weight: var(--w-weight-semibold); }
+
+/* The member's initial on a violet disc: the account button of the top bar, and the head of the account popover and of the rail's button. */
+.a-avatar { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--w-primary); color: var(--w-on-primary); font-size: var(--w-font-xl); font-weight: var(--w-weight-semibold); }
+.a-avatar--btn { cursor: pointer; }
+@media (hover: hover) { .a-avatar--btn:hover { background: var(--w-primary-hover); } }
+.a-avatar--btn[aria-expanded='true'] { box-shadow: 0 0 0 4px var(--w-info-bg); }
+/* The account button at the foot of the side rail: the avatar, the name and the e-mail, and a chevron that turns up while the popover is open. */
+.a-account-btn {
+  display: flex; align-items: center; gap: var(--w-space-2-5); width: 100%; margin-block-start: auto; padding: var(--w-space-2-5); border: 0; border-radius: var(--w-radius-2xl);
+  background: var(--w-bg); color: var(--w-text); text-align: start; cursor: pointer;
+}
+.a-account-btn:hover { background: var(--w-surface-2); }
+.a-account-btn > svg { flex: none; color: var(--w-text-3); transform: rotate(90deg); }
+.a-account-btn[aria-expanded='true'] > svg { transform: rotate(-90deg); }
+/* A name over an e-mail (the member's own account: any length, wrapped anywhere). The items start at the start edge: the e-mail is left to
+   right, and a flex item that stretched would put its text at the left of a right-to-left column. */
+.a-who { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow-wrap: anywhere; }
+.a-who strong { font-weight: var(--w-weight-semibold); }
+.a-who span { color: var(--w-text-3); font-size: var(--w-font-xs); }
+
+/* The account popover (src/admin/AccountMenu.jsx) takes the look of the "more" menu further down (.a-menu); these are its own parts. */
+.a-account { width: 300px; gap: var(--w-space-1); }
+.a-account a { text-decoration: none; }
+.a-account__who { display: flex; align-items: center; gap: var(--w-space-3); padding: var(--w-space-2-5) var(--w-space-2-5) var(--w-space-3-5); border-block-end: 1px solid var(--w-border); }
+.a-account__theme { min-width: 0; margin: 0; padding: var(--w-space-2-5); border: 0; }
+.a-account__theme legend { margin-block-end: var(--w-space-2); padding: 0; color: var(--w-text-3); font-size: var(--w-font-xs); }
+/* Three choices in a pill. The radios are real ones, drawn over their label and see-through: they give the group its arrow keys and its
+   name, and the label shows the focus. */
+.a-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--w-space-1); padding: var(--w-space-1); border-radius: var(--w-radius-pill); background: var(--w-bg); }
+.a-seg label { position: relative; display: grid; place-items: center; min-height: 44px; padding-inline: var(--w-space-1); border-radius: var(--w-radius-pill); color: var(--w-text-2); font-size: var(--w-font-md); text-align: center; cursor: pointer; }
+.a-seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+.a-seg label:has(:focus-visible) { outline: 3px solid var(--w-focus); outline-offset: 2px; }
 
 .a-top {
-  display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-2); position: sticky; top: 0; z-index: 10;
-  padding: max(var(--w-space-6), calc(env(safe-area-inset-top) + var(--w-space-3-5))) var(--w-space-5) var(--w-space-2-5); background: var(--w-bg); border-bottom: 1px solid var(--w-border);
+  display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-3); position: sticky; top: 0; z-index: 10;
+  padding: max(var(--w-space-6), calc(env(safe-area-inset-top) + var(--w-space-3-5))) var(--w-space-5) var(--w-space-2-5); background: var(--w-bg);
 }
-.a-top .a-brand { padding: 0; min-width: 0; }
-.a-top .a-brand__text { -webkit-line-clamp: 2; line-clamp: 2; }
+.a-top .a-brand { padding: 0; }
+.a-top .a-brand__text { font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); -webkit-line-clamp: 2; line-clamp: 2; }
 @media (min-width: 1024px) { .a-top { display: none; } }
 
+/* The tab bar floats over the page: a pill that stands 12px above the bottom edge and the home indicator (the safe-area inset), and no wider
+   than a small tablet. Every tab is an icon; the current one is a violet pill that also says its name (the others keep theirs for a screen
+   reader and for voice control, `w-sr`). The other four share what the pill leaves, none under 44px; below 360px the pill drops its icon so
+   that "היסטוריה" still fits beside them. The page ends above it (--w-layout-tabbar-clearance in base.css). */
 .a-tabbar {
-  position: fixed; inset-inline: 0; bottom: 0; z-index: 20; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr));
-  background: var(--w-surface); border-top: 1px solid var(--w-border); padding-bottom: env(safe-area-inset-bottom);
+  position: fixed; inset-inline: var(--w-space-3); bottom: calc(var(--w-space-3) + env(safe-area-inset-bottom)); z-index: 20; max-width: 480px; margin-inline: auto;
+  display: flex; align-items: center; gap: var(--w-space-1); padding: var(--w-space-1-5); background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-pill); box-shadow: var(--w-shadow-pop);
 }
-/* Five equal columns (four screens and "עוד") that may shrink below their content (minmax(0, ...) and min-width: 0), so a long label can
-   never push the bar wider than the screen; the label (`.a-nav-label`) stays on one line. */
 .a-tab {
-  min-width: 0; min-height: 62px; padding-inline: var(--w-space-1); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--w-space-1);
-  border: 0; background: none; color: var(--w-text-3); font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); cursor: pointer;
+  flex: 1 1 0; min-width: 44px; min-height: 48px; padding-inline: 0; display: flex; align-items: center; justify-content: center; gap: var(--w-space-2);
+  border: 0; border-radius: var(--w-radius-pill); background: none; color: var(--w-text-2); font-size: var(--w-font-md); font-weight: var(--w-weight-medium); cursor: pointer;
 }
+.a-tab[aria-current='page'] { flex: 0 1 auto; padding-inline: var(--w-space-4); }
+@media (max-width: 359px) { .a-tab[aria-current='page'] { padding-inline: var(--w-space-3); } .a-tab[aria-current='page'] svg { display: none; } }
 /* The text of a tab button, in the tab bar and in the side rail: one line. The ellipsis is the last resort and should never show, because
    the names are short (`nav` in TABS, src/pages/AdminApp.jsx). */
 .a-nav-label { max-width: 100%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.a-tab[aria-current='page'] { color: var(--w-info); font-weight: var(--w-weight-semibold); }
 @media (min-width: 1024px) { .a-tabbar { display: none; } }
+
+/* The rows of the sheet under "עוד": an icon on its tint, the name, a line about the screen and a chevron; the current screen is tinted. */
+.a-more { display: flex; flex-direction: column; gap: var(--w-space-1-5); }
+.a-more__row { display: flex; align-items: center; gap: var(--w-space-3-5); min-height: 60px; padding-inline: var(--w-space-2); border: 0; border-radius: var(--w-radius-2xl); background: none; color: var(--w-text); text-align: start; cursor: pointer; }
+.a-more__row:hover, .a-more__row[aria-current='page'] { background: var(--w-info-bg); }
+.a-more__row > svg { flex: none; color: var(--w-text-3); }
+.a-more__icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--w-radius-md); }
+.a-more__icon--violet { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); }
+.a-more__icon--sky { background: var(--w-tint-sky); color: var(--w-tint-sky-ink); }
+.a-more__icon--peach { background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
+.a-more__icon--mint { background: var(--w-tint-mint); color: var(--w-tint-mint-ink); }
+.a-more__text { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: var(--w-space-0-5); overflow-wrap: anywhere; }
+.a-more__text span:first-child { font-size: var(--w-font-base); font-weight: var(--w-weight-semibold); }
+.a-more__text span + span { color: var(--w-text-3); font-size: var(--w-font-xs); }
 
 /* ----- page frame ----- */
 .a-main { flex: 1; min-width: 0; width: 100%; max-width: 1120px; margin-inline: auto; padding: var(--w-space-4) var(--w-space-5) calc(var(--w-layout-tabbar-clearance) + env(safe-area-inset-bottom)); }

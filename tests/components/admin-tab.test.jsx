@@ -86,6 +86,10 @@ const bar = () => screen.getByRole('navigation', { name: 'ניווט ראשי (�
 const rail = () => screen.getByRole('navigation', { name: 'ניווט ראשי' })
 const moreButton = () => within(bar()).getByRole('button', { name: 'עוד' })
 const sheet = () => screen.queryByRole('dialog', { name: 'עוד' })
+// A row of the sheet is named by the screen's name (aria-labelledby), and described by the line under it (aria-describedby): a button is
+// still found by its name, and a screen reader says the line after it.
+const rowName = (b) => document.getElementById(b.getAttribute('aria-labelledby')).textContent
+const rowSub = (b) => document.getElementById(b.getAttribute('aria-describedby')).textContent
 
 /** A person (or a test) opens another address of the same page: the address changes, and the browser says so. */
 async function openByAddress(hash) {
@@ -301,6 +305,30 @@ describe('the tab bar of the phone and the side rail', () => {
     ])
   })
 
+  // The bar floats, and only the current button says its name (the others are an icon): the name of each stays in the page, visually hidden
+  // (`w-sr`), so every button has its accessible name. Which one is visible is the current one, or "עוד" while a screen under it is open.
+  const saysItsName = () => within(bar()).getAllByRole('button').map((b) => [b.textContent, !b.querySelector('.a-nav-label').classList.contains('w-sr')])
+
+  it('shows the name of the current button only, and every other button keeps its name for a screen reader', async () => {
+    answerLikeTheServer()
+    window.history.replaceState(null, '', '/#points')
+    render(<AdminApp />)
+    await heading('points')
+    expect(saysItsName()).toEqual([['בית', false], ['היסטוריה', false], ['נקודות', true], ['ספקים', false], ['עוד', false]])
+    for (const name of ['בית', 'היסטוריה', 'נקודות', 'ספקים', 'עוד']) expect(within(bar()).getByRole('button', { name, exact: true })).toBeTruthy()
+    fireEvent.click(within(bar()).getByRole('button', { name: 'ספקים', exact: true }))
+    await heading('providers')
+    expect(saysItsName()).toEqual([['בית', false], ['היסטוריה', false], ['נקודות', false], ['ספקים', true], ['עוד', false]])
+  })
+
+  it('shows "עוד" as the one that says its name while a screen under it is open', async () => {
+    answerLikeTheServer()
+    window.history.replaceState(null, '', '/#settings')
+    render(<AdminApp />)
+    await heading('settings')
+    expect(saysItsName()).toEqual([['בית', false], ['היסטוריה', false], ['נקודות', false], ['ספקים', false], ['עוד', true]])
+  })
+
   it('says that "עוד" opens a dialog, and whether it is open', async () => {
     answerLikeTheServer()
     render(<AdminApp />)
@@ -329,8 +357,12 @@ describe('the sheet under "עוד"', () => {
     expect(dialog).toBeTruthy()
     expect(dialog.getAttribute('aria-modal')).toBe('true')
     const items = within(within(dialog).getByRole('navigation', { name: 'מסכים נוספים' })).getAllByRole('button')
-    expect(items.map((b) => b.textContent)).toEqual(MORE.map((t) => t.label))
-    for (const item of items) expect(item.querySelector('svg'), item.textContent).toBeTruthy()
+    expect(items.map(rowName)).toEqual(MORE.map((t) => t.label))
+    for (const item of items) {
+      expect(item.querySelector('svg'), rowName(item)).toBeTruthy()
+      expect(rowSub(item), `${rowName(item)} has a line about the screen`).not.toBe('')
+      expect(within(dialog).getByRole('button', { name: rowName(item), exact: true }), 'found by the name of the screen alone').toBe(item)
+    }
   })
 
   it('marks no screen when the open screen is one of the bar, and "עוד" is not the current item either', async () => {
@@ -342,7 +374,7 @@ describe('the sheet under "עוד"', () => {
   it.each(MORE)('marks $key as the current screen when it is open, and "עוד" is the current item of the bar', async ({ key, label }) => {
     const dialog = await open(`#${key}`)
     const marked = [...within(dialog).getByRole('navigation', { name: 'מסכים נוספים' }).querySelectorAll('button')].filter((b) => b.getAttribute('aria-current') === 'page')
-    expect(marked.map((b) => b.textContent)).toEqual([label])
+    expect(marked.map(rowName)).toEqual([label])
     expect(moreButton().getAttribute('aria-current')).toBe('page')
   })
 
