@@ -255,8 +255,11 @@ has no question about them yet.
   contrast checks (#228), and the `.a-icon-btn--danger` rules and `tone="primary"` of `IconButton` (#234, #236).
 - The new things are not checked on a real iPhone yet: the account circle with and without a photo, the fade behind the
   tab bar and the new icon (`docs/manual-ios-checklist.md`, items 1 and 12, before the next release).
-- `docs/design.md` is 263 lines, over its own limit of 250 (it was 251 after #223). This pull request adds the rules
-  T3, V5 and V6 and shortens V1 and F4; the rest of the file has no check to shorten it by.
-- `.claude/skills/ui-review/SKILL.md` still lists Heebo among the fixed tokens, and the reason in the `frontend-design`
-  row of `docs/design/sources.md` still says that the owner kept the current identity. Both date from before
-  14/10/2026 and are outside this pull request (`.claude/` is not for this change, and `sources.md` is a register).
+- `docs/design.md` is at its limit of 250 lines (it was 251 after #223). This pull request adds the rules T3, V5 and V6
+  and makes room by shortening the entries whose check now exists (V1, V4, F4, R1, R3, T1, T2, D1) and by turning the
+  `planned:` checks of F5, T1, T2 and R1 into links to their tests. Two `planned:` checks are still not built: F2 (E2E
+  per form) and the contrast of the fixed colours in V2 (the select chevron, `#9a9aa4`, has no contrast test). The next
+  rule makes room the same way.
+- `.claude/skills/ui-review/SKILL.md` still lists Heebo among the fixed tokens (a skill changes only in its own pull
+  request). The `frontend-design` row of `docs/design/sources.md` said that the owner kept the current identity; this
+  pull request corrects it.
