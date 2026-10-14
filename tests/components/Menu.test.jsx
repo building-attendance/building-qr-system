@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
-// The "more" menu of a tile (Menu in src/admin/ui.jsx): a tile shows its edit action, and every other action is in this menu, the red
-// delete last after a separator (AGENTS.md, "Rules for every change"). These are the parts of the menu button pattern of the WAI-ARIA
+// The "more" menu of a tile (Menu in src/admin/ui.jsx): a tile shows this one button, and every action is in this menu, edit first and the
+// red delete last after a separator (AGENTS.md, "Rules for every change"). These are the parts of the menu button pattern of the WAI-ARIA
 // Authoring Practices that the component itself decides: its roles and states, the keys, where the focus goes, a click outside, and the
 // order of the items. What a real browser decides (Enter and Space on a button, the Tab that goes on from the button, where the menu is
 // placed on the screen, the colours in both themes) is checked in e2e/components.spec.js and e2e/a11y.spec.js.

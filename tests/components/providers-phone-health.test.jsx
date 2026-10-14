@@ -174,9 +174,9 @@ describe('the card: its actions', () => {
     server({ providers: [provider({ active_devices: 2 })] })
     show()
     await screen.findByRole('heading', { level: 2, name: 'פלוני' }, WAIT)
-    // the card shows its edit action and its "more" button; the rest is in the menu, the screen's actions first
-    expect(shownButtons(card('פלוני'))).toEqual(['עריכה: פלוני', 'עוד פעולות לפלוני'])
-    expect(menuLabels(card('פלוני'))).toEqual(['מכשירים', 'סיסמה חדשה', 'השבתה', 'מחיקת נותן השירות'])
+    // the card shows its "more" button alone; every action is in the menu: edit first, then the screen's actions
+    expect(shownButtons(card('פלוני'))).toEqual(['עוד פעולות לפלוני'])
+    expect(menuLabels(card('פלוני'))).toEqual(['עריכה', 'מכשירים', 'סיסמה חדשה', 'השבתה', 'מחיקת נותן השירות'])
     expect(screen.queryByRole('menuitem', { name: 'ניתוק מכשירים' })).toBeNull()
   })
 
@@ -184,7 +184,7 @@ describe('the card: its actions', () => {
     server({ providers: [provider({ active_devices: 0 })] })
     show()
     await screen.findByRole('heading', { level: 2, name: 'פלוני' }, WAIT)
-    expect(menuLabels(card('פלוני'))).toEqual(['סיסמה חדשה', 'השבתה', 'מחיקת נותן השירות'])
+    expect(menuLabels(card('פלוני'))).toEqual(['עריכה', 'סיסמה חדשה', 'השבתה', 'מחיקת נותן השירות'])
   })
 
   it('asks for the phones of that provider only when the dialog is opened', async () => {

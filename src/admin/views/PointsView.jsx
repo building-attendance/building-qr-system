@@ -5,7 +5,7 @@ import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel } from '../hooks.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { downloadDataUrl, safeFileName, useQrImage } from '../qr.js'
 import PrintSheet from '../PrintSheet.jsx'
-import { IconPlus, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
+import { IconPlus, IconEdit, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
 import { GPS_MODE_LABELS } from '../auditLabels.js'
 import {
   GPS_MODE_REQUIRED,
@@ -369,10 +369,10 @@ export default function PointsView() {
                   </div>
                 </div>
                 <div className="a-card__tools">
-                  <button type="button" className="w-btn w-btn--quiet w-btn--small" aria-label={`עריכה: ${p.name}`} onClick={() => setEditing(p)}>עריכה</button>
                   <Menu
                     label={`עוד פעולות ל${p.name}`}
                     items={[
+                      { label: 'עריכה', icon: IconEdit, onSelect: () => setEditing(p) },
                       { label: 'QR והדפסה', icon: IconQr, onSelect: () => setQrFor(p) },
                       { label: p.is_active ? 'השבתת הנקודה' : 'הפעלת הנקודה', icon: p.is_active ? IconBan : IconCheck, disabled: busy, onSelect: () => toggleActive(p) },
                       { label: 'מחיקת הנקודה', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deletePoint(p) },

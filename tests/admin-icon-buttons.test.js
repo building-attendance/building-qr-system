@@ -193,12 +193,15 @@ describe('the tiles and headers of the committee screens', () => {
     expect(src.match(/function RefusalRow[\s\S]*?\n}\n/)?.[0] ?? '').not.toContain('<Menu')
   })
 
-  it('a tile shows its edit action (when it has one) and its "more" menu, and no icon button of its own', () => {
+  it('a tile shows its "more" menu alone, with no icon button and no text button of its own (edit is the first item of the menu)', () => {
     for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx', 'AgentView.jsx']) {
       expect(menus(f), `${f}: one menu for the tiles`).toHaveLength(1)
       const tools = [...read(f).matchAll(/className="a-card__tools">([\s\S]*?)<\/div>/g)].map((m) => m[1])
       expect(tools.length, `${f}: its tiles have tools`).toBeGreaterThan(0)
-      for (const group of tools) expect(group, `${f}: the tools of a tile are the edit button and the menu`).not.toContain('<IconButton')
+      for (const group of tools) {
+        expect(group, `${f}: the tools of a tile are the menu alone`).not.toContain('<IconButton')
+        expect(group, `${f}: no button of its own beside the menu (edit is its first item)`).not.toContain('<button')
+      }
     }
   })
 

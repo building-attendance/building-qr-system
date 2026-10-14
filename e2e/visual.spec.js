@@ -39,7 +39,7 @@
 // and the end-to-end job passed with the old baseline, and the primary colour's move in #223 from #0B63CE to #5B4BDB is 0.171.
 import ar from '../src/i18n/ar.js'
 import {
-  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, SCREEN_TITLES, HOME_NOW, allowConsoleErrors, clearScans, pageSettled, signIn,
+  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, SCREEN_TITLES, HOME_NOW, allowConsoleErrors, clearScans, pageSettled, signIn, chooseFromMenu,
   stubHome, pngImage, stubMemberPhoto, photoLoaded,
 } from './fixtures.js'
 
@@ -453,7 +453,7 @@ function committeeScreens(width) {
     await stubMapTiles(page)
     await committeeSignedIn(page, 'points')
 
-    await page.getByRole('article').filter({ hasText: 'לובי' }).getByRole('button', { name: 'עריכה' }).click()
+    await chooseFromMenu(page.getByRole('article').filter({ hasText: 'לובי' }), 'עריכה')
     const point = page.getByRole('dialog', { name: 'עריכת נקודה: לובי' })
     await expect(point).toBeVisible()
     await mapDrawn(page)
@@ -462,7 +462,7 @@ function committeeScreens(width) {
     await expect(page.getByRole('dialog')).toHaveCount(0)
 
     await openTab(page, 'providers', 'נותני שירות')
-    await page.getByRole('article').filter({ hasText: PEOPLE.ploni.name }).getByRole('button', { name: 'עריכה' }).click()
+    await chooseFromMenu(page.getByRole('article').filter({ hasText: PEOPLE.ploni.name }), 'עריכה')
     await expect(page.getByRole('dialog', { name: `עריכה: ${PEOPLE.ploni.name}` })).toBeVisible()
     await shotBothThemes(page, `committee-${width}-provider-dialog`, { whole: false })
   })
