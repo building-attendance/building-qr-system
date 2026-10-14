@@ -4,8 +4,10 @@
 # the four required checks of .github/rulesets/ keep their names, and a copy's rulesets need no change.
 #
 # Why parts: the WebKit project took about 7 minutes and set the length of every CI run, of which about 6 were the tests.
-# Playwright's --shard splits the tests of a project between the parts (by count: 75 and 74 tests in two parts), and each
-# part pays the setup again (the container, npm ci, the browser, the build) but runs a share of the tests.
+# Each part pays the setup again (the container, npm ci, the browser, the build) but runs a share of the test files, chosen
+# by e2e/parts.js from the project's full list by the seconds each file takes (e2e/part-weights.json), so that the parts
+# take about as long as each other. Playwright's --shard split by the number of tests instead, and one part got the slowest
+# files and ran about twice as long as the next (#218). Every file of the list is in exactly one part.
 #
 # It runs only when ci.yml calls it, under ci.yml's trigger, concurrency and permissions. Every third-party action is
 # pinned to a full commit SHA, the same ones as in ci.yml, and every value that a `run:` script reads goes in through env.
@@ -81,14 +83,28 @@ jobs:
             sudo dpkg --configure -a || true
           done
           exit 1
-      # playwright.config.js builds the app and starts the API (on a scratch schema of this part's container) and the
-      # preview. --shard runs this part's share of the project's tests.
+      # e2e/parts.js asks Playwright for the project's test files and writes this part's share of them to a list; it
+      # fails (and so does the part) when Playwright lists nothing or the part would get no file. --test-list then runs
+      # exactly those files. playwright.config.js builds the app and starts the API (on a scratch schema of this part's
+      # container) and the preview.
       - name: Run this part of the tests
         env:
           PROJECT: ${{ inputs.project }}
           PART: ${{ matrix.part }}
           PARTS: ${{ strategy.job-total }}
-        run: npx playwright test --project="$PROJECT" --shard="$PART/$PARTS"
+        run: |
+          node e2e/parts.js --project="$PROJECT" --part="$PART" --parts="$PARTS" --out="$RUNNER_TEMP/test-list.txt"
+          npx playwright test --project="$PROJECT" --test-list="$RUNNER_TEMP/test-list.txt"
+      # How long each test of this part took (the JSON report of playwright.config.js on CI), kept whether the part passed
+      # or not: the weights in e2e/part-weights.json are made from the reports of a green run (docs/testing.md, "CI").
+      - name: Keep the timings of this part
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: timings-${{ inputs.project }}-part-${{ matrix.part }}
+          path: playwright-timings.json
+          retention-days: 7
+          if-no-files-found: ignore
       - name: Keep the report and the traces of a failed run
         if: failure()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
