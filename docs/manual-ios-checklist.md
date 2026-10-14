@@ -13,9 +13,12 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
 ## Install and standalone
 
 1. [ ] Open the address in Safari, then Share, then **Add to Home Screen**. The name shown is the app's short
-   name in Hebrew (the word for "attendance") and the icon is the app's icon (a blue square with a white QR mark,
-   with no black corners), not a screenshot of the page. The icon is `public/apple-touch-icon.png`. If you added the
-   app before this icon existed, remove it and add it again: iOS keeps the icon it saw the first time.
+   name in Hebrew (the word for "attendance") and the icon is the app's icon (a violet square with a white
+   scan frame around a QR mark, with no black corners), not a screenshot of the page. The icon is
+   `public/apple-touch-icon.png`. If you added the app before this icon existed, remove it and add it again: iOS keeps
+   the icon it saw the first time. Whether iOS ever replaces the icon of an app that is already on the Home Screen is not
+   confirmed (Apple's documentation is silent, and WebKit bug 216197 reports that it never does): after a release that
+   changes the icon, open the old copy and write down what the phone shows before you remove it.
 2. [ ] Open it from the Home Screen: no Safari bar, the app fills the screen, and the first thing visible is the
    building name (when the committee set one) and address in the top bar.
 3. [ ] The status bar (time, battery) is readable against the app in both light and dark mode, and nothing is hidden

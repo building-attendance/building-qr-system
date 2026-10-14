@@ -7,8 +7,9 @@
 // Android crops a launcher icon to the shape its maker chose (a circle, a squircle). An icon declared only as `any` is
 // not cropped but shrunk onto a white disc, so the manifest also lists a `maskable` one: a full square with no
 // transparent pixel, the whole artwork drawn at MASKABLE_SCALE of the width and centred, on the artwork's own background
-// colour. The part that every shape keeps is the centre circle of 80% of the width, so the white QR tile (the content)
-// has to end up inside that circle; tests/pwa-icons.test.js checks it on the PNG itself.
+// colour. The part that every shape keeps is the centre circle of 80% of the width, so everything that is not the
+// background (the white scan frame with its four corners, and the QR inside it) has to end up inside that circle;
+// tests/pwa-icons.test.js checks it on the PNG itself.
 //
 // The source is public/pwa-512x512.svg. To change the logo: replace that file, run `npm run icons`, commit the PNGs.
 // The drawing is done by the Chromium that Playwright already installs for the end-to-end tests, so there is no
@@ -21,12 +22,13 @@ import { fileURLToPath } from 'node:url'
 const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public')
 
 // The colour behind the artwork. It fills the rounded-off corners of the SVG in the Home Screen icon and in the maskable
-// icon, so it has to be the artwork's own background colour (the blue of its outer rectangle).
-const BRAND = '#007AFF'
+// icon, so it has to be the artwork's own background colour (the violet of its outer rectangle), which is also the app's
+// primary colour (--w-primary in src/ui/ui.css). tests/pwa-icons.test.js keeps the three in step.
+const BRAND = '#5B4BDB'
 
-// The share of the width that the artwork takes in the maskable icon. The white tile is 62.5% of the artwork and its
-// corners are 43% of the width away from the centre at full size, outside the safe circle (a radius of 40% of the width);
-// at 0.8 they are 34% away, inside it.
+// The share of the width that the artwork takes in the maskable icon. The corners of the white scan frame are the part of
+// the artwork that is farthest from the centre: at full size they are 43.9% of the width away from it, outside the safe
+// circle (a radius of 40% of the width); at 0.8 they are 35.1% away, inside it.
 const MASKABLE_SCALE = 0.8
 
 const TARGETS = [

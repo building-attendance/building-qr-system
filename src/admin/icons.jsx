@@ -16,6 +16,17 @@ export const IconPrinter = (p) => <Svg {...p}><path d="M7 9V4h10v5M7 17H5a1 1 0 
 export const IconDownload = (p) => <Svg {...p}><path d="M12 4v11M7.5 11L12 15.5 16.5 11M5 20h14" /></Svg>
 export const IconCopy = (p) => <Svg {...p}><rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V6a1 1 0 0 1 1-1h9" /></Svg>
 export const IconKey = (p) => <Svg {...p}><circle cx="8" cy="15" r="4" /><path d="M11 12l9-9M16 7l3 3M14 9l2 2" /></Svg>
+/* A robot head with an antenna: the agent screen (the committee's AI agent). The keys on that screen keep IconKey. */
+export const IconRobot = (p) => (
+  <Svg {...p}>
+    <rect x="4.5" y="8" width="15" height="11" rx="3" /><path d="M12 8V5.5M10 16.5h4M2.5 12.5v2.5M21.5 12.5v2.5" />
+    <circle cx="12" cy="4.5" r="1" /><circle cx="9.3" cy="12.6" r="1.3" /><circle cx="14.7" cy="12.6" r="1.3" />
+  </Svg>
+)
+/* A padlock with a plus: "new password", in the menu of a provider. */
+export const IconLockPlus = (p) => (
+  <Svg {...p}><rect x="4" y="11" width="12" height="9.5" rx="2.5" /><path d="M7 11V8a3 3 0 0 1 6 0v3M10 15v2M19 4v5M16.5 6.5h5" /></Svg>
+)
 export const IconUsers = (p) => <Svg {...p}><circle cx="9" cy="8" r="3.5" /><path d="M2.5 20a6.5 6.5 0 0 1 13 0M16 4.5a3.5 3.5 0 0 1 0 7M18 14.2a6.5 6.5 0 0 1 3.5 5.8" /></Svg>
 export const IconList = (p) => <Svg {...p}><path d="M8 6h12M8 12h12M8 18h12M4 6v.01M4 12v.01M4 18v.01" /></Svg>
 export const IconShield = (p) => <Svg {...p}><path d="M12 3l8 3v6c0 4.5-3.2 7.8-8 9-4.8-1.2-8-4.5-8-9V6l8-3z" /><path d="M9 12l2.2 2.2L15.5 10" /></Svg>
