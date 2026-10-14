@@ -332,6 +332,208 @@ test('the tab bar of the phone floats clear of the screen edges, and the page en
   }, { message: 'at the end of the page, its last thing is above the bar' }).toBe(true)
 })
 
+// The page fades out behind the bar (D10 of the redesign, owner decision of 14/10/2026). The bar floats, so the page showed under it and around its
+// sides. `.a-tabbar-fade` (src/admin/admin.css) is a layer that the shell renders next to the bar: it turns the bottom of the screen into the page
+// colour, takes no taps and stays under every overlay. The end of every page stands wholly above its top edge (--w-layout-tabbar-clearance in
+// src/ui/base.css), so that the last card is never half-faded. Measured at 360 and 320 px (the narrowest phones in use), at the very end of the
+// screens that are long enough to scroll, among them the History with a few visits.
+test('the page fades out behind the tab bar of the phone, the end of every page stands above the fade, and a tap on its hidden part reaches nothing', async ({ page, playwright, browserName }) => {
+  const fade = page.locator('.a-tabbar-fade')
+  const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
+  const zIndexOf = (locator) => locator.evaluate((el) => Number(getComputedStyle(el).zIndex))
+  const FADE_REACH = 36 // how far above the top of the bar the page starts to fade (the prototype that the owner chose)
+
+  // the fade is part of the bar: the sign-in screen has neither
+  await page.goto('/admin')
+  await expect(page.getByRole('button', { name: 'כניסת פיתוח' })).toBeVisible()
+  await expect(fade, 'the sign-in screen has no fade').toHaveCount(0)
+
+  const tag = randomUUID().slice(0, 6)
+  await adminSignIn(page, 'settings') // not the History: the app keeps the list it loaded, and the visits below do not exist yet
+  // six visits of Ploni today, at six throwaway points (a second visit at the same point would be in the cooldown), so that the History is long
+  const points = []
+  for (let n = 1; n <= 6; n++) {
+    const created = await page.request.post('/api/admin/points', { data: { name: `נקודת דהייה ${n} ${tag}`, lat: SAMPLE_POINT.lat, lng: SAMPLE_POINT.lng, gps_mode: 'none' } })
+    points.push((await created.json()).point)
+  }
+  const phone = await playwright.request.newContext({ baseURL: page.url().split('/admin')[0] })
+  try {
+    const providers = (await (await phone.get('/api/public/providers')).json()).providers
+    const ploni = providers.find((p) => p.contact_name === PEOPLE.ploni.name)
+    const session = await (await phone.post('/api/session', { data: { provider_id: ploni.id, password: PEOPLE.ploni.password } })).json()
+    for (const point of points) {
+      const scan = await phone.post('/api/scan', { headers: { authorization: `Bearer ${session.token}` }, data: { id: randomUUID(), code: point.qr_token, gps: null } })
+      expect((await scan.json()).scan.outcome).toBe('accepted')
+    }
+
+    for (const width of [360, 320]) {
+      await page.setViewportSize({ width, height: 640 })
+      for (const screen of ['history', 'providers', 'settings', 'help']) {
+        const where = `${width} px, ${screen}`
+        await page.goto(`/admin#${screen}`)
+        await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
+        await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0) // whole: the page grows while its lists load, and the end moves with it
+        if (screen === 'history') await expect(historyRows(page), `${where}: the visits are drawn`).not.toHaveCount(0)
+
+        // the layer: fixed to the bottom of the screen and across it, under the bar and above the top row, and it takes no taps
+        const { position, pointerEvents, z, box } = await fade.evaluate((el) => {
+          const style = getComputedStyle(el)
+          const { top, bottom, left, right } = el.getBoundingClientRect()
+          return { position: style.position, pointerEvents: style.pointerEvents, z: Number(style.zIndex), box: { top, bottom, left, right } }
+        })
+        const barBox = await bar.boundingBox()
+        expect(position, `${where}: the fade stays while the page scrolls`).toBe('fixed')
+        expect(pointerEvents, `${where}: the fade takes no taps`).toBe('none')
+        expect(z, `${where}: the fade is under the bar`).toBeLessThan(await zIndexOf(bar))
+        expect(z, `${where}: the fade is over the page, its top row included`).toBeGreaterThan(await zIndexOf(page.getByRole('banner')))
+        expect(box.bottom, `${where}: it reaches the bottom edge`).toBe(640)
+        expect([box.left, box.right], `${where}: and both sides`).toEqual([0, width])
+        // the constant (--w-layout-tabbar-fade-height) counts the bar's own height, so it is checked against the bar: the fade starts 36 px above its top
+        expect(barBox.y - box.top, `${where}: the fade starts ${FADE_REACH} px above the top of the bar`).toBeCloseTo(FADE_REACH, 0)
+        const underFade = await page.evaluate((y) => document.elementFromPoint(2, y)?.closest('.a-tabbar-fade') ?? null, box.top + FADE_REACH / 2)
+        expect(underFade, `${where}: a tap on the fade reaches what is under it`).toBeNull()
+
+        // the end of the page: the last thing of the screen stands wholly above the top edge of the fade
+        const room = await page.evaluate(() => {
+          window.scrollTo(0, document.documentElement.scrollHeight)
+          return { scrolls: document.documentElement.scrollHeight - window.innerHeight }
+        })
+        expect(room.scrolls, `${where}: the screen is long enough to scroll`).toBeGreaterThan(0)
+        await expect.poll(() => page.evaluate(() => Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight), { message: `${where}: scrolled to the very end` }).toBe(true)
+        await expect.poll(async () => {
+          const last = await page.getByRole('main').evaluate((el) => el.lastElementChild.getBoundingClientRect().bottom)
+          return Math.round(((await fade.boundingBox()).y - last) * 10) / 10
+        }, { message: `${where}: at the end of the page, the room between its last thing and the top of the fade (px, never under 0)` }).toBeGreaterThanOrEqual(0)
+      }
+    }
+
+    // Taps and scrolling over the part of the fade where the page is hidden (under its first --w-space-10). A tap there must not reach a control that cannot be
+    // seen (the "more actions" button of a History row, here), and a wheel or a drag there must still scroll the page. 768 px is the width where the bar (480 px at
+    // most) leaves a strip on both sides of it; at 360 px the bar leaves only 12 px at the sides and 10 px under it, and no control reaches the sides, so the
+    // tap is in the gap under the bar. The bar's own taps are not affected: it stands over the fade.
+    for (const width of [768, 360]) {
+      const where = `${width} px`
+      await page.setViewportSize({ width, height: 640 })
+      await page.goto('/admin#history')
+      await expect(historyRows(page), `${where}: the visits are drawn`).not.toHaveCount(0)
+      const barBox = await bar.boundingBox()
+      const tapY = width === 768 ? 640 - 30 : 640 - 5
+      // scroll the page so that the "more actions" button of a row stands at the point to tap, and say where that is
+      const target = await page.evaluate((y) => {
+        const max = document.documentElement.scrollHeight - window.innerHeight
+        for (const button of document.querySelectorAll('main li button')) {
+          const rect = button.getBoundingClientRect()
+          const to = window.scrollY + rect.top + rect.height / 2 - y
+          if (to < 0 || to > max) continue
+          window.scrollTo(0, to)
+          const now = button.getBoundingClientRect()
+          return { x: now.left + now.width / 2, y, name: button.getAttribute('aria-label') ?? '' }
+        }
+        return null
+      }, tapY)
+      expect(target, `${where}: a button of a row can be scrolled to the point under the fade`).not.toBeNull()
+      const onBar = target.x >= barBox.x && target.x <= barBox.x + barBox.width && target.y >= barBox.y && target.y <= barBox.y + barBox.height
+      expect(onBar, `${where}: the point is beside or under the bar, not on it`).toBe(false)
+      if (width === 768) expect(target.x < barBox.x || target.x > barBox.x + barBox.width, `${where}: the point is in a strip beside the bar`).toBe(true)
+
+      const expectNothingHappened = async (how) => {
+        await expect(page.getByRole('menu'), `${where}: a ${how} on the hidden part of the fade opens no menu`).toHaveCount(0)
+        await expect(page.getByRole('dialog'), `${where}: and no dialog`).toHaveCount(0)
+        expect(new URL(page.url()).hash, `${where}: and goes nowhere`).toBe('#history')
+      }
+      await page.mouse.click(target.x, target.y)
+      await expectNothingHappened('click')
+      // A finger as well, where it is not WebKit's own doing that it lands elsewhere: iOS WebKit moves a touch that lands within a few px of a button to that
+      // button, so a touch in the 10 px gap under the bar (360 px) is taken by the bar's nearest button. At 768 px the point is far from the bar.
+      if (width === 768 || browserName === 'chromium') {
+        await page.touchscreen.tap(target.x, target.y)
+        await expectNothingHappened('tap')
+      }
+      // what is at that point is the fade, and in the gradient above it (the page still shows) it is not
+      const hits = await page.evaluate(([x, y, top]) => ({
+        hidden: Boolean(document.elementFromPoint(x, y)?.closest('.a-tabbar-fade')),
+        gradient: Boolean(document.elementFromPoint(x, top + 10)?.closest('.a-tabbar-fade')),
+      }), [target.x, target.y, (await fade.boundingBox()).y])
+      expect(hits.hidden, `${where}: the fade is what a tap at that point meets`).toBe(true)
+      expect(hits.gradient, `${where}: in its gradient a tap still reaches the page`).toBe(false)
+      // the same button, in plain sight, does open its menu: the tap above was a real one
+      await page.evaluate((name) => {
+        for (const button of document.querySelectorAll('main li button')) {
+          if (button.getAttribute('aria-label') === name) button.scrollIntoView({ block: 'center', behavior: 'instant' })
+        }
+      }, target.name)
+      const button = page.getByRole('button', { name: target.name, exact: true })
+      const seen = await button.boundingBox()
+      await page.touchscreen.tap(seen.x + seen.width / 2, seen.y + seen.height / 2)
+      await expect(page.getByRole('menu'), `${where}: the button opens its menu when it is in plain sight`).toHaveCount(1)
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('menu')).toHaveCount(0)
+
+      // A wheel over the hidden part still scrolls the page, and so does a touch drag. Playwright's mobile WebKit can send neither ("Mouse wheel is not supported
+      // in mobile WebKit", and its touchscreen only taps), so there the proof is that nothing on the layer stops the page's pan from chaining through it: the fade
+      // and its ::after are no scroller and set no touch-action. Chromium sends both for real.
+      for (const pseudo of [null, '::after']) {
+        const style = await fade.evaluate((el, p) => { const s = getComputedStyle(el, p); return { touchAction: s.touchAction, overflow: s.overflow } }, pseudo)
+        expect(style, `${where}: the fade${pseudo ?? ''} is no scroller and sets no touch-action`).toEqual({ touchAction: 'auto', overflow: 'visible' })
+      }
+      if (browserName === 'chromium') {
+        await page.evaluate(() => window.scrollTo(0, 0))
+        await page.mouse.move(target.x, tapY)
+        await page.mouse.wheel(0, 120)
+        await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${where}: a wheel over the fade scrolls the page` }).toBeGreaterThan(0)
+        await page.evaluate(() => window.scrollTo(0, 0))
+        const cdp = await page.context().newCDPSession(page)
+        // a finger down on the fade and up the screen in ten steps (Input.synthesizeScrollGesture does nothing under this emulation, even off the fade)
+        const touch = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: target.x, y }] })
+        await touch('touchStart', tapY)
+        for (let step = 1; step <= 10; step++) {
+          await touch('touchMove', tapY - step * 20)
+          await page.waitForTimeout(16)
+        }
+        await page.waitForTimeout(200) // the finger rests before it lifts, so that there is no fling: a tap during a fling only stops it
+        await touch('touchEnd', tapY - 200)
+        await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${where}: a drag that starts on the fade scrolls the page` }).toBeGreaterThan(0)
+        await cdp.detach()
+      }
+
+      let lastY = -1
+      await expect.poll(async () => {
+        const y = await page.evaluate(() => window.scrollY)
+        const still = y === lastY
+        lastY = y
+        return still
+      }, { message: `${where}: the page stands still` }).toBe(true)
+      // the bar's own taps: a touch on "נקודות" opens the Points screen
+      const pointsButton = await bar.getByRole('button', { name: SCREEN_NAV.points, exact: true }).boundingBox()
+      await page.touchscreen.tap(pointsButton.x + pointsButton.width / 2, pointsButton.y + pointsButton.height / 2)
+      await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES.points, exact: true }), `${where}: the bar still takes its taps`).toBeVisible()
+    }
+
+    // above the fade, whatever opens over the page: the sheet under "עוד" (every dialog and sheet is the same overlay), the account menu, the toasts
+    await page.setViewportSize({ width: 360, height: 640 })
+    const fadeBox = await fade.boundingBox()
+    await bar.getByRole('button', { name: 'עוד', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'עוד', exact: true })).toBeVisible()
+    const overlay = await page.evaluate((y) => Boolean(document.elementFromPoint(2, y)?.closest('.a-overlay')), fadeBox.y + 10)
+    expect(overlay, 'the sheet under "עוד" is over the fade').toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    const fadeZ = await zIndexOf(fade)
+    await openAccountMenu(page)
+    expect(await zIndexOf(page.getByRole('dialog', { name: 'החשבון שלי' })), 'the account menu is over the fade').toBeGreaterThan(fadeZ)
+    await page.keyboard.press('Escape')
+    expect(await zIndexOf(page.locator('.a-toasts')), 'the toasts are over the fade').toBeGreaterThan(fadeZ)
+
+    // a computer has the side rail instead of the bar, and no fade
+    await page.setViewportSize(COMPUTER)
+    await expect(bar).toBeHidden()
+    await expect(fade, 'a computer has no fade').toBeHidden()
+  } finally {
+    await phone.dispose()
+    for (const point of points) await page.request.delete(`/api/admin/points/${point.id}`, { data: {} })
+  }
+})
+
 // The side rail of a computer has all eight screens in two groups, the work screens and the management screens, with a line between
 // them. Every name is whole, on one line. The help is called "עזרה" on its button: its whole name, "איך עובדים עם המערכת", measured 168 px
 // against the 157 px that the name of a button has in a rail 248 px wide (the sheet under "עוד" has room for the whole name).
