@@ -2,7 +2,7 @@ import {
   Fragment, cloneElement, createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { IconAlert, IconCheck, IconMore, IconX } from './icons.jsx'
+import { IconAlert, IconCheck, IconMore, IconPlus, IconX } from './icons.jsx'
 import { formatDay, parseDay, editDay } from '../../shared/datetime.js'
 
 const appRoot = () => document.querySelector('.a-app') ?? document.body // portals must stay inside .a-app (design tokens)
@@ -14,7 +14,9 @@ const appRoot = () => document.querySelector('.a-app') ?? document.body // porta
  * `label` is both the accessible name and the tooltip. The icon is grey and turns violet on hover, while pressed and on
  * focus; there is no frame or fill.
  *   tone "default": grey.      tone "danger": red, used only for removing something.
- *   tone "primary": a filled violet round button, the single main action of a page (adding something).
+ *   tone "primary": a filled violet round button. No screen uses it now: the add button of a heading is a pill with its words
+ *   (`w-btn w-btn--small`, see `.a-head--add` in admin.css), because a solid round "+" under the solid round account button looked like
+ *   a second account button.
  * With `href` it is a link (a download), otherwise a button.
  */
 export function IconButton({ icon: Icon, label, onClick, tone = 'default', size = 24, href, download, disabled, ...rest }) {
@@ -24,6 +26,14 @@ export function IconButton({ icon: Icon, label, onClick, tone = 'default', size 
     return <a className={className} href={href} download={download} aria-label={label} title={label} {...rest}>{icon}</a>
   }
   return <button type="button" className={className} onClick={onClick} disabled={disabled} aria-label={label} title={label} {...rest}>{icon}</button>
+}
+
+/**
+ * The add button of a screen heading: a pill with the plus and the words for what it adds, the first action of its heading
+ * (`a-head a-head--add` in admin.css). The words are on the button, so what a person reads and what a screen reader says are one thing.
+ */
+export function AddButton({ label, onClick }) {
+  return <button type="button" className="w-btn w-btn--small" onClick={onClick}><IconPlus size={20} />{label}</button>
 }
 
 /* ------------------------------------------------------------ date field */

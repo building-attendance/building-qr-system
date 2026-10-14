@@ -1,8 +1,8 @@
 import { useId, useRef, useState } from 'react'
 import { adminApi, errorText } from '../api.js'
 import { useLoad, setLoadCache, LOAD_KEY, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { IconPlus, IconBan, IconCheck, IconShield, IconAlert, IconTrash } from '../icons.jsx'
+import { Modal, Field, Badge, EmptyState, Spinner, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { IconBan, IconCheck, IconShield, IconAlert, IconTrash } from '../icons.jsx'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { useBuildingName } from '../buildingName.jsx'
 import BuildLabel from '../../ui/BuildLabel.jsx'
@@ -208,12 +208,12 @@ export default function SettingsView({ admin }) {
       </div>
 
       <section aria-labelledby={membersId}>
-        <div className="a-head a-head--section">
+        <div className="a-head a-head--section a-head--add">
           <div>
             <h2 id={membersId}>חברי הוועד</h2>
             <p>מי רשאי להיכנס לניהול. הכניסה תמיד עם חשבון Google.</p>
           </div>
-          <div className="a-actions"><IconButton icon={IconPlus} label="חבר ועד חדש" tone="primary" onClick={() => setAdding(true)} /></div>
+          <div className="a-actions"><AddButton label="חבר ועד חדש" onClick={() => setAdding(true)} /></div>
         </div>
 
         {admins.status === 'loading' && <Spinner />}

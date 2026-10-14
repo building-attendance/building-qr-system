@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { Modal, Field, Badge, EmptyState, Spinner, IconButton, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconPlus, IconKey, IconCopy, IconBan, IconAlert, IconInfo, IconTrash } from '../icons.jsx'
 import { KEY_NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { agentPrompt } from '../agentPrompt.js'
@@ -96,13 +96,13 @@ export default function AgentView() {
 
   return (
     <>
-      <div className="a-head">
+      <div className="a-head a-head--add">
         <div>
           <h1>גישה לאייג'נט</h1>
           <p>נתוני הנוכחות זמינים לקריאה בלבד לכל אייג'נט שמחזיק במפתח. האפליקציה עצמה לא מנתחת כלום.</p>
           {limits && <p>{limitsNote(limits)}</p>}
         </div>
-        <div className="a-actions"><IconButton icon={IconPlus} label="מפתח חדש" tone="primary" onClick={() => setCreating(true)} /></div>
+        <div className="a-actions"><AddButton label="מפתח חדש" onClick={() => setCreating(true)} /></div>
       </div>
 
       {keys.status === 'loading' && <Spinner />}
