@@ -260,7 +260,7 @@ test('the tab bar of the phone floats clear of the screen edges, and the page en
 // colour, takes no taps and stays under every overlay. The end of every page stands wholly above its top edge (--w-layout-tabbar-clearance in
 // src/ui/base.css), so that the last card is never half-faded. Measured at 360 and 320 px (the narrowest phones in use), at the very end of the
 // screens that are long enough to scroll, among them the History with a few visits.
-test('the page fades out behind the tab bar of the phone, and the end of every page stands above the fade', async ({ page, playwright }) => {
+test('the page fades out behind the tab bar of the phone, the end of every page stands above the fade, and a tap on its hidden part reaches nothing', async ({ page, playwright, browserName }) => {
   const fade = page.locator('.a-tabbar-fade')
   const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
   const zIndexOf = (locator) => locator.evaluate((el) => Number(getComputedStyle(el).zIndex))
@@ -328,6 +328,108 @@ test('the page fades out behind the tab bar of the phone, and the end of every p
           return Math.round(((await fade.boundingBox()).y - last) * 10) / 10
         }, { message: `${where}: at the end of the page, the room between its last thing and the top of the fade (px, never under 0)` }).toBeGreaterThanOrEqual(0)
       }
+    }
+
+    // Taps and scrolling over the part of the fade where the page is hidden (under its first --w-space-10). A tap there must not reach a control that cannot be
+    // seen (the "more actions" button of a History row, here), and a wheel or a drag there must still scroll the page. 768 px is the width where the bar (480 px at
+    // most) leaves a strip on both sides of it; at 360 px the bar leaves only 12 px at the sides and 10 px under it, and no control reaches the sides, so the
+    // tap is in the gap under the bar. The bar's own taps are not affected: it stands over the fade.
+    for (const width of [768, 360]) {
+      const where = `${width} px`
+      await page.setViewportSize({ width, height: 640 })
+      await page.goto('/admin#history')
+      await expect(historyRows(page), `${where}: the visits are drawn`).not.toHaveCount(0)
+      const barBox = await bar.boundingBox()
+      const tapY = width === 768 ? 640 - 30 : 640 - 5
+      // scroll the page so that the "more actions" button of a row stands at the point to tap, and say where that is
+      const target = await page.evaluate((y) => {
+        const max = document.documentElement.scrollHeight - window.innerHeight
+        for (const button of document.querySelectorAll('main li button')) {
+          const rect = button.getBoundingClientRect()
+          const to = window.scrollY + rect.top + rect.height / 2 - y
+          if (to < 0 || to > max) continue
+          window.scrollTo(0, to)
+          const now = button.getBoundingClientRect()
+          return { x: now.left + now.width / 2, y, name: button.getAttribute('aria-label') ?? '' }
+        }
+        return null
+      }, tapY)
+      expect(target, `${where}: a button of a row can be scrolled to the point under the fade`).not.toBeNull()
+      const onBar = target.x >= barBox.x && target.x <= barBox.x + barBox.width && target.y >= barBox.y && target.y <= barBox.y + barBox.height
+      expect(onBar, `${where}: the point is beside or under the bar, not on it`).toBe(false)
+      if (width === 768) expect(target.x < barBox.x || target.x > barBox.x + barBox.width, `${where}: the point is in a strip beside the bar`).toBe(true)
+
+      const expectNothingHappened = async (how) => {
+        await expect(page.getByRole('menu'), `${where}: a ${how} on the hidden part of the fade opens no menu`).toHaveCount(0)
+        await expect(page.getByRole('dialog'), `${where}: and no dialog`).toHaveCount(0)
+        expect(new URL(page.url()).hash, `${where}: and goes nowhere`).toBe('#history')
+      }
+      await page.mouse.click(target.x, target.y)
+      await expectNothingHappened('click')
+      // A finger as well, where it is not WebKit's own doing that it lands elsewhere: iOS WebKit moves a touch that lands within a few px of a button to that
+      // button, so a touch in the 10 px gap under the bar (360 px) is taken by the bar's nearest button. At 768 px the point is far from the bar.
+      if (width === 768 || browserName === 'chromium') {
+        await page.touchscreen.tap(target.x, target.y)
+        await expectNothingHappened('tap')
+      }
+      // what is at that point is the fade, and in the gradient above it (the page still shows) it is not
+      const hits = await page.evaluate(([x, y, top]) => ({
+        hidden: Boolean(document.elementFromPoint(x, y)?.closest('.a-tabbar-fade')),
+        gradient: Boolean(document.elementFromPoint(x, top + 10)?.closest('.a-tabbar-fade')),
+      }), [target.x, target.y, (await fade.boundingBox()).y])
+      expect(hits.hidden, `${where}: the fade is what a tap at that point meets`).toBe(true)
+      expect(hits.gradient, `${where}: in its gradient a tap still reaches the page`).toBe(false)
+      // the same button, in plain sight, does open its menu: the tap above was a real one
+      await page.evaluate((name) => {
+        for (const button of document.querySelectorAll('main li button')) {
+          if (button.getAttribute('aria-label') === name) button.scrollIntoView({ block: 'center', behavior: 'instant' })
+        }
+      }, target.name)
+      const button = page.getByRole('button', { name: target.name, exact: true })
+      const seen = await button.boundingBox()
+      await page.touchscreen.tap(seen.x + seen.width / 2, seen.y + seen.height / 2)
+      await expect(page.getByRole('menu'), `${where}: the button opens its menu when it is in plain sight`).toHaveCount(1)
+      await page.keyboard.press('Escape')
+      await expect(page.getByRole('menu')).toHaveCount(0)
+
+      // A wheel over the hidden part still scrolls the page, and so does a touch drag. Playwright's mobile WebKit can send neither ("Mouse wheel is not supported
+      // in mobile WebKit", and its touchscreen only taps), so there the proof is that nothing on the layer stops the page's pan from chaining through it: the fade
+      // and its ::after are no scroller and set no touch-action. Chromium sends both for real.
+      for (const pseudo of [null, '::after']) {
+        const style = await fade.evaluate((el, p) => { const s = getComputedStyle(el, p); return { touchAction: s.touchAction, overflow: s.overflow } }, pseudo)
+        expect(style, `${where}: the fade${pseudo ?? ''} is no scroller and sets no touch-action`).toEqual({ touchAction: 'auto', overflow: 'visible' })
+      }
+      if (browserName === 'chromium') {
+        await page.evaluate(() => window.scrollTo(0, 0))
+        await page.mouse.move(target.x, tapY)
+        await page.mouse.wheel(0, 120)
+        await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${where}: a wheel over the fade scrolls the page` }).toBeGreaterThan(0)
+        await page.evaluate(() => window.scrollTo(0, 0))
+        const cdp = await page.context().newCDPSession(page)
+        // a finger down on the fade and up the screen in ten steps (Input.synthesizeScrollGesture does nothing under this emulation, even off the fade)
+        const touch = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: target.x, y }] })
+        await touch('touchStart', tapY)
+        for (let step = 1; step <= 10; step++) {
+          await touch('touchMove', tapY - step * 20)
+          await page.waitForTimeout(16)
+        }
+        await page.waitForTimeout(200) // the finger rests before it lifts, so that there is no fling: a tap during a fling only stops it
+        await touch('touchEnd', tapY - 200)
+        await expect.poll(() => page.evaluate(() => window.scrollY), { message: `${where}: a drag that starts on the fade scrolls the page` }).toBeGreaterThan(0)
+        await cdp.detach()
+      }
+
+      let lastY = -1
+      await expect.poll(async () => {
+        const y = await page.evaluate(() => window.scrollY)
+        const still = y === lastY
+        lastY = y
+        return still
+      }, { message: `${where}: the page stands still` }).toBe(true)
+      // the bar's own taps: a touch on "נקודות" opens the Points screen
+      const pointsButton = await bar.getByRole('button', { name: SCREEN_NAV.points, exact: true }).boundingBox()
+      await page.touchscreen.tap(pointsButton.x + pointsButton.width / 2, pointsButton.y + pointsButton.height / 2)
+      await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES.points, exact: true }), `${where}: the bar still takes its taps`).toBeVisible()
     }
 
     // above the fade, whatever opens over the page: the sheet under "עוד" (every dialog and sheet is the same overlay), the account menu, the toasts
