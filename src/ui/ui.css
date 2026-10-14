@@ -164,7 +164,7 @@
 
 /* The appearance picker (src/ui/ThemeSwitch.jsx) and the language picker (TopBar) are just an icon: no edge, no fill,
    a 44px touch target. A real <select> lies invisibly over the icon, so the phone's own picker opens. Only the icon
-   changes, to the palette blue, on hover, while pressed and on keyboard focus.
+   changes, to violet, on hover, while pressed and on keyboard focus.
    The box clips what is inside it (overflow: hidden): WebKit lays the text of the chosen option out in a block of its own
    inside the <select> (about 87px for the Hebrew label, wider for the Russian "match the device" one) and lets it run past
    the 44px box even though the select is invisible. Next to the edge of the screen that block widened the whole page, by
@@ -176,7 +176,7 @@
 .w-theme--bare, .w-lang { width: 44px; height: 44px; border-radius: var(--w-radius-sm); }
 @media (hover: hover) { .w-theme--bare:hover, .w-lang:hover { color: var(--w-info); } }
 .w-theme--bare:active, .w-lang:active { color: var(--w-info); }
-/* No frame around the two icons, even while their list is open or on keyboard focus: the icon itself turns blue. */
+/* No frame around the two icons, even while their list is open or on keyboard focus: the icon itself turns violet. */
 .w-theme--bare:has(select:focus-visible), .w-lang:has(select:focus-visible) { color: var(--w-info); outline: none; }
 
 .w-main { flex: 1; display: flex; flex-direction: column; gap: var(--w-space-4); padding-block: var(--w-space-2) var(--w-space-4); }
@@ -191,10 +191,13 @@
 .w-build--center { align-self: center; text-align: center; }
 
 /* ----- buttons ----- */
+/* Pills (direction B, the design canvas): the main action is filled with the primary colour and 56px high, a secondary one (--quiet) is
+   a violet tint with its ink, and the one that deletes (--danger, admin.css) a red tint with red text. --small is 48px, the actions of a
+   dialog. Each text is held to AA on its fill by tests/contrast.test.js. A tint has no edge: its words name the button (WCAG 1.4.11). */
 .w-btn {
   display: inline-flex; align-items: center; justify-content: center; gap: var(--w-space-2-5);
   min-height: 56px; padding-inline: var(--w-space-6); width: 100%;
-  border: 0; border-radius: var(--w-radius-lg); cursor: pointer;
+  border: 0; border-radius: var(--w-radius-pill); cursor: pointer;
   font-size: var(--w-font-xl); font-weight: var(--w-weight-semibold);
   background: var(--w-primary); color: var(--w-on-primary);
   transition: background 0.15s, transform 0.1s;
@@ -202,9 +205,9 @@
 .w-btn:hover { background: var(--w-primary-hover); }
 .w-btn:active { transform: scale(0.985); }
 .w-btn:disabled { opacity: 0.55; cursor: not-allowed; transform: none; }
-.w-btn--quiet { background: var(--w-surface-2); border: 1px solid var(--w-field-border); color: var(--w-text); }
-.w-btn--quiet:hover { background: var(--w-surface-3); }
-.w-btn--small { min-height: 48px; width: auto; font-size: var(--w-font-base); padding-inline: var(--w-space-4-5); border-radius: var(--w-radius-md); }
+.w-btn--quiet, .w-btn--quiet:hover { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); }
+.w-btn--quiet:hover { box-shadow: inset 0 0 0 2px var(--w-info-line); }
+.w-btn--small { min-height: 48px; width: auto; font-size: var(--w-font-base); padding-inline: var(--w-space-5); }
 .w-link {
   background: none; border: 0; cursor: pointer; color: var(--w-info); font-size: var(--w-font-base); font-weight: var(--w-weight-medium);
   min-height: 48px; padding-inline: var(--w-space-2); text-decoration: underline; text-underline-offset: 3px; align-self: center;
@@ -218,14 +221,15 @@
 
 /* ----- cards / banners ----- */
 .w-card { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); padding: var(--w-space-4-5); }
+/* A banner is a tint with no edge (the design canvas): its icon and its words carry it. */
 .w-banner {
-  display: flex; align-items: center; gap: var(--w-space-3); padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-lg);
-  background: var(--w-info-bg); border: 1px solid var(--w-info-line); color: var(--w-text);
+  display: flex; align-items: center; gap: var(--w-space-3); padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-2xl);
+  background: var(--w-info-bg); color: var(--w-text);
 }
 .w-banner svg { flex: none; color: var(--w-info); }
-.w-banner--warn { background: var(--w-warn-bg); border-color: var(--w-warn-line); }
+.w-banner--warn { background: var(--w-warn-bg); }
 .w-banner--warn svg { color: var(--w-warn); }
-.w-banner--ok { background: var(--w-success-bg); border-color: var(--w-success-line); }
+.w-banner--ok { background: var(--w-success-bg); }
 .w-banner--ok svg { color: var(--w-success); }
 .w-banner__body { flex: 1; min-width: 0; overflow-wrap: anywhere; } /* the banner that names the point: one long word wraps inside it (T2) */
 
@@ -252,11 +256,12 @@
 .w-field { display: flex; flex-direction: column; gap: var(--w-space-2); }
 .w-label { font-size: var(--w-font-base); font-weight: var(--w-weight-medium); color: var(--w-text-2); }
 .w-input-wrap { position: relative; display: flex; }
+/* A field is the surface inside its 3:1 edge (--w-field-border), and on focus a violet edge with a 4px ring (the design canvas). */
 .w-input {
   width: 100%; min-height: 56px; padding-inline: var(--w-space-4) var(--w-layout-eye-width); font-size: var(--w-font-xl); /* >=16px: no iOS zoom */
-  background: var(--w-surface-2); border: 1.5px solid var(--w-field-border); border-radius: var(--w-radius-lg); color: var(--w-text);
+  background: var(--w-surface); border: 1.5px solid var(--w-field-border); border-radius: var(--w-radius-lg); color: var(--w-text);
 }
-.w-input:focus { outline: none; border-color: var(--w-focus); box-shadow: 0 0 0 3px var(--w-focus-ring); }
+.w-input:focus { outline: none; border-color: var(--w-focus); box-shadow: 0 0 0 4px var(--w-focus-ring); }
 .w-input--error { border-color: var(--w-danger); }
 .w-eye {
   position: absolute; inset-block: 0; inset-inline-end: 0; width: var(--w-layout-eye-width); display: grid; place-items: center;
@@ -274,7 +279,7 @@
 .w-visit:last-child { border-block-end: 0; }
 .w-visit__time { font-variant-numeric: tabular-nums; font-weight: var(--w-weight-bold); min-width: 3.4em; direction: ltr; text-align: start; }
 .w-visit__point { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.w-tag { font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); padding: var(--w-space-1) var(--w-space-2-5); border-radius: var(--w-radius-pill); background: var(--w-warn-bg); color: var(--w-warn); white-space: nowrap; }
+.w-tag { font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); padding: var(--w-space-1) var(--w-space-3); border-radius: var(--w-radius-pill); background: var(--w-tint-peach); color: var(--w-tint-peach-ink); white-space: nowrap; }
 .w-section-title { font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); margin-block-end: var(--w-space-1); }
 
 /* ----- result screen ----- */
@@ -295,7 +300,7 @@
    is about three quarters of the width of "00:00"), so the line, and the box that the picture tests mask over the time, would change
    width with the time of day; its tabular figures (the font's tnum) are all one width. */
 .w-result__warning { color: var(--w-warn); font-weight: var(--w-weight-semibold); }
-.w-chip { display: inline-flex; align-items: center; gap: var(--w-space-2); padding: var(--w-space-2) var(--w-space-4); border-radius: var(--w-radius-pill); background: var(--w-surface-2); border: 1px solid var(--w-border); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.w-chip { display: inline-flex; align-items: center; gap: var(--w-space-2); padding: var(--w-space-2-5) var(--w-space-4); border-radius: var(--w-radius-pill); background: var(--w-surface); box-shadow: var(--w-shadow); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
 .w-who { display: inline-flex; align-items: center; gap: var(--w-space-2); margin: 0; color: var(--w-text-2); font-size: var(--w-font-base); max-width: 100%; overflow-wrap: anywhere; }
 /* The same WebKit case as .w-result__body (the name is in isolates): the text is an element of its own, so that it can shrink below
    its longest line. Text that sits straight in a flex box is an anonymous item, which a rule cannot reach. */

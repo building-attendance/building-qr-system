@@ -132,7 +132,7 @@ function PointForm({ point, providers, onClose, onSaved }) {
             <input className="a-input" dir="ltr" inputMode="numeric" value={form.radius_m} onChange={(e) => set('radius_m', e.target.value)} />
           </Field>
           <div style={{ display: 'flex', alignItems: 'flex-end' }}>
-            <button type="button" className="w-btn w-btn--ghost w-btn--small" onClick={locate} style={{ width: '100%' }}>
+            <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={locate} style={{ width: '100%' }}>
               <IconLocate size={20} />המיקום שלי כעת
             </button>
           </div>
@@ -204,16 +204,16 @@ function QrDialog({ point, onClose, onPrint, onChanged }) {
         {src ? <img src={src} alt={`קוד QR של הנקודה ${point.name}`} /> : <Spinner />}
         <div className="a-actions" style={{ justifyContent: 'center' }}>
           <button className="w-btn w-btn--small" onClick={() => onPrint([point], 'single')}><IconPrinter size={20} />הדפסת שלט</button>
-          <button className="w-btn w-btn--ghost w-btn--small" disabled={!src} onClick={() => downloadDataUrl(src, `qr-${safeFileName(point.name)}.png`)}>
+          <button className="w-btn w-btn--quiet w-btn--small" disabled={!src} onClick={() => downloadDataUrl(src, `qr-${safeFileName(point.name)}.png`)}>
             <IconDownload size={20} />הורדה
           </button>
-          <button className="w-btn w-btn--ghost w-btn--small" onClick={async () => toast.ok((await copyText(point.qr_url)) ? 'הקישור הועתק' : 'ההעתקה נכשלה')}>
+          <button className="w-btn w-btn--quiet w-btn--small" onClick={async () => toast.ok((await copyText(point.qr_url)) ? 'הקישור הועתק' : 'ההעתקה נכשלה')}>
             <IconCopy size={20} />העתקת קישור
           </button>
         </div>
         <p className="w-small a-code">{point.qr_url}</p>
       </div>
-      <button className="w-btn w-btn--ghost w-btn--small" onClick={regenerate} disabled={busy}><IconRefresh size={20} />החלפת קוד ה-QR</button>
+      <button className="w-btn w-btn--quiet w-btn--small" onClick={regenerate} disabled={busy}><IconRefresh size={20} />החלפת קוד ה-QR</button>
     </Modal>
   )
 }
