@@ -23,8 +23,30 @@ beforeAll(async () => {
 
 describe('Google ID token verification', () => {
   it('accepts a genuine token and normalises the e-mail', async () => {
-    expect(await verify(await token())).toEqual({ email: 'matan@example.com', name: 'Matan', sub: 'google-sub-1' })
+    expect(await verify(await token())).toEqual({ email: 'matan@example.com', name: 'Matan', sub: 'google-sub-1', picture: null })
     expect(await verify(await token({ iss: 'accounts.google.com' }))).toMatchObject({ email: 'matan@example.com' })
+  })
+
+  // The member's photo (the `picture` claim) is kept only when googlePhotoUrl accepts it (its own tests are in tests/admin-photo.test.js).
+  // Every other value is no photo, and the token is still accepted: a photo never stops a sign-in.
+  it("passes on Google's photo address from a genuine token", async () => {
+    const picture = 'https://lh3.googleusercontent.com/a/fake-photo-id=s96-c'
+    expect(await verify(await token({ claims: { picture } }))).toEqual({ email: 'matan@example.com', name: 'Matan', sub: 'google-sub-1', picture })
+  })
+
+  it.each([
+    ['no picture claim', undefined],
+    ['a number', 42],
+    ['an object', { url: 'https://lh3.googleusercontent.com/a/x' }],
+    ['plain http', 'http://lh3.googleusercontent.com/a/fake'],
+    ['another host', 'https://tracker.example/pixel.png'],
+    ['a look-alike host', 'https://lh3.googleusercontent.com.evil.example/a/fake'],
+    ['a value that is too long', `https://lh3.googleusercontent.com/a/${'x'.repeat(600)}`],
+    ['a user and a password', 'https://user:secret@lh3.googleusercontent.com/a/fake'],
+    ['an odd port', 'https://lh3.googleusercontent.com:8443/a/fake'],
+  ])('accepts the token with no photo when the picture claim is %s', async (_name, picture) => {
+    const result = await verify(await token({ claims: { picture } }))
+    expect(result).toEqual({ email: 'matan@example.com', name: 'Matan', sub: 'google-sub-1', picture: null })
   })
 
   it.each([

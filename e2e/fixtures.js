@@ -1,5 +1,6 @@
 // Shared pieces for the end-to-end specs: a `page` that fails its test on unexpected console errors, the sample data
 // of the scratch schema, and small helpers for signing in and for resetting what a test changed.
+import { deflateSync, crc32 } from 'node:zlib'
 import { test as base, expect } from '@playwright/test'
 import AxeBuilder from '@axe-core/playwright'
 import he from '../src/i18n/he.js'
@@ -472,6 +473,86 @@ export function homeSummary({ providers = HOME_PROVIDERS, counts = {} } = {}) {
 export async function stubHome(page, summary = homeSummary()) {
   await page.route(/\/api\/admin\/home$/, (route) => (route.request().method() === 'GET' ? route.fulfill({ json: summary }) : route.continue()))
 }
+
+// ---- pictures ---------------------------------------------------------------------------------------------------------------
+
+/**
+ * A PNG of `width` by `height` pixels, each pixel the RGB triple that `colourAt(x, y)` gives. Built by hand (a signature, then three
+ * chunks) so that no binary file has to be committed for a picture that a test answers with.
+ * @param {number} width
+ * @param {number} height
+ * @param {(x: number, y: number) => number[]} colourAt
+ */
+export function pngImage(width, height, colourAt) {
+  const rows = Buffer.alloc((1 + width * 3) * height) // each row: a filter byte (0, none), then one RGB triple per pixel
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) rows.set(colourAt(x, y), y * (1 + width * 3) + 1 + x * 3)
+  }
+  const chunk = (type, data) => {
+    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
+    const out = Buffer.alloc(body.length + 8)
+    out.writeUInt32BE(data.length, 0)
+    body.copy(out, 4)
+    out.writeUInt32BE(crc32(body), body.length + 4)
+    return out
+  }
+  const header = Buffer.alloc(13)
+  header.writeUInt32BE(width, 0)
+  header.writeUInt32BE(height, 4)
+  header.set([8, 2, 0, 0, 0], 8) // 8 bits per channel, RGB, the usual compression and filter, no interlacing
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
+    chunk('IHDR', header),
+    chunk('IDAT', deflateSync(rows)),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+/**
+ * The address of the committee member's Google photo in the tests: on Google's photo host (the one that the sign-in keeps and that the
+ * Content-Security-Policy allows for pictures), made up, and never loaded from Google: `stubMemberPhoto` answers it.
+ */
+export const MEMBER_PHOTO_URL = 'https://lh3.googleusercontent.com/a/e2e-fake-member-photo=s96-c'
+
+/**
+ * The picture that stands for the member's photo: 96 by 96 pixels (the size Google gives), four squares of fixed colours, so that it is
+ * plainly not a person, the same in every run (the visual baselines), and easy to tell from the violet tint of the circle.
+ */
+export const memberPhoto = () =>
+  pngImage(96, 96, (x, y) => [[[22, 120, 110], [230, 160, 40]], [[60, 70, 90], [220, 90, 70]]][y < 48 ? 0 : 1][x < 48 ? 0 : 1])
+
+/**
+ * Gives the sample committee member (ADMIN_EMAIL) a Google photo: the answers that tell the committee app who is signed in (the dev
+ * sign-in, GET /api/admin/me) and the members of Settings (GET /api/admin/admins) carry MEMBER_PHOTO_URL as the member's `picture_url`,
+ * the way the server answers after a Google sign-in with a photo (the dev sign-in has no Google token, so the stored photo is empty),
+ * and the photo's address is answered with `memberPhoto()`; `blocked: true` refuses it instead (offline, blocked, expired), so that the
+ * app falls back to the initial. Returns the requests that were made for the photo, to check what they carried.
+ * @param {import('@playwright/test').Page} page
+ * @param {{ blocked?: boolean }} [options]
+ */
+export async function stubMemberPhoto(page, { blocked = false } = {}) {
+  const withPhoto = (member) => (member?.email === ADMIN_EMAIL ? { ...member, picture_url: MEMBER_PHOTO_URL } : member)
+  const answer = (change) => async (route) => {
+    const response = await route.fetch()
+    if (!response.ok()) return route.fulfill({ response })
+    return route.fulfill({ response, json: change(await response.json()) })
+  }
+  await page.route(/\/api\/admin\/(me|dev-login)$/, answer((body) => ({ ...body, admin: withPhoto(body.admin) })))
+  await page.route(/\/api\/admin\/admins$/, (route) =>
+    route.request().method() === 'GET' ? answer((body) => ({ ...body, admins: body.admins.map(withPhoto) }))(route) : route.continue())
+  const requests = []
+  const photo = memberPhoto()
+  await page.route('https://lh3.googleusercontent.com/**', (route) => {
+    requests.push(route.request())
+    // A plain network failure: for a picture aborted as "blocked by client" WebKit fired no error event (seen on 14/10/2026), so the
+    // app, rightly, kept waiting for it.
+    return blocked ? route.abort('failed') : route.fulfill({ contentType: 'image/png', body: photo })
+  })
+  return requests
+}
+
+/** True when `img` has loaded a picture (its natural width is known), false while it loads or after it failed. */
+export const photoLoaded = (img) => img.evaluate((el) => el.complete && el.naturalWidth > 0)
 
 /** The committee app draws its phone layout below this width (`usePhoneLayout` in src/admin/hooks.js). Both E2E devices are narrower. */
 export const COMPUTER_WIDTH = 1024

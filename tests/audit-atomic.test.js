@@ -618,7 +618,7 @@ describe('POST /api/admin/google: the sign-in is one step, and a refused one wri
     const { id, email } = await newMember({ name: '' })
     const answer = await signIn(email)
     expect(answer.status).toBe(200)
-    expect(answer.json.admin).toEqual({ id, email, name: 'Test Admin' })
+    expect(answer.json.admin).toEqual({ id, email, name: 'Test Admin', picture_url: null }) // the test verifier gives no photo
     expect(String(answer.headers['set-cookie'])).toMatch(/^qr_admin=qra_/)
     expect(await stored(id)).toMatchObject({ google_sub: `sub-${email}`, name: 'Test Admin' })
     expect((await stored(id)).last_login_at).not.toBeNull()

@@ -32,15 +32,22 @@
 
 /* The member's initial on a quiet violet tint (not the solid primary: the add button of a screen heading is the one filled thing near it, owner
    decision of 14/10/2026): the account button of the top bar, and the head of the account popover and of the rail's button. The disc is 44px, so
-   the button is a target of 44px (T1); the picture of the member (an `img`) will fill the same disc. The pointer draws a ring in the line
+   the button is a target of 44px (T1); the member's Google photo (`.a-face`, below) fills the same disc. The pointer draws a ring in the line
    colour and the open state a solid one (--w-info on the tint, 3:1, tests/contrast.test.js); the focus ring is the global one, outside the disc. */
 .a-avatar {
   flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%;
   background: var(--w-tint-violet); color: var(--w-tint-violet-ink); font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold);
 }
-.a-avatar--btn { cursor: pointer; }
-@media (hover: hover) { .a-avatar--btn:hover { box-shadow: inset 0 0 0 2px var(--w-info-line); } }
-.a-avatar--btn[aria-expanded='true'] { box-shadow: inset 0 0 0 2px var(--w-info); }
+/* The ring is painted under the content of the button, so the button has no padding of its own (the photo fills the whole disc), and the two
+   states with a ring have the width of the ring as padding: the photo draws 2px in from the edge and the ring shows around it (the initial is
+   centred either way, so it does not move). */
+.a-avatar--btn { padding: 0; cursor: pointer; }
+@media (hover: hover) { .a-avatar--btn:hover { box-shadow: inset 0 0 0 2px var(--w-info-line); padding: var(--w-space-0-5); } }
+.a-avatar--btn[aria-expanded='true'] { box-shadow: inset 0 0 0 2px var(--w-info); padding: var(--w-space-0-5); }
+/* The member's Google photo (src/admin/MemberFace.jsx) fills the circle that holds it: the account circle, and the mark of a member's card in
+   Settings. On the card of a member who is switched off the photo is grey, like the rest of the tile. */
+.a-face { width: 100%; height: 100%; border-radius: 50%; object-fit: cover; }
+.a-card.is-off .a-face { filter: grayscale(1); }
 /* The account button at the foot of the side rail: the avatar, the name and the e-mail, and a chevron that turns up while the popover is open. */
 .a-account-btn {
   display: flex; align-items: center; gap: var(--w-space-2-5); width: 100%; margin-block-start: auto; padding: var(--w-space-2-5); border: 0; border-radius: var(--w-radius-2xl);

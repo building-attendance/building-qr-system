@@ -147,6 +147,19 @@
  */
 
 /**
+ * The committee member who is signed in, as the committee app reads it: the `admin` of the answer of a sign-in (POST
+ * /api/admin/google) and of GET /api/admin/me (memberJson in server/routes/admin.js). The members of Settings (GET
+ * /api/admin/admins) carry the same `picture_url`, next to their other fields. The committee's agent never gets `picture_url`.
+ * @typedef {object} CommitteeMember
+ * @property {string} id
+ * @property {string} email
+ * @property {string} name  empty when there is none
+ * @property {string | null} [picture_url]  the address of the member's Google photo from the last Google sign-in (an https address on
+ *   Google's photo host, GOOGLE_PHOTO_HOST in server/config.js), or null. Optional: a server from before it does not send it, and an
+ *   app from before it ignores it. The app shows the initial when it is null or when the photo does not load.
+ */
+
+/**
  * One entry of the audit log, as the committee reads it (GET /api/admin/audit, auditEntry in server/auditRead.js). It is
  * the row of `audit_log`, the name of the member and the current name of what the entry is about, nothing else: no session, no
  * token. The committee's agent reads the same log in a narrower shape (agentAuditEntry in server/auditRead.js: the same fields, with
