@@ -136,7 +136,7 @@ breaking those rules; they are heuristics, not a replacement for reading the dif
 about the size budget (`npm run size`, `scripts/check-bundle-size.json`) are in [`AGENTS.md`](../AGENTS.md), "Testing".
 
 The unit tests and each E2E project run in parts side by side, each part a job with its own Postgres container that runs
-its share of the tests: `unit` in 2 parts (`ci.yml`, `--shard`), Chromium in 2 and WebKit in 4 (`.github/workflows/e2e.yml`,
+its share of the tests: `unit` in 2 parts (`ci.yml`, `--shard`), Chromium in 3 and WebKit in 4 (`.github/workflows/e2e.yml`,
 called by `ci.yml`). Each required check (`unit`, `e2e (android-chrome)`, `e2e (iphone-webkit)`) is a small job that
 passes only when every one of its parts passed. A failed part shows as `unit part <n>` or `e2e (<project>) part <n>`; the
 HTML report and the traces of a failed E2E part are the artifact `playwright-<project>-part-<n>`. To run one part on your

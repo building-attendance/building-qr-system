@@ -3,7 +3,7 @@
 #                          the size budget of the built app, an audit of the production dependencies (and a warning,
 #                          never a failure, for the development ones)
 #   unit                   Vitest, against a Postgres 18 container (production runs Postgres 18 on Neon), in 2 parts
-#   e2e (android-chrome)   Playwright, Chromium as a Pixel 7, in 2 parts (e2e.yml)
+#   e2e (android-chrome)   Playwright, Chromium as a Pixel 7, in 3 parts (e2e.yml)
 #   e2e (iphone-webkit)    Playwright, WebKit as an iPhone 14, in 4 parts (e2e.yml)
 #                          unit and each e2e check are small jobs that pass only when every one of their parts passed.
 # They run on every pull request, on every push to the default branch and, once the repository has a merge queue, on each
@@ -234,7 +234,7 @@ jobs:
     with:
       project: android-chrome
       browser: chromium
-      parts: "[1, 2]"
+      parts: "[1, 2, 3]"
 
   e2e-iphone-webkit-parts:
     name: e2e (iphone-webkit) parts
