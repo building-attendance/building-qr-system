@@ -124,8 +124,9 @@
   .a-bar { height: 130px; }
   .a-bar__n { font-size: var(--w-font-md); }
   .a-bar__fill { max-width: 44px; }
-  .a-bars__head { font-size: var(--w-font-xs); }
 }
+/* The heads are 13px only where the card is wide (3/5 of the row): at 1024px it is a half, with 43px columns, and 13px heads would touch. */
+@media (min-width: 1280px) { .a-bars__head { font-size: var(--w-font-xs); } }
 
 /* The providers of the week: a card of rows on a phone; from 1024px the section is the card (the design canvas), and the list has no card of its own. */
 .a-who { display: flex; flex-direction: column; gap: var(--w-space-3); }
