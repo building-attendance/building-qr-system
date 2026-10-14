@@ -476,7 +476,11 @@ const goTo = async (tab) => {
   await waitFor(() => expect(window.location.hash).toBe(`#${tab}`))
   await screen.findByRole('heading', { level: 1, name: { points: 'נקודות סריקה', providers: 'נותני שירות', history: 'היסטוריית נוכחות', agent: "גישה לאייג'נט", settings: 'הגדרות' }[tab] })
 }
-const signOut = () => fireEvent.click(screen.getAllByRole('button', { name: 'יציאה' })[0])
+// Signing out is in the account menu (src/admin/AccountMenu.jsx): the first account button (the side rail's) opens it, and the sign-out is in it.
+const signOut = () => {
+  fireEvent.click(screen.getAllByRole('button', { name: /החשבון שלי והגדרות/ })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'יציאה' }))
+}
 const devSignIn = async () => fireEvent.click(await screen.findByRole('button', { name: 'כניסת פיתוח' }))
 
 describe('the committee app', () => {
