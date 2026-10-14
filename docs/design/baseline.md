@@ -143,3 +143,123 @@ of the session script ("how many visits a provider made last week") now goes thr
   Filter ("סינון") button.
 - Not checked on a real iPhone yet: the two sheets (focus, the room above the home indicator) and the layout that a
   turned tablet keeps while a date is half typed. `docs/manual-ios-checklist.md` before the next release.
+
+## 14/10/2026, after the redesign to direction B (master 6ce5019)
+
+The same measurements as above, after #222 to #238: the twelve pull requests of the topic "visual redesign B". The
+owner's decision of 14/10/2026 replaced the one of 11/10/2026 that kept Heebo and the blue. Every number below was
+printed by the command next to it, run on 14/10/2026 on master at 6ce5019 with this pull request (documents, pictures
+and the script that takes them) on top, one Playwright project at a time, in a scratch schema. A row says so when a
+number needed a temporary line of code to be counted; that line was taken out again.
+
+### What changed
+
+| What a person sees | Before | Now | Pull request, decision |
+|---|---|---|---|
+| The typeface and the colours | Heebo and the blue; Russian and Arabic had no letters in it, so they read in the device's font | Rubik and a violet palette, light and dark; all four scripts are kept for use without a network; the edge of a field is at least 3:1 | #223 (D2, D4) |
+| Buttons, fields, cards, dialogs | on a phone only the filters and "More" opened from the bottom | pill buttons, cards that rest on a shadow, and on a phone every dialog is a sheet from the bottom (a computer keeps the centre) | #225 (D7) |
+| The actions of a tile or a row | four icon buttons on a point tile; icons on a history row | an edit button and a "more" button; the rest are in its menu, in one order, with the red delete last: points, providers, members, keys, history rows | #222, #231, #234 (D6) |
+| The top of the committee app | three icons: the provider app, light or dark, sign out | one account circle with a menu that holds all three; a quiet violet disc with the member's first letter | #227, #236 (D11) |
+| The member's face | the first letter only | the member's Google photo in the circle and on the member's card, and the letter when there is no photo or it does not load | #237 (D12) |
+| The tab bar on a phone | a bar across the bottom, every tab named | a floating pill, only the current tab named; the page fades out behind it, so nothing shows under or beside it | #227, #235 (D10) |
+| The add buttons | a round "+" | a pill that says what it adds (new point, new provider, new committee member, new key) | #236 (D11) |
+| Home | a table of the counts of seven days | a summary card with a bar for each day (DD/MM heads under the bars), the providers of the week, and tiles | #228 (D5) |
+| History and the audit log | rows divided by edges, and icon buttons on a history row | a soft card for each day, the time in a pill, one "more" button on a row | #234 |
+| The provider app | the previous look | cards, a violet card with three steps, result screens with a ring and a status circle (amber for "saved on the phone"), new texts in the four languages | #226 (D8, D9) |
+| The app icon and the scan sign | the Home Screen icon was the old blue; the QR drawing read as a grid of apps | a white scan frame on the app's violet, the same sign inside the apps, a robot head for the agent, a lock with a plus for a new password | #238 (D13) |
+| What production showed on the way | | each pull request was deployed when it merged, so for hours on 14/10/2026 the new colours stood beside some old structure | D1 |
+
+Three of these (D10, D11, D13) were findings from the owner's own iPhone on 14/10/2026, not from the five sessions below.
+
+What this section replaces in the ones above: the typeface and the blue that the decision of 11/10/2026 kept; the four
+icon buttons of a point tile (the second known problem of the first section, fixed by #187 and now gone with the icons);
+the committee tab bar of 12/10/2026 ("History, Points, Providers and More"), which is now Home, History, Points,
+Providers and More, as a floating pill; and "the screen that opens first: History", which Home has been since #201
+(13/10/2026, before the redesign).
+
+### Automated, run on every pull request
+
+| What | Value | Command or file |
+|---|---|---|
+| Accessibility violations (WCAG 2.1 A and AA, the WCAG 2.2 AA target size, axe best practices; both apps, light and dark) | 0 in 197 scans: 60 of the provider app, 129 of the committee app and 8 of the shared components; `e2e/a11y-baseline.js` lists no exception (0 entries) | `npx playwright test e2e/a11y.spec.js e2e/reflow.spec.js --project=android-chrome`: 34 passed, and the same with `--project=iphone-webkit`: 34 passed (9 tests of `e2e/a11y.spec.js` and 25 of `e2e/reflow.spec.js` in each). The scans were counted with a temporary line in `expectNoA11yViolations` (`e2e/fixtures.js`), in a separate run of `e2e/a11y.spec.js` on android-chrome (9 passed) |
+| Reflow at 320 px, with worst-case text, in the four languages of the provider app and in the committee app (rule T2) | no screen scrolls sideways | the 25 tests of `e2e/reflow.spec.js`, in the run above |
+| Inputs under 16 px on a phone (rule F5) | none | the two F5 tests of `e2e/reflow.spec.js`, in the run above |
+| Physical CSS properties outside the list of exceptions (rule R1) | 0; the list holds 4, each with its reason | `tests/design-css.test.js`, `tests/design-budget.json` |
+| Hard-coded spacing, radius and font-size values (rule V1, may only go down) | 0 (`literalBudget` is empty) | `tests/design-budget.json` |
+| Colour pairs, light and dark (rule V2) | 79 pairs in each theme, 158 in all (53 at 4.5:1 and 26 at 3:1 in each), all pass; 165 tests in the file | `npx vitest run tests/contrast.test.js` |
+| Visual baselines (both apps, phone and computer, light and dark) | 86 pictures: the 68 of 12/10/2026, and 4 for Home (#201), 4 for the account menu (#227), 2 for "saved on the phone" (#226), 8 for the photo (#237) | `ls e2e/__screenshots__/visual.spec.js \| wc -l`, and `git log --diff-filter=A 961a610..6ce5019` over that folder |
+| How strict the pictures are | a pixel counts when its colour moved further than 0.01; Playwright's default is 0.2 | `PIXEL_THRESHOLD` in `e2e/visual.spec.js` (owner decision of 14/10/2026, #233) |
+
+The thinnest colour pair in the light theme is the field border on the second surface at 3.07:1 (it needs 3:1); the
+thinnest text pair is the success green on its own tint, 4.67:1 (it needs 4.5:1). In the dark theme the thinnest is the
+focus ring on the darkest step of the count cells at 3.20:1, a token that no screen draws any more. They were read with a
+temporary copy of `tests/contrast.test.js` that logged each ratio. The pictures are compared on the Linux runner only
+(`docs/testing.md`), so this pull request's CI, not a laptop, is the check on them; this pull request changes none.
+
+### The size of what a phone downloads
+
+| Part | Bytes (brotli) | Budget | Before (12/10/2026) |
+|---|---|---|---|
+| Provider app, entry JS | 79,482 | 86,016 | 78,482 |
+| Provider app, entry CSS | 4,700 | 5,120 | 4,176 |
+| Committee app, chunk JS | 40,069 | 41,984 | 77,792 |
+| Committee app, chunk CSS | 5,828 | 5,828 | 9,442 |
+| Committee app, lazy chunks JS (the map) | 42,799 | 47,104 | in the chunk above |
+| Committee app, lazy chunks CSS (the map) | 5,668 | 6,656 | in the chunk above |
+| Precache, total | 322,990 (21 files) | 322,990 (21 files) | 239,776 (16 files) |
+
+`npm run size`, `scripts/check-bundle-size.json`, on an export of the commit with LF line endings (`git archive` with
+`core.autocrlf` off), which is what CI builds. The map left the committee chunk for a lazy chunk on 14/10/2026, which is
+not part of the redesign: it is why the committee chunk is about half of what it was, and the two lazy rows are new. The
+committee app's JavaScript in all is 82,868 (it was 77,792) and its CSS 11,496 (it was 9,442). The budgets that the
+redesign raised, each with its reason at the top of its pull request: the provider app's entry CSS from 4,608 to 5,120
+(#226), the committee chunk's CSS from 5,632 (set when the map left it) to 5,828 (#231, #234, #235, #237), and the
+precache from 256,000 to 322,990 (#223 to #238; its count of files went from 17 to 21, two of them the map's).
+
+**There is no headroom left** in two budgets: the committee chunk's CSS (5,828 of 5,828) and the precache (322,990 of
+322,990, 21 files of 21). The next byte of CSS in the committee app, or of a font or an icon, needs a raised budget in a
+pull request that says why, or something deleted first.
+
+### The fonts
+
+| File (`assets/rubik-<subset>-wght-normal`) | On disk (bytes) | In the precache (brotli) |
+|---|---|---|
+| hebrew | 9,348 | 9,336 |
+| cyrillic-ext | 12,388 | 12,387 |
+| cyrillic | 15,112 | 15,116 |
+| latin-ext | 19,400 | 19,398 |
+| arabic | 32,468 | 32,472 |
+| latin | 35,348 | 35,319 |
+| Six files | 124,064 | 124,028 |
+
+Six files cover the four scripts (Hebrew, Latin, Cyrillic, Arabic), and every one is in the precache (D2), so the
+provider app reads in its own typeface in Hebrew, English, Russian and Arabic with no network: they are 38.4 percent of
+the precache. The rest of the 322,990 bytes: the JavaScript and CSS of the provider app, the committee app and the map
+180,496; the three PNG icons 16,308 and the two SVG icons 638; the service worker's small files (the theme script, the
+page, the manifest) 1,520. The sizes on disk are from `vite build`, the bytes in the precache are from the precache list
+of `dist/sw.js`, read with `precacheUrls` and `sizeOfUrl` of `scripts/check-bundle-size.mjs`; the groups are sums of
+those.
+
+### Still not measured
+
+The friction in production and the five sessions with people, as in the first section. The sessions are where the new
+look (the icon-only tab bar, the account circle, the "more" menu) would be tried by the people who use it; the script
+has no question about them yet.
+
+### Known and not fixed
+
+- On a Windows checkout with `core.autocrlf=true`, `npm run size` measures 323,015 bytes for the precache, 25 over the
+  budget, because the working tree has CRLF in `index.html`, the theme script and the SVG icons. CI builds with LF and
+  measures 322,990. The numbers above are from the LF export.
+- Kept only because a test pins them, with no screen using them: the count-cell tokens `--w-count-1` to `4` and their
+  contrast checks (#228), and the `.a-icon-btn--danger` rules and `tone="primary"` of `IconButton` (#234, #236).
+- The new things are not checked on a real iPhone yet: the account circle with and without a photo, the fade behind the
+  tab bar and the new icon (`docs/manual-ios-checklist.md`, items 1 and 12, before the next release).
+- `docs/design.md` is at its limit of 250 lines (it was 251 after #223). This pull request adds the rules T3, V5 and V6
+  and makes room by shortening the entries whose check now exists (V1, V4, F4, R1, R3, T1, T2, D1) and by turning the
+  `planned:` checks of F5, T1, T2 and R1 into links to their tests. Two `planned:` checks are still not built: F2 (E2E
+  per form) and the contrast of the fixed colours in V2 (the select chevron, `#9a9aa4`, has no contrast test). The next
+  rule makes room the same way.
+- `.claude/skills/ui-review/SKILL.md` still lists Heebo among the fixed tokens (a skill changes only in its own pull
+  request). The `frontend-design` row of `docs/design/sources.md` said that the owner kept the current identity; this
+  pull request corrects it.

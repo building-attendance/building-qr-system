@@ -50,12 +50,16 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
     arrows point the right way, and no text is cut off.
 11. [ ] Typing a password: the keyboard does not zoom the page, the password manager offers the saved login, and the
     show/hide eye works.
-12. [ ] Committee app (`/admin`) on the phone: it opens on Home ("בית"), and the bar at the bottom has five buttons
-    (Home, History, Points, Providers, More), each label whole on one line. The page fades out behind the bar: no card
-    or number shows under it or beside it, a tap on the blank part beside or under it opens nothing, and at the end of a long page the last
-    card stands clear above the fade. Home greets by the hour and the member's first
-    name, and its summary card has a bar for each day with today at the left end and the seven day heads under the bars
-    (DD/MM), and fits the width (nothing scrolls sideways; on the narrowest phone a head breaks after its slash). A bar
+12. [ ] Committee app (`/admin`) on the phone: it opens on Home ("בית"), and the bar at the bottom floats like a pill
+    above the home indicator, with five buttons (Home, History, Points, Providers, More). Only the current one shows its
+    name, whole on one line; the others are icons, and VoiceOver reads the name of each. The page fades out behind the
+    bar: no card or number shows under it or beside it, a tap on the blank part beside or under it opens nothing, and at the end of a long page the last
+    card stands clear above the fade. At the top, the account circle is a pale violet disc with the member's first
+    letter, or the member's Google photo when they signed in with one: the photo fills the disc, and where it cannot
+    load the letter shows in its place, never a broken picture. A tap opens the account menu (name and e-mail, light,
+    dark or like the device, the provider app, sign out) whole inside the screen, and a tap outside closes it. Home
+    greets by the hour and the member's first name, and its summary card has a bar for each day with today at the left
+    end and the seven day heads under the bars (DD/MM), and fits the width (nothing scrolls sideways; on the narrowest phone a head breaks after its slash). A bar
     with visits opens History for that day, a provider's row opens History for that provider and the seven days, each
     with that many rows, and Back returns to Home. More ("עוד") opens a sheet
     from the bottom with the other four screens, its last row clear of the home indicator; after choosing one,

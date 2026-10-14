@@ -12,6 +12,9 @@ import { devices } from '@playwright/test'
 import { test, expect, he, POINTS, PEOPLE, signIn, adminSignIn, allowConsoleErrors, OFFLINE_NOISE } from '../../e2e/fixtures.js'
 import { MAX_IMAGE_BYTES, SCREENSHOTS_DIR, SCREENSHOTS_SCHEMA, assertLocalScratch } from './settings.mjs'
 
+// The summary card of the Home screen: its bars are links once the week has loaded (the visits that seed-history.mjs adds are in it).
+const homeLoaded = (page) => expect(page.getByRole('region', { name: 'השבוע בבניין' }).getByRole('table').getByRole('link').first()).toBeVisible()
+
 // The heading of a day in the history: the date (DD/MM/YYYY) and how many visits (the screen draws the count first, in Hebrew).
 const DAY_HEADING = /^\d{2}\/\d{2}\/\d{4} · \d+$/
 const OUT = fileURLToPath(new URL(`../../${SCREENSHOTS_DIR}/`, import.meta.url))
@@ -96,8 +99,12 @@ test.describe('the committee app, on a phone', () => {
     allowConsoleErrors(page, /status of 401/) // the sign-in screen asks who is signed in before anybody is
   })
 
-  test('points and history', async ({ page }) => {
-    await adminSignIn(page, 'points')
+  test('home, points and history', async ({ page }) => {
+    await adminSignIn(page, 'home')
+    await homeLoaded(page)
+    await shot(page, 'committee-phone-home.png')
+
+    await page.goto('/admin#points')
     await expect(page.getByRole('article').filter({ hasText: 'לובי' })).toBeVisible()
     await shot(page, 'committee-phone-points.png')
 
@@ -117,8 +124,12 @@ test.describe('the committee app, on a computer', () => {
     allowConsoleErrors(page, /status of 401/)
   })
 
-  test('points, history and the help', async ({ page }) => {
-    await adminSignIn(page, 'points')
+  test('home, points, history and the help', async ({ page }) => {
+    await adminSignIn(page, 'home')
+    await homeLoaded(page)
+    await shot(page, 'committee-computer-home.png')
+
+    await page.goto('/admin#points')
     await expect(page.getByRole('article').filter({ hasText: 'לובי' })).toBeVisible()
     await shot(page, 'committee-computer-points.png')
 

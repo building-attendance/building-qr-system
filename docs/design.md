@@ -21,8 +21,8 @@ the pilots and sessions with users: [`design/baseline.md`](design/baseline.md) a
 An entry is the rule, then **Why** (written for this app: field workers on phones, often old ones, sometimes offline;
 volunteer committee members who are not technical; Hebrew first, right to left; four languages in the provider app),
 **Source** (with its evidence level: research, standard, platform or expert opinion) and **Check**: an existing test, or
-`planned: <name>` for a check that another branch is adding (its pull request replaces the word with the path), or
-`review` when only a person or a reviewing agent can judge it. What `AGENTS.md` already holds (dates, the four
+`planned: <name>` for a check that another branch is adding, or `review` when only a person or a reviewing agent can
+judge it. What `AGENTS.md` already holds (dates, the four
 languages, phone and computer together, the order of tile actions, the Content-Security-Policy) is not repeated here.
 
 ## Forms and errors
@@ -61,10 +61,7 @@ and never clears what was typed.**
 - **Source:** GOV.UK error message, as in F3 (research); Impeccable
   [`harden`](https://github.com/pbakaus/impeccable/blob/main/skill/reference/harden.md), "Preserve user input on
   error"; Vercel, Forms, "Warn on unsaved changes before navigation" (expert opinion).
-- **Check:** `tests/components/dialog-unsaved-changes.test.jsx` (the dialog and every form of the committee app that has one),
-  and the tap outside and Esc in a real browser in `e2e/admin.spec.js`. The dialog asks only when a form passes `dirty` to
-  `Modal` (`useDirty` in `src/admin/ui.jsx`), and passes `busy` while its save is on its way (Esc and a tap outside then do
-  nothing), so a new form with fields does the same and adds its case to that test.
+- **Check:** `tests/components/dialog-unsaved-changes.test.jsx` (a new form adds its case) and `e2e/admin.spec.js` (tap outside, Esc).
 
 **F5. Text inputs are at least 16px on phones, so that iOS does not zoom.**
 - **Why:** iOS Safari zooms into a field under 16px and stays zoomed, which leaves the form cropped. The cure is the
@@ -72,7 +69,7 @@ and never clears what was typed.**
 - **Source:** Emil Kowalski
   [`mobile-native`](https://github.com/emilkowalski/skills/blob/main/skills/mobile-native/SKILL.md), "Page zooms into
   the input"; Vercel, Targets and input (expert opinion).
-- **Check:** `planned: e2e input font size`.
+- **Check:** `e2e/reflow.spec.js`, "F5 input font size on a phone".
 
 **F6. Never block paste. Give fields the right `autocomplete` and input type, so password managers and keyboards help.**
 - **Why:** a provider who signs in by password on a phone saves retyping when a password manager can fill the field,
@@ -99,8 +96,7 @@ deleting (see `AGENTS.md`, Rules for every change).**
 - **Source:** Impeccable
   [`clarify`](https://github.com/pbakaus/impeccable/blob/main/skill/reference/clarify.md), "Actions and navigation";
   Vercel, Feedback, "Confirm destructive actions or provide Undo window" (expert opinion).
-- **Check:** `review`. `e2e/admin.spec.js` measures the order of the actions in the menu of each tile and of each row of the History (the red delete last), not the wording
-  or the confirmation.
+- **Check:** `review`; `e2e/admin.spec.js` measures the order of the menu actions (the red delete last), not the wording.
 
 ## States
 
@@ -129,32 +125,34 @@ deleting (see `AGENTS.md`, Rules for every change).**
 ## Touch and layout
 
 **T1. Touch targets are at least 24 by 24 CSS px, and primary actions aim for 44.**
-- **Why:** field workers tap one-handed on old phones, often in a hurry. The committee uses the same buttons on a phone.
-  Phone and computer are changed together (`AGENTS.md`).
+- **Why:** field workers tap one-handed on old phones, often in a hurry, and the committee uses the same buttons.
 - **Source:** [WCAG 2.5.8](https://www.w3.org/WAI/WCAG22/Understanding/target-size-minimum.html) (standard, AA);
   [Apple HIG, Accessibility](https://developer.apple.com/design/human-interface-guidelines/accessibility) (platform;
   iOS default control size is 44 by 44 pt).
-- **Check:** `planned: axe wcag22aa target-size`, and `expectTouchTargets` in `e2e/error-boundary.spec.js` (44px high,
-  on the crash screen only).
+- **Check:** axe `wcag22aa` in `e2e/a11y.spec.js`; `expectTouchTargets` in `e2e/error-boundary.spec.js` (44px, crash screen).
 
 **T2. No horizontal scroll at 320px in any of the four languages, even with worst-case text (long names, plurals).**
-- **Why:** Russian and English words run longer than Hebrew ones and the layout starts from Hebrew, and the committee
-  types the names of providers and points. Plan for 30 to 40 percent more text than the source language.
+- **Why:** Russian and English run longer than Hebrew, and the committee types the names: plan for 30 to 40 percent more text.
 - **Source:** [WCAG 1.4.10](https://www.w3.org/WAI/WCAG22/Understanding/reflow.html) (standard); Emil Kowalski
   [`break-ui`](https://github.com/emilkowalski/skills/blob/main/skills/break-ui/SKILL.md); Impeccable `harden`
   (expert opinion).
-- **Check:** `planned: e2e 320px reflow` (`fitsTheWidth` in `e2e/error-boundary.spec.js` does it for one screen).
+- **Check:** `e2e/reflow.spec.js`, "T2 reflow at 320 px".
+
+**T3. A floating bar hides nothing a tap can reach: on a phone the page fades into the background colour behind it, and
+the end of every page stands clear above the fade.**
+- **Why:** content peeked out under and beside the floating tab bar, and a tap could reach a control that nobody could see.
+- **Source:** this project; the owner's decision of 14/10/2026 (D10 of the redesign), made on his iPhone.
+- **Check:** `e2e/admin.spec.js`, "the page fades out behind the tab bar of the phone", at 360 and 320 px.
 
 ## RTL and languages
 
 **R1. Layout uses logical CSS properties (inline and block). A physical property appears only in the list of exceptions,
 each with its reason.**
 - **Why:** one stylesheet serves Hebrew and Arabic (right to left) and English and Russian (left to right). A
-  `margin-left` is right in one and wrong in the other. The safe-area padding in `src/ui/ui.css` follows the physical
-  notch and is the kind of exception the list holds.
+  `margin-left` is right in one and wrong in the other.
 - **Source:** Ahmad Shadeed, [RTL Styling 101](https://rtlstyling.com/posts/rtl-styling/) (expert opinion, paraphrased);
   [Apple HIG, Right to left](https://developer.apple.com/design/human-interface-guidelines/right-to-left) (platform).
-- **Check:** `planned: tests/design-css.test.js` (it holds the list of exceptions).
+- **Check:** `tests/design-css.test.js` (the list of exceptions is `tests/design-budget.json`, each with its reason).
 
 **R2. Mirror icons that show direction (back, next, progress, a list's chevron). Never mirror numbers, clocks, media
 controls, the QR code, logos or checkmarks.**
@@ -166,37 +164,24 @@ controls, the QR code, logos or checkmarks.**
 - **Check:** `review`.
 
 **R3. Isolate mixed-direction runs (names, codes, times) so that they keep their order.**
-- **Why:** a Latin company name or a code inside Hebrew text scrambles the punctuation and digits next to it.
-  `translate()` in `src/i18n/core.js` wraps every inserted value in first-strong isolates; a value shown outside a
-  translated string gets `dir="auto"` (or `<bdi>`).
+- **Why:** a Latin company name or a code inside Hebrew text scrambles the punctuation and digits next to it;
+  `translate()` in `src/i18n/core.js` isolates every inserted value.
 - **Source:** [Unicode UAX #9](https://www.unicode.org/reports/tr9/) and the W3C
   [inline bidi markup article](https://www.w3.org/International/articles/inline-bidi-markup/) (standard).
-- **Check:** `src/i18n/core.js` and its test in `tests/i18n.test.js`.
+- **Check:** `tests/i18n.test.js`.
 
 ## Visual system
 
 **V1. Colours, font weights, spacing, radii and font sizes come from the tokens.**
 - **Why:** one set of tokens keeps the light and dark themes in step: a colour written in place passes in one theme and
-  fails in the other. The sizes follow the same rule: spacing (`--w-space-*`), radius (`--w-radius-*`) and font size
-  (`--w-font-*`) are three families of tokens, defined once on `:root` in `src/ui/base.css` next to the weight tokens, and
-  a size that has a token is written as the token. The scales are consolidated (the rare radii and font sizes
-  were folded into their neighbours), and a size that must keep its exact value, such as the room above the tab bar, is a
-  named layout constant (`--w-layout-*`, next to them), so no literal is left in a spacing, radius or font-size declaration.
-  The colours are tokens of each theme in `src/ui/ui.css` (the dark block, and the light one that sets every token again),
-  in these families: the surfaces (`--w-bg`, `--w-surface`, `--w-surface-2`, `--w-surface-3`); the lines (`--w-border`,
-  and `--w-field-border` with its `-hover`, 3:1 or more on every surface); the text (`--w-text`, `-2`, `-3`); the primary
-  colour (`--w-primary`, `-hover`) and the colour of the text on it (`--w-on-primary`, white in light and dark in dark,
-  because white on the light violet of the dark theme fails); the focus (`--w-focus`, `--w-focus-ring`); the four states,
-  each with its background and its line (`--w-success`, `--w-warn`, `--w-danger`, `--w-info`, `-bg`, `-line`); the
-  summary card and its text (`--w-hero`, `--w-on-hero`); four tints for tiles, chips and badges, each with the ink that is
-  read on it (`--w-tint-violet`, `-peach`, `-mint`, `-sky`, and `-ink`); the steps of the count cells (`--w-count-1` to
-  `4`); and the overlay and the three shadows (`--w-overlay`, `--w-shadow` for a card, `--w-shadow-raised` for the summary
-  card, `--w-shadow-pop` for a menu or a sheet). The page around the apps and the browser's bar take `--w-bg`. One
-  typeface, Rubik, is pinned, with every subset (Hebrew, Latin, Cyrillic, Arabic) in the offline precache.
+  fails in the other. Spacing (`--w-space-*`), radius (`--w-radius-*`) and font size (`--w-font-*`) are tokens on `:root` in
+  `src/ui/base.css`, and a size that must keep its exact value, such as the room above the tab bar, is a named layout
+  constant (`--w-layout-*`). The colours are tokens of each theme in `src/ui/ui.css`; the text on the primary colour is
+  white in light and dark in dark, because white on the light violet of the dark theme fails. One typeface, Rubik, is
+  pinned, with every subset (Hebrew, Latin, Cyrillic, Arabic) in the offline precache.
 - **Source:** this project; Refactoring UI (the advice to fix the spacing, sizing and type scales in advance;
   [book](https://refactoringui.com/), expert opinion, paraphrased).
-- **Check:** `tests/contrast.test.js`, `tests/typography.test.js`, and `tests/design-css.test.js` (a literal of a size that
-  has a token fails and names the token; the budget in `tests/design-budget.json` counts the sizes that have none).
+- **Check:** `tests/contrast.test.js`, `tests/typography.test.js`, `tests/design-css.test.js` (and `tests/design-budget.json`).
 
 **V2. Text has 4.5:1 contrast, UI parts and focus rings 3:1, in both themes, including every fixed colour (the danger
 button, the select chevron).**
@@ -215,13 +200,27 @@ button, the select chevron).**
 
 **V4. Motion is short (about 200 ms), never on an action repeated many times a day, respects `prefers-reduced-motion`,
 and adds no animation library (the size budget).**
-- **Why:** a scan or a row action used all day should answer at once, and an old phone drops frames on long
-  animations. A library is bytes that every phone downloads. `src/ui/ui.css` already shortens all motion for
-  `prefers-reduced-motion`.
+- **Why:** a scan or a row action used all day should answer at once, an old phone drops frames on long animations,
+  and a library is bytes that every phone downloads.
 - **Source:** Emil Kowalski
   [`emil-design-eng`](https://github.com/emilkowalski/skills/blob/main/skills/emil-design-eng/SKILL.md) (expert opinion,
   paraphrased); [WCAG 2.3.3](https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html) (standard, AAA).
 - **Check:** `review`, and the bundle budget (`npm run size`, `scripts/check-bundle-size.json`).
+
+**V5. At the top of a committee screen the one filled thing is the action: an add button is a pill that says what it adds,
+and the person is a quiet circle with their Google photo, or their initial when there is no photo or it does not load.**
+- **Why:** two solid violet circles, the account and a round "+", stood one above the other, and the eye did not know where
+  to look; a lone "+" does not name what it adds (F7). A missing, refused or failed photo shows the initial, never a broken
+  picture, and the photo is decoration (`alt=""`) because the name is beside it.
+- **Source:** this project; the owner's decisions of 14/10/2026 (D11 and D12 of the redesign), made on his iPhone.
+- **Check:** `tests/admin-icon-buttons.test.js`, `e2e/admin.spec.js` (the headings), `tests/contrast.test.js`,
+  `tests/components/member-face.test.jsx`, `e2e/admin-photo.spec.js`.
+
+**V6. The sign for "scan" is a frame of four corner brackets, in the apps and in the app icon, and the icon is that frame
+in white on the primary violet.**
+- **Why:** the earlier drawing of a QR code read as a grid of apps, and the Home Screen icon was still the old blue.
+- **Source:** this project; the owner's decision of 14/10/2026 (D13 of the redesign), made on his iPhone from four options.
+- **Check:** `tests/pwa-icons.test.js`, `tests/png.test.js`; the signs inside the apps are `review` and `e2e/visual.spec.js`.
 
 ## Copy
 
