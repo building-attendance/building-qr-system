@@ -255,6 +255,106 @@ test('the tab bar of the phone floats clear of the screen edges, and the page en
   }, { message: 'at the end of the page, its last thing is above the bar' }).toBe(true)
 })
 
+// The page fades out behind the bar (D10 of the redesign, owner decision of 14/10/2026). The bar floats, so the page showed under it and around its
+// sides. `.a-tabbar-fade` (src/admin/admin.css) is a layer that the shell renders next to the bar: it turns the bottom of the screen into the page
+// colour, takes no taps and stays under every overlay. The end of every page stands wholly above its top edge (--w-layout-tabbar-clearance in
+// src/ui/base.css), so that the last card is never half-faded. Measured at 360 and 320 px (the narrowest phones in use), at the very end of the
+// screens that are long enough to scroll, among them the History with a few visits.
+test('the page fades out behind the tab bar of the phone, and the end of every page stands above the fade', async ({ page, playwright }) => {
+  const fade = page.locator('.a-tabbar-fade')
+  const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
+  const zIndexOf = (locator) => locator.evaluate((el) => Number(getComputedStyle(el).zIndex))
+  const FADE_REACH = 36 // how far above the top of the bar the page starts to fade (the prototype that the owner chose)
+
+  // the fade is part of the bar: the sign-in screen has neither
+  await page.goto('/admin')
+  await expect(page.getByRole('button', { name: 'כניסת פיתוח' })).toBeVisible()
+  await expect(fade, 'the sign-in screen has no fade').toHaveCount(0)
+
+  const tag = randomUUID().slice(0, 6)
+  await adminSignIn(page, 'settings') // not the History: the app keeps the list it loaded, and the visits below do not exist yet
+  // six visits of Ploni today, at six throwaway points (a second visit at the same point would be in the cooldown), so that the History is long
+  const points = []
+  for (let n = 1; n <= 6; n++) {
+    const created = await page.request.post('/api/admin/points', { data: { name: `נקודת דהייה ${n} ${tag}`, lat: SAMPLE_POINT.lat, lng: SAMPLE_POINT.lng, gps_mode: 'none' } })
+    points.push((await created.json()).point)
+  }
+  const phone = await playwright.request.newContext({ baseURL: page.url().split('/admin')[0] })
+  try {
+    const providers = (await (await phone.get('/api/public/providers')).json()).providers
+    const ploni = providers.find((p) => p.contact_name === PEOPLE.ploni.name)
+    const session = await (await phone.post('/api/session', { data: { provider_id: ploni.id, password: PEOPLE.ploni.password } })).json()
+    for (const point of points) {
+      const scan = await phone.post('/api/scan', { headers: { authorization: `Bearer ${session.token}` }, data: { id: randomUUID(), code: point.qr_token, gps: null } })
+      expect((await scan.json()).scan.outcome).toBe('accepted')
+    }
+
+    for (const width of [360, 320]) {
+      await page.setViewportSize({ width, height: 640 })
+      for (const screen of ['history', 'providers', 'settings', 'help']) {
+        const where = `${width} px, ${screen}`
+        await page.goto(`/admin#${screen}`)
+        await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
+        await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0) // whole: the page grows while its lists load, and the end moves with it
+        if (screen === 'history') await expect(historyRows(page), `${where}: the visits are drawn`).not.toHaveCount(0)
+
+        // the layer: fixed to the bottom of the screen and across it, under the bar and above the top row, and it takes no taps
+        const { position, pointerEvents, z, box } = await fade.evaluate((el) => {
+          const style = getComputedStyle(el)
+          const { top, bottom, left, right } = el.getBoundingClientRect()
+          return { position: style.position, pointerEvents: style.pointerEvents, z: Number(style.zIndex), box: { top, bottom, left, right } }
+        })
+        const barBox = await bar.boundingBox()
+        expect(position, `${where}: the fade stays while the page scrolls`).toBe('fixed')
+        expect(pointerEvents, `${where}: the fade takes no taps`).toBe('none')
+        expect(z, `${where}: the fade is under the bar`).toBeLessThan(await zIndexOf(bar))
+        expect(z, `${where}: the fade is over the page, its top row included`).toBeGreaterThan(await zIndexOf(page.getByRole('banner')))
+        expect(box.bottom, `${where}: it reaches the bottom edge`).toBe(640)
+        expect([box.left, box.right], `${where}: and both sides`).toEqual([0, width])
+        // the constant (--w-layout-tabbar-fade-height) counts the bar's own height, so it is checked against the bar: the fade starts 36 px above its top
+        expect(barBox.y - box.top, `${where}: the fade starts ${FADE_REACH} px above the top of the bar`).toBeCloseTo(FADE_REACH, 0)
+        const underFade = await page.evaluate((y) => document.elementFromPoint(2, y)?.closest('.a-tabbar-fade') ?? null, box.top + FADE_REACH / 2)
+        expect(underFade, `${where}: a tap on the fade reaches what is under it`).toBeNull()
+
+        // the end of the page: the last thing of the screen stands wholly above the top edge of the fade
+        const room = await page.evaluate(() => {
+          window.scrollTo(0, document.documentElement.scrollHeight)
+          return { scrolls: document.documentElement.scrollHeight - window.innerHeight }
+        })
+        expect(room.scrolls, `${where}: the screen is long enough to scroll`).toBeGreaterThan(0)
+        await expect.poll(() => page.evaluate(() => Math.ceil(window.scrollY + window.innerHeight) >= document.documentElement.scrollHeight), { message: `${where}: scrolled to the very end` }).toBe(true)
+        await expect.poll(async () => {
+          const last = await page.getByRole('main').evaluate((el) => el.lastElementChild.getBoundingClientRect().bottom)
+          return Math.round(((await fade.boundingBox()).y - last) * 10) / 10
+        }, { message: `${where}: at the end of the page, the room between its last thing and the top of the fade (px, never under 0)` }).toBeGreaterThanOrEqual(0)
+      }
+    }
+
+    // above the fade, whatever opens over the page: the sheet under "עוד" (every dialog and sheet is the same overlay), the account menu, the toasts
+    await page.setViewportSize({ width: 360, height: 640 })
+    const fadeBox = await fade.boundingBox()
+    await bar.getByRole('button', { name: 'עוד', exact: true }).click()
+    await expect(page.getByRole('dialog', { name: 'עוד', exact: true })).toBeVisible()
+    const overlay = await page.evaluate((y) => Boolean(document.elementFromPoint(2, y)?.closest('.a-overlay')), fadeBox.y + 10)
+    expect(overlay, 'the sheet under "עוד" is over the fade').toBe(true)
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    const fadeZ = await zIndexOf(fade)
+    await openAccountMenu(page)
+    expect(await zIndexOf(page.getByRole('dialog', { name: 'החשבון שלי' })), 'the account menu is over the fade').toBeGreaterThan(fadeZ)
+    await page.keyboard.press('Escape')
+    expect(await zIndexOf(page.locator('.a-toasts')), 'the toasts are over the fade').toBeGreaterThan(fadeZ)
+
+    // a computer has the side rail instead of the bar, and no fade
+    await page.setViewportSize(COMPUTER)
+    await expect(bar).toBeHidden()
+    await expect(fade, 'a computer has no fade').toBeHidden()
+  } finally {
+    await phone.dispose()
+    for (const point of points) await page.request.delete(`/api/admin/points/${point.id}`, { data: {} })
+  }
+})
+
 // The side rail of a computer has all eight screens in two groups, the work screens and the management screens, with a line between
 // them. Every name is whole, on one line. The help is called "עזרה" on its button: its whole name, "איך עובדים עם המערכת", measured 168 px
 // against the 157 px that the name of a button has in a rail 248 px wide (the sheet under "עוד" has room for the whole name).

@@ -74,7 +74,7 @@
 /* The tab bar floats over the page: a pill that stands 10px above the bottom edge and the home indicator (the safe-area inset), and no wider
    than a small tablet. Every tab is an icon; the current one is a violet pill that also says its name (the others keep theirs for a screen
    reader and for voice control, `w-sr`). The other four share what the pill leaves, none under 44px; below 360px the pill drops its icon so
-   that "היסטוריה" still fits beside them. The page ends above it (--w-layout-tabbar-clearance in base.css). */
+   that "היסטוריה" still fits beside them. The page ends above it and above the fade behind it (--w-layout-tabbar-clearance in base.css). */
 .a-tabbar {
   position: fixed; inset-inline: var(--w-space-3); bottom: calc(var(--w-space-2-5) + env(safe-area-inset-bottom)); z-index: 20; max-width: 480px; margin-inline: auto;
   display: flex; align-items: center; gap: var(--w-space-1); padding: var(--w-space-1-5); background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-pill); box-shadow: var(--w-shadow-pop);
@@ -88,7 +88,19 @@
 /* The text of a tab button, in the tab bar and in the side rail: one line. The ellipsis is the last resort and should never show, because
    the names are short (`nav` in TABS, src/pages/AdminApp.jsx). */
 .a-nav-label { max-width: 100%; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-@media (min-width: 1024px) { .a-tabbar { display: none; } }
+
+/* The page fades out behind the tab bar (D10 of the redesign, owner decision of 14/10/2026). The bar floats, so the page showed under it and
+   around its sides: on the owner's iPhone, cards and numbers peeked out below and beside the pill. This layer stands between the page and the
+   bar (z-index 19, under the bar's 20 and under every overlay: the menus and the account popover are 40, the sheets and dialogs 50, the toasts
+   60) and turns the page into its own colour (--w-bg, so the same in both themes), from the top down (the default direction): transparent at its top, 36px above the bar's top
+   (--w-layout-tabbar-fade-height in base.css), and solid from --w-space-10 down, a little under the bar's top, to the bottom edge. It takes no
+   taps, so a card under it is still pressed. It is rendered next to the bar (the signed-in shell, src/pages/AdminApp.jsx) and goes from 1024px
+   with the bar, so the sign-in screen and the computer layout never have it. The end of every page clears it (--w-layout-tabbar-clearance). */
+.a-tabbar-fade {
+  position: fixed; inset-inline: 0; bottom: 0; z-index: 19; pointer-events: none; height: calc(var(--w-layout-tabbar-fade-height) + env(safe-area-inset-bottom));
+  background: linear-gradient(transparent, var(--w-bg) var(--w-space-10));
+}
+@media (min-width: 1024px) { .a-tabbar, .a-tabbar-fade { display: none; } }
 
 /* The rows of the sheet under "עוד": an icon on its tint, the name, a line about the screen and a chevron; the current screen is tinted. */
 .a-more { display: flex; flex-direction: column; gap: var(--w-space-1-5); }

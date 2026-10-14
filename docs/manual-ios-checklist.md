@@ -48,7 +48,8 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
 11. [ ] Typing a password: the keyboard does not zoom the page, the password manager offers the saved login, and the
     show/hide eye works.
 12. [ ] Committee app (`/admin`) on the phone: it opens on Home ("בית"), and the bar at the bottom has five buttons
-    (Home, History, Points, Providers, More), each label whole on one line. Home greets by the hour and the member's first
+    (Home, History, Points, Providers, More), each label whole on one line. The page fades out behind the bar: no card
+    or number shows under it or beside it, and at the end of a long page the last card stands clear above the fade. Home greets by the hour and the member's first
     name, and its summary card has a bar for each day with today at the left end and the seven day heads under the bars
     (DD/MM), and fits the width (nothing scrolls sideways; on the narrowest phone a head breaks after its slash). A bar
     with visits opens History for that day, a provider's row opens History for that provider and the seven days, each

@@ -554,6 +554,10 @@ test.describe('committee app with the sample data filled in', () => {
     await page.getByLabel('שם הבניין', { exact: true }).fill('בניין\tהדוגמה')
     await page.getByRole('button', { name: 'שמירה', exact: true }).click()
     await expect(page.getByRole('alert').filter({ hasText: 'השם מכיל תווים שאי אפשר לשמור' })).toBeVisible()
+    // The click on "שמירה" left the page scrolled to its end, and that end moved down by the room that the fade of the tab bar needs: the "more actions" button of a
+    // card now stands under the sticky top bar, which axe reads as an obscured target (a state of the scroll, not of the screen). Every other
+    // screen is scanned from its top, so this one is too.
+    await page.evaluate(() => window.scrollTo(0, 0))
     await scanBothThemes(page, 'committee phone: settings, the name refused')
     await page.getByLabel('שם הבניין', { exact: true }).fill(BUILDING_NAME)
     await expect(page.getByRole('alert').filter({ hasText: 'השם מכיל תווים שאי אפשר לשמור' })).toHaveCount(0)

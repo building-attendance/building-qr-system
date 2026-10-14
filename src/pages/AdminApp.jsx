@@ -182,6 +182,7 @@ function Shell({ admin, onSignedOut }) {
         <View admin={admin} />
       </main>
 
+      <div className="a-tabbar-fade" aria-hidden="true" />
       <nav className="a-tabbar" aria-label="ניווט ראשי (טלפון)">
         {WORK_TABS.map((t) => <NavItem key={t.key} tab={t} current={tab === t.key} onGo={goTo} className="a-tab" size={24} iconOnly />)}
         {/* The fifth button is the current item while one of the screens under it is open; the sheet marks which one. */}
