@@ -70,8 +70,9 @@ function Bar({ day, count, tallest, now }) {
  * The summary card: the visits of the seven days. The days are a table with one row of bars, in the order the server gives them (the oldest
  * first); the page is right to left, so the oldest is at the right and today at the left, and the data is never reversed.
  *
- * The dates. The heads write each day as DD/MM (`formatDayShort`), which is allowed only because the whole range stands in DD/MM/YYYY above
- * the table, in the header of the card, which is also the name of the table, and each head carries its full date for a screen reader
+ * The dates. The heads write each day as DD/MM (`formatDayShort`), which is allowed only because the whole range stands in DD/MM/YYYY right
+ * above the table, the element just before it with nothing between them (so the order of the card is the title, the total, the range, the
+ * bars), which is also the name of the table, and each head carries its full date for a screen reader
  * (AGENTS.md, owner decision of 12/10/2026): the visible DD/MM is `aria-hidden` and the head is named by a visually hidden DD/MM/YYYY
  * (`formatDay`), so that the name of a head is its full date in every screen reader, whatever the reader does with the `aria-label` of a
  * table header. The heads are first in the markup, where a reader looks for them, and drawn under the bars (`.a-bars thead`).
@@ -84,11 +85,9 @@ function Summary({ days, totals, today }) {
   const tallest = Math.max(...totals)
   return (
     <section className="a-hero" aria-labelledby={titleId}>
-      <div className="a-hero__top">
-        <h2 id={titleId}>השבוע בבניין</h2>
-        <span className="a-hero__range" id={rangeId}><span className="a-stamp">{formatDay(days[0])}</span> עד <span className="a-stamp">{formatDay(days[days.length - 1])}</span></span>
-      </div>
+      <h2 id={titleId}>השבוע בבניין</h2>
       <p className="a-hero__total"><span className="a-hero__num">{total}</span>{' '}{visitsWord(total)}</p>
+      <p className="a-hero__range" id={rangeId}><span className="a-stamp">{formatDay(days[0])}</span> עד <span className="a-stamp">{formatDay(days[days.length - 1])}</span></p>
       <table className="a-bars" aria-labelledby={rangeId}>
         <thead>
           <tr>

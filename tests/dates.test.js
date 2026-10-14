@@ -226,6 +226,32 @@ function walk(dir) {
   })
 }
 
+/**
+ * The element that holds the range of the Home day bars (`id={rangeId}`) and what follows it up to the next `<table`, in the source of a
+ * component: { content: what is inside the range element, between: the source between its end and the table (empty, but for white space,
+ * when the range is right above the table), tableAttributes: the attributes of the table }, or null when there is no such pair. The end of
+ * the range element is found by counting its own tag (a range written as a span with a span for each date still ends at its own closing).
+ * @param {string} source
+ * @returns {{ content: string, between: string, tableAttributes: string } | null}
+ */
+function rangeAboveTable(source) {
+  const open = /<(\w+)\b[^>]*\bid=\{rangeId\}[^>]*>/.exec(source)
+  if (!open) return null
+  const tags = new RegExp(`<(/?)${open[1]}\\b[^>]*>`, 'g')
+  tags.lastIndex = open.index + open[0].length
+  let depth = 1
+  let end = -1
+  for (let tag = tags.exec(source); tag && end < 0; tag = tags.exec(source)) {
+    if (tag[1]) depth -= 1
+    else if (!tag[0].endsWith('/>')) depth += 1
+    if (depth === 0) end = tag.index
+  }
+  if (end < 0) return null
+  const rest = source.slice(end + `</${open[1]}>`.length)
+  const table = /<table\b([^>]*)>/.exec(rest)
+  return table ? { content: source.slice(open.index + open[0].length, end), between: rest.slice(0, table.index), tableAttributes: table[1] } : null
+}
+
 describe('no other way of writing a date in the code', () => {
   const files = ['src', 'server', 'shared'].flatMap(walk)
 
@@ -254,18 +280,54 @@ describe('no other way of writing a date in the code', () => {
   // The one place that a day is written without its year: the column heads of a table of consecutive days, on the condition that the whole range
   // stands in DD/MM/YYYY above the table and that each head carries its full date for a screen reader (AGENTS.md, owner decision of
   // 12/10/2026; the header of shared/datetime.js). So `formatDayShort` is used by the day bars of the Home screen and by nothing else, and
-  // that table has both conditions in its source (tests/components/home.test.jsx proves them on the screen). The range stands in the header of
-  // the summary card, above the bars, and is the name of the table (`aria-labelledby`), as the caption of the table was before the card.
+  // that table has both conditions in its source (tests/components/home.test.jsx proves them on the screen). The range is right above the table,
+  // with nothing between them, and is the name of the table (`aria-labelledby`), as the caption of the table was before the card.
   it('formatDayShort (a day with no year) is used by the column heads of the Home day bars only, with the range and the full date beside it', () => {
     const using = files.filter((file) => file !== 'shared/datetime.js' && /\bformatDayShort\b/.test(fs.readFileSync(path.join(root, file), 'utf8')))
     expect(using, 'the files that use formatDayShort').toEqual(['src/admin/views/HomeView.jsx'])
     const home = fs.readFileSync(path.join(root, 'src/admin/views/HomeView.jsx'), 'utf8')
     expect(home.match(/formatDayShort\(/g), 'used once, for the heads').toHaveLength(1)
-    // the range, in full (the first day and the last, each with its year), is written above the table and names it
-    expect(home).toMatch(/id=\{rangeId\}>[^]*formatDay\(days\[0\]\)[^]*formatDay\(days\[days\.length - 1\]\)[^]*<\/span>[^]*<table[^>]*aria-labelledby=\{rangeId\}/)
+    // the range, in full (the first day and the last, each with its year), is the element right before the table, and it names the table
+    const above = rangeAboveTable(home)
+    expect(above, 'an element with id={rangeId} that is followed by a <table>').not.toBeNull()
+    expect(above.content, 'the range: the first day and the last, each with its year').toMatch(/formatDay\(days\[0\]\)[^]*formatDay\(days\[days\.length - 1\]\)/)
+    expect(above.between.trim(), 'nothing is drawn between the range and the table (the #202 exception: right above it)').toBe('')
+    expect(above.tableAttributes, 'the table is named by the range').toMatch(/\baria-labelledby=\{rangeId\}/)
     // and each head writes DD/MM for the eye (hidden from a reader) and carries its full date for a reader (hidden from the eye)
     expect(home).toMatch(/<span className="a-stamp" aria-hidden="true"><ShortDay day=\{day\} \/><\/span>\s*<span className="w-sr">\{formatDay\(day\)\}<\/span>/)
     expect(home).toMatch(/formatDayShort\(day\)\.split\('\/'\)/) // the one use: ShortDay writes the day and the month of a head, and nothing else
+  })
+
+  // The check above looks at the source of the component, so it is checked by itself first (as the scanner of tests/design-css.test.js is): it
+  // must pass the order that the exception asks for, and fail when anything stands between the range and the table, when the range is not
+  // in full, or when the table is not named by the range.
+  describe('rangeAboveTable finds what it should', () => {
+    const range = '<p className="a-hero__range" id={rangeId}><span>{formatDay(days[0])}</span> עד <span>{formatDay(days[days.length - 1])}</span></p>'
+    const total = '<p className="a-hero__total">{total}</p>'
+    const table = '<table className="a-bars" aria-labelledby={rangeId}>'
+    it('passes the range, then the table, even with line breaks and indentation between them', () => {
+      const above = rangeAboveTable(`<section>\n  <h2>x</h2>\n  ${total}\n  ${range}\n  ${table}\n</section>`)
+      expect(above.between.trim()).toBe('')
+      expect(above.content).toMatch(/formatDay\(days\[0\]\)[^]*formatDay\(days\[days\.length - 1\]\)/)
+      expect(above.tableAttributes).toMatch(/aria-labelledby=\{rangeId\}/)
+    })
+    it('finds the total that is drawn between the range and the table', () => {
+      expect(rangeAboveTable(`${range}\n${total}\n${table}`).between.trim()).not.toBe('')
+    })
+    it('finds anything else between them: a heading, a comment, a space written as text', () => {
+      for (const between of ['<h3>x</h3>', '{/* the total */}', "{' '}", '<div />']) {
+        expect(rangeAboveTable(`${range}\n${between}\n${table}`).between.trim(), between).not.toBe('')
+      }
+    })
+    it('finds a table that the range does not name, and a range that is not the whole range', () => {
+      expect(rangeAboveTable(`${range}\n<table className="a-bars">`).tableAttributes).not.toMatch(/aria-labelledby=\{rangeId\}/)
+      const half = '<p id={rangeId}>{formatDay(days[0])}</p>'
+      expect(rangeAboveTable(`${half}\n${table}`).content).not.toMatch(/formatDay\(days\[0\]\)[^]*formatDay\(days\[days\.length - 1\]\)/)
+    })
+    it('finds no pair when there is no range element, or no table after it', () => {
+      expect(rangeAboveTable(table)).toBeNull()
+      expect(rangeAboveTable(range)).toBeNull()
+    })
   })
 
   it('the committee screens write dates through the shared module', () => {

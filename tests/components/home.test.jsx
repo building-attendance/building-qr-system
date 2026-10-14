@@ -354,7 +354,7 @@ describe('the summary card', () => {
     expect(summary().querySelector('.a-hero__total').textContent).toBe('0 ביקורים')
   })
 
-  it('writes the whole range in DD/MM/YYYY in its header, and the table is named by it (no caption, no second name)', async () => {
+  it('writes the whole range in DD/MM/YYYY above the table, and the table is named by it (no caption, no second name)', async () => {
     server()
     await showed()
     const range = summary().querySelector('.a-hero__range')
@@ -365,6 +365,18 @@ describe('the summary card', () => {
     expect(screen.getByRole('table', { name: RANGE })).toBe(table())
     expect(table().querySelector('caption')).toBeNull()
     expect(screen.queryByRole('table', { name: TITLE })).toBeNull()
+  })
+
+  it('puts the range right above the table, the element just before it with nothing between them (the #202 exception): title, total, range, bars', async () => {
+    server()
+    await showed()
+    const range = summary().querySelector('.a-hero__range')
+    expect(table().previousElementSibling, 'the element before the table is the range').toBe(range)
+    expect(range.nextElementSibling).toBe(table())
+    expect([...summary().children].map((child) => child.className || child.tagName)).toEqual(['H2', 'a-hero__total', 'a-hero__range', 'a-bars']) // the order of the card
+    // the whole range, and the table is named by it
+    expect(range.textContent).toBe('06/10/2026 עד 12/10/2026')
+    expect(table().getAttribute('aria-labelledby')).toBe(range.id)
   })
 
   it('follows the days that it is given: the range is the first and the last of them, with their own year', async () => {

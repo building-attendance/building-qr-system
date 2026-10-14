@@ -1215,8 +1215,8 @@ test('the summary card of Home draws its bars from the right (the oldest day) to
     const where = size ? 'computer' : 'phone'
     await expect(homeTable(page)).toBeVisible()
 
-    // The range stands above the bars in full, in the header of the card, and is the name of the table; each head writes DD/MM and is named
-    // by the full date (the exception of AGENTS.md: both conditions are in the page).
+    // The range stands right above the bars in full, the element just before the table with nothing between them, and is the name of the table;
+    // each head writes DD/MM and is named by the full date (the exception of AGENTS.md: both conditions are in the page).
     const range = `${formatDay(HOME_DAYS[0])} עד ${formatDay(HOME_DAYS.at(-1))}`
     await expect(homeTable(page), `${where}: the table is named by its range`).toHaveAccessibleName(range)
     const written = homeCard(page).getByText(range, { exact: true })
@@ -1229,6 +1229,12 @@ test('the summary card of Home draws its bars from the right (the oldest day) to
     }
     const writtenBox = await box(written)
     expect(writtenBox.y + writtenBox.height, `${where}: the range is above the heads`).toBeLessThanOrEqual(heads[0].y)
+    expect(await written.evaluate((el) => el.nextElementSibling?.tagName), `${where}: the table is the next thing after the range`).toBe('TABLE')
+    const tableBox = await box(homeTable(page))
+    expect(tableBox.y - (writtenBox.y + writtenBox.height), `${where}: the range is right above the bars (no total between them)`).toBeGreaterThanOrEqual(0)
+    expect(tableBox.y - (writtenBox.y + writtenBox.height), `${where}: and close to them`).toBeLessThanOrEqual(10)
+    const totalBox = await box(homeCard(page).getByText(/^\d+ ביקור(ים)?$/))
+    expect(totalBox.y + totalBox.height, `${where}: the total is above the range`).toBeLessThanOrEqual(writtenBox.y)
     await expect(homeTable(page).getByRole('columnheader', { name: dayHeads.at(-1), exact: true }), `${where}: today's head says so`).toHaveAttribute('aria-current', 'date')
 
     // The bars: one for each day (the stub has visits every day), each under its own head, which is under the bar (the heads are drawn last).

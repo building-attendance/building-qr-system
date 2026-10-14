@@ -93,9 +93,10 @@
 .a-hero { position: relative; display: flex; flex-direction: column; gap: var(--w-space-3-5); padding: var(--w-space-5); border-radius: var(--w-radius-4xl); background: var(--w-hero); color: var(--w-on-hero); box-shadow: var(--w-shadow-raised); }
 @media (min-width: 1024px) { .a-hero { padding: var(--w-space-6); } }
 .a-hero a:focus-visible { outline-color: var(--w-on-hero); }
-.a-hero__top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: var(--w-space-1) var(--w-space-3); }
 .a-hero h2 { font-size: var(--w-font-base); font-weight: var(--w-weight-medium); }
-.a-hero__range { font-size: var(--w-font-xs); }
+/* The range stands right above the bars (the #202 exception for the DD/MM heads asks for it, and tests/dates.test.js holds the order): it is
+   the element before the table, with only 6px of the card's 14px gap under it, so that it reads as the line of the bars. */
+.a-hero__range { font-size: var(--w-font-xs); margin-block-end: calc(-1 * var(--w-space-2)); }
 .a-hero__total { display: flex; align-items: baseline; gap: var(--w-space-2); font-size: var(--w-font-xl); }
 .a-hero__num { font-size: calc(var(--w-font-4xl) * 1.7); font-weight: var(--w-weight-bold); line-height: 1; font-variant-numeric: tabular-nums; }
 
