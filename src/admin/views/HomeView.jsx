@@ -130,19 +130,19 @@ function ProviderRow({ provider: p, days, today }) {
   const off = p.company === null || !p.is_active
   return (
     <li>
-      <a className="a-who__row" href={historyLink({ provider: p.id, from: days[0], to: days[days.length - 1] })}>
-        <span className={`a-who__avatar a-who__avatar--${off ? 'off' : toneOf(p.id)}`} aria-hidden="true">{initialOf(p.name)}</span>
-        <span className="a-who__main">
-          <span className="a-who__line">
-            <span className="a-who__name" dir="auto">{p.name}</span>
+      <a className="a-prov__row" href={historyLink({ provider: p.id, from: days[0], to: days[days.length - 1] })}>
+        <span className={`a-prov__avatar a-prov__avatar--${off ? 'off' : toneOf(p.id)}`} aria-hidden="true">{initialOf(p.name)}</span>
+        <span className="a-prov__main">
+          <span className="a-prov__line">
+            <span className="a-prov__name" dir="auto">{p.name}</span>
             {p.company === null ? <Badge>נותן שירות שנמחק</Badge> : !p.is_active && <Badge>מושבת</Badge>}
           </span>
-          {p.company && p.company !== p.name && <span className="a-who__company" dir="auto">{p.company}</span>}
+          {p.company && p.company !== p.name && <span className="a-prov__company" dir="auto">{p.company}</span>}
           <span className="a-dots" role="img" aria-label={visited.length > 0 ? `ביקורים ב-${visited.map((day) => formatDay(day)).join(', ')}` : 'אין ביקורים'}>
             {days.map((day, i) => <span key={day} className={`a-dot${p.counts[i] > 0 ? ' is-on' : ''}${day === today ? ' is-today' : ''}`} />)}
           </span>
         </span>
-        <span className="a-who__total"><span className="a-who__num">{total}</span><span className="a-who__unit">{visitsWord(total)}</span></span>
+        <span className="a-prov__total"><span className="a-prov__num">{total}</span><span className="a-prov__unit">{visitsWord(total)}</span></span>
       </a>
     </li>
   )
@@ -152,12 +152,12 @@ function Providers({ days, providers, today }) {
   const titleId = useId()
   if (providers.length === 0) return null
   return (
-    <section className="a-who" aria-labelledby={titleId}>
-      <div className="a-who__head">
+    <section className="a-prov" aria-labelledby={titleId}>
+      <div className="a-prov__head">
         <h2 id={titleId}>נותני שירות השבוע</h2>
-        <a className="a-who__all" href={historyLink({ from: days[0], to: days[days.length - 1] })}>לכל ההיסטוריה</a>
+        <a className="a-prov__all" href={historyLink({ from: days[0], to: days[days.length - 1] })}>לכל ההיסטוריה</a>
       </div>
-      <ul className="a-who__list">
+      <ul className="a-prov__list">
         {providers.map((p) => <ProviderRow key={p.id} provider={p} days={days} today={today} />)}
       </ul>
     </section>

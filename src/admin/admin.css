@@ -132,7 +132,7 @@
 @media (min-width: 1280px) {
   .a-home { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .a-hero { grid-column: span 3; }
-  .a-who { grid-column: span 2; }
+  .a-prov { grid-column: span 2; }
 }
 
 /* The summary card (--w-hero and the text on it, --w-on-hero, 4.5:1 in both themes). Everything on it is --w-on-hero: the focus ring too,
@@ -178,36 +178,36 @@
 @media (min-width: 1280px) { .a-bars__head { font-size: var(--w-font-xs); } }
 
 /* The providers of the week: a card of rows on a phone; from 1024px the section is the card (the design canvas), and the list has no card of its own. */
-.a-who { display: flex; flex-direction: column; gap: var(--w-space-3); }
-.a-who__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--w-space-3); }
-.a-who h2 { font-size: var(--w-font-3xl); font-weight: var(--w-weight-semibold); line-height: 1.2; }
-.a-who__all { display: inline-flex; align-items: center; min-height: 44px; padding-inline: var(--w-space-2); color: var(--w-info); font-weight: var(--w-weight-medium); text-decoration: none; white-space: nowrap; }
-.a-who__list { list-style: none; margin: 0; padding: var(--w-space-1-5); display: flex; flex-direction: column; background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); }
+.a-prov { display: flex; flex-direction: column; gap: var(--w-space-3); }
+.a-prov__head { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 0 var(--w-space-3); }
+.a-prov h2 { font-size: var(--w-font-3xl); font-weight: var(--w-weight-semibold); line-height: 1.2; }
+.a-prov__all { display: inline-flex; align-items: center; min-height: 44px; padding-inline: var(--w-space-2); color: var(--w-info); font-weight: var(--w-weight-medium); text-decoration: none; white-space: nowrap; }
+.a-prov__list { list-style: none; margin: 0; padding: var(--w-space-1-5); display: flex; flex-direction: column; background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); }
 @media (min-width: 1024px) {
-  .a-who { padding: var(--w-space-5); border-radius: var(--w-radius-4xl); background: var(--w-surface); box-shadow: var(--w-shadow); gap: var(--w-space-1-5); }
-  .a-who__list { padding: 0; border-radius: 0; background: none; box-shadow: none; }
+  .a-prov { padding: var(--w-space-5); border-radius: var(--w-radius-4xl); background: var(--w-surface); box-shadow: var(--w-shadow); gap: var(--w-space-1-5); }
+  .a-prov__list { padding: 0; border-radius: 0; background: none; box-shadow: none; }
 }
-.a-who__row { display: flex; align-items: center; gap: var(--w-space-3); min-height: 56px; padding: var(--w-space-3) var(--w-space-2-5); border-radius: var(--w-radius-2xl); color: inherit; text-decoration: none; }
-@media (hover: hover) { .a-who__row:hover, .a-links__row:hover { background: var(--w-surface-2); } .a-who__all:hover { text-decoration: underline; } }
+.a-prov__row { display: flex; align-items: center; gap: var(--w-space-3); min-height: 56px; padding: var(--w-space-3) var(--w-space-2-5); border-radius: var(--w-radius-2xl); color: inherit; text-decoration: none; }
+@media (hover: hover) { .a-prov__row:hover, .a-links__row:hover { background: var(--w-surface-2); } .a-prov__all:hover { text-decoration: underline; } }
 /* The mark before the name: a tint and its ink (the pairs of tests/contrast.test.js), or the grey of a provider that is off or was deleted. */
-.a-who__avatar { flex: none; width: 42px; height: 42px; display: grid; place-items: center; border-radius: var(--w-radius-pill); font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); background: var(--w-tint-violet); color: var(--w-tint-violet-ink); }
-.a-who__avatar--mint { background: var(--w-tint-mint); color: var(--w-tint-mint-ink); }
-.a-who__avatar--peach { background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
-.a-who__avatar--sky { background: var(--w-tint-sky); color: var(--w-tint-sky-ink); }
-.a-who__avatar--off { background: var(--w-surface-2); color: var(--w-text-2); }
-.a-who__main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--w-space-1-5); }
-.a-who__line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--w-space-1) var(--w-space-2); max-width: 100%; }
-.a-who__name { min-width: 0; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
-.a-who__company { max-width: 100%; color: var(--w-text-2); font-size: var(--w-font-xs); overflow-wrap: anywhere; }
+.a-prov__avatar { flex: none; width: 42px; height: 42px; display: grid; place-items: center; border-radius: var(--w-radius-pill); font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); background: var(--w-tint-violet); color: var(--w-tint-violet-ink); }
+.a-prov__avatar--mint { background: var(--w-tint-mint); color: var(--w-tint-mint-ink); }
+.a-prov__avatar--peach { background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
+.a-prov__avatar--sky { background: var(--w-tint-sky); color: var(--w-tint-sky-ink); }
+.a-prov__avatar--off { background: var(--w-surface-2); color: var(--w-text-2); }
+.a-prov__main { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: var(--w-space-1-5); }
+.a-prov__line { display: flex; flex-wrap: wrap; align-items: center; gap: var(--w-space-1) var(--w-space-2); max-width: 100%; }
+.a-prov__name { min-width: 0; font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.a-prov__company { max-width: 100%; color: var(--w-text-2); font-size: var(--w-font-xs); overflow-wrap: anywhere; }
 /* A dot for each day, the oldest at the start: a filled dot for a day with a visit, a ring for a day without one (shape as well as colour,
    3:1 against the card), and a halo around the dot of today. */
 .a-dots { display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); }
 .a-dot { width: 12px; height: 12px; border: 2px solid var(--w-field-border); border-radius: var(--w-radius-pill); }
 .a-dot.is-on { border-color: var(--w-primary); background: var(--w-primary); }
 .a-dot.is-today { box-shadow: 0 0 0 2px var(--w-surface), 0 0 0 4px var(--w-focus-ring); }
-.a-who__total { flex: none; display: flex; flex-direction: column; align-items: center; }
-.a-who__num { font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); line-height: 1.2; font-variant-numeric: tabular-nums; }
-.a-who__unit { color: var(--w-text-2); font-size: var(--w-font-2xs); }
+.a-prov__total { flex: none; display: flex; flex-direction: column; align-items: center; }
+.a-prov__num { font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); line-height: 1.2; font-variant-numeric: tabular-nums; }
+.a-prov__unit { color: var(--w-text-2); font-size: var(--w-font-2xs); }
 
 /* The tiles: two columns on a phone, as many as fit from 768px. Each is one link; its number is the biggest thing in it. Four tones (the
    pairs of tests/contrast.test.js): violet, the plain surface, peach and sky. */

@@ -112,7 +112,7 @@ const table = () => within(summary()).getByRole('table')
 const heads = () => within(table()).getAllByRole('columnheader')
 const barCells = () => [...table().querySelectorAll('tbody td')]
 /** The row of one provider, by its name. */
-const rowOf = (name) => screen.getByText(name, { selector: '.a-who__name' }).closest('li')
+const rowOf = (name) => screen.getByText(name, { selector: '.a-prov__name' }).closest('li')
 const rowLink = (name) => within(rowOf(name)).getByRole('link')
 const tiles = () => [...document.querySelectorAll('.a-tiles a.a-tile')]
 const tile = (name) => screen.getByRole('link', { name: new RegExp(name) })
@@ -534,9 +534,9 @@ describe('the providers of the week', () => {
     await showed()
     const rows = [...list().children]
     expect(rows).toHaveLength(5)
-    expect(rows.map((row) => row.querySelector('.a-who__name').textContent)).toEqual(['פלוני', 'אלמוני', 'גינון אלון', 'Иван', 'ספק ישן'])
+    expect(rows.map((row) => row.querySelector('.a-prov__name').textContent)).toEqual(['פלוני', 'אלמוני', 'גינון אלון', 'Иван', 'ספק ישן'])
     // totals 19, 13, 0, 1, 2: neither the most visits first nor the fewest
-    expect(rows.map((row) => row.querySelector('.a-who__num').textContent)).toEqual(['19', '13', '0', '1', '2'])
+    expect(rows.map((row) => row.querySelector('.a-prov__num').textContent)).toEqual(['19', '13', '0', '1', '2'])
   })
 
   it('makes the whole row one link to the History of that provider for the seven days: the visits that its total counts', async () => {
@@ -546,7 +546,7 @@ describe('the providers of the week', () => {
       const link = rowLink(p.name)
       expect(hrefOf(link), p.name).toBe(weekOf(p.id))
       expect(within(rowOf(p.name)).getAllByRole('link'), `${p.name}: one link in the row`).toHaveLength(1)
-      expect(rowOf(p.name).querySelector('a').contains(rowOf(p.name).querySelector('.a-who__num')), `${p.name}: the total is in the link`).toBe(true)
+      expect(rowOf(p.name).querySelector('a').contains(rowOf(p.name).querySelector('.a-prov__num')), `${p.name}: the total is in the link`).toBe(true)
     }
   })
 
@@ -569,8 +569,8 @@ describe('the providers of the week', () => {
   it('shows the company under a name that is a contact\'s, and says nothing more for a name that is the company', async () => {
     server()
     await showed()
-    expect(rowOf('פלוני').querySelector('.a-who__company').textContent).toBe('ניקיון')
-    expect(rowOf('גינון אלון').querySelector('.a-who__company')).toBeNull()
+    expect(rowOf('פלוני').querySelector('.a-prov__company').textContent).toBe('ניקיון')
+    expect(rowOf('גינון אלון').querySelector('.a-prov__company')).toBeNull()
   })
 
   it('says that a provider is switched off, and that a deleted one was deleted, next to its name', async () => {
@@ -587,9 +587,9 @@ describe('the providers of the week', () => {
   it('writes the total of a provider: the sum of its seven days, with ביקור for one and ביקורים for the rest', async () => {
     server()
     await showed()
-    expect(rowOf('פלוני').querySelector('.a-who__total').textContent).toBe('19ביקורים')
-    expect(rowOf('Иван').querySelector('.a-who__total').textContent).toBe('1ביקור')
-    expect(rowOf('גינון אלון').querySelector('.a-who__total').textContent).toBe('0ביקורים')
+    expect(rowOf('פלוני').querySelector('.a-prov__total').textContent).toBe('19ביקורים')
+    expect(rowOf('Иван').querySelector('.a-prov__total').textContent).toBe('1ביקור')
+    expect(rowOf('גינון אלון').querySelector('.a-prov__total').textContent).toBe('0ביקורים')
   })
 
   it('draws a dot for each day, in the order of the days, filled for a day with a visit and a ring for a day without', async () => {
@@ -620,14 +620,14 @@ describe('the providers of the week', () => {
   it('has a mark with the first letter of the name, hidden from a reader, in one of the tints by the id and the grey of one that is off', async () => {
     server()
     await showed()
-    const mark = (name) => rowOf(name).querySelector('.a-who__avatar')
+    const mark = (name) => rowOf(name).querySelector('.a-prov__avatar')
     expect(mark('פלוני').textContent).toBe('פ')
     expect(mark('Иван').textContent).toBe('И')
     expect(mark('פלוני').getAttribute('aria-hidden')).toBe('true')
-    expect(mark('Иван').classList.contains('a-who__avatar--off')).toBe(true) // switched off
-    expect(mark('ספק ישן').classList.contains('a-who__avatar--off')).toBe(true) // deleted
-    expect(mark('פלוני').classList.contains('a-who__avatar--off')).toBe(false)
-    const tone = (name) => [...mark(name).classList].filter((c) => c !== 'a-who__avatar')[0] ?? 'violet'
+    expect(mark('Иван').classList.contains('a-prov__avatar--off')).toBe(true) // switched off
+    expect(mark('ספק ישן').classList.contains('a-prov__avatar--off')).toBe(true) // deleted
+    expect(mark('פלוני').classList.contains('a-prov__avatar--off')).toBe(false)
+    const tone = (name) => [...mark(name).classList].filter((c) => c !== 'a-prov__avatar')[0] ?? 'violet'
     const before = [tone('פלוני'), tone('אלמוני')]
     cleanup()
     server()
@@ -649,7 +649,7 @@ describe('the providers of the week', () => {
     await showed()
     expect([...list().children]).toHaveLength(2)
     expect(list().querySelectorAll('.a-dot.is-on')).toHaveLength(0)
-    expect([...list().querySelectorAll('.a-who__num')].map((n) => n.textContent)).toEqual(['0', '0'])
+    expect([...list().querySelectorAll('.a-prov__num')].map((n) => n.textContent)).toEqual(['0', '0'])
   })
 })
 
@@ -817,10 +817,10 @@ describe('the answer kept from the last visit', () => {
     show()
     // at once: the kept card and rows, no spinner
     expect(screen.queryByRole('status')).toBeNull()
-    expect(rowOf('פלוני').querySelector('.a-who__num').textContent).toBe('63')
+    expect(rowOf('פלוני').querySelector('.a-prov__num').textContent).toBe('63')
     expect(homeCalls()).toBe(1) // and it asked again
     await act(async () => { release() })
-    await waitFor(() => expect(rowOf('פלוני').querySelector('.a-who__num').textContent).toBe('19'))
+    await waitFor(() => expect(rowOf('פלוני').querySelector('.a-prov__num').textContent).toBe('19'))
   })
 
   it('keeps the kept answer on the screen when the fresh one cannot be loaded (no error in its place)', async () => {
