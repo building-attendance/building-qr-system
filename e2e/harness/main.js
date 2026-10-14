@@ -9,6 +9,7 @@
 // the device, as the apps do when nobody has chosen one.
 import { createElement as h, useState } from 'react'
 import { createRoot } from 'react-dom/client'
+import '@fontsource-variable/rubik' // the app's one typeface, as src/main.jsx loads it: the text is as wide as in the app
 import '../../src/ui/base.css'
 import '../../src/ui/ui.css'
 import '../../src/admin/admin.css'

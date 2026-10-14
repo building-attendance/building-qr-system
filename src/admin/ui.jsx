@@ -14,7 +14,7 @@ const appRoot = () => document.querySelector('.a-app') ?? document.body // porta
  * `label` is both the accessible name and the tooltip. The icon is grey and turns violet on hover, while pressed and on
  * focus; there is no frame or fill.
  *   tone "default": grey.      tone "danger": red, used only for removing something.
- *   tone "primary": a filled blue round button, the single main action of a page (adding something).
+ *   tone "primary": a filled violet round button, the single main action of a page (adding something).
  * With `href` it is a link (a download), otherwise a button.
  */
 export function IconButton({ icon: Icon, label, onClick, tone = 'default', size = 24, href, download, disabled, ...rest }) {
