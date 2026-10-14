@@ -18,6 +18,26 @@ test('a scan link opens the sign-in list, in Hebrew, naming the point', async ({
   await expect(page.getByText(he['login.privacy'])).toBeVisible()
 })
 
+test('the privacy note under the list gets the padding that its class declares', async ({ page }) => {
+  // The reset of paragraphs (`.w-app p`) once outranked the class and cancelled this padding: the shield touched the edge of the box and
+  // the text touched its top and bottom. tests/design-css.test.js holds the reset at no specificity; this is what the browser lays out.
+  await page.goto(scanLink(POINTS.lobby))
+  const note = page.getByText(he['login.privacy']).locator('xpath=..')
+  await expect(note).toBeVisible()
+  const { declared, computed, expected } = await note.evaluate((el) => {
+    const rule = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).find((r) => r.selectorText === '.w-note')
+    const sides = (style) => [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
+    const probe = document.body.appendChild(document.createElement('div')) // the declared padding, with its tokens resolved
+    probe.style.padding = rule?.style.padding ?? ''
+    const out = { declared: rule?.style.padding ?? '', computed: sides(getComputedStyle(el)), expected: sides(getComputedStyle(probe)) }
+    probe.remove()
+    return out
+  })
+  expect(declared, 'the stylesheet declares a padding for the note').not.toBe('')
+  expect(expected, 'the declared padding resolves to a length on every side').not.toContain('0px')
+  expect(computed, `the padding that the note gets is the one its class declares (${declared})`).toEqual(expected)
+})
+
 test('a wrong password is refused with a clear message and a clear field', async ({ page }) => {
   allowConsoleErrors(page, /status of 401/) // the browser notes the 401 this test provokes
   await page.goto(scanLink(POINTS.lobby))

@@ -7,7 +7,7 @@ export default {
   'common.retry': 'حاول مرة أخرى',
 
   'login.pointBanner': 'نقطة المسح: {name}',
-  'login.title': 'اختر اسمك',
+  'login.title': 'اختر حسابك',
   'login.subtitle': 'في المرة الأولى فقط على هذا الهاتف',
   'login.passwordTitle': 'مرحبًا {name}',
   'login.passwordLabel': 'كلمة المرور',
@@ -16,7 +16,7 @@ export default {
   'login.remember': 'البقاء متصلًا على هذا الهاتف',
   'login.rememberHint': 'مناسب للهاتف الشخصي. على هاتف مشترك أوقف هذا الخيار.',
   'login.submit': 'دخول',
-  'login.changeName': 'لست أنا، اختيار اسم آخر',
+  'login.changeName': 'لست أنا، اختيار حساب آخر',
   'login.wrong': 'كلمة المرور غير صحيحة. حاول مرة أخرى.',
   'login.locked': 'محاولات كثيرة. حاول مرة أخرى بعد بضع دقائق.',
   'login.network': 'لا يوجد اتصال. حاول عندما تتوفر تغطية.',

@@ -14,7 +14,7 @@ end-to-end tests use.
 
 | Image | What it shows |
 |---|---|
-| `provider-phone-sign-in.png` | The provider app on a phone: a scan link opens the list of names to pick from |
+| `provider-phone-sign-in.png` | The provider app on a phone: a scan link opens the list of accounts to pick from |
 | `provider-phone-check-in.png` | The same app after signing in: the check-in is recorded |
 | `provider-phone-saved-offline.png` | The same app with no network: the visit is kept on the phone and is sent by itself later |
 | `committee-phone-home.png` | The committee app on a phone: the Home screen, the summary card of the week (the screen that opens first) |

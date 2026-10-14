@@ -156,7 +156,7 @@ test.describe('provider app', () => {
     await scanBothThemes(page, 'provider he: theme picker focused')
 
     await page.getByLabel(he['lang.label']).selectOption('ar')
-    await expect(page.getByRole('heading', { name: 'اختر اسمك' })).toBeVisible()
+    await expect(page.getByRole('heading', { name: ar['login.title'] })).toBeVisible()
     await scanBothThemes(page, 'provider ar: sign-in list')
     await page.getByLabel(ar['lang.label']).selectOption('ru')
     await expect(page.getByRole('heading', { name: ru['login.title'] })).toBeVisible()

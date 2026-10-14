@@ -332,7 +332,7 @@ not say `nonprod`.
    at every point, and whose scans are flagged and left out of reports and of the agent's data: use it for tests that
    must stay out of the real history.
 4. On a phone, scan the sign with the camera (the QR on your computer's screen works as well as a printed sign): the
-   providers' app opens, choose the name, enter the password, and the check-in is recorded (allow the location when the
+   providers' app opens, choose the account, enter the password, and the check-in is recorded (allow the location when the
    phone asks, and be within the point's radius of the pin). In the History tab ("היסטוריה") of the committee app the scan
    appears, with the point's name, the time, and the company and the worker.
 5. Before you give signs to the providers: read [privacy.md](privacy.md) (in a copy, "the owner of the project" is you,
