@@ -731,11 +731,12 @@ describe('the form that cancels a visit', () => {
     })
     render(<ToastProvider><ConfirmProvider><HistoryView /></ConfirmProvider></ToastProvider>)
     await screen.findByText('נותן סריקה', {}, WAIT)
-    fireEvent.click(screen.getByRole('button', { name: 'ביטול הנוכחות' }))
+    const row = screen.getByText('נותן סריקה').closest('li') // the action is in the menu of the row
+    choose(row, 'ביטול הנוכחות')
     esc()
     expect(screen.queryByRole('dialog'), 'untouched: closed at once').toBeNull()
 
-    fireEvent.click(screen.getByRole('button', { name: 'ביטול הנוכחות' }))
+    choose(row, 'ביטול הנוכחות')
     expectItAsksBeforeLosingWhatWasTyped('ביטול נוכחות', 'סיבה (לא חובה)', 'נסרק בטעות')
   })
 })
