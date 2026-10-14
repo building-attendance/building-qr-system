@@ -96,7 +96,8 @@ its own (the text pattern finds it); a new kind of changing text does, in `dynam
 YIQ distance, from 0 for any change to about 0.97 for black against white), a pixel that pixelmatch takes for the
 anti-aliasing of an edge never counts, and a picture fails on one pixel that counts. Playwright's default threshold, 0.2,
 is far looser than it sounds: the amber circle of #226 changed from `#8A3E05` to `#B4530A` and the job still passed with
-the old baseline. The top of the spec explains the scale and how the value was measured; the value is the owner's decision.
+the old baseline. The top of the spec explains the scale and how the value was measured; the value, 0.01, is the owner's
+decision of 14/10/2026, and changes only with the owner.
 A picture that fails on a few pixels at the edge of a curve, with no change to the screen behind it, is rendering noise and
 not a design change: do not copy it over the baseline, report it, since it is evidence about the threshold.
 
