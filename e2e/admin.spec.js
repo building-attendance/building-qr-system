@@ -110,6 +110,8 @@ test('the add button of a heading is a pill with its words, the first action of 
 test('on a phone the focus goes from the account circle to the add button, and then on to the other actions of the heading', async ({ page }) => {
   await adminSignIn(page, 'points')
   await page.setViewportSize({ width: 360, height: 740 })
+  // the print button is switched off until the points are loaded, and Tab skips a switched-off button: wait for it, or the test races the load
+  await expect(page.getByRole('button', { name: 'הדפסת כל השלטים' })).toBeEnabled()
   await accountButton(page).focus()
   await page.keyboard.press('Tab')
   await expect(page.getByRole('button', { name: 'נקודה חדשה', exact: true })).toBeFocused()
