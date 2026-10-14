@@ -309,7 +309,7 @@ with `performance.now()`: from the start of the navigation to the moment the scr
 sees it, so Playwright's polling adds nothing). That is the time of the DOM, a frame before the pixels. The screens, each with
 the element that means "loaded", read from its component in `src/admin/views/`:
 
-- **home:** the heading of the week table.
+- **home:** the heading of the summary card.
 - **history:** the History as it opens, the last 7 days: the first day heading of the list (100 visits).
   **history_more:** "load more" once, from the click until the next 100 rows are in the list.
   **history_refused:** the type "not counted" (a link opens it), the refused visits of the last 7 days: the first day heading.

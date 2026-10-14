@@ -49,9 +49,10 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
     show/hide eye works.
 12. [ ] Committee app (`/admin`) on the phone: it opens on Home ("בית"), and the bar at the bottom has five buttons
     (Home, History, Points, Providers, More), each label whole on one line. Home greets by the hour and the member's first
-    name, and its week table has today at the left edge and fits the width (nothing scrolls sideways but the table's own
-    box, if a narrow phone needs it, with the provider's name staying in view). A cell with visits opens History
-    filtered to that provider and that day, with that many rows, and Back returns to Home. More ("עוד") opens a sheet
+    name, and its summary card has a bar for each day with today at the left end and the seven day heads under the bars
+    (DD/MM), and fits the width (nothing scrolls sideways; on the narrowest phone a head breaks after its slash). A bar
+    with visits opens History for that day, a provider's row opens History for that provider and the seven days, each
+    with that many rows, and Back returns to Home. More ("עוד") opens a sheet
     from the bottom with the other four screens, its last row clear of the home indicator; after choosing one,
     VoiceOver (or an external keyboard) is on the new screen, not lost. On History, Filter ("סינון") opens
     the filters sheet: its two date fields sit side by side without overlapping, the keyboard does not come up by itself,
