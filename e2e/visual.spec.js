@@ -526,6 +526,22 @@ function committeeSheet(width) {
   })
 }
 
+/**
+ * The account menu, open over the help (text only, so no mask lands on it): the popover of the top bar's button on a phone, and the one of the
+ * side rail's button on a computer. The member is the sample one, so the name and the e-mail in it are fixed.
+ */
+function committeeAccountMenu(width) {
+  test('the account menu', async ({ page }) => {
+    await stopClock(page)
+    await committeeSignedIn(page, 'help')
+    await expect(page.getByRole('heading', { level: 2, name: 'כשטלפון תקוע' })).toBeVisible()
+    await page.getByRole('button', { name: /^החשבון שלי והגדרות/ }).click()
+    await expect(page.getByRole('dialog', { name: 'החשבון שלי', exact: true })).toBeVisible()
+    await page.mouse.move(0, 0) // the pointer is where the button was clicked: its hover look is not what the picture is for
+    await shotBothThemes(page, `committee-${width}-account-menu`, { whole: false })
+  })
+}
+
 test.describe('committee app', () => {
   let state
   test.beforeAll(async ({ playwright, browserName }, testInfo) => {
@@ -541,11 +557,13 @@ test.describe('committee app', () => {
     committeeScreens('360')
     committeeFilters('360')
     committeeSheet('360')
+    committeeAccountMenu('360')
   })
 
   test.describe('at 1280 px', () => {
     test.use(COMMITTEE_COMPUTER)
     committeeScreens('1280')
+    committeeAccountMenu('1280')
   })
 
   // The widest screen that still has the tab bar (and so the sheet): a tablet held upright.

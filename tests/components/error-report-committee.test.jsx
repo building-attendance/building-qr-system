@@ -109,6 +109,12 @@ const devSignIn = async () => fireEvent.click(await screen.findByRole('button', 
 const sessionExpires = () => act(() => { window.dispatchEvent(new Event('admin-session-expired')) })
 const outbox = (events) => window.localStorage.setItem(ERRORS_KEY, JSON.stringify(events))
 
+// Signing out is in the account menu (src/admin/AccountMenu.jsx): the first account button (the side rail's) opens it, and the sign-out is in it.
+const signOut = () => {
+  fireEvent.click(screen.getAllByRole('button', { name: /החשבון שלי והגדרות/ })[0])
+  fireEvent.click(screen.getByRole('button', { name: 'יציאה' }))
+}
+
 describe('the committee app: the screen comes from its own state', () => {
   it('is committee:app while the app loads, and when there is no connection', async () => {
     answerLikeTheServer()
@@ -155,7 +161,7 @@ describe('the committee app: the screen comes from its own state', () => {
     answerLikeTheServer()
     start()
     await signedIn()
-    fireEvent.click(screen.getAllByRole('button', { name: 'יציאה' })[0])
+    signOut()
     await loginScreen()
     expect(currentPlace()).toBe('committee:login')
   })
@@ -253,7 +259,7 @@ describe('a forced sign-out is noted', () => {
     answerLikeTheServer()
     start()
     await signedIn()
-    fireEvent.click(screen.getAllByRole('button', { name: 'יציאה' })[0])
+    signOut()
     await loginScreen()
     await settleWell()
     expect(readOutbox()).toEqual([])

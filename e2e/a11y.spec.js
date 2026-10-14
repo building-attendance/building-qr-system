@@ -15,7 +15,7 @@ import ar from '../src/i18n/ar.js'
 import { PROVIDER_TOKEN_PREFIX } from '../shared/contract.js'
 import {
   test, expect, he, en, ru, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, adminSignIn, clearScans, allowConsoleErrors, expectNoA11yViolations,
-  changeFilters, openFilters, SCREEN_TITLES, stubHome, homeSummary,
+  changeFilters, openFilters, SCREEN_TITLES, stubHome, homeSummary, openAccountMenu,
 } from './fixtures.js'
 import { openHarness } from './harness.js'
 
@@ -578,6 +578,11 @@ test.describe('committee app with the sample data filled in', () => {
     await scanBothThemes(page, 'committee phone: the sheet under "עוד"')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toHaveCount(0)
+    // the account menu of the top bar, open over the help: a dialog that is not modal, with the light / dark radio group
+    await openAccountMenu(page)
+    await scanBothThemes(page, 'committee phone: the account menu')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
     // the history with every kind of row: refused, cancelled, flagged, and the demo account's
     await openTab(page, 'history', 'היסטוריית נוכחות')
     await changeFilters(page, async (sheet) => {
@@ -640,6 +645,11 @@ test.describe('committee app with the sample data filled in', () => {
     await openTab(page, 'audit', 'יומן פעולות')
     await waitForAuditLog(page)
     await scanBothThemes(page, 'committee computer: audit log')
+    // the account menu of the side rail, open over the audit log: it stands over its button, at the foot of the rail
+    await openAccountMenu(page)
+    await scanBothThemes(page, 'committee computer: the account menu')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
   })
 
   test('the dialogs of the points and the providers', async ({ page }) => {
