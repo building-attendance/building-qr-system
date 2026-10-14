@@ -89,8 +89,16 @@ writes there is not a baseline, so delete it and never commit it.
 map's tiles are one fixed picture, the committee screens start from a known state (`prepareCommittee`), and everything that
 depends on the real date, the real time or the build is masked (the pink boxes): every date and time, the date fields of
 the History tab, the build label, and the codes of the Agent tab. A new screen with a date or a time on it needs no mask of
-its own (the text pattern finds it); a new kind of changing text does, in `dynamicRegions`. The thresholds are Playwright's
-defaults (no pixel may differ). Keep each image under about 150 KB.
+its own (the text pattern finds it); a new kind of changing text does, in `dynamicRegions`. Keep each image under about
+150 KB.
+
+**How strict it is.** A pixel counts as different only when its colour moved further than `PIXEL_THRESHOLD` in the spec (a
+YIQ distance, from 0 for any change to about 0.97 for black against white), a pixel that pixelmatch takes for the
+anti-aliasing of an edge never counts, and a picture fails on one pixel that counts. Playwright's default threshold, 0.2,
+is far looser than it sounds: the amber circle of #226 changed from `#8A3E05` to `#B4530A` and the job still passed with
+the old baseline. The top of the spec explains the scale and how the value was measured; the value is the owner's decision.
+A picture that fails on a few pixels at the edge of a curve, with no change to the screen behind it, is rendering noise and
+not a design change: do not copy it over the baseline, report it, since it is evidence about the threshold.
 
 **Sign in as little as possible in this spec.** The server counts every sign-in of a run from one address, a correct password
 included (`guardLogin` in `server/auth.js`: 60 in 15 minutes), and the other specs of the job use 48 of them. A failing
