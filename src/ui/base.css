@@ -6,6 +6,8 @@
    ones were folded into their neighbours (radius 10px into 12px, 18px into 20px; font size 0.875rem into 0.9375rem, 1.1875rem into 1.125rem
    or 1.25rem, 1.875rem into 1.75rem). A removed step leaves its name unused, so the other names did not change. Radius 28px was folded into
    24px too, and came back as --w-radius-4xl with direction B of the redesign (the summary card and a dialog, owner decision of 14/10/2026).
+   --w-font-2xs (12px) is the smallest size, for a short label where room is tight (the day heads of the Home table): the labels of the
+   design canvas are 12 to 13px, and Rubik's figures are wider than Heebo's.
    tests/design-css.test.js reads the tokens from here and fails on a literal of the same value in a spacing, radius or font-size declaration,
    and holds every other literal at its budget (tests/design-budget.json), which is now zero. Spacing is a 4px scale with the half steps in use
    (--w-space-1-5 is 6px, --w-space-0-5 is 2px). A text field keeps a font size of 1rem or more (F5 of docs/design.md). */
@@ -14,7 +16,7 @@
   --w-space-4: 16px; --w-space-4-5: 18px; --w-space-5: 20px; --w-space-6: 24px; --w-space-8: 32px; --w-space-10: 40px; --w-space-12: 48px;
   --w-space-16: 64px;
   --w-radius-sm: 12px; --w-radius-md: 14px; --w-radius-lg: 16px; --w-radius-2xl: 20px; --w-radius-3xl: 24px; --w-radius-4xl: 28px; --w-radius-pill: 999px;
-  --w-font-xs: 0.8125rem; --w-font-md: 0.9375rem; --w-font-base: 1rem; --w-font-lg: 1.0625rem; --w-font-xl: 1.125rem; --w-font-3xl: 1.25rem;
+  --w-font-2xs: 0.75rem; --w-font-xs: 0.8125rem; --w-font-md: 0.9375rem; --w-font-base: 1rem; --w-font-lg: 1.0625rem; --w-font-xl: 1.125rem; --w-font-3xl: 1.25rem;
   --w-font-4xl: 1.75rem;
 }
 /* Layout constants: sizes that must keep their exact value because another part of the layout depends on it, so they are not steps of

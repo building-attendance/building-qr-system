@@ -97,14 +97,17 @@
 /* The name column is as wide as the screen can spare: the days keep their 36px, and what is left goes to the name (a long name wraps inside it). */
 @media (min-width: 360px) { .a-week__who { width: 96px; min-width: 96px; } }
 @media (min-width: 640px) { .a-week__who { width: 144px; min-width: 144px; } }
-.a-week__day { min-width: 36px; padding-block: var(--w-space-2); color: var(--w-text-2); font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); text-align: center; }
+/* Seven heads and seven counts fit 320px beside the 64px name column only when each column needs 36.5px or less. Rubik's figures are
+   wider than Heebo's (a head "08/10" in 13px semibold is 40.6px, a total of three digits in 17px bold 37.8px with its padding), so a head is
+   12px regular (35.5px) and a count 16px (35.8px in bold). Measured in Chromium and WebKit; e2e/reflow.spec.js holds the table to 320px. */
+.a-week__day { min-width: 36px; padding-block: var(--w-space-2); color: var(--w-text-2); font-size: var(--w-font-2xs); font-weight: var(--w-weight-regular); text-align: center; }
 .a-week__cell { min-width: 36px; padding: var(--w-space-0-5); text-align: center; }
 .a-week tfoot > tr > * { border-block-start: 1px solid var(--w-border); background: var(--w-surface-2); }
 .a-week tfoot .a-week__who { font-weight: var(--w-weight-semibold); }
 /* A number of visits. The step (1 to 4) deepens the background; the number is always written, so colour is never the only carrier (V2). */
 .a-count {
   display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: var(--w-radius-sm);
-  color: var(--w-text); font-weight: var(--w-weight-semibold); font-variant-numeric: tabular-nums; text-decoration: none;
+  color: var(--w-text); font-size: var(--w-font-base); font-weight: var(--w-weight-semibold); font-variant-numeric: tabular-nums; text-decoration: none;
 }
 .a-count--1 { background: var(--w-count-1); }
 .a-count--2 { background: var(--w-count-2); }
