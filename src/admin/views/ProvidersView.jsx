@@ -11,7 +11,7 @@ function PasswordBox({ value, onChange, id, ...aria }) {
   return (
     <div className="a-secret" style={{ padding: 'var(--w-space-2)' }}>
       <input id={id} className="a-input a-code" value={value} onChange={(e) => onChange(e.target.value)} maxLength={PASSWORD_MAX_LENGTH} autoComplete="new-password" spellCheck="false" {...aria} />
-      <button type="button" className="w-btn w-btn--ghost w-btn--small" onClick={() => onChange(generatePassword())}><IconRefresh size={18} />יצירה</button>
+      <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={() => onChange(generatePassword())}><IconRefresh size={18} />יצירה</button>
       <button type="button" className="a-icon-btn" aria-label="העתקת הסיסמה" disabled={!value}
         onClick={async () => toast.ok((await copyText(value)) ? 'הסיסמה הועתקה' : 'ההעתקה נכשלה')}><IconCopy /></button>
     </div>
@@ -186,7 +186,7 @@ function PhonesDialog({ provider, busy, onClose, onRevokeAll }) {
       title={`מכשירים: ${provider.contact_name || provider.company}`}
       onClose={onClose}
       // Signing everyone out must stay possible when the list could not be loaded: it is what the committee does for a lost phone.
-      footer={none ? null : <button type="button" className="w-btn w-btn--ghost w-btn--small" onClick={onRevokeAll} disabled={busy}>ניתוק כל המכשירים</button>}
+      footer={none ? null : <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onRevokeAll} disabled={busy}>ניתוק כל המכשירים</button>}
     >
       {devices.status === 'loading' && <Spinner />}
       {devices.status === 'error' && !devices.data && (

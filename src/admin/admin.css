@@ -125,14 +125,13 @@
 .a-stat__label { color: var(--w-text-2); overflow-wrap: anywhere; }
 .a-stat__note { color: var(--w-text-3); font-size: var(--w-font-md); overflow-wrap: anywhere; }
 
-.w-btn--danger { background: #b3261e; color: #fff; } /* white on this red in both themes (6.5:1); --w-on-primary is dark in the dark theme */
-.w-btn--danger:hover { background: #9c1f18; }
+/* The button that deletes (or cancels a visit): a red tint with red text in both themes, the pair that tests/contrast.test.js holds to AA. */
+.w-btn--danger, .w-btn--danger:hover { background: var(--w-danger-bg); color: var(--w-danger); }
+.w-btn--danger:hover { box-shadow: inset 0 0 0 2px var(--w-danger-line); }
 .w-btn--small svg { flex: none; }
-.w-btn--ghost { background: none; border: 1px solid var(--w-border); color: var(--w-text); }
-.w-btn--ghost:hover { background: var(--w-surface-2); }
 
 /* An action that is only an icon (src/admin/ui.jsx IconButton): a 44px touch target, no edge, no fill. The icon is grey
-   and turns the palette blue on hover, while pressed and on focus. No frame, the same as the pickers in the provider app. */
+   and turns violet on hover, while pressed and on focus. No frame, the same as the pickers in the provider app. */
 .a-icon-btn {
   width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--w-radius-sm); border: 0; background: none;
   color: var(--w-text-2); cursor: pointer; flex: none; text-decoration: none; transition: color 0.12s;
@@ -150,7 +149,9 @@
 .a-icon-btn--primary:active:not(:disabled) { background: var(--w-primary-hover); color: var(--w-on-primary); }
 
 /* ----- cards ----- */
-.a-card { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); padding: var(--w-space-4-5); display: flex; flex-direction: column; gap: var(--w-space-3); }
+/* A soft card (the design canvas): 24px corners and a shadow, no edge (D4: a card rests on its shadow, so it has no 3:1 edge to keep). In
+   the dark theme the shadow hardly shows, and the step from --w-bg to --w-surface sets the card apart. */
+.a-card { background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); padding: var(--w-space-4); display: flex; flex-direction: column; gap: var(--w-space-3); }
 /* "Off" is shown with muted colours that still pass contrast, not with blanket opacity (which did not). */
 .a-card.is-off .a-card__title { color: var(--w-text-2); }
 /* A card that holds one short form (the building's address), set under a list of cards: it does not stretch across a wide screen. */
@@ -183,18 +184,22 @@
    scrolling region that cannot take focus cannot be scrolled with the keys (axe: scrollable-region-focusable). */
 .a-phones:focus-visible { border-radius: var(--w-radius-md); } /* the focus outline (.a-app :focus-visible) follows the corners of the boxes */
 
-.a-badge { display: inline-flex; align-items: center; gap: var(--w-space-1-5); padding: var(--w-space-1) var(--w-space-2-5); border-radius: var(--w-radius-pill); font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); background: var(--w-surface-2); color: var(--w-text-2); white-space: nowrap; }
-.a-badge--ok { background: var(--w-success-bg); color: var(--w-success); }
-.a-badge--warn { background: var(--w-warn-bg); color: var(--w-warn); }
+/* A chip of a card (src/admin/ui.jsx Badge): a tint with its ink, the four pairs of the tokens (tests/contrast.test.js holds each to AA);
+   neutral is the quiet grey of something switched off, and red is a problem. */
+.a-badge { display: inline-flex; align-items: center; gap: var(--w-space-1-5); padding: var(--w-space-1) var(--w-space-3); border-radius: var(--w-radius-pill); font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); background: var(--w-surface-2); color: var(--w-text-2); white-space: nowrap; }
+.a-badge--ok { background: var(--w-tint-mint); color: var(--w-tint-mint-ink); }
+.a-badge--warn { background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
 .a-badge--danger { background: var(--w-danger-bg); color: var(--w-danger); }
-.a-badge--info { background: var(--w-info-bg); color: var(--w-info); }
+.a-badge--info { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); }
+.a-badge--sky { background: var(--w-tint-sky); color: var(--w-tint-sky-ink); }
 
 /* ----- form fields ----- */
+/* The same field as the provider app's (.w-input): the surface inside its 3:1 edge, 16px corners, and a violet edge with a 4px ring on focus. */
 .a-input {
-  width: 100%; min-height: 52px; padding-inline: var(--w-space-3-5); font-size: var(--w-font-lg); color: var(--w-text);
-  background: var(--w-surface-2); border: 1.5px solid var(--w-field-border); border-radius: var(--w-radius-md);
+  width: 100%; min-height: 54px; padding-inline: var(--w-space-4); font-size: var(--w-font-lg); color: var(--w-text);
+  background: var(--w-surface); border: 1.5px solid var(--w-field-border); border-radius: var(--w-radius-lg);
 }
-.a-input:focus { outline: none; border-color: var(--w-focus); box-shadow: 0 0 0 3px var(--w-focus-ring); }
+.a-input:focus { outline: none; border-color: var(--w-focus); box-shadow: 0 0 0 4px var(--w-focus-ring); }
 .a-input[aria-invalid='true'] { border-color: var(--w-danger); }
 textarea.a-input { min-height: 88px; padding-block: var(--w-space-3); resize: vertical; }
 select.a-input {
@@ -292,40 +297,72 @@ select.a-input {
 .a-build { margin-block-start: var(--w-space-4); }
 
 /* ----- modal ----- */
+/* On a phone (below 640px) every dialog is a sheet that rises from the bottom of the screen, its top corners rounded, with a handle over
+   its head (D7 of the redesign, owner decision of 14/10/2026). The handle is only drawn (the ::before below): the close button and a tap
+   outside close the sheet. On a computer the dialog stands in the middle, its handle hidden but its room kept above the head. */
 .a-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; background: var(--w-overlay); }
-.a-modal { width: 100%; max-height: 92vh; max-height: 92dvh; display: flex; flex-direction: column; background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-3xl) var(--w-radius-3xl) 0 0; outline: none; color: var(--w-text); }
-.a-modal__head { display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-3); padding-block: var(--w-space-3-5) var(--w-space-1-5); padding-inline: var(--w-space-5) var(--w-space-3); }
-/* The close button stays at the top of the head when the title wraps onto several lines (the head centres its two children, so
-   the button sat beside the middle of the title). A one-line title is as tall as the button or shorter, so the head is as tall
-   as the button and nothing moves. */
-.a-modal__head .a-icon-btn { align-self: flex-start; }
+.a-modal { width: 100%; max-height: 92vh; max-height: 92dvh; display: flex; flex-direction: column; background: var(--w-surface); border-radius: var(--w-radius-4xl) var(--w-radius-4xl) 0 0; box-shadow: var(--w-shadow-pop); outline: none; color: var(--w-text); }
+.a-modal::before { content: ''; flex: none; align-self: center; width: 44px; height: 5px; margin-block: var(--w-space-2-5) var(--w-space-1); border-radius: var(--w-radius-pill); background: var(--w-border); }
+.a-modal__head { display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-3); padding-block: var(--w-space-1-5); padding-inline: var(--w-space-5) var(--w-space-3); }
+/* The close button is round, on the background colour (the design canvas), with the focus ring of every other control: the icon's own
+   change of colour is too slight on that fill to show the focus. It stays at the top of the head when the title wraps onto several
+   lines (the head centres its two children, so the button sat beside the middle of the title). A one-line title is as tall as the
+   button or shorter, so the head is as tall as the button and nothing moves. */
+.a-modal__head .a-icon-btn { align-self: flex-start; border-radius: 50%; background: var(--w-bg); color: var(--w-text); }
+.a-modal__head .a-icon-btn:focus-visible { outline: 3px solid var(--w-focus); outline-offset: 2px; }
 /* The title holds the name of the point or the person, which can be one long word: it wraps inside the head (T2). */
 .a-modal__head h2 { font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); min-width: 0; overflow-wrap: anywhere; }
 .a-modal__body { padding: var(--w-space-2) var(--w-space-5) var(--w-space-5); overflow: auto; display: flex; flex-direction: column; gap: var(--w-space-4); }
 .a-modal__foot { padding: var(--w-space-3-5) var(--w-space-5) calc(var(--w-space-3-5) + env(safe-area-inset-bottom)); border-block-start: 1px solid var(--w-border); display: flex; gap: var(--w-space-2-5); justify-content: flex-end; flex-wrap: wrap; }
+/* The sheets (`size="sheet"` of Modal): the one that "עוד" opens (a list of screens) and the one of the filters (src/admin/filters.jsx). A sheet
+   stays at the bottom of the screen at every width, with only its top corners rounded and its handle, and no wider than 480px. The room under
+   the content clears the home indicator: under the body of a sheet that has no footer, and under the footer of one that has (its own padding does it). */
 @media (min-width: 640px) {
   .a-overlay { align-items: center; padding: var(--w-space-6); }
-  .a-modal { border-radius: var(--w-radius-3xl); max-width: 580px; }
+  .a-modal { border-radius: var(--w-radius-4xl); max-width: 580px; }
+  .a-modal::before { visibility: hidden; }
   .a-modal--sm { max-width: 440px; }
-  .a-modal--lg { max-width: 780px; }
-}
-/* The sheets (`size="sheet"` of Modal): the one that "עוד" opens (a list of screens) and the one of the filters (src/admin/filters.jsx). A sheet
-   stays at the bottom of the screen at every width, with only its top corners rounded, and no wider than 480px. The room under the content
-   clears the home indicator: under the body of a sheet that has no footer, and under the footer of one that has (its own padding does it). */
-@media (min-width: 640px) {
   .a-overlay--sheet { align-items: flex-end; padding: 0; }
-  .a-modal--sheet { border-radius: var(--w-radius-3xl) var(--w-radius-3xl) 0 0; max-width: 480px; }
+  .a-modal--sheet { border-radius: var(--w-radius-4xl) var(--w-radius-4xl) 0 0; max-width: 480px; }
+  .a-modal--sheet::before { visibility: visible; }
 }
 .a-modal--sheet .a-modal__body:last-child { padding-block-end: calc(var(--w-space-5) + env(safe-area-inset-bottom)); }
+
+/* ----- the "more" menu (src/admin/ui.jsx Menu) ----- */
+/* Its button: a round 44px target with three dots on the background colour, violet while hovered and while its menu is open. */
+.a-menu-btn { width: 44px; height: 44px; display: grid; place-items: center; flex: none; border: 0; border-radius: 50%; background: var(--w-bg); color: var(--w-text); cursor: pointer; }
+@media (hover: hover) { .a-menu-btn:hover { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); } }
+.a-menu-btn[aria-expanded='true'] { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); box-shadow: 0 0 0 3px var(--w-focus-ring); }
+/* The menu, placed by Menu under or over its button (its position is fixed, so no box that clips can cut it). An edge as well as the
+   shadow: in the dark theme the menu and the card under it are the same surface, and a shadow hardly shows on a dark page. Its width
+   leaves 8px to each edge of the screen, the room that Menu keeps when it places it (MENU_EDGE). */
+.a-menu {
+  position: fixed; z-index: 40; min-width: 220px; max-width: calc(100vw - 2 * var(--w-space-2)); display: flex; flex-direction: column; padding: var(--w-space-1-5);
+  background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); box-shadow: var(--w-shadow-pop);
+}
+.a-menu__item {
+  display: flex; align-items: center; gap: var(--w-space-2-5); min-height: 48px; padding-inline: var(--w-space-3); border: 0; border-radius: var(--w-radius-sm);
+  background: none; color: var(--w-text); font-size: var(--w-font-md); text-align: start; cursor: pointer;
+}
+.a-menu__item svg { flex: none; }
+.a-menu__item span { min-width: 0; overflow-wrap: anywhere; }
+/* The item that has the focus (the arrows move it) or the pointer: a grey fill, and the focus ring inside the item, so that it does not
+   cover the items above and below it. */
+.a-menu__item:hover, .a-menu__item:focus-visible { background: var(--w-surface-2); }
+.a-menu__item:focus-visible { outline-offset: -3px; }
+.a-menu__item[aria-disabled='true'] { opacity: 0.55; cursor: not-allowed; }
+/* Red, and only for deleting: the last item, after the separator. */
+.a-menu__item--danger { color: var(--w-danger); font-weight: var(--w-weight-medium); }
+.a-menu__sep { height: 1px; margin: var(--w-space-1) var(--w-space-2); background: var(--w-border); }
 
 /* ----- toasts ----- */
 .a-toasts { position: fixed; inset-inline: var(--w-space-4); bottom: calc(var(--w-layout-toast-clearance) + env(safe-area-inset-bottom)); z-index: 60; display: flex; flex-direction: column; gap: var(--w-space-2); pointer-events: none; }
 @media (min-width: 1024px) { .a-toasts { inset-inline: auto; inset-inline-start: var(--w-space-6); bottom: var(--w-space-6); width: 380px; } }
-.a-toast { pointer-events: auto; display: flex; gap: var(--w-space-2-5); align-items: flex-start; padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-lg); background: var(--w-surface-2); border: 1px solid var(--w-border); box-shadow: var(--w-shadow); }
+.a-toast { pointer-events: auto; display: flex; gap: var(--w-space-2-5); align-items: flex-start; padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-2xl); background: var(--w-surface); border: 1px solid var(--w-border); box-shadow: var(--w-shadow-pop); }
 .a-toast svg { flex: none; margin-block-start: var(--w-layout-optical-nudge); }
 .a-toast span { flex: 1; }
 .a-toast button { flex: none; width: 44px; height: 44px; margin: calc(-1 * var(--w-space-3)) calc(-1 * var(--w-space-2)); display: grid; place-items: center; border: 0; border-radius: var(--w-radius-sm); background: none; color: var(--w-text-2); cursor: pointer; }
-.a-toast button:hover { background: var(--w-surface); color: var(--w-text); }
+.a-toast button:hover { background: var(--w-surface-2); color: var(--w-text); }
 .a-toast--ok svg { color: var(--w-success); }
 .a-toast--error { border-color: var(--w-danger-line); }
 .a-toast--error svg { color: var(--w-danger); }

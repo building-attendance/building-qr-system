@@ -59,6 +59,9 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
     check(`field border (hover) on ${sn}`, c('--w-field-border-hover'), surfaces[sn], 3)
     check(`focus ring on ${sn}`, c('--w-focus'), surfaces[sn], 3)
   }
+  // The "more" menu of a tile (.a-menu in src/admin/admin.css): its items are --w-text on the surface, and the item under the pointer or
+  // the focus is filled with --w-surface-2 (the pairs above), the red delete included. The focus ring is drawn inside that fill.
+  check('--w-danger on surface-2 (the delete of a menu, focused)', c('--w-danger'), surfaces['surface-2'], 4.5)
   for (const kind of ['success', 'warn', 'danger', 'info']) {
     for (const sn of ['surface', 'bg']) {
       check(`--w-${kind} on ${sn}`, c(`--w-${kind}`), surfaces[sn], 4.5)
