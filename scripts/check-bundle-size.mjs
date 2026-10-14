@@ -13,6 +13,13 @@
 //     modulepreload links that Vite adds when the entry imports a shared chunk, and its stylesheet links);
 //   - the committee app's chunk: the JavaScript and the CSS of the AdminApp chunk, which the provider's phone never loads
 //     (found by the `AdminApp-` file name prefix that Vite gives the lazily loaded chunk);
+//   - the committee app's lazy chunks: the JavaScript and the CSS that the committee app downloads only when a screen uses
+//     them (the map of the point form, the QR library). They are found by name, not by a list: every file that the AdminApp
+//     chunk names, and every file that those name in turn, apart from the entry's own files (a chunk loads another one by
+//     its file name, so a new lazy chunk of the committee is measured here by itself). And every JavaScript and CSS file
+//     under assets/ must be one of the entry's, the committee chunk, a committee lazy chunk or a chunk that the entry
+//     itself loads later (workbox-window): a file that none of them names fails the check, so that no chunk can leave the
+//     measurement unnoticed;
 //   - the precache: every URL in the precache manifest of dist/sw.js, counted once each (the manifest lists some files
 //     twice), as the total of their compressed sizes and as the number of files.
 // Each is compared with scripts/check-bundle-size.json (the budgets, in bytes, and the number of files in the precache).
@@ -24,7 +31,12 @@
 // How the budgets were set: on 08/10/2026, on master after #138, from `npm run build`. Each budget is the measured size
 // plus about 10 percent, rounded up to a whole KiB (half a KiB for the provider app's CSS: a whole KiB would leave it more
 // than 20 percent under its budget, and the note below would print on every run); the budget for the number of files is the
-// measured number plus 2. JSON has no comments, so that is written here. A budget is raised only in a pull request that says why, and the owner decides
+// measured number plus 2. On 14/10/2026 the map (Leaflet, with its stylesheet) and the QR library left the committee chunk for
+// lazy chunks of their own: the committee chunk's two budgets went down to its new size by the same rule, the lazy chunks got
+// budgets by the same rule (half a KiB for their CSS, for the reason above), and the number of files in the precache went up
+// by the four new files (the map's JavaScript and CSS, the QR library, and the small chunk of the bundler's own helpers that
+// the entry and those chunks now share), every file of the app being in the precache. JSON has no comments, so that is
+// written here. A budget is raised only in a pull request that says why, and the owner decides
 // (AGENTS.md, "Testing" and the P1 review rules); it is lowered when the app gets smaller. The script and the budgets sit
 // under scripts/check-*, so the agent loop cannot change them (AGENTS.md, "The agent loop").
 //
@@ -45,6 +57,8 @@ export const MEASUREMENTS = Object.freeze([
   { key: 'entryCss', label: 'Provider app, entry CSS', unit: 'bytes' },
   { key: 'committeeJs', label: 'Committee app, chunk JS', unit: 'bytes' },
   { key: 'committeeCss', label: 'Committee app, chunk CSS', unit: 'bytes' },
+  { key: 'committeeLazyJs', label: 'Committee app, lazy chunks JS', unit: 'bytes' },
+  { key: 'committeeLazyCss', label: 'Committee app, lazy chunks CSS', unit: 'bytes' },
   { key: 'precacheBytes', label: 'Precache, total', unit: 'bytes' },
   { key: 'precacheEntries', label: 'Precache, files', unit: 'files' },
 ])
@@ -148,6 +162,84 @@ export function committeeFiles(names) {
   return { js: pick('js'), css: pick('css') }
 }
 
+// ---- finding the committee app's lazy chunks ----------------------------------------------------------------------
+
+/**
+ * Is this (a path relative to the built folder, with /) a file of code that the check sorts into the apps? Vite writes every
+ * chunk and stylesheet of the build into assets/; the root holds the files of public/ (theme-boot.js) and the service worker
+ * (sw.js, workbox-*.js), which the precache measures.
+ */
+export const isAppCode = (name) => /^assets\/(?:[^/]+\/)*[^/]+\.(?:js|css)$/.test(norm(name))
+
+const escapeRegExp = (text) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+
+/**
+ * The files among `names` that a chunk's text names, each once, in the order of `names`. A chunk loads another one by its
+ * file name, in the shapes that Vite writes: `import("./MapPicker-abc.js")`, `from"./index-def.js"`, and the list of files
+ * that its preload helper fetches with a dynamic import ("assets/MapPicker-abc.css"). A name counts only as a whole file
+ * name, after a / or a quote and before a quote, a ? or a #: `NotMapPicker-abc.js` does not name `MapPicker-abc.js`.
+ */
+export function namedFiles(text, names) {
+  const body = String(text)
+  return [...new Set(names.map(norm))].filter((name) => {
+    const base = name.slice(name.lastIndexOf('/') + 1)
+    return new RegExp(`[/"'\`]${escapeRegExp(base)}["'\`?#]`).test(body)
+  })
+}
+
+/** The path inside the built folder that a URL of the page (or of sw.js) points to: relative, with /, no query. */
+export function pathOfUrl(url) {
+  const relative = String(url).replace(/[?#].*$/, '').replace(/^(?:\.?\/)+/, '')
+  try {
+    return norm(decodeURIComponent(relative))
+  } catch {
+    return norm(relative) // not a valid escape: the name is taken as written
+  }
+}
+
+/**
+ * The committee app's lazy chunks: { js, css }, the files (paths relative to the built folder) that it downloads only when a
+ * screen uses them. `code` holds the text of every file of code of the folder ({ path: text }, see isAppCode), `entry` is
+ * entryFiles() of index.html and `committee` is committeeFiles().
+ *
+ * A lazy chunk of the committee is a file that the committee chunk names, or that such a file names in turn (namedFiles),
+ * and that is not one of the entry's (those are measured as the provider app's entry, and the committee app runs on them).
+ * Every other file of code must be one of the entry's, the committee chunk, or a chunk that the entry names without going
+ * through the committee chunk (the provider app's own later chunks, such as workbox-window): a file that none of these
+ * holds is one that nothing would measure, so it throws and names it. That also stops a change of the bundler's output
+ * that this reading would miss: every chunk would then look unnamed, instead of measuring as nothing.
+ */
+export function committeeLazyFiles(code, entry, committee) {
+  const names = Object.keys(code).map(norm)
+  const entrySet = new Set([...entry.js, ...entry.css].map(pathOfUrl))
+  const committeeSet = new Set([committee.js, committee.css].map(norm))
+  const text = Object.fromEntries(Object.entries(code).map(([name, content]) => [norm(name), content]))
+  /** Every file reachable from `starts` by the names in JavaScript, without going into a file of `stop`. */
+  const reach = (starts, stop) => {
+    const seen = new Set()
+    const queue = [...starts]
+    while (queue.length) {
+      const name = queue.shift()
+      if (seen.has(name) || stop.has(name)) continue
+      seen.add(name)
+      if (name.endsWith('.js') && name in text) queue.push(...namedFiles(text[name], names))
+    }
+    return seen
+  }
+  const lazy = [...reach([norm(committee.js)], entrySet)].filter((name) => !committeeSet.has(name) && names.includes(name))
+  const providerLater = reach([...entrySet], committeeSet)
+  const unmeasured = names.filter((name) => !entrySet.has(name) && !committeeSet.has(name) && !lazy.includes(name) && !providerLater.has(name))
+  if (unmeasured.length) {
+    throw new Error(
+      `${unmeasured.join(', ')}: neither index.html nor any chunk names ${unmeasured.length === 1 ? 'this file' : 'these files'}, so no budget would measure ` +
+        `${unmeasured.length === 1 ? 'it' : 'them'} (a leftover of an older build: build into an empty folder; or a new way of loading a chunk that ` +
+        'scripts/check-bundle-size.mjs does not read yet)',
+    )
+  }
+  const sorted = [...lazy].sort()
+  return { js: sorted.filter((name) => name.endsWith('.js')), css: sorted.filter((name) => name.endsWith('.css')) }
+}
+
 // ---- reading the precache manifest of sw.js -----------------------------------------------------------------------
 
 /** The index of the bracket that closes the `[` at text[open], skipping strings; -1 when it is not closed. */
@@ -203,12 +295,7 @@ function listFiles(dir) {
  * the URL leads out of the folder.
  */
 export function sizeOfUrl(dir, url) {
-  let relative = String(url).replace(/[?#].*$/, '').replace(/^(?:\.?\/)+/, '')
-  try {
-    relative = decodeURIComponent(relative)
-  } catch {
-    // not a valid escape: the name is taken as written
-  }
+  const relative = pathOfUrl(url)
   const file = path.resolve(dir, relative)
   const inside = path.relative(path.resolve(dir), file)
   if (!relative || inside.startsWith('..') || path.isAbsolute(inside)) throw new Error(`${url} leads out of the built folder`)
@@ -256,6 +343,12 @@ export function measureDir(dir) {
   measure('committee app', () => {
     const committee = committeeFiles(listFiles(dir))
     return { committeeJs: sizeOfUrl(dir, committee.js), committeeCss: sizeOfUrl(dir, committee.css) }
+  })
+  measure('committee app, lazy chunks', () => {
+    const files = listFiles(dir)
+    const code = Object.fromEntries(files.filter(isAppCode).map((name) => [name, fs.readFileSync(path.join(dir, name), 'utf8')]))
+    const lazy = committeeLazyFiles(code, entryFiles(read('index.html')), committeeFiles(files))
+    return { committeeLazyJs: sumOf(dir, lazy.js), committeeLazyCss: sumOf(dir, lazy.css) }
   })
   measure('precache', () => {
     const urls = precacheUrls(read('sw.js'))
