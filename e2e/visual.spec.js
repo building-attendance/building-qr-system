@@ -74,9 +74,10 @@ test.describe.configure({ timeout: 120_000 })
 
 /**
  * The per-pixel threshold of every picture (the top of this file says what it measures), an owner's decision. Measured on
- * 14/10/2026 on 26 runs of this spec on CI runners (five CPU models), on an unchanged tree. The only pixels that counted were four
- * on the rounded corners of the two selects of the filters sheet (dark, 360 px), each one level off in one or two colour channels
- * (0.0032 on this scale at most), in 3 of the 20 runs whose every pixel was measured; at 0 those runs fail. The edges of the other curves differed by up to eight levels, but
+ * 14/10/2026 on 42 runs of this spec on CI runners (five CPU models), with no change to the screens, on master before and after
+ * #226 and #228. The only pixels that counted were four on the rounded corners of the two selects of the filters sheet (dark,
+ * 360 px), each one level off in one or two colour channels (0.0032 on this scale at most), in 3 of the 36 runs whose every pixel
+ * was measured; at 0 those runs fail. The edges of the other curves differed by up to eight levels, but
  * pixelmatch took every one of those pixels for anti-aliasing. A change of one level in every channel is at most 0.0039, of two
  * levels 0.0078. So 0.01: it lets the rendering round a pixel by two levels, and it fails on a colour that moves by three levels
  * of grey or more (the amber of #226 is 0.109, the violet tint that #223 gave the page, #F4F5F7 to #F7F5FF, is 0.0103).
