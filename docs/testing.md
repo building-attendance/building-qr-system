@@ -62,7 +62,7 @@ screen, the dialog at both widths) and the scans of the open menu in `e2e/a11y.s
 ## Visual regression
 
 `e2e/visual.spec.js` takes a picture of the key screens and compares it with the baseline image in
-`e2e/__screenshots__/visual.spec.js/` (`name.png`; 72 files, about 140 KB at most each). It is there to catch design drift
+`e2e/__screenshots__/visual.spec.js/` (`name.png`; 76 files, about 140 KB at most each). It is there to catch design drift
 that no behaviour test sees, and to show the owner the exact image diff of every intended change to a screen. It covers,
 each in the light and the dark theme:
 
@@ -71,8 +71,9 @@ each in the light and the dark theme:
 - the committee app in Hebrew, at 360 px and at 1280 px: Home (a fixed week of invented visits, `stubHome`, with the clock at ten in the
   morning of its last day, so that the greeting is always the same) and the seven other screens (history, points, providers, agent,
   settings, audit log and help), the history of a building with no points, the dialog of a point (with the map) and the dialog
-  of a provider; and the sheet that the "More" button of the phone's tab bar opens (at 360 px, and at 768 px, the widest
-  screen that has the tab bar: a computer has the side rail instead);
+  of a provider; the sheet that the "More" button of the phone's tab bar opens (at 360 px, and at 768 px, the widest
+  screen that has the tab bar: a computer has the side rail instead); and the account menu, open (the popover of the phone's top bar at
+  360 px, the one of the side rail's button at 1280 px);
 - the filters of the History tab below 1024 px: the sheet that its filter button opens (with the defaults), at 360 px and at 768 px, where it
   stays at the bottom of the screen like the sheet under "More", and, at 360 px only, the tab with filters on, which has a chip for each
   (from 1024 px the filters are the block above the list, which the picture of the tab shows).

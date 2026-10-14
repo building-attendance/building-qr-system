@@ -371,6 +371,26 @@ export async function openScreen(page, key) {
 }
 
 /**
+ * The account button of the committee app, the one that is on the screen: the initial in the top bar of a phone, the name and the e-mail
+ * at the foot of the side rail on a computer (CSS hides the other, and a role query sees only what is shown).
+ */
+export const accountButton = (page) => page.getByRole('button', { name: /^החשבון שלי והגדרות/ })
+
+/** Opens the account menu (src/admin/AccountMenu.jsx: the light / dark choice, the provider app, the sign-out) and returns it. */
+export async function openAccountMenu(page) {
+  await accountButton(page).click()
+  const menu = page.getByRole('dialog', { name: 'החשבון שלי', exact: true })
+  await expect(menu).toBeVisible()
+  return menu
+}
+
+/** Signs out of the committee app, through the account menu. */
+export async function signOut(page) {
+  const menu = await openAccountMenu(page)
+  await menu.getByRole('button', { name: 'יציאה', exact: true }).click()
+}
+
+/**
  * Signs the committee in through the local-only shortcut that the scratch-schema API offers, and waits for the first screen: the
  * history, unless the test names another one (`screen`, a key of SCREEN_TITLES), which is then the address that the sign-in starts from.
  * Home is the screen that the app opens when the address names none, so it is the one start that has no `#`: `adminSignIn(page, 'home')`
