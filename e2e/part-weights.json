@@ -1,0 +1,42 @@
+{
+  "android-chrome": {
+    "files": {
+      "a11y.spec.js": 50.9,
+      "admin.spec.js": 67.7,
+      "building-address.spec.js": 30.4,
+      "components.spec.js": 2.8,
+      "error-boundary.spec.js": 3,
+      "error-report.spec.js": 3.2,
+      "filters.spec.js": 14.3,
+      "history-link.spec.js": 8.7,
+      "map-qr.spec.js": 4.2,
+      "phone-status.spec.js": 34.3,
+      "preferences.spec.js": 3.4,
+      "provider.spec.js": 23.7,
+      "pwa.spec.js": 2.7,
+      "reflow.spec.js": 16.8,
+      "stored-session.spec.js": 2.4,
+      "visual.spec.js": 0
+    }
+  },
+  "iphone-webkit": {
+    "files": {
+      "a11y.spec.js": 80.5,
+      "admin.spec.js": 116.9,
+      "building-address.spec.js": 50.5,
+      "components.spec.js": 6.6,
+      "error-boundary.spec.js": 6.2,
+      "error-report.spec.js": 6.3,
+      "filters.spec.js": 24.2,
+      "history-link.spec.js": 10.8,
+      "map-qr.spec.js": 6.3,
+      "phone-status.spec.js": 35.5,
+      "preferences.spec.js": 7,
+      "provider.spec.js": 29.7,
+      "pwa.spec.js": 2.8,
+      "reflow.spec.js": 33.5,
+      "stored-session.spec.js": 5.9,
+      "visual.spec.js": 0
+    }
+  }
+}

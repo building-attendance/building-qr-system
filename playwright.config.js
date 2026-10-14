@@ -41,8 +41,10 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   failOnFlakyTests: !!process.env.CI,
   // On GitHub Actions the failures become annotations on the pull request, and the HTML report is uploaded when a run fails.
+  // The JSON report holds how long each test took: CI keeps it from every part, failed or not, and e2e/parts.js makes the
+  // weights that split the files between the parts from it (docs/testing.md, "CI").
   reporter: process.env.CI
-    ? [['github'], ['html', { open: 'never', outputFolder: paths.reportDir }]]
+    ? [['github'], ['html', { open: 'never', outputFolder: paths.reportDir }], ['json', { outputFile: 'playwright-timings.json' }]]
     : [['list'], ['html', { open: 'never', outputFolder: paths.reportDir }]],
   globalTeardown: './e2e/global-teardown.js',
   outputDir: paths.outputDir,

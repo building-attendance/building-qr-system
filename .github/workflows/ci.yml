@@ -225,10 +225,9 @@ jobs:
   # with its own Postgres container), then one job per project that is the required check. It is named exactly like the
   # check of the rulesets and passes only when every part passed: a part that failed, was cancelled or was skipped (or a
   # call that never ran) fails it, so a check can never turn green by itself. `always()` makes it run, and report, in
-  # every one of those cases. WebKit is the slowest project, so it has the most parts. --shard counts tests, not time, and
-  # keeps a file whole in the part where its first test falls, so the number of parts decides which files share one: with
-  # three, the first WebKit part held a11y, admin and building-address, the three slowest files, and ran about twice as
-  # long as the second; four is the fewest that moves building-address out of it.
+  # every one of those cases. WebKit is the slowest project, so it has the most parts. The files of a project are split
+  # between its parts by the seconds that each file takes (e2e/parts.js and e2e/part-weights.json), not by the number
+  # of tests, so that its parts take about as long as each other.
   e2e-android-chrome-parts:
     name: e2e (android-chrome) parts
     uses: ./.github/workflows/e2e.yml
