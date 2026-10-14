@@ -74,10 +74,11 @@ The scripts are the `scripts` of `package.json`, and `CONTRIBUTING.md` says what
   (Israel, `Asia/Jerusalem`), not a setting of an installation: `scans.local_date` is stored in it and installed phones
   carry it in their JavaScript, so a change would split the stored days from the new ones. Changing it is the owner's
   decision, with a plan for the stored dates.
-- Every tile and row of the committee app shows its edit action (when it has one) and a "more" button; every other
-  action is in the menu of that button (owner decision of 14/10/2026), in one order: the actions of that screen, then
-  switch off / on, then a separator and the red delete, last (red is only for deleting). `e2e/admin.spec.js` measures
-  it on every screen, so a new action goes in its place in that order.
+- Every tile and row of the committee app shows one "more" button, and all its actions are in the menu of that button
+  (owner decisions of 14/10/2026: edit moved into the menu so that the title keeps the whole row), in one order: edit
+  (when it has one), then the actions of that screen, then switch off / on, then a separator and the red delete, last
+  (red is only for deleting). `e2e/admin.spec.js` measures it on every screen, so a new action goes in its place in that
+  order.
 - Do not invent selectors or URLs in tests: read the real component, then use `getByRole` / `getByText` / `getByLabel`.
 - If a test fails because of a real app bug, report it. Do not change the test to hide it and do not fix the app silently.
 - `npm run lint` and `npm run typecheck` must pass with no warnings (CI runs both in the `guards` job). An
@@ -398,8 +399,8 @@ reviewing agent should apply it too.
 - An em dash.
 - UI text of the provider app that is not taken from `src/i18n/*.js`, or that is missing in one of the four languages
   (the committee app's Hebrew lives in `src/admin/` and `src/pages/AdminApp.jsx` for now).
-- A committee tile or row whose actions break the rule (edit on the tile; in the "more" menu: screen actions, switch
-  off / on, then the red delete last).
+- A committee tile or row whose actions break the rule (one "more" button on the tile; in its menu: edit, screen
+  actions, switch off / on, then the red delete last).
 - A layout change made for only one of phone and computer.
 - A change to what a person sees that breaks a rule of `docs/design.md`.
 
