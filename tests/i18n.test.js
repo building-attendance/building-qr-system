@@ -26,8 +26,8 @@ describe('dictionaries stay in sync', () => {
 
 describe('translate', () => {
   it('interpolates and isolates names so mixed scripts do not scramble punctuation', () => {
-    const out = translate('he', 'checkin.success.body', { point: 'Lobby', time: '08:12' })
-    expect(strip(out)).toBe('Lobby · 08:12')
+    const out = translate('he', 'checkin.duplicate.body', { point: 'Lobby', time: '08:12' })
+    expect(strip(out)).toBe('הביקור בLobby נרשם ב-08:12.')
     expect(out).toContain('⁨Lobby⁩')
   })
   it('falls back to Hebrew, then to the key', () => {

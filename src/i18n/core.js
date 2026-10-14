@@ -3,7 +3,7 @@ import he from './he.js'
 import en from './en.js'
 import ru from './ru.js'
 import ar from './ar.js'
-import { formatTime } from '../../shared/datetime.js'
+import { formatDate, formatTime } from '../../shared/datetime.js'
 
 export const LANGS = [
   { code: 'he', label: 'עברית', dir: 'rtl' },
@@ -73,6 +73,7 @@ export function makeFormatters(lang) {
   const km = new Intl.NumberFormat(locale, { style: 'unit', unit: 'kilometer', unitDisplay: 'short', maximumFractionDigits: 1 })
   return {
     time: formatTime, // HH:MM in the building's time, the same in every language (shared/datetime.js)
+    date: formatDate, // DD/MM/YYYY, likewise
     distance: (m) => (m >= 1000 ? km.format(m / 1000) : meters.format(Math.max(1, Math.round(m)))),
   }
 }

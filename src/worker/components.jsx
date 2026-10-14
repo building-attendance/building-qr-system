@@ -6,14 +6,24 @@ import { errorMessageKey, isKnownError } from './errors.js'
 import { providerLabel } from './checkIn.js'
 import { isSession } from './session.js'
 import { DEVICE_LABEL_MAX_LENGTH } from '../../shared/contract.js'
+import { FLAG_LOCATION_OUTSIDE_RADIUS, FLAG_LOCATION_STALE, FLAG_LOCATION_UNVERIFIED } from '../../shared/flags.js'
 import ThemeSwitch from '../ui/ThemeSwitch.jsx'
 import BuildLabel from '../ui/BuildLabel.jsx'
 import {
-  IconAlert, IconChevron, IconCheck, IconCloudOff, IconEye, IconEyeOff, IconGlobe, IconInfo, IconLock, IconPin,
-  IconPinOff, IconQr, IconRefresh, IconSend, IconUser, IconX,
+  IconAlert, IconChevron, IconCheck, IconCloudOff, IconEye, IconEyeOff, IconGlobe, IconInfo, IconLock, IconPhoneCheck, IconPin,
+  IconPinOff, IconQr, IconRefresh, IconSend, IconShield, IconUser, IconWifiOff, IconX,
 } from './icons.jsx'
 
 const initial = (text) => Array.from((text || '?').trim())[0]?.toUpperCase() ?? '?'
+
+/**
+ * The colour of a person's avatar: one of the four tints of the palette, always the same one for the same name (it comes from the name that
+ * the avatar stands for, not from the place in the list, and not from the id: the ids of the sample data are made at random on every seed, which
+ * would give the pictures of the screens another colour each run), so a person finds their own circle again on the sign-in list and on the
+ * password screen, on every phone.
+ */
+const AVATAR_TINTS = ['violet', 'mint', 'peach', 'sky']
+const tintOf = (name) => AVATAR_TINTS[Array.from(String(name)).reduce((sum, ch) => sum + ch.codePointAt(0), 0) % AVATAR_TINTS.length]
 
 /** Committee entry: a plain link to /admin, where the Google sign-in lives. Quiet on purpose. */
 export function AdminLink() {
@@ -128,40 +138,48 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
     return (
       <form className="w-main" onSubmit={submit} noValidate>
         {banner}
-        <h1 className="w-h1">{t('login.passwordTitle', { name })}</h1>
+        <div className="w-greet">
+          <span className={`w-avatar w-avatar--lg w-avatar--${tintOf(name)}`} aria-hidden="true">{initial(name)}</span>
+          <div className="w-greet__text">
+            <h1 className="w-h1">{t('login.passwordTitle', { name })}</h1>
+            {selected.contact_name && <p className="w-greet__sub"><bdi>{selected.company}</bdi></p>}
+          </div>
+        </div>
         {/* Lets a password manager keep one saved login per person instead of overwriting a single one. */}
         <input type="text" name="username" autoComplete="username" value={name} readOnly tabIndex={-1} aria-hidden="true"
           style={{ position: 'absolute', opacity: 0, height: 0, width: 0, pointerEvents: 'none' }} />
-        <div className="w-field">
-          <label className="w-label" htmlFor="w-password">{t('login.passwordLabel')}</label>
-          <div className="w-input-wrap">
-            <input
-              id="w-password" ref={pwRef} className={`w-input${error ? ' w-input--error' : ''}`}
-              type={show ? 'text' : 'password'} value={password} disabled={busy}
-              dir="ltr" // a revealed Latin password with punctuation must not be reordered by RTL rules
-              onChange={(e) => { setPassword(e.target.value); setError('') }}
-              autoComplete="current-password" enterKeyHint="go" autoCapitalize="none" spellCheck="false"
-              aria-invalid={!!error} aria-describedby={error ? 'w-login-error' : undefined}
-            />
-            <button type="button" className="w-eye" onClick={() => setShow((s) => !s)}
-              aria-label={show ? t('login.hidePassword') : t('login.showPassword')}>
-              {show ? <IconEyeOff /> : <IconEye />}
-            </button>
+        <div className="w-formcard">
+          <div className="w-field">
+            <label className="w-label" htmlFor="w-password">{t('login.passwordLabel')}</label>
+            <div className="w-input-wrap">
+              <input
+                id="w-password" ref={pwRef} className={`w-input${error ? ' w-input--error' : ''}`}
+                type={show ? 'text' : 'password'} value={password} disabled={busy}
+                dir="ltr" // a revealed Latin password with punctuation must not be reordered by RTL rules
+                onChange={(e) => { setPassword(e.target.value); setError('') }}
+                autoComplete="current-password" enterKeyHint="go" autoCapitalize="none" spellCheck="false"
+                aria-invalid={!!error} aria-describedby={error ? 'w-login-error' : undefined}
+              />
+              <button type="button" className="w-eye" onClick={() => setShow((s) => !s)}
+                aria-label={show ? t('login.hidePassword') : t('login.showPassword')}>
+                {show ? <IconEyeOff /> : <IconEye />}
+              </button>
+            </div>
+            <div id="w-login-error" role="alert" aria-live="assertive">
+              {error && <p className="w-error"><IconAlert size={20} />{error}</p>}
+            </div>
           </div>
-          <div id="w-login-error" role="alert" aria-live="assertive">
-            {error && <p className="w-error"><IconAlert size={20} />{error}</p>}
-          </div>
+          <label className="w-switch">
+            <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+            <span className="w-switch__text">
+              <span>{t('login.remember')}</span>
+              <span className="w-small">{t('login.rememberHint')}</span>
+            </span>
+          </label>
+          <button className="w-btn" type="submit" disabled={busy || !password}>
+            {busy ? <span className="w-spinner" style={{ width: 24, height: 24, borderWidth: 3 }} /> : t('login.submit')}
+          </button>
         </div>
-        <label className="w-switch">
-          <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
-          <span className="w-switch__text">
-            <span>{t('login.remember')}</span>
-            <span className="w-small">{t('login.rememberHint')}</span>
-          </span>
-        </label>
-        <button className="w-btn" type="submit" disabled={busy || !password}>
-          {busy ? <span className="w-spinner" style={{ width: 24, height: 24, borderWidth: 3 }} /> : t('login.submit')}
-        </button>
         <button type="button" className="w-link" onClick={() => setSelected(null)} disabled={busy}>
           {t('login.changeName')}
         </button>
@@ -197,7 +215,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
           {providers.providers.map((p) => (
             <li key={p.id}>
               <button type="button" className="w-person" onClick={() => pick(p)}>
-                <span className="w-avatar" aria-hidden="true">{initial(p.contact_name || p.company)}</span>
+                <span className={`w-avatar w-avatar--${tintOf(p.contact_name || p.company)}`} aria-hidden="true">{initial(p.contact_name || p.company)}</span>
                 <span className="w-person__text">
                   <span className="w-person__name">{p.contact_name || p.company}</span>
                   {p.contact_name && <span className="w-person__sub">{p.company}</span>}
@@ -208,7 +226,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
           ))}
         </ul>
       )}
-      <p className="w-small">{t('login.privacy')}</p>
+      <p className="w-note"><IconShield size={20} /><span>{t('login.privacy')}</span></p>
       <AdminLink />
     </div>
   )
@@ -219,6 +237,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
 export function HomeView({ session, visits, pending, syncing, onSync, notice, onDismissNotice, onSwitch }) {
   const { t, time } = useI18n()
   const name = session.provider.contact_name || session.provider.company
+  const company = session.provider.contact_name ? session.provider.company : ''
   const updateReady = useSyncExternalStore(subscribeUpdate, isUpdateReady)
   const headingRef = useRef(null)
   // After "done" or a sign-in the focus would otherwise fall back to the page body; start at the greeting.
@@ -227,40 +246,33 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
   }, [])
   return (
     <div className="w-main">
-      <h1 className="w-h1" tabIndex={-1} ref={headingRef} style={{ outline: 'none' }}>{t('home.hello', { name })}</h1>
+      <div className="w-greet__text">
+        <h1 className="w-h1" tabIndex={-1} ref={headingRef} style={{ outline: 'none' }}>{t('home.hello', { name })}</h1>
+        {company && <p className="w-greet__sub"><bdi>{company}</bdi></p>}
+      </div>
 
+      {/* What needs attention comes before the how-to: a new version, the word that visits were refused, the visits that wait. */}
       {updateReady && (
-        <div className="w-banner" role="status">
+        <div className="w-banner w-banner--wrap" role="status">
           <IconRefresh />
           <div className="w-banner__body">{t('update.available')}</div>
-          <button className="w-btn w-btn--small w-btn--quiet" onClick={applyUpdate}>{t('update.apply')}</button>
+          <button className="w-btn w-btn--small" onClick={applyUpdate}>{t('update.apply')}</button>
         </div>
       )}
 
-      <div className="w-banner">
-        <IconQr size={28} />
-        <div className="w-banner__body">
-          <p className="w-only-touch">{t('home.instruction')}</p>
-          <p className="w-only-desktop">{t('home.desktopHint')}</p>
-        </div>
-      </div>
-
-      <div aria-live="polite">
+      <div className="w-live" aria-live="polite">
         {notice && (
           <div className={`w-banner ${notice.tone === 'ok' ? 'w-banner--ok' : 'w-banner--warn'}`} role="status">
             {notice.tone === 'ok' ? <IconCheck /> : <IconAlert />}
             <div className="w-banner__body">{notice.text}</div>
             {/* A warning stays until it is dismissed: it is the only word the person gets that visits were refused. */}
-            <button className="w-eye" style={{ position: 'static', width: 44, height: 44, flex: 'none' }} onClick={onDismissNotice} aria-label={t('notice.dismiss')}>
+            <button className="w-banner__close" onClick={onDismissNotice} aria-label={t('notice.dismiss')}>
               <IconX size={20} />
             </button>
           </div>
         )}
-      </div>
-
-      <div aria-live="polite">
         {pending > 0 && (
-          <div className="w-banner w-banner--warn">
+          <div className="w-banner w-banner--warn w-banner--wrap">
             <IconCloudOff />
             <div className="w-banner__body">{t('home.pendingCount', { count: pending })}</div>
             <button className="w-btn w-btn--small w-btn--quiet" onClick={onSync} disabled={syncing}>
@@ -268,6 +280,21 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
             </button>
           </div>
         )}
+      </div>
+
+      <div className="w-hero">
+        <div className="w-hero__top">
+          <span className="w-hero__icon" aria-hidden="true"><IconQr size={30} /></span>
+          <div className="w-hero__text">
+            <p className="w-only-touch">{t('home.instruction')}</p>
+            <p className="w-only-desktop">{t('home.desktopHint')}</p>
+          </div>
+        </div>
+        <ol className="w-steps" role="list">
+          {[1, 2, 3].map((n) => (
+            <li className="w-step" key={n}><span aria-hidden="true">{n}. </span>{t(`home.step${n}`)}</li>
+          ))}
+        </ol>
       </div>
 
       <section className="w-card" aria-labelledby="w-today">
@@ -278,9 +305,9 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
           <ul className="w-visits">
             {visits.map((v) => (
               <li className="w-visit" key={v.id}>
-                <span className="w-visit__time">{time(v.time)}</span>
-                <span className="w-visit__point">{v.point}</span>
-                {v.pending && <span className="w-tag">{t('home.pending')}</span>}
+                <span className="w-visit__time" dir="ltr">{time(v.time)}</span>
+                <span className="w-visit__point"><bdi>{v.point}</bdi></span>
+                <span className={`w-tag${v.pending ? '' : ' w-tag--ok'}`}>{v.pending ? t('home.pending') : t('home.recorded')}</span>
               </li>
             ))}
           </ul>
@@ -296,22 +323,40 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
 
 /* ---------------------------------------------------------------- working */
 
-export function WorkingView({ phase }) {
+/** `pointName` is the point being checked in at, when the phone knows it (a scanned code that has not been looked up yet has none). */
+export function WorkingView({ phase, pointName = '' }) {
   const { t } = useI18n()
   return (
     <div className="w-working" role="status" aria-live="polite">
-      <div className="w-spinner" aria-hidden="true" />
-      <p className="w-h1" style={{ fontSize: 'var(--w-font-3xl)' }}>
+      <div className="w-orbit" aria-hidden="true">
+        <span className="w-orbit__arc" />
+        <span className="w-orbit__core"><IconPin size={34} /></span>
+      </div>
+      <p className="w-working__title">
         {phase === 'locating' ? t('checkin.locating') : phase === 'saving' ? t('checkin.saving') : t('common.loading')}
       </p>
+      {phase === 'locating' && <p className="w-working__hint">{t('checkin.locatingHint')}</p>}
+      {pointName && <span className="w-chip w-chip--point"><IconPin size={18} /><span><bdi>{pointName}</bdi></span></span>}
     </div>
   )
 }
 
 /* ----------------------------------------------------------------- result */
 
+const LOCATION_FLAGS = [FLAG_LOCATION_UNVERIFIED, FLAG_LOCATION_OUTSIDE_RADIUS, FLAG_LOCATION_STALE]
+
+/**
+ * The distance (metres) that the screen may call "location verified", or null: the server measured one, and the visit carries none of
+ * the flags that say the position was weak, old or outside the point's radius (shared/flags.js). A visit without it says nothing about
+ * the location, which is also true.
+ */
+function verifiedDistance(scan) {
+  const flagged = (scan.flags ?? []).some((f) => LOCATION_FLAGS.includes(f))
+  return Number.isFinite(scan.distance_m) && !flagged ? scan.distance_m : null
+}
+
 export function ResultView({ result, pointName, provider, onDone, onRetry }) {
-  const { t, time, distance } = useI18n()
+  const { t, time, date, distance } = useI18n()
   const headingRef = useRef(null)
   useEffect(() => {
     headingRef.current?.focus() // screen readers announce the outcome; sighted users are unaffected
@@ -323,7 +368,7 @@ export function ResultView({ result, pointName, provider, onDone, onRetry }) {
     case 'success':
       v = {
         tone: 'success', Icon: IconCheck, title: t('checkin.success.title'), done: true,
-        body: point ? t('checkin.success.body', { point, time: time(result.scan.checked_in_at) }) : time(result.scan.checked_in_at),
+        stamp: result.scan.checked_in_at, showDate: true, verified: verifiedDistance(result.scan),
       }
       break
     case 'duplicate':
@@ -332,7 +377,8 @@ export function ResultView({ result, pointName, provider, onDone, onRetry }) {
     case 'queued':
       // persisted=false: the phone refused to store it, so it survives only while this page stays open.
       v = {
-        tone: 'warn', Icon: IconCloudOff, title: t('checkin.queued.title'), done: true,
+        tone: 'warn', Icon: IconPhoneCheck, title: t('checkin.queued.title'), done: true,
+        chip: t('checkin.queued.chip'), stamp: result.client_time,
         body: t(result.persisted === false ? 'checkin.queuedTemp.body' : 'checkin.queued.body'),
         // located=false: no position the server can use was saved with the visit, and a point that checks the location may refuse
         // it when it is sent, so the person is told while they are still standing at the point.
@@ -355,15 +401,25 @@ export function ResultView({ result, pointName, provider, onDone, onRetry }) {
 
   return (
     <div className={`w-result w-result--${v.tone}`} role="status" aria-live="polite">
-      <div className="w-ring w-pop"><v.Icon /></div>
-      <h1 tabIndex={-1} ref={headingRef}>{v.title}</h1>
-      {v.body && <p className="w-result__body">{v.body}</p>}
-      {v.warning && <p className="w-result__body w-result__warning">{v.warning}</p>}
-      {v.done && point && (
-        <span className="w-chip"><IconPin size={18} />{point}</span>
-      )}
-      {/* On every outcome: on a shared phone, or after a refusal, the first question is "who am I signed in as?" */}
-      {provider && <p className="w-who"><IconUser size={18} /><span>{t('checkin.asUser', { name: providerLabel(provider) })}</span></p>}
+      {v.chip && <span className="w-statuschip"><IconWifiOff size={16} />{v.chip}</span>}
+      <div className="w-result__main">
+        <div className="w-ring w-pop"><v.Icon /></div>
+        <h1 tabIndex={-1} ref={headingRef}>{v.title}</h1>
+        {v.body && <p className="w-result__body">{v.body}</p>}
+        {v.warning && <p className="w-result__body w-result__warning">{v.warning}</p>}
+        {v.stamp && (
+          <p className="w-stamp">
+            <span className="w-stamp__time" dir="ltr">{time(v.stamp)}</span>
+            {v.showDate && <span className="w-stamp__date" dir="ltr">{date(v.stamp)}</span>}
+          </p>
+        )}
+        <div className="w-chips">
+          {v.done && point && <span className="w-chip w-chip--point"><IconPin size={18} /><span><bdi>{point}</bdi></span></span>}
+          {/* On every outcome: on a shared phone, or after a refusal, the first question is "who am I signed in as?" */}
+          {provider && <span className="w-chip"><IconUser size={18} /><span>{t('checkin.asUser', { name: providerLabel(provider) })}</span></span>}
+        </div>
+        {v.verified != null && <span className="w-verified"><IconCheck size={16} />{t('checkin.verified', { distance: distance(v.verified) })}</span>}
+      </div>
       <div className="w-actions">
         {v.retry && <button className="w-btn" onClick={onRetry}>{t('checkin.retry')}</button>}
         <button className={`w-btn${v.retry ? ' w-btn--quiet' : ''}`} onClick={onDone}>{t('checkin.done')}</button>

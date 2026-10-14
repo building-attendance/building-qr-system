@@ -30,7 +30,8 @@
 import { deflateSync, crc32 } from 'node:zlib'
 import ar from '../src/i18n/ar.js'
 import {
-  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, SCREEN_TITLES, HOME_NOW, clearScans, pageSettled, signIn, stubHome,
+  test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, SCREEN_TITLES, HOME_NOW, allowConsoleErrors, clearScans, pageSettled, signIn,
+  stubHome,
 } from './fixtures.js'
 
 // ---- where and when it runs ----------------------------------------------------------------------------------------------------
@@ -233,7 +234,7 @@ test.describe('provider app', () => {
     await shotBothThemes(page, 'provider-ar-sign-in-list')
   })
 
-  test('in Hebrew: the password, recorded, home with a visit and too far, and the home in English and Arabic', async ({ page, context, request }) => {
+  test('in Hebrew: the password, recorded, home with a visit, too far and saved on the phone, and the home in English and Arabic', async ({ page, context, request }) => {
     await stopClock(page)
     await clearScans(request) // a visit still on record would answer "already recorded"
     await page.goto('/')
@@ -268,6 +269,14 @@ test.describe('provider app', () => {
     await page.goto(`/scan?code=${POINTS.gym}`) // the gym requires the location, and this phone is 5.5 km away
     await expect(page.getByRole('heading', { name: he['checkin.far.title'] })).toBeVisible()
     await shotBothThemes(page, 'provider-he-too-far')
+
+    // Saved on the phone: the server cannot be reached (answered here), so the visit goes into the phone's queue. A point that does not
+    // check the location, so that the phone's position (FAR, above) is not an issue.
+    allowConsoleErrors(page, /status of 503/) // the answer made up here
+    await page.route('**/api/scan', (route) => route.fulfill({ status: 503, json: { error: { code: 'unavailable' } } }))
+    await page.goto(`/scan?code=${POINTS.basement}`)
+    await expect(page.getByRole('heading', { name: he['checkin.queued.title'] })).toBeVisible()
+    await shotBothThemes(page, 'provider-he-saved-on-phone')
   })
 })
 

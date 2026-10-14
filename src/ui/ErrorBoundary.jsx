@@ -21,9 +21,11 @@ export function CrashScreen({ app, onRetry }) {
     <div className="w-app" lang={lang} dir={dir}>
       <div className="w-shell">
         <main className="w-result w-result--danger w-crash">
-          <div className="w-ring"><IconAlert /></div>
-          <div role="alert">
-            <h1 tabIndex={-1} ref={headingRef}>{title}</h1>
+          <div className="w-result__main">
+            <div className="w-ring"><IconAlert /></div>
+            <div role="alert">
+              <h1 tabIndex={-1} ref={headingRef}>{title}</h1>
+            </div>
           </div>
           <div className="w-actions">
             <button className="w-btn" onClick={onRetry}>{retry}</button>

@@ -47,6 +47,16 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
   check('--w-on-primary on primary (hover)', c('--w-on-primary'), c('--w-primary-hover'), 4.5)
   // The summary card of the Home screen (--w-hero) and the text on it.
   check('--w-on-hero on hero', c('--w-on-hero'), c('--w-hero'), 4.5)
+  // The three steps on the provider's home card (.w-step in src/ui/ui.css): pale pills drawn over the card, and the text on them.
+  const pill = parse(css.match(/\.w-step \{[^}]*?background: (rgba\([^)]*\));/)[1])
+  check('--w-on-hero on a step pill over the hero card', c('--w-on-hero'), over(pill, c('--w-hero')), 4.5)
+  // The result screens (.w-ring in src/ui/ui.css): the icon is --w-on-primary on the circle of each outcome (the violet one is the
+  // primary colour, above), and the icon of a chip (the point, the person) is the primary colour on the surface of the chip. The circle of
+  // the amber outcomes is --w-warn-solid, a token of its own (see its comment in the dark block of ui.css): --w-warn is text as well.
+  for (const [kind, circle] of [['success', '--w-success'], ['warn', '--w-warn-solid'], ['danger', '--w-danger']]) {
+    check(`--w-on-primary on the ${kind} circle of a result screen (${circle})`, c('--w-on-primary'), c(circle), 4.5)
+  }
+  check('--w-primary on surface (the icon of a chip)', c('--w-primary'), c('--w-surface'), 3)
   // The four tints of tiles, chips and badges: the ink of each, the body text, and the focus ring of something drawn on it.
   for (const tint of ['violet', 'peach', 'mint', 'sky']) {
     const bg = c(`--w-tint-${tint}`)
