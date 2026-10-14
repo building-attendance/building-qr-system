@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { adminApi, errorText, scanRefusals } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { dropLoadCache, loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useFilterState, useUnfinishedDates } from '../filters.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash, IconPin } from '../icons.jsx'
 import { goToTab, hashName, hashQuery } from '../tab.js'
@@ -183,14 +183,14 @@ function refusalsPage(f, extra) {
   return scanRefusals({ from, to, point_id, provider_id, limit, cursor })
 }
 
-/** One refused visit: read only, so there are no actions on it. The time is the server's; the phone's own clock is added
- * when it tells something (the visit came from the queue, or the phone's minute is not the server's). */
+/** One refused visit: read only, so there are no actions on it (no "more" button). The time is the server's; the phone's own clock is
+ * added when it tells something (the visit came from the queue, or the phone's minute is not the server's). */
 function RefusalRow({ r }) {
   const reason = REFUSAL_REASONS.get(r.code) ?? OTHER_REASON
   const source = REFUSAL_SOURCES.get(r.source)
   const onPhone = r.client_time && (r.source === SOURCE_OFFLINE_SYNC || formatDateTime(r.client_time) !== formatDateTime(r.at))
   return (
-    <li className="a-scan a-scan--readonly">
+    <li className="a-scan">
       <span className="a-scan__time">{formatTime(r.at)}</span>
       <div className="a-scan__main">
         <div className="a-scan__point">{r.point_name || NO_POINT}</div>
@@ -491,12 +491,17 @@ export default function HistoryView() {
                   {s.distance_m != null && <Badge>{s.distance_m} מ׳ מהנקודה{s.gps_accuracy_m != null && `, דיוק ${s.gps_accuracy_m} מ׳`}</Badge>}
                   {s.flags.map((f) => <Badge key={f} tone={FLAGS[f]?.tone}>{FLAGS[f]?.label ?? f}</Badge>)}
                 </div>
-                <div className="a-scan__tools">
-                  {s.outcome === OUTCOME_ACCEPTED && (s.voided
-                    ? <IconButton icon={IconUndo} label="שחזור הנוכחות" onClick={() => restore(s)} disabled={busy} />
-                    : <IconButton icon={IconBan} label="ביטול הנוכחות" onClick={() => setVoiding(s)} />)}
-                  <IconButton icon={IconTrash} label="מחיקת הנוכחות לצמיתות" tone="danger" onClick={() => remove(s)} disabled={busy} />
-                </div>
+                {/* Every action of the row is in its menu (AGENTS.md, "Rules for every change"): cancelling or restoring the visit, which only an
+                    accepted one has (a refused attempt has neither), then a separator and the red delete, which every row has. The button is
+                    named after the visit it acts on, so that a screen reader tells the rows apart. */}
+                <Menu
+                  label={`עוד פעולות לביקור: ${s.point_name} · ${s.provider_name} · ${formatDateTime(s.checked_in_at)}`}
+                  items={[
+                    s.outcome === OUTCOME_ACCEPTED && s.voided && { label: 'שחזור הנוכחות', icon: IconUndo, disabled: busy, onSelect: () => restore(s) },
+                    s.outcome === OUTCOME_ACCEPTED && !s.voided && { label: 'ביטול הנוכחות', icon: IconBan, onSelect: () => setVoiding(s) },
+                    { label: 'מחיקת הנוכחות לצמיתות', icon: IconTrash, danger: true, disabled: busy, onSelect: () => remove(s) },
+                  ]}
+                />
               </li>
             ))}
           </ul>

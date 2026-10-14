@@ -347,7 +347,7 @@ select.a-input {
 .a-secret .a-code { flex: 1; user-select: all; }
 
 /* ----- filters + history ----- */
-.a-filters { display: grid; gap: var(--w-space-3); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: end; padding: var(--w-space-4); background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); margin-block-end: var(--w-space-4); }
+.a-filters { display: grid; gap: var(--w-space-3); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: end; padding: var(--w-space-4); background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); margin-block-end: var(--w-space-4); }
 .a-filters > * { min-width: 0; }
 /* The date fields are text fields that always read DD/MM/YYYY (DateInput in src/admin/ui.jsx): the digits run left to
    right whatever the page direction, and sit at the end of the field like the labels. They shrink to fit their column. */
@@ -357,54 +357,61 @@ select.a-input {
 .a-filterbar { display: flex; flex-direction: column; gap: var(--w-space-2-5); margin-block-end: var(--w-space-3); }
 .a-filterbar__main { display: flex; flex-wrap: wrap; align-items: center; gap: var(--w-space-2) var(--w-space-3); }
 .a-filterbar__main .w-btn { gap: var(--w-space-2); }
+/* How many filters are on: a small round count on the filled button, in the colours of a card on it (the canvas draws it white with the violet ink). */
+.a-filterbar__count { display: grid; place-items: center; min-width: 22px; height: 22px; border-radius: var(--w-radius-pill); background: var(--w-surface); color: var(--w-info); font-size: var(--w-font-xs); }
 .a-filterbar__range { color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; }
 .a-chips { display: flex; flex-wrap: wrap; gap: var(--w-space-2); }
+/* A chip is a violet tint with its ink, like a quiet button: a tint has no edge, and its words name it (WCAG 1.4.11). The canvas draws a white
+   chip with a pale edge, which is under 3:1, the reason that D4 gave for the edge of a field. */
 .a-chip {
   display: inline-flex; align-items: center; gap: var(--w-space-1-5); max-width: 100%; min-height: 36px; padding-block: var(--w-space-1); padding-inline: var(--w-space-3) var(--w-space-2-5);
-  border: 1px solid var(--w-field-border); border-radius: var(--w-radius-pill); background: var(--w-surface); color: var(--w-text);
+  border: 0; border-radius: var(--w-radius-pill); background: var(--w-tint-violet); color: var(--w-tint-violet-ink);
   font-size: var(--w-font-md); font-weight: var(--w-weight-medium); text-align: start; cursor: pointer;
 }
 .a-chip > span { min-width: 0; overflow-wrap: anywhere; }
-.a-chip svg { flex: none; color: var(--w-text-2); }
-@media (hover: hover) { .a-chip:hover { background: var(--w-surface-2); } }
+.a-chip svg { flex: none; }
+@media (hover: hover) { .a-chip:hover { box-shadow: inset 0 0 0 2px var(--w-info-line); } }
 /* The sheet: the two dates side by side, every other control the whole width. */
 .a-filter-sheet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--w-space-4) var(--w-space-3); align-items: start; }
 .a-filter-sheet > * { grid-column: 1 / -1; min-width: 0; }
 .a-filter-sheet > .a-filter-date { grid-column: auto; }
-.a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); font-variant-numeric: tabular-nums; }
-.a-scans { list-style: none; margin: 0; padding: 0; background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); overflow: hidden; }
-.a-scan { display: grid; gap: var(--w-space-1) var(--w-space-3-5); grid-template-columns: auto 1fr auto; align-items: center; padding: var(--w-space-3) var(--w-space-4); border-block-end: 1px solid var(--w-border); }
-.a-scan:last-child { border-block-end: 0; }
-.a-scan.is-void .a-scan__point { text-decoration: line-through; color: var(--w-text-3); }
-.a-scan.is-void .a-scan__time { color: var(--w-text-3); }
-.a-scan__time { font-variant-numeric: tabular-nums; font-weight: var(--w-weight-bold); direction: ltr; unicode-bidi: isolate; }
-.a-scan__main { min-width: 0; }
-.a-scan__point { font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
-.a-scan__who { color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; }
-.a-scan__flags { grid-column: 1 / -1; display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); }
-.a-scan__tools { grid-column: 3; grid-row: 1; display: flex; align-items: center; margin-inline-end: calc(-1 * var(--w-space-2-5)); } /* phone: the icons sit at the end of the first row */
+.a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); padding-inline: var(--w-space-1); font-variant-numeric: tabular-nums; }
+/* The rows of one day (the History and the audit log) sit in one soft card, as the tiles do: a shadow and no edge, the rows inset in it and
+   rounded (the card's own radius less its padding). A row of the History: the time in a pill at its start, the text, and the "more" button at
+   its end; the badges under the text, across the room that the button takes too (the text column of a phone is about 160px, and a badge is one
+   line: "12 m from the point, accuracy 20 m"). On a computer they are a column of their own. A row with no button (a visit that was not counted)
+   has no empty column: the third one is as wide as its content. */
+.a-scans { list-style: none; margin: 0; padding: var(--w-space-1) 0; background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); }
+.a-scan {
+  display: grid; grid-template-columns: auto minmax(0, 1fr) auto; grid-template-areas: 'time main tools' '. flags flags'; align-items: center; column-gap: var(--w-space-3);
+  padding: var(--w-space-3) var(--w-space-4); border-radius: var(--w-radius-2xl);
+}
+.a-scan > .a-menu-btn { grid-area: tools; }
+.a-scan.is-void :is(.a-scan__point, .a-scan__time) { color: var(--w-text-3); }
+.a-scan.is-void .a-scan__point { text-decoration: line-through; }
+.a-scan__time { grid-area: time; min-width: 58px; height: 34px; padding-inline: var(--w-space-2); display: grid; place-items: center; border-radius: var(--w-radius-pill); background: var(--w-bg); font-size: var(--w-font-md); font-variant-numeric: tabular-nums; font-weight: var(--w-weight-bold); direction: ltr; unicode-bidi: isolate; }
+.a-scan__main { grid-area: main; min-width: 0; display: flex; flex-direction: column; gap: var(--w-space-0-5); }
+.a-scan__point { font-size: var(--w-font-base); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.a-scan__who { color: var(--w-text-2); font-size: var(--w-font-xs); overflow-wrap: anywhere; }
+.a-scan__flags { grid-area: flags; display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); margin-block-start: var(--w-space-1); }
+.a-scan__flags:empty { display: none; }
+/* A badge is one line, but a long one (a distance with its accuracy, in a narrow phone) wraps instead of running out of the row. */
+.a-scan__flags .a-badge { max-width: 100%; white-space: normal; }
+@media (min-width: 768px) {
+  .a-scan { grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1fr) auto; grid-template-areas: 'time main flags tools'; }
+  .a-scan__flags { margin-block-start: 0; }
+}
 .a-scan__stamp, .a-stamp { direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; } /* a date and time inside a line of Hebrew */
-@media (min-width: 768px) {
-  .a-scan { grid-template-columns: 76px minmax(0, 1.2fr) minmax(0, 1fr) auto; }
-  .a-scan__flags { grid-column: auto; }
-  .a-scan__tools { grid-column: auto; grid-row: auto; }
-}
-/* A row with no actions (a visit that was not counted, in the history): no column is kept for the icons. */
-.a-scan--readonly { grid-template-columns: auto minmax(0, 1fr); }
-@media (min-width: 768px) {
-  .a-scan--readonly { grid-template-columns: 76px minmax(0, 1.2fr) minmax(0, 1fr); }
-}
 
-/* ----- the audit log (its own screen) and its read only rows (no icons) ----- */
+/* ----- the audit log (its own screen) and its read only rows (no menu) ----- */
 /* The help's text (src/admin/views/HelpView.jsx): the topics in one card (the card's own look), a heading over its sentences, a line short enough to read on a computer. */
 .a-help { max-width: 720px; gap: var(--w-space-5); }
 .a-help__topic { display: flex; flex-direction: column; gap: var(--w-space-1); }
-/* Phone: the time and the action on the first line, then who, then the detail, all in the column of the action. */
+/* Phone: the time (a pill, the same as the History's) and the action on the first line, then who, then the detail, all in the column of the action. */
 .a-audit {
-  display: grid; gap: 0 var(--w-space-3-5); grid-template-columns: auto minmax(0, 1fr); align-items: start; padding: var(--w-space-3) var(--w-space-4);
-  grid-template-areas: 'time what' '. who' '. detail'; border-block-end: 1px solid var(--w-border);
+  display: grid; gap: 0 var(--w-space-3); grid-template-columns: auto minmax(0, 1fr); align-items: center; padding: var(--w-space-3) var(--w-space-4); border-radius: var(--w-radius-2xl);
+  grid-template-areas: 'time what' '. who' '. detail';
 }
-.a-audit:last-child { border-block-end: 0; }
 .a-audit__time { grid-area: time; }
 .a-audit__what { grid-area: what; min-width: 0; overflow-wrap: anywhere; }
 .a-audit__action { font-weight: var(--w-weight-semibold); }
@@ -415,7 +422,7 @@ select.a-input {
 .a-audit__arrow { display: inline-block; }
 /* Computer: the time, the action and who on one line, and the detail under them. */
 @media (min-width: 768px) {
-  .a-audit { grid-template-columns: 76px minmax(0, 1.4fr) minmax(0, 1fr); grid-template-areas: 'time what who' '. detail detail'; }
+  .a-audit { grid-template-columns: auto minmax(0, 1.4fr) minmax(0, 1fr); grid-template-areas: 'time what who' '. detail detail'; }
   .a-audit__who { margin-block-start: 0; }
 }
 
