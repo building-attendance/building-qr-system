@@ -162,6 +162,22 @@ beforeAll(async () => {
   if (refused.json?.error?.code !== 'point_inactive') throw new Error(`refusal: ${refused.status} ${refused.text}`)
   expect((await call('DELETE', `/api/admin/scans/${world.oldToDelete}`, { cookie })).status).toBe(200)
   expect((await call('DELETE', `/api/admin/providers/${world.q.id}`, { cookie })).status).toBe(200)
+
+  // A provider whose company looks like a key (a committee member pasted one). The agent never saw such a name in the audit log:
+  // in the older form the company was a word of its own, which the agent's filter leaves out. An entry of a delete written before
+  // the decision names it in the older form, and a delete made now of a scan stored in the older form writes the new form. Neither
+  // may carry the key out wrapped in the parentheses of "contact (company)". Its only scan is the one deleted, so no other list here
+  // holds it.
+  world.secretCompany = 'qrk_abcdef012345'
+  world.s = (await post('/api/admin/providers', { company: world.secretCompany, contact_name: 'Dana', password: 'pw-fake-names-9914' })).provider
+  world.secretOldEntry = randomUUID()
+  await db.pool.query(
+    `insert into audit_log (actor_type, actor_id, actor_name, action, entity, entity_id, detail)
+     values ('admin', null, 'Test Admin', 'scan.delete', 'scan', $1, $2::jsonb)`,
+    [world.secretOldEntry, JSON.stringify({ point_name: 'Fake Lobby', provider_name: OLD(world.secretCompany, 'Dana'), checked_in_at: new Date().toISOString(), outcome: 'accepted', voided: false })],
+  )
+  world.secretOldScan = await oldScan({ provider: world.s, providerNameStored: OLD(world.secretCompany, 'Dana'), day: world.days[1] })
+  expect((await call('DELETE', `/api/admin/scans/${world.secretOldScan}`, { cookie })).status).toBe(200)
 }, 120_000)
 
 afterAll(async () => db?.teardown())
@@ -272,9 +288,32 @@ describe('the agent reads every row in today\'s form: one format of provider_nam
     const r = await agent('/audit?group=scan')
     expect(r.status).toBe(200)
     const deletes = Object.fromEntries(r.json.entries.filter((e) => e.action === 'scan.delete').map((e) => [e.entity_id, e.detail.provider_name]))
-    expect(deletes).toEqual({ [world.oldEntry]: 'Fake Person (Fake Cleaners)', [world.oldToDelete]: 'Fake Person (Fake Cleaners)' })
+    expect(deletes).toMatchObject({ [world.oldEntry]: 'Fake Person (Fake Cleaners)', [world.oldToDelete]: 'Fake Person (Fake Cleaners)' })
     const providers = await agent(`/audit?entity=provider&entity_id=${world.p.id}`)
     expect(providers.json.entries.map((e) => e.entity_name)).toEqual(['Fake Person (Fake Cleaners)']) // its create: the current name
     expect(r.text.includes(EN_DASH) || providers.text.includes(EN_DASH)).toBe(false)
+  })
+})
+
+describe('a name that holds something shaped like a key never reaches the agent inside the new form', () => {
+  it('/audit: the provider of a delete is null, as before the change, for an entry written before the decision and for one written now', async () => {
+    const r = await agent('/audit?group=scan')
+    expect(r.status).toBe(200)
+    const details = Object.fromEntries(r.json.entries.filter((e) => e.action === 'scan.delete').map((e) => [e.entity_id, e.detail]))
+    expect(details[world.secretOldEntry]).toMatchObject({ point_name: 'Fake Lobby', provider_name: null })
+    expect(details[world.secretOldScan]).toMatchObject({ point_name: 'Fake Lobby', provider_name: null })
+    expect(r.text).not.toContain(world.secretCompany)
+  })
+
+  it('/audit: the current name of that provider is null', async () => {
+    const r = await agent(`/audit?entity=provider&entity_id=${world.s.id}`)
+    expect(r.status).toBe(200)
+    expect(r.json.entries.map((e) => [e.action, e.entity_name])).toEqual([['provider.create', null]])
+    expect(r.text).not.toContain(world.secretCompany)
+  })
+
+  it('the stored delete entry of now is in the new form (the committee reads it as stored; only the agent filters)', async () => {
+    const { rows } = await db.pool.query(`select detail->>'provider_name' as name from audit_log where action = 'scan.delete' and entity_id = $1`, [world.secretOldScan])
+    expect(rows.map((r) => r.name)).toEqual([`Dana (${world.secretCompany})`])
   })
 })

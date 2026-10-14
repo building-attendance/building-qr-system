@@ -154,7 +154,10 @@ function detailLines(entry, detail, subject) {
   if (email && email.includes('@') && !repeatsSubject(email)) field('אימייל', email)
 
   if (entry.entity === 'scan') {
-    const provider = plain(readProviderName(detail.provider_name)) // an entry written before 14/10/2026 holds the older form
+    // An entry written before 14/10/2026 holds the older form. The stored text is judged first, then put in today's form and judged
+    // again, so the parentheses of "contact (company)" never decide what is shown.
+    const stored = plain(detail.provider_name)
+    const provider = stored && plain(readProviderName(detail.provider_name))
     if (provider) field('נותן שירות', provider)
     const when = typeof detail.checked_in_at === 'string' ? dateText(detail.checked_in_at) : null
     if (when) field('זמן הנוכחות', when)

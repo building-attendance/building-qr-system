@@ -17,7 +17,7 @@ import { bad, isUuid } from './http.js'
 import { pageLimit, parseBound, providerSnapshotName } from './scans.js'
 import { AUDIT_DETAIL_ALLOW } from './audit.js'
 import { TIMEZONE, FILTER_TEXT_MAX_LENGTH, MAX_AUDIT_PAGE_SIZE } from './config.js'
-import { looksSecret } from '../shared/secretLike.js'
+import { hasSecretWord } from '../shared/secretLike.js'
 import { readProviderName } from '../shared/providerName.js'
 
 /** @import { AuditEntry, AuditPage } from '../shared/types.js' */
@@ -178,11 +178,21 @@ const isObject = (value) => value !== null && typeof value === 'object' && !Arra
 /**
  * A text that may be shown to the agent, or null. A word of it that looks like a key, a hash, a token or an id (shared/secretLike.js)
  * makes the whole text null, so a sentence that holds a pasted key does not get through, and neither does a text that is one. (The
- * test is made word by word because looksSecret judges a whole text, and a key inside a sentence has spaces around it.)
+ * test is made word by word because looksSecret judges a whole text, and a key inside a sentence has spaces around it. Each word is
+ * also judged without the brackets, quotes and punctuation around it, so a key in parentheses or before a comma is found too.)
  * @param {unknown} value
  * @returns {string | null}
  */
-const safeText = (value) => (typeof value === 'string' && !value.split(/\s+/).some(looksSecret) ? value : null)
+const safeText = (value) => (typeof value === 'string' && !hasSecretWord(value) ? value : null)
+
+/**
+ * A provider's name as a record stored it, for the agent: null when the stored text has a word that looks like a secret, otherwise the
+ * name in today's form (shared/providerName.js), judged once more. The stored text is judged FIRST, before the name is put in the form
+ * "contact (company)": the parentheses that the form adds must never be what lets a key through.
+ * @param {unknown} stored
+ * @returns {string | null}
+ */
+const safeProviderName = (stored) => (safeText(stored) === null ? null : safeText(readProviderName(stored)))
 
 /** A moment as an ISO 8601 text in UTC, or null. */
 function momentText(value) {
@@ -220,7 +230,7 @@ function kindValue(kind, value) {
   if (value === null || value === undefined) return null
   switch (typeof kind === 'string' ? kind : kind.kind) {
     case 'text': return safeText(value)
-    case 'provider_name': return safeText(readProviderName(value)) // an entry written before 14/10/2026 holds the older form
+    case 'provider_name': return safeProviderName(value) // an entry written before 14/10/2026 holds the older form
     case 'count': return Number.isSafeInteger(value) && value >= 0 ? value : null
     case 'integer': return Number.isSafeInteger(value) ? value : null
     case 'number': return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -290,6 +300,20 @@ export const AGENT_AUDIT_FIELDS = Object.freeze([
 ])
 
 /**
+ * The current name of the thing that an entry is about, for the agent, or null. A provider's company and contact are judged one by one
+ * BEFORE they are put together as "contact (company)", so that a company that looks like a key is never let through by the parentheses
+ * around it; then the whole name is judged as every other name is.
+ * @param {Record<string, any>} r  a row of the statement of auditQuery
+ */
+function agentEntityName(r) {
+  if (r.entity === 'provider' && r.entity_name !== null && r.entity_name !== undefined) {
+    if (safeText(r.entity_name) === null) return null
+    if (r.entity_contact && safeText(r.entity_contact) === null) return null
+  }
+  return safeText(entityName(r))
+}
+
+/**
  * One entry as the committee's agent reads it (GET /api/agent/v1/audit): the fields of the committee's entry (auditEntry), written one
  * by one from the row, with the two names filtered like a text of a detail and the detail through the allow-list of its action.
  * @param {Record<string, any>} r  a row of the statement of auditQuery
@@ -301,7 +325,7 @@ export function agentAuditEntry(r) {
     action: r.action,
     entity: r.entity ?? null,
     entity_id: r.entity_id ?? null,
-    entity_name: safeText(entityName(r)),
+    entity_name: agentEntityName(r),
     actor_type: r.actor_type,
     actor_id: r.actor_id ?? null,
     actor_name: safeText(r.actor_name ?? null),
