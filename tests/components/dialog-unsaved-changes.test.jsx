@@ -507,7 +507,7 @@ describe('the point form', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
     const form = () => dialogNamed('נקודה חדשה')
     type(form(), 'שם הנקודה', 'חדר אשפה')
-    fireEvent.click(within(form()).getByRole('button', { name: 'סימון במפה' }))
+    fireEvent.click(await within(form()).findByRole('button', { name: 'סימון במפה' }))
     fireEvent.click(within(form()).getByRole('button', { name: 'שמירה' }))
     await waitFor(() => expect(writes()).toHaveLength(1), WAIT)
 
@@ -528,7 +528,7 @@ describe('the point form', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
     const form = () => dialogNamed('נקודה חדשה')
     type(form(), 'שם הנקודה', 'חדר אשפה')
-    fireEvent.click(within(form()).getByRole('button', { name: 'סימון במפה' }))
+    fireEvent.click(await within(form()).findByRole('button', { name: 'סימון במפה' }))
     fireEvent.click(within(form()).getByRole('button', { name: 'שמירה' }))
     await waitFor(() => expect(writes()).toHaveLength(1), WAIT)
     esc()
@@ -544,7 +544,7 @@ describe('the point form', () => {
   it('counts a pin put on the map and the providers chosen as typed too', async () => {
     await show()
     fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
-    fireEvent.click(within(dialogNamed('נקודה חדשה')).getByRole('button', { name: 'סימון במפה' }))
+    fireEvent.click(await within(dialogNamed('נקודה חדשה')).findByRole('button', { name: 'סימון במפה' }))
     esc()
     expect(dialogNamed(QUESTION)).toBeTruthy()
   })
@@ -554,7 +554,7 @@ describe('the point form', () => {
     fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
     const form = () => dialogNamed('נקודה חדשה')
     type(form(), 'שם הנקודה', 'חדר אשפה')
-    fireEvent.click(within(form()).getByRole('button', { name: 'סימון במפה' }))
+    fireEvent.click(await within(form()).findByRole('button', { name: 'סימון במפה' }))
     fireEvent.click(within(form()).getByRole('button', { name: 'שמירה' }))
 
     await waitFor(() => expect(writes()).toHaveLength(1), WAIT)

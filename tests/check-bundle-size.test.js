@@ -14,11 +14,15 @@ import {
   MEASUREMENTS,
   brotliSize,
   committeeFiles,
+  committeeLazyFiles,
   compare,
   entryFiles,
   formatTable,
+  isAppCode,
   measureDir,
+  namedFiles,
   parseArgs,
+  pathOfUrl,
   precacheUrls,
   sizeOfUrl,
   withoutComments,
@@ -62,18 +66,41 @@ const PRECACHED = [
   'assets/index-AAA111.css',
   'assets/AdminApp-BBB222.js',
   'assets/AdminApp-BBB222.css',
+  'assets/MapPicker-EEE555.js',
+  'assets/MapPicker-EEE555.css',
+  'assets/browser-FFF666.js',
+  'assets/workbox-window.prod.es5-GGG777.js',
   'assets/rubik-hebrew-CCC333.woff2',
   'pwa-192x192.svg',
   'pwa-192x192.png',
 ]
 
+// How the chunks of a Vite build name each other (the shapes of dist/assets/*.js): a static import of the entry's chunk, a dynamic
+// import, and the list of files that the preload helper fetches with a dynamic import (`__vite__mapDeps`).
+const ENTRY_LOADS =
+  'const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/AdminApp-BBB222.js","assets/AdminApp-BBB222.css"])))=>i.map(i=>d[i]);' +
+  'const A=lazy(()=>__vitePreload(()=>import("./AdminApp-BBB222.js"),__vite__mapDeps([0,1])));' +
+  'const W=()=>import("./workbox-window.prod.es5-GGG777.js");\n'
+const COMMITTEE_LOADS =
+  'const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/MapPicker-EEE555.js","assets/index-AAA111.js","assets/MapPicker-EEE555.css"])))=>i.map(i=>d[i]);' +
+  'import{a as r,b as s}from"./index-AAA111.js";' +
+  'const M=r(()=>s(()=>import("./MapPicker-EEE555.js"),__vite__mapDeps([0,1,2])));' +
+  'const Q=()=>s(()=>import("./browser-FFF666.js"),[]);\n'
+// The lazy chunks of the committee in the fake folder: the map (with its stylesheet) and a second one, so that the guard is
+// tried on more than one (the real build has the map only).
+const LAZY = { js: ['assets/MapPicker-EEE555.js', 'assets/browser-FFF666.js'], css: ['assets/MapPicker-EEE555.css'] }
+
 function defaultFiles() {
   return {
     'index.html': INDEX_HTML,
-    'assets/index-AAA111.js': text(3),
+    'assets/index-AAA111.js': ENTRY_LOADS + text(3),
     'assets/index-AAA111.css': text(5, 100),
-    'assets/AdminApp-BBB222.js': text(7, 300),
+    'assets/AdminApp-BBB222.js': COMMITTEE_LOADS + text(7, 300),
     'assets/AdminApp-BBB222.css': text(11, 80),
+    'assets/MapPicker-EEE555.js': 'import{a as r}from"./index-AAA111.js";\n' + text(29, 200),
+    'assets/MapPicker-EEE555.css': text(31, 40),
+    'assets/browser-FFF666.js': text(37, 120),
+    'assets/workbox-window.prod.es5-GGG777.js': text(41, 30),
     'assets/rubik-hebrew-CCC333.woff2': crypto.randomBytes(3000),
     'pwa-192x192.svg': text(13, 20),
     'pwa-192x192.png': crypto.randomBytes(500),
@@ -176,6 +203,110 @@ describe('check-bundle-size: the committee app chunk', () => {
   })
 })
 
+// ---- finding the committee app's lazy chunks ----------------------------------------------------------------------
+
+describe("check-bundle-size: the committee app's lazy chunks", () => {
+  const ENTRY = { js: ['/assets/index-AAA111.js'], css: ['/assets/index-AAA111.css'] }
+  const COMMITTEE = { js: 'assets/AdminApp-BBB222.js', css: 'assets/AdminApp-BBB222.css' }
+  /** The code of a fake folder, { path: text }, as measureDir hands it over: the default one, with `files` over it (`null` leaves one out). */
+  const codeOf = (files = {}) =>
+    Object.fromEntries(
+      Object.entries({ ...defaultFiles(), ...files }).filter(([name, content]) => content !== null && isAppCode(name)).map(([name, content]) => [name, String(content)]),
+    )
+
+  it('reads which files are code to sort: the JavaScript and the CSS under assets/, not the root (public/ and the service worker)', () => {
+    for (const name of ['assets/a.js', 'assets/a.css', 'assets\\a.js', 'assets/sub/a.js']) expect(isAppCode(name), name).toBe(true)
+    for (const name of ['sw.js', 'workbox-1.js', 'theme-boot.js', 'index.html', 'assets/font.woff2', 'assets/a.js.map', 'other/a.js']) expect(isAppCode(name), name).toBe(false)
+  })
+
+  it('turns a URL of the page into the path of its file', () => {
+    expect(pathOfUrl('/assets/a.js')).toBe('assets/a.js')
+    expect(pathOfUrl('./assets/a.js')).toBe('assets/a.js')
+    expect(pathOfUrl('assets/we%20ird.js?v=1#x')).toBe('assets/we ird.js')
+    expect(pathOfUrl('/assets/bad%zz.js')).toBe('assets/bad%zz.js')
+  })
+
+  it('reads the names of files that a chunk loads, in the shapes that Vite writes, and only whole file names', () => {
+    const names = ['assets/MapPicker-EEE555.js', 'assets/MapPicker-EEE555.css', 'assets/index-AAA111.js', 'assets/browser-FFF666.js', 'assets/other-HHH888.js']
+    expect(namedFiles(COMMITTEE_LOADS, names)).toEqual(['assets/MapPicker-EEE555.js', 'assets/MapPicker-EEE555.css', 'assets/index-AAA111.js', 'assets/browser-FFF666.js'])
+    expect(namedFiles('import("./MapPicker-EEE555.js?v=2")', names)).toEqual(['assets/MapPicker-EEE555.js'])
+    // a longer name that ends in the same letters, the same name with another extension, a name in the middle of a word: none of them
+    expect(namedFiles('import("./NotMapPicker-EEE555.js");"./MapPicker-EEE555.jsx";xMapPicker-EEE555.js"', names)).toEqual([])
+    expect(namedFiles('', names)).toEqual([])
+  })
+
+  it('finds the map with its stylesheet and the second lazy chunk, which the committee chunk loads, and nothing else', () => {
+    expect(committeeLazyFiles(codeOf(), ENTRY, COMMITTEE)).toEqual(LAZY)
+  })
+
+  it('also finds a chunk that a lazy chunk loads in turn, and a chunk under a folder of assets/', () => {
+    const code = codeOf({
+      'assets/MapPicker-EEE555.js': 'import("./leaflet-III999.js");import("./deep/plugin-JJJ000.js")',
+      'assets/leaflet-III999.js': text(43, 20),
+      'assets/deep/plugin-JJJ000.js': text(47, 20),
+    })
+    expect(committeeLazyFiles(code, ENTRY, COMMITTEE).js).toEqual([
+      'assets/MapPicker-EEE555.js', 'assets/browser-FFF666.js', 'assets/deep/plugin-JJJ000.js', 'assets/leaflet-III999.js',
+    ])
+  })
+
+  it("never counts the entry's files, which the committee chunk imports, or the committee chunk itself", () => {
+    const { js, css } = committeeLazyFiles(codeOf(), ENTRY, COMMITTEE)
+    for (const name of ['assets/index-AAA111.js', 'assets/index-AAA111.css', COMMITTEE.js, COMMITTEE.css]) {
+      expect([...js, ...css], name).not.toContain(name)
+    }
+  })
+
+  it('counts a chunk that both apps load as the committee\'s, and the entry\'s own later chunk as neither', () => {
+    const code = codeOf({ 'assets/index-AAA111.js': ENTRY_LOADS + 'import("./browser-FFF666.js")' })
+    const { js } = committeeLazyFiles(code, ENTRY, COMMITTEE)
+    expect(js).toContain('assets/browser-FFF666.js')
+    expect(js).not.toContain('assets/workbox-window.prod.es5-GGG777.js')
+  })
+
+  it('is empty, not an error, when the committee loads nothing lazily', () => {
+    const code = codeOf({
+      'assets/AdminApp-BBB222.js': 'import{a}from"./index-AAA111.js"',
+      'assets/MapPicker-EEE555.js': null,
+      'assets/MapPicker-EEE555.css': null,
+      'assets/browser-FFF666.js': null,
+    })
+    expect(committeeLazyFiles(code, ENTRY, COMMITTEE)).toEqual({ js: [], css: [] })
+  })
+
+  it('fails, naming it, on a file of code that neither index.html nor any chunk names: no budget would measure it', () => {
+    // the committee chunk no longer names its second lazy chunk (a new way of loading a chunk, or a leftover of an older build)
+    const code = codeOf({ 'assets/AdminApp-BBB222.js': COMMITTEE_LOADS.replace('import("./browser-FFF666.js")', 'null') })
+    expect(() => committeeLazyFiles(code, ENTRY, COMMITTEE)).toThrow(/assets\/browser-FFF666\.js: .*no budget would measure it/)
+    // a stylesheet too, and a file that only an unnamed file names is unnamed as well
+    const orphans = codeOf({ 'assets/old-KKK111.css': 'a{}', 'assets/old-LLL222.js': 'import("./old-MMM333.js")', 'assets/old-MMM333.js': 'x' })
+    expect(() => committeeLazyFiles(orphans, ENTRY, COMMITTEE)).toThrow(/old-KKK111\.css, assets\/old-LLL222\.js, assets\/old-MMM333\.js: .*these files/)
+  })
+
+  it('fails the whole measurement of the lazy chunks for such a file, and the command exits 1', () => {
+    const { dir } = makeDist({ 'assets/old-KKK111.js': text(53, 10) })
+    const { values, problems } = measureDir(dir)
+    expect(problems.some((p) => p.startsWith('committee app, lazy chunks:') && p.includes('assets/old-KKK111.js'))).toBe(true)
+    expect(values).not.toHaveProperty('committeeLazyJs')
+    expect(values).not.toHaveProperty('committeeLazyCss')
+    expect(values).toHaveProperty('committeeJs')
+    const result = spawnSync(process.execPath, [SCRIPT, '--dir', dir], { encoding: 'utf8' })
+    expect(result.status).toBe(1)
+    expect(result.stderr).toContain('assets/old-KKK111.js')
+    expect(result.stdout).toMatch(/lazy chunks JS .*MISSING/)
+  })
+
+  it('exits 1 when the lazy chunks of the committee are over their budget, and says which', () => {
+    // random bytes do not compress: this much of them is over the budget whatever the budget is
+    const { dir } = makeDist({ 'assets/MapPicker-EEE555.js': Buffer.concat([Buffer.from('import{a}from"./index-AAA111.js";'), crypto.randomBytes(budgetsOnDisk().committeeLazyJs + 4096)]) })
+    const result = spawnSync(process.execPath, [SCRIPT, '--dir', dir], { encoding: 'utf8' })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toMatch(/lazy chunks JS .*OVER/)
+    expect(result.stderr).toContain('Committee app, lazy chunks JS')
+    expect(result.stderr).toContain('over the budget')
+  })
+})
+
 // ---- reading the precache manifest --------------------------------------------------------------------------------
 
 describe('check-bundle-size: the precache manifest of sw.js', () => {
@@ -251,6 +382,9 @@ describe('check-bundle-size: measuring a built folder', () => {
       entryCss: sizeOnDisk(dir, 'assets/index-AAA111.css'),
       committeeJs: sizeOnDisk(dir, 'assets/AdminApp-BBB222.js'),
       committeeCss: sizeOnDisk(dir, 'assets/AdminApp-BBB222.css'),
+      // the map and the second lazy chunk; not workbox-window, which the provider's entry loads by itself
+      committeeLazyJs: sizeOnDisk(dir, 'assets/MapPicker-EEE555.js') + sizeOnDisk(dir, 'assets/browser-FFF666.js'),
+      committeeLazyCss: sizeOnDisk(dir, 'assets/MapPicker-EEE555.css'),
       // each file once: the two icons that the manifest lists twice are counted once, and sw.js itself is not in it
       precacheBytes: PRECACHED.reduce((total, name) => total + sizeOnDisk(dir, name), 0),
       precacheEntries: PRECACHED.length,
@@ -320,16 +454,16 @@ describe('check-bundle-size: measuring a built folder', () => {
 // ---- comparing with the budgets -----------------------------------------------------------------------------------
 
 describe('check-bundle-size: comparing with the budgets', () => {
-  const BUDGETS = { entryJs: 1000, entryCss: 100, committeeJs: 2000, committeeCss: 200, precacheBytes: 5000, precacheEntries: 10 }
-  const VALUES = { entryJs: 900, entryCss: 90, committeeJs: 1800, committeeCss: 180, precacheBytes: 4500, precacheEntries: 9 }
+  const BUDGETS = { entryJs: 1000, entryCss: 100, committeeJs: 2000, committeeCss: 200, committeeLazyJs: 3000, committeeLazyCss: 300, precacheBytes: 5000, precacheEntries: 10 }
+  const VALUES = { entryJs: 900, entryCss: 90, committeeJs: 1800, committeeCss: 180, committeeLazyJs: 2700, committeeLazyCss: 270, precacheBytes: 4500, precacheEntries: 9 }
 
   it('passes when every measurement is under its budget, with the headroom in the rows', () => {
     const { rows, problems, notes } = compare(VALUES, BUDGETS)
     expect(problems).toEqual([])
     expect(notes).toEqual([])
     expect(rows.map((row) => row.key)).toEqual(MEASUREMENTS.map((m) => m.key))
-    expect(rows.map((row) => row.status)).toEqual(Array(6).fill('ok'))
-    expect(rows.map((row) => row.headroom)).toEqual([100, 10, 200, 20, 500, 1])
+    expect(rows.map((row) => row.status)).toEqual(Array(MEASUREMENTS.length).fill('ok'))
+    expect(rows.map((row) => row.headroom)).toEqual([100, 10, 200, 20, 300, 30, 500, 1])
   })
 
   it('passes at the budget exactly, and fails one byte over', () => {
@@ -415,8 +549,9 @@ describe('check-bundle-size: comparing with the budgets', () => {
     expect(first).toContain('86,016 B')
     expect(first).toContain('+8,354')
     expect(first.trimEnd().endsWith('ok')).toBe(true)
-    expect(lines[6]).toContain('15 files')
-    expect(lines[6]).toContain('17 files')
+    expect(lines[8]).toContain('Precache, files')
+    expect(lines[8]).toContain('15 files')
+    expect(lines[8]).toContain('17 files')
   })
 
   it('marks what is over, missing or without a budget in the table', () => {
@@ -433,7 +568,9 @@ describe('check-bundle-size: comparing with the budgets', () => {
 
 describe('check-bundle-size: the budget file', () => {
   it('measures what the app is meant to be held to (a measurement cannot be dropped without changing this test)', () => {
-    expect(MEASUREMENTS.map((m) => m.key)).toEqual(['entryJs', 'entryCss', 'committeeJs', 'committeeCss', 'precacheBytes', 'precacheEntries'])
+    expect(MEASUREMENTS.map((m) => m.key)).toEqual([
+      'entryJs', 'entryCss', 'committeeJs', 'committeeCss', 'committeeLazyJs', 'committeeLazyCss', 'precacheBytes', 'precacheEntries',
+    ])
   })
 
   it('has a budget for every measurement and none for anything else', () => {
