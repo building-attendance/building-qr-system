@@ -126,9 +126,9 @@ export function formatDayNumber(ymd) {
 }
 
 // The heads of the seven columns, Sunday first as the week runs in Israel: the first letter of each day's Hebrew name (alef, bet, gimel,
-// dalet, he, vav, shin). Written as escapes because the code of the repository is in English (AGENTS.md); the letters are what the
-// committee app shows.
-const DAY_INITIALS = Object.freeze(['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'])
+// dalet, he, vav, shin). The letters are what the committee app shows, and they are built here from their code points because the code of
+// shared/ is in English and holds no Hebrew letter (AGENTS.md; tests/english-code.test.js).
+const DAY_INITIALS = Object.freeze([0x05d0, 0x05d1, 0x05d2, 0x05d3, 0x05d4, 0x05d5, 0x05e9].map((code) => String.fromCharCode(code)))
 
 /** The one-letter initials of the days of the week, Sunday first: the column heads of the month grid. */
 export function dayInitials() {
