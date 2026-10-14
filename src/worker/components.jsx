@@ -17,11 +17,13 @@ import {
 const initial = (text) => Array.from((text || '?').trim())[0]?.toUpperCase() ?? '?'
 
 /**
- * The colour of a person's avatar: one of the four tints of the palette, always the same one for the same person (it comes from the
- * id, not from the place in the list), so a person finds their own circle again on the sign-in list and on the password screen.
+ * The colour of a person's avatar: one of the four tints of the palette, always the same one for the same name (it comes from the name that
+ * the avatar stands for, not from the place in the list, and not from the id: the ids of the sample data are made at random on every seed, which
+ * would give the pictures of the screens another colour each run), so a person finds their own circle again on the sign-in list and on the
+ * password screen, on every phone.
  */
 const AVATAR_TINTS = ['violet', 'mint', 'peach', 'sky']
-const tintOf = (id) => AVATAR_TINTS[Array.from(String(id)).reduce((sum, ch) => sum + ch.charCodeAt(0), 0) % AVATAR_TINTS.length]
+const tintOf = (name) => AVATAR_TINTS[Array.from(String(name)).reduce((sum, ch) => sum + ch.codePointAt(0), 0) % AVATAR_TINTS.length]
 
 /** Committee entry: a plain link to /admin, where the Google sign-in lives. Quiet on purpose. */
 export function AdminLink() {
@@ -137,7 +139,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
       <form className="w-main" onSubmit={submit} noValidate>
         {banner}
         <div className="w-greet">
-          <span className={`w-avatar w-avatar--lg w-avatar--${tintOf(selected.id)}`} aria-hidden="true">{initial(name)}</span>
+          <span className={`w-avatar w-avatar--lg w-avatar--${tintOf(name)}`} aria-hidden="true">{initial(name)}</span>
           <div className="w-greet__text">
             <h1 className="w-h1">{t('login.passwordTitle', { name })}</h1>
             {selected.contact_name && <p className="w-greet__sub"><bdi>{selected.company}</bdi></p>}
@@ -213,7 +215,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
           {providers.providers.map((p) => (
             <li key={p.id}>
               <button type="button" className="w-person" onClick={() => pick(p)}>
-                <span className={`w-avatar w-avatar--${tintOf(p.id)}`} aria-hidden="true">{initial(p.contact_name || p.company)}</span>
+                <span className={`w-avatar w-avatar--${tintOf(p.contact_name || p.company)}`} aria-hidden="true">{initial(p.contact_name || p.company)}</span>
                 <span className="w-person__text">
                   <span className="w-person__name">{p.contact_name || p.company}</span>
                   {p.contact_name && <span className="w-person__sub">{p.company}</span>}

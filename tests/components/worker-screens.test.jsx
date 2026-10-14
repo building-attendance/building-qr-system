@@ -283,4 +283,15 @@ describe('the avatar of a person', () => {
     expect(listTint).toBeTruthy()
     expect(tintOf(document.querySelector('.w-avatar'))).toBe(listTint)
   })
+
+  it('comes from the name, not from the id: the ids of the sample data change on every seed, and so would the pictures of the screens', () => {
+    const tintFor = (id) => {
+      withI18n(<LoginView providers={{ status: 'ready', providers: [{ ...ploni, id }], reload: () => {} }} onSignedIn={() => {}} />)
+      const tint = [...document.querySelector('.w-avatar').classList].find((c) => c.startsWith('w-avatar--'))
+      cleanup()
+      return tint
+    }
+    expect(tintFor('00000000-0000-4000-8000-000000000001')).toBe(tintFor('ffffffff-ffff-4fff-8fff-fffffffffffe'))
+    expect(tintFor('a')).toBe(tintFor('zzzz'))
+  })
 })
