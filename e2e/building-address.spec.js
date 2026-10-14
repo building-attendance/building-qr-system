@@ -4,7 +4,7 @@
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
 import { BUILDING_NAME_MAX_LENGTH } from '../shared/contract.js'
-import { test, expect, he, en, ru, BUILDING_ADDRESS, BUILDING_NAME, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, allowConsoleErrors } from './fixtures.js'
+import { test, expect, he, en, ru, BUILDING_ADDRESS, BUILDING_NAME, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, allowConsoleErrors, accountButton } from './fixtures.js'
 
 const COMPUTER = { width: 1280, height: 800 }
 const SIZES = [['on a phone', null], ['on a computer', COMPUTER]]
@@ -162,10 +162,6 @@ test('the public route answers to anyone, and the committee routes only to a com
 const APP = 'נוכחות בבניין' // what the committee app is called when the building has no name
 // The brand is in the side rail on a computer and in the top bar on a phone: CSS shows one of the two, and a hidden one has no role.
 const brandBar = (page, size) => (size ? page.getByRole('complementary') : page.getByRole('banner'))
-const toolsOf = (bar) => ({
-  link: bar.getByRole('link', { name: 'אפליקציית נותני השירות' }),
-  signOut: bar.getByRole('button', { name: 'יציאה' }),
-})
 const signedOutLogin = async (page) => {
   await page.context().clearCookies() // the session is only a cookie
   await page.goto('/admin')
@@ -331,17 +327,15 @@ for (const [what, longName] of [['one word of 80 letters', WORD], ['80 character
         await expect(bar).toContainText(longName) // the whole name is in the page (a screen reader reads it); the stylesheet cuts what is drawn
         const brand = await bar.getByText(longName).boundingBox()
         const barBox = await bar.boundingBox()
-        const { link, signOut } = toolsOf(bar)
-        const out = await signOut.boundingBox()
+        const account = await accountButton(page).boundingBox() // the one account button, which the three icons became: the initial on a phone, the name at the foot of the rail
         expect(brand.height, 'the brand is cut to its lines').toBeLessThanOrEqual((phone ? 2 : 3) * 24)
         expect(brand.x, 'the brand is inside the screen').toBeGreaterThanOrEqual(0)
         expect(brand.x + brand.width, 'the brand is inside the screen').toBeLessThanOrEqual(size.width)
         if (phone) {
-          const first = await link.boundingBox()
           expect(barBox.height, 'the top bar stays a bar').toBeLessThanOrEqual(110)
-          expect(out.x, 'the icons are inside the screen').toBeGreaterThanOrEqual(0)
-          expect(first.x + first.width, 'the icons are inside the screen').toBeLessThanOrEqual(size.width)
-          expect(brand.x, 'the brand does not run into the icons (on a Hebrew screen it is on the right of them)').toBeGreaterThanOrEqual(first.x + first.width - 1)
+          expect(account.x, 'the account button is inside the screen').toBeGreaterThanOrEqual(0)
+          expect(account.x + account.width, 'the account button is inside the screen').toBeLessThanOrEqual(size.width)
+          expect(brand.x, 'the brand does not run into the account button (on a Hebrew screen it is on the right of it)').toBeGreaterThanOrEqual(account.x + account.width - 1)
           // the tab bar still has its five buttons on the 360 px screen (#103 had four, Home is the fifth)
           const tabs = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button')
           await expect(tabs).toHaveCount(5)
@@ -351,7 +345,7 @@ for (const [what, longName] of [['one word of 80 letters', WORD], ['80 character
             expect(box.x + box.width).toBeLessThanOrEqual(size.width)
           }
         } else {
-          expect(out.y + out.height, 'the sign-out icon of the side rail is on the screen').toBeLessThanOrEqual(size.height)
+          expect(account.y + account.height, 'the account button of the side rail is on the screen').toBeLessThanOrEqual(size.height)
           expect(barBox.height, 'the rail is as tall as the screen and no taller').toBeLessThanOrEqual(size.height)
         }
         expect(await noHorizontalScroll(page), `the settings screen with a long name on ${where}`).toBe(true)

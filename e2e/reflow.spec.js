@@ -17,7 +17,7 @@
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, EMAIL_MAX_LENGTH } from '../shared/contract.js'
-import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled, openFilters, stubHome, homeSummary } from './fixtures.js'
+import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled, openFilters, stubHome, homeSummary, openAccountMenu } from './fixtures.js'
 
 const PHONE = { width: 320, height: 640 }
 const NEAR = { latitude: SAMPLE_POINT.lat, longitude: SAMPLE_POINT.lng, accuracy: 10 }
@@ -478,6 +478,11 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
     await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
     await expect(page.getByRole('dialog', { name: 'עוד', exact: true })).toBeVisible()
     await check('committee phone: the sheet under "עוד"')
+    // the account menu, open over the same screen: a popover with a fixed position, which must stay inside a 320 px screen and fit its own words
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+    await openAccountMenu(page)
+    await check('committee phone: the account menu')
   })
 
   // The week table of Home is the one place where the numbers are a grid, so it gets the worst case that the real data above does not make: a

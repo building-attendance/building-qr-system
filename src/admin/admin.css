@@ -23,12 +23,12 @@
   display: flex; align-items: center; gap: var(--w-space-3); width: 100%; min-height: 48px; padding-inline: var(--w-space-3-5); border: 0; border-radius: var(--w-radius-pill);
   background: none; color: var(--w-text); text-align: start; cursor: pointer; font-weight: var(--w-weight-medium); font-size: var(--w-font-base);
 }
-.a-nav__item:hover { background: var(--w-surface-2); }
+@media (hover: hover) { .a-nav__item:hover { background: var(--w-surface-2); } }
 /* The line between the work screens and the management screens in the side rail, and the quieter look of the second group. */
 .a-nav__sep { width: 100%; height: 0; margin-block: var(--w-space-2); border: 0; border-block-start: 1px solid var(--w-border); }
 .a-nav__sep ~ .a-nav__item { min-height: 46px; color: var(--w-text-2); font-size: var(--w-font-md); font-weight: var(--w-weight-regular); }
 /* The current screen is a violet pill, in the rail and in the tab bar; the chosen mode of the account popover is filled the same way. */
-.a-nav__item[aria-current='page'], .a-tab[aria-current='page'], .a-seg label:has(:checked) { background: var(--w-primary); color: var(--w-on-primary); font-weight: var(--w-weight-semibold); }
+.a-nav__item[aria-current='page'], .a-tab[aria-current='page'], .a-seg input:checked + span { background: var(--w-primary); color: var(--w-on-primary); font-weight: var(--w-weight-semibold); }
 
 /* The member's initial on a violet disc: the account button of the top bar, and the head of the account popover and of the rail's button. */
 .a-avatar { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 50%; background: var(--w-primary); color: var(--w-on-primary); font-size: var(--w-font-xl); font-weight: var(--w-weight-semibold); }
@@ -40,13 +40,13 @@
   display: flex; align-items: center; gap: var(--w-space-2-5); width: 100%; margin-block-start: auto; padding: var(--w-space-2-5); border: 0; border-radius: var(--w-radius-2xl);
   background: var(--w-bg); color: var(--w-text); text-align: start; cursor: pointer;
 }
-.a-account-btn:hover { background: var(--w-surface-2); }
+@media (hover: hover) { .a-account-btn:hover { background: var(--w-surface-2); } }
 .a-account-btn > svg { flex: none; color: var(--w-text-3); transform: rotate(90deg); }
 .a-account-btn[aria-expanded='true'] > svg { transform: rotate(-90deg); }
-/* A name over an e-mail (the member's own account: any length, wrapped anywhere). The items start at the start edge: the e-mail is left to
-   right, and a flex item that stretched would put its text at the left of a right-to-left column. */
-.a-who { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; overflow-wrap: anywhere; }
-.a-who strong { font-weight: var(--w-weight-semibold); }
+/* A name over an e-mail (the member's own account: any length, wrapped anywhere). The e-mail is an inline run (it is left to right inside a
+   right-to-left page), so its lines start at the start edge like the name's. */
+.a-who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.a-who strong { display: block; font-weight: var(--w-weight-semibold); }
 .a-who span { color: var(--w-text-3); font-size: var(--w-font-xs); }
 
 /* The account popover (src/admin/AccountMenu.jsx) takes the look of the "more" menu further down (.a-menu); these are its own parts. */
@@ -56,11 +56,12 @@
 .a-account__theme { min-width: 0; margin: 0; padding: var(--w-space-2-5); border: 0; }
 .a-account__theme legend { margin-block-end: var(--w-space-2); padding: 0; color: var(--w-text-3); font-size: var(--w-font-xs); }
 /* Three choices in a pill. The radios are real ones, drawn over their label and see-through: they give the group its arrow keys and its
-   name, and the label shows the focus. */
+   name, and the text after each one (its sibling) is what is drawn: filled when its radio is checked, ringed when it has the focus. */
 .a-seg { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--w-space-1); padding: var(--w-space-1); border-radius: var(--w-radius-pill); background: var(--w-bg); }
-.a-seg label { position: relative; display: grid; place-items: center; min-height: 44px; padding-inline: var(--w-space-1); border-radius: var(--w-radius-pill); color: var(--w-text-2); font-size: var(--w-font-md); text-align: center; cursor: pointer; }
+.a-seg label { position: relative; display: block; }
+.a-seg span { display: grid; place-items: center; min-height: 44px; padding-inline: var(--w-space-1); border-radius: var(--w-radius-pill); color: var(--w-text-2); font-size: var(--w-font-md); text-align: center; cursor: pointer; }
 .a-seg input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
-.a-seg label:has(:focus-visible) { outline: 3px solid var(--w-focus); outline-offset: 2px; }
+.a-seg input:focus-visible + span { outline: 3px solid var(--w-focus); outline-offset: 2px; }
 
 .a-top {
   display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-3); position: sticky; top: 0; z-index: 10;
@@ -70,12 +71,12 @@
 .a-top .a-brand__text { font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); -webkit-line-clamp: 2; line-clamp: 2; }
 @media (min-width: 1024px) { .a-top { display: none; } }
 
-/* The tab bar floats over the page: a pill that stands 12px above the bottom edge and the home indicator (the safe-area inset), and no wider
+/* The tab bar floats over the page: a pill that stands 10px above the bottom edge and the home indicator (the safe-area inset), and no wider
    than a small tablet. Every tab is an icon; the current one is a violet pill that also says its name (the others keep theirs for a screen
    reader and for voice control, `w-sr`). The other four share what the pill leaves, none under 44px; below 360px the pill drops its icon so
    that "היסטוריה" still fits beside them. The page ends above it (--w-layout-tabbar-clearance in base.css). */
 .a-tabbar {
-  position: fixed; inset-inline: var(--w-space-3); bottom: calc(var(--w-space-3) + env(safe-area-inset-bottom)); z-index: 20; max-width: 480px; margin-inline: auto;
+  position: fixed; inset-inline: var(--w-space-3); bottom: calc(var(--w-space-2-5) + env(safe-area-inset-bottom)); z-index: 20; max-width: 480px; margin-inline: auto;
   display: flex; align-items: center; gap: var(--w-space-1); padding: var(--w-space-1-5); background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-pill); box-shadow: var(--w-shadow-pop);
 }
 .a-tab {
@@ -92,7 +93,8 @@
 /* The rows of the sheet under "עוד": an icon on its tint, the name, a line about the screen and a chevron; the current screen is tinted. */
 .a-more { display: flex; flex-direction: column; gap: var(--w-space-1-5); }
 .a-more__row { display: flex; align-items: center; gap: var(--w-space-3-5); min-height: 60px; padding-inline: var(--w-space-2); border: 0; border-radius: var(--w-radius-2xl); background: none; color: var(--w-text); text-align: start; cursor: pointer; }
-.a-more__row:hover, .a-more__row[aria-current='page'] { background: var(--w-info-bg); }
+.a-more__row[aria-current='page'] { background: var(--w-info-bg); }
+@media (hover: hover) { .a-more__row:hover { background: var(--w-info-bg); } }
 .a-more__row > svg { flex: none; color: var(--w-text-3); }
 .a-more__icon { flex: none; width: 44px; height: 44px; display: grid; place-items: center; border-radius: var(--w-radius-md); }
 .a-more__icon--violet { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); }

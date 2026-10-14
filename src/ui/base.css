@@ -22,8 +22,8 @@
 /* Layout constants: sizes that must keep their exact value because another part of the layout depends on it, so they are not steps of
    a scale and no literal of the same value is asked to use them. Each has one reason; change a value only together with its reason. */
 :root {
-  --w-layout-tabbar-clearance: 96px; /* the end of a committee page: clears the floating tab bar (a 62px pill that stands 12px above the bottom edge) with room above it, plus the home-indicator inset where it is used */
-  --w-layout-toast-clearance: 88px; /* the toasts stand above the floating tab bar (its top is 74px above the edge) with a gap, plus the home-indicator inset where it is used */
+  --w-layout-tabbar-clearance: 96px; /* the end of a committee page: clears the floating tab bar (a 62px pill that stands 10px above the bottom edge) with room above it, plus the home-indicator inset where it is used */
+  --w-layout-toast-clearance: 76px; /* the toasts stand above the floating tab bar (its top is 72px above the edge) with a gap, plus the home-indicator inset where it is used */
   --w-layout-icon-inset: 9px; /* the 44px touch targets of a tile's icons reach out of the card padding by this much, so the glyphs line up with the card's text */
   --w-layout-eye-width: 56px; /* the show/hide button of the password field, and the room the field keeps at its end so that text never runs under it */
   --w-layout-optical-nudge: 1px; /* lowers a toast's icon to the middle of the first line of its text */
