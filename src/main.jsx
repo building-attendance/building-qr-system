@@ -1,7 +1,7 @@
 import React from 'react'
 import ReactDOM from 'react-dom/client'
 import { registerSW } from 'virtual:pwa-register'
-import '@fontsource-variable/heebo' // the one typeface (Hebrew + Latin), variable weight, bundled: no external request, works offline
+import '@fontsource-variable/rubik' // the one typeface (Hebrew, Latin, Cyrillic and Arabic), variable weight, bundled: no external request, works offline
 import App from './App.jsx'
 import ErrorBoundary from './ui/ErrorBoundary.jsx'
 import { crashRootOptions, watchUnhandledErrors } from './ui/crash.js'

@@ -8,7 +8,7 @@ import { useSyncExternalStore } from 'react'
 export const THEME_KEY = 'qr.theme'
 export const THEMES = ['system', 'light', 'dark']
 /** The browser/OS chrome colour (address bar, status bar) for each resolved theme: the same as --w-bg. */
-export const CHROME_COLORS = { dark: '#0b0b0d', light: '#f4f5f7' }
+export const CHROME_COLORS = { dark: '#15121f', light: '#f7f5ff' }
 
 export const isTheme = (value) => THEMES.includes(value)
 

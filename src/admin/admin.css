@@ -97,14 +97,17 @@
 /* The name column is as wide as the screen can spare: the days keep their 36px, and what is left goes to the name (a long name wraps inside it). */
 @media (min-width: 360px) { .a-week__who { width: 96px; min-width: 96px; } }
 @media (min-width: 640px) { .a-week__who { width: 144px; min-width: 144px; } }
-.a-week__day { min-width: 36px; padding-block: var(--w-space-2); color: var(--w-text-2); font-size: var(--w-font-xs); font-weight: var(--w-weight-semibold); text-align: center; }
+/* Seven heads and seven counts fit 320px beside the 64px name column only when each column needs 36.5px or less. Rubik's figures are
+   wider than Heebo's (a head "08/10" in 13px semibold is 40.6px, a total of three digits in 17px bold 37.8px with its padding), so a head is
+   12px regular (35.5px) and a count 16px (35.8px in bold). Measured in Chromium and WebKit; e2e/reflow.spec.js holds the table to 320px. */
+.a-week__day { min-width: 36px; padding-block: var(--w-space-2); color: var(--w-text-2); font-size: var(--w-font-2xs); font-weight: var(--w-weight-regular); text-align: center; }
 .a-week__cell { min-width: 36px; padding: var(--w-space-0-5); text-align: center; }
 .a-week tfoot > tr > * { border-block-start: 1px solid var(--w-border); background: var(--w-surface-2); }
 .a-week tfoot .a-week__who { font-weight: var(--w-weight-semibold); }
 /* A number of visits. The step (1 to 4) deepens the background; the number is always written, so colour is never the only carrier (V2). */
 .a-count {
   display: flex; align-items: center; justify-content: center; min-height: 44px; border-radius: var(--w-radius-sm);
-  color: var(--w-text); font-weight: var(--w-weight-semibold); font-variant-numeric: tabular-nums; text-decoration: none;
+  color: var(--w-text); font-size: var(--w-font-base); font-weight: var(--w-weight-semibold); font-variant-numeric: tabular-nums; text-decoration: none;
 }
 .a-count--1 { background: var(--w-count-1); }
 .a-count--2 { background: var(--w-count-2); }
@@ -122,7 +125,7 @@
 .a-stat__label { color: var(--w-text-2); overflow-wrap: anywhere; }
 .a-stat__note { color: var(--w-text-3); font-size: var(--w-font-md); overflow-wrap: anywhere; }
 
-.w-btn--danger { background: #b3261e; }
+.w-btn--danger { background: #b3261e; color: #fff; } /* white on this red in both themes (6.5:1); --w-on-primary is dark in the dark theme */
 .w-btn--danger:hover { background: #9c1f18; }
 .w-btn--small svg { flex: none; }
 .w-btn--ghost { background: none; border: 1px solid var(--w-border); color: var(--w-text); }
@@ -142,9 +145,9 @@
 @media (hover: hover) { .a-icon-btn--danger:hover:not(:disabled) { color: var(--w-danger); opacity: 0.7; } }
 .a-icon-btn--danger:active:not(:disabled) { color: var(--w-danger); opacity: 0.7; }
 /* The one main action of a page (adding something): a filled round button. */
-.a-icon-btn--primary, .a-icon-btn--primary:focus-visible { background: var(--w-primary); color: #fff; border-radius: 50%; }
-@media (hover: hover) { .a-icon-btn--primary:hover:not(:disabled) { background: var(--w-primary-hover); color: #fff; } }
-.a-icon-btn--primary:active:not(:disabled) { background: var(--w-primary-hover); color: #fff; }
+.a-icon-btn--primary, .a-icon-btn--primary:focus-visible { background: var(--w-primary); color: var(--w-on-primary); border-radius: 50%; }
+@media (hover: hover) { .a-icon-btn--primary:hover:not(:disabled) { background: var(--w-primary-hover); color: var(--w-on-primary); } }
+.a-icon-btn--primary:active:not(:disabled) { background: var(--w-primary-hover); color: var(--w-on-primary); }
 
 /* ----- cards ----- */
 .a-card { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); padding: var(--w-space-4-5); display: flex; flex-direction: column; gap: var(--w-space-3); }
@@ -237,7 +240,7 @@ select.a-input {
 .a-filter-sheet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--w-space-4) var(--w-space-3); align-items: start; }
 .a-filter-sheet > * { grid-column: 1 / -1; min-width: 0; }
 .a-filter-sheet > .a-filter-date { grid-column: auto; }
-.a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); }
+.a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); font-variant-numeric: tabular-nums; }
 .a-scans { list-style: none; margin: 0; padding: 0; background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); overflow: hidden; }
 .a-scan { display: grid; gap: var(--w-space-1) var(--w-space-3-5); grid-template-columns: auto 1fr auto; align-items: center; padding: var(--w-space-3) var(--w-space-4); border-block-end: 1px solid var(--w-border); }
 .a-scan:last-child { border-block-end: 0; }

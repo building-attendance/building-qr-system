@@ -1,44 +1,62 @@
 /* Shared design system for the service-provider app (.w-app) and the committee app (.a-app), scoped to those roots.
    Logical properties everywhere: the same CSS serves Hebrew/Arabic (RTL) and English/Russian (LTR). */
 
+/* The palette is direction B of the redesign (violet, owner decision of 14/10/2026; docs/design.md, V1). This first block is
+   the dark theme, and the light one below overrides every token of it. */
 .w-app, .a-app {
-  --w-bg: #0b0b0d;
-  --w-surface: #16161a;
-  --w-surface-2: #1f1f25;
-  --w-border: #2c2c34;       /* decorative separators only */
-  --w-field-border: #70707c; /* edge of anything you can tap or type in: 3.3:1 on --w-surface-2 (WCAG 1.4.11) */
-  --w-text: #f5f5f7;
-  --w-text-2: #c0c0c8;       /* 10:1 on --w-surface */
-  --w-text-3: #9a9aa4;       /* 6.5:1 on --w-surface, 5.9:1 on --w-surface-2 */
-  --w-primary: #0b63ce;      /* white text on it: 5.7:1 */
-  --w-primary-hover: #0a56b3;
-  --w-focus: #7cc0ff;
-  --w-success: #34d367;
-  --w-success-bg: rgba(52, 211, 103, 0.12);
-  --w-warn: #ffb340;
-  --w-warn-bg: rgba(255, 179, 64, 0.12);
-  --w-danger: #ff7a70;
-  --w-danger-bg: rgba(255, 122, 112, 0.12);
-  --w-info: #7cc0ff;
-  --w-info-bg: rgba(124, 192, 255, 0.12);
+  --w-bg: #15121f;
+  --w-surface: #211c30;
+  --w-surface-2: #2a2440;
+  --w-border: #3a3350;       /* decorative separators only */
+  --w-field-border: #8d86a6; /* edge of anything you can tap or type in: 3:1 or more on every surface (WCAG 1.4.11) */
+  --w-text: #f4f2fa;
+  --w-text-2: #d9d4e8;
+  --w-text-3: #b7b1c8;
+  --w-primary: #a79bff;      /* a light violet: the text on it is dark (--w-on-primary), white would be 2.4:1 */
+  --w-primary-hover: #bdb3ff;
+  --w-on-primary: #15121f;   /* text and icons on --w-primary */
+  --w-focus: #a79bff;
+  --w-success: #6ee7b0;
+  --w-success-bg: #12352a;
+  --w-warn: #ffc58a;
+  --w-warn-bg: #3a2410;
+  --w-danger: #ff8a8a;
+  --w-danger-bg: #3a1418;
+  --w-info: #c9c2ff;
+  --w-info-bg: #2e2670;
   /* Everything below used to be a literal inside a rule; as tokens they follow the theme too. */
-  --w-surface-3: #26262e;            /* hover on a quiet button */
-  --w-field-border-hover: #8a8a96;
-  --w-focus-ring: rgba(124, 192, 255, 0.25);
-  --w-info-line: rgba(124, 192, 255, 0.28);
-  --w-warn-line: rgba(255, 179, 64, 0.32);
-  --w-success-line: rgba(52, 211, 103, 0.3);
-  --w-danger-line: rgba(255, 122, 112, 0.5);
-  --w-overlay: rgba(0, 0, 0, 0.65);
-  --w-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  /* The four steps of the count cells of the committee's Home table: the primary blue, deeper with the number of visits. --w-text is read on
-     every step at 4.5:1 and the focus ring at 3:1 (tests/contrast.test.js). */
-  --w-count-1: rgba(11, 99, 206, 0.22);
-  --w-count-2: rgba(11, 99, 206, 0.4);
-  --w-count-3: rgba(11, 99, 206, 0.58);
-  --w-count-4: rgba(11, 99, 206, 0.78);
+  --w-surface-3: #332c4c;            /* hover on a quiet button */
+  --w-field-border-hover: #a7a0bf;
+  --w-focus-ring: rgba(167, 155, 255, 0.3);
+  --w-info-line: rgba(201, 194, 255, 0.28);
+  --w-warn-line: rgba(255, 197, 138, 0.32);
+  --w-success-line: rgba(110, 231, 176, 0.3);
+  --w-danger-line: rgba(255, 138, 138, 0.5);
+  --w-overlay: rgba(0, 0, 0, 0.6);
+  --w-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);         /* a card or a toast */
+  --w-shadow-raised: 0 14px 30px rgba(0, 0, 0, 0.45); /* the summary card (--w-hero) */
+  --w-shadow-pop: 0 16px 36px rgba(0, 0, 0, 0.5);     /* a menu or a sheet over the page */
+  /* The summary card of the committee's Home screen, and the text on it. */
+  --w-hero: #2e2670;
+  --w-on-hero: #f4f2fa;
+  /* Four tints for tiles, chips and badges, each with the ink that is read on it (4.5:1, tests/contrast.test.js). The first three
+     are the backgrounds of info, warn and success; sky is the fourth, for a neutral category. */
+  --w-tint-violet: #2e2670;
+  --w-tint-violet-ink: #d9d4ff;
+  --w-tint-peach: #3a2410;
+  --w-tint-peach-ink: #ffe2c4;
+  --w-tint-mint: #12352a;
+  --w-tint-mint-ink: #8fe3bc;
+  --w-tint-sky: #10304d;
+  --w-tint-sky-ink: #b5dbff;
+  /* The four steps of the count cells of the committee's Home table: the violet of the light theme's primary, deeper with the number
+     of visits. --w-text is read on every step at 4.5:1, and the focus ring and the hover ring (--w-info) at 3:1 (tests/contrast.test.js). */
+  --w-count-1: rgba(91, 75, 219, 0.22);
+  --w-count-2: rgba(91, 75, 219, 0.4);
+  --w-count-3: rgba(91, 75, 219, 0.58);
+  --w-count-4: rgba(91, 75, 219, 0.78);
 
-  font-family: 'Heebo Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family: 'Rubik Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: var(--w-font-lg);
   line-height: 1.45;
   color: var(--w-text);
@@ -46,43 +64,56 @@
   color-scheme: dark;
 }
 
-/* Light theme. The page sets data-theme on <html> (src/ui/theme.js; an inline script in index.html does it before the
-   first paint): "light" or "dark", already resolved from the person's choice or the device's setting.
+/* Light theme. The page sets data-theme on <html> (src/ui/theme.js; public/theme-boot.js does it before the first
+   paint): "light" or "dark", already resolved from the person's choice or the device's setting.
    Every text/background pair is held to WCAG AA by tests/contrast.test.js, as the dark one is. */
 :root[data-theme='light'] .w-app, :root[data-theme='light'] .a-app {
-  --w-bg: #f4f5f7;
+  --w-bg: #f7f5ff;
   --w-surface: #ffffff;
-  --w-surface-2: #eceef2;
-  --w-border: #d8dbe2;
-  --w-field-border: #6b717d;
-  --w-text: #14151a;
-  --w-text-2: #454955;
-  --w-text-3: #5d6270;
-  --w-primary: #0b63ce;
-  --w-primary-hover: #0a56b3;
-  --w-focus: #0b63ce;
-  --w-success: #106f35;
-  --w-success-bg: rgba(16, 111, 53, 0.09);
-  --w-warn: #955100;
-  --w-warn-bg: rgba(149, 81, 0, 0.1);
-  --w-danger: #c0271d;
-  --w-danger-bg: rgba(192, 39, 29, 0.08);
-  --w-info: #0b63ce;
-  --w-info-bg: rgba(11, 99, 206, 0.08);
-  --w-surface-3: #e1e4ea;
-  --w-field-border-hover: #4c525e;
-  --w-focus-ring: rgba(11, 99, 206, 0.25);
-  --w-info-line: rgba(11, 99, 206, 0.3);
-  --w-warn-line: rgba(149, 81, 0, 0.35);
-  --w-success-line: rgba(16, 111, 53, 0.35);
-  --w-danger-line: rgba(192, 39, 29, 0.5);
-  --w-overlay: rgba(20, 21, 26, 0.45);
-  --w-shadow: 0 10px 30px rgba(20, 21, 26, 0.18);
-  /* Lighter than in the dark theme: the focus ring is the same blue, and it must stay 3:1 against the deepest step. */
-  --w-count-1: rgba(11, 99, 206, 0.1);
-  --w-count-2: rgba(11, 99, 206, 0.19);
-  --w-count-3: rgba(11, 99, 206, 0.28);
-  --w-count-4: rgba(11, 99, 206, 0.37);
+  --w-surface-2: #efedf5;
+  --w-border: #e4e1ee;
+  --w-field-border: #8a84a0; /* 3:1 on --w-surface-2, the lightest pair (the design canvas drew it lighter, under 3:1) */
+  --w-text: #1e1b2e;
+  --w-text-2: #3d3850;
+  --w-text-3: #555066;
+  --w-primary: #5b4bdb;
+  --w-primary-hover: #4a3bc7;
+  --w-on-primary: #ffffff;
+  --w-focus: #5b4bdb;
+  --w-success: #0f7b4f;
+  --w-success-bg: #e3f5ec;
+  --w-warn: #8a3e05;
+  --w-warn-bg: #fff1e3;
+  --w-danger: #c0262d;
+  --w-danger-bg: #fde8e9;
+  --w-info: #3f31b8;
+  --w-info-bg: #ece9ff;
+  --w-surface-3: #e6e2f0;
+  --w-field-border-hover: #6e6888;
+  --w-focus-ring: rgba(91, 75, 219, 0.25);
+  --w-info-line: rgba(63, 49, 184, 0.3);
+  --w-warn-line: rgba(138, 62, 5, 0.35);
+  --w-success-line: rgba(15, 123, 79, 0.35);
+  --w-danger-line: rgba(192, 38, 45, 0.5);
+  --w-overlay: rgba(30, 27, 46, 0.38);
+  --w-shadow: 0 8px 24px rgba(91, 75, 219, 0.08);
+  --w-shadow-raised: 0 14px 30px rgba(91, 75, 219, 0.28);
+  --w-shadow-pop: 0 16px 36px rgba(30, 27, 46, 0.2);
+  --w-hero: #5b4bdb;
+  --w-on-hero: #ffffff;
+  --w-tint-violet: #ece9ff;
+  --w-tint-violet-ink: #2e2670;
+  --w-tint-peach: #fff1e3;
+  --w-tint-peach-ink: #6b3004;
+  --w-tint-mint: #e3f5ec;
+  --w-tint-mint-ink: #0b5c3a;
+  --w-tint-sky: #e6f1ff;
+  --w-tint-sky-ink: #0b3d6b;
+  /* Lighter than in the dark theme: the focus ring is the same violet, and it must stay 3:1 against the deepest step. */
+  --w-count-1: rgba(91, 75, 219, 0.1);
+  --w-count-2: rgba(91, 75, 219, 0.19);
+  --w-count-3: rgba(91, 75, 219, 0.28);
+  --w-count-4: rgba(91, 75, 219, 0.37);
   color-scheme: light;
 }
 
@@ -165,7 +196,7 @@
   min-height: 56px; padding-inline: var(--w-space-6); width: 100%;
   border: 0; border-radius: var(--w-radius-lg); cursor: pointer;
   font-size: var(--w-font-xl); font-weight: var(--w-weight-semibold);
-  background: var(--w-primary); color: #fff;
+  background: var(--w-primary); color: var(--w-on-primary);
   transition: background 0.15s, transform 0.1s;
 }
 .w-btn:hover { background: var(--w-primary-hover); }
@@ -259,7 +290,10 @@
 /* max-width: min(22em, 100%): this line holds the point name inside first-strong isolates (translate() in src/i18n/core.js), and WebKit
    sizes a centred box that holds an isolate in a right-to-left page by its longest line, not by the width that is left, even with
    overflow-wrap: anywhere. Measured on a point name of one word: the line was 418px (the 22em) in a 280px column. The cap is the column. */
-.w-result__body { color: var(--w-text-2); font-size: var(--w-font-xl); max-width: min(22em, 100%); overflow-wrap: anywhere; }
+.w-result__body { color: var(--w-text-2); font-size: var(--w-font-xl); max-width: min(22em, 100%); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+/* tabular-nums: this line holds the time of the visit, and the box is as wide as its text. Rubik's own figures are proportional ("11:11"
+   is about three quarters of the width of "00:00"), so the line, and the box that the picture tests mask over the time, would change
+   width with the time of day; its tabular figures (the font's tnum) are all one width. */
 .w-result__warning { color: var(--w-warn); font-weight: var(--w-weight-semibold); }
 .w-chip { display: inline-flex; align-items: center; gap: var(--w-space-2); padding: var(--w-space-2) var(--w-space-4); border-radius: var(--w-radius-pill); background: var(--w-surface-2); border: 1px solid var(--w-border); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
 .w-who { display: inline-flex; align-items: center; gap: var(--w-space-2); margin: 0; color: var(--w-text-2); font-size: var(--w-font-base); max-width: 100%; overflow-wrap: anywhere; }
