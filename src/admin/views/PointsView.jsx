@@ -2,7 +2,7 @@ import { lazy, Suspense, useCallback, useState } from 'react'
 import { reloadApp } from '../../ui/crash.js'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel } from '../hooks.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { downloadDataUrl, safeFileName, useQrImage } from '../qr.js'
 import PrintSheet from '../PrintSheet.jsx'
 import { IconPlus, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
@@ -333,14 +333,14 @@ export default function PointsView() {
 
   return (
     <>
-      <div className="a-head">
+      <div className="a-head a-head--add">
         <div>
           <h1>נקודות סריקה</h1>
           <p>המקומות בבניין שבהם נותני השירות סורקים QR. כל נקודה מקבלת שלט מודפס.</p>
         </div>
         <div className="a-actions">
+          <AddButton label="נקודה חדשה" onClick={() => setEditing('new')} />
           <IconButton icon={IconPrinter} label="הדפסת כל השלטים" onClick={() => startPrint(list.filter((p) => p.is_active), 'pair')} disabled={!list.length} />
-          <IconButton icon={IconPlus} label="נקודה חדשה" tone="primary" onClick={() => setEditing('new')} />
         </div>
       </div>
 

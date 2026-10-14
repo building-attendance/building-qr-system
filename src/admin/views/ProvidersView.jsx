@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { adminApi, errorText, copyText, providerDevices } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconPlus, IconKey, IconDevice, IconBan, IconCheck, IconCopy, IconRefresh, IconUsers, IconAlert, IconTrash } from '../icons.jsx'
 import { generatePassword } from '../password.js'
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
@@ -259,12 +259,12 @@ export default function ProvidersView() {
 
   return (
     <>
-      <div className="a-head">
+      <div className="a-head a-head--add">
         <div>
           <h1>נותני שירות</h1>
           <p>מי רשאי לרשום נוכחות. כל אחד נכנס בטלפון עם שם וסיסמה אישית.</p>
         </div>
-        <div className="a-actions"><IconButton icon={IconPlus} label="נותן שירות חדש" tone="primary" onClick={() => setEditing('new')} /></div>
+        <div className="a-actions"><AddButton label="נותן שירות חדש" onClick={() => setEditing('new')} /></div>
       </div>
 
       {providers.status === 'loading' && <Spinner />}

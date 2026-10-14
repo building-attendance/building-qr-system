@@ -35,9 +35,86 @@ test('the point tiles show their edit action and a "more" button that is named a
   const menu = await openTileMenu(tile)
   await expect(menu.getByRole('menuitem')).toHaveText(['QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
   await page.keyboard.press('Escape')
-  // adding a point is the round primary button at the end of the title row
+  // adding a point is a pill that says so, in the heading (the test after this one measures it)
   await expect(page.getByRole('button', { name: 'נקודה חדשה' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'הדפסת כל השלטים' })).toBeVisible()
+})
+
+// ---- the heading of a screen that adds something -------------------------------------------------------------------------------
+// Points, Providers, the members on the Settings screen and the keys of the Agent screen each have an add button in their heading. It is a
+// pill that says what it adds (owner decision of 14/10/2026), not an icon: on a phone it used to be a solid violet circle right under the
+// account circle, which was the same solid violet circle, and the two meant different things.
+
+const ADD_BUTTONS = [['points', 'נקודה חדשה'], ['providers', 'נותן שירות חדש'], ['settings', 'חבר ועד חדש'], ['agent', 'מפתח חדש']]
+// 360 is the phone of the committee's pictures, 320 the narrowest one that the app is checked at (the longest label, "נותן שירות חדש", and the print button of Points)
+const HEADING_SIZES = [{ width: 360, height: 740 }, { width: 320, height: 640 }, COMPUTER]
+
+/** The background that a token paints, as the browser resolves it (the colour of the solid primary, to compare with what a button wears). */
+const paintOf = (page, token) => page.evaluate((name) => {
+  const probe = document.createElement('i')
+  probe.style.background = `var(${name})`
+  document.querySelector('.a-app').append(probe)
+  const color = getComputedStyle(probe).backgroundColor
+  probe.remove()
+  return color
+}, token)
+const backgroundOf = (locator) => locator.evaluate((element) => getComputedStyle(element).backgroundColor)
+
+test('the add button of a heading is a pill with its words, the first action of its heading, and not the same solid violet as the account circle', async ({ page }) => {
+  await adminSignIn(page, 'points')
+  const primary = await paintOf(page, '--w-primary')
+  const tint = await paintOf(page, '--w-tint-violet')
+  for (const [screen, label] of ADD_BUTTONS) {
+    await page.goto(`/admin#${screen}`)
+    await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
+    for (const size of HEADING_SIZES) {
+      await page.setViewportSize(size)
+      const where = `${screen} at ${size.width}`
+      const phone = size.width < 1024
+      const pill = page.getByRole('button', { name: label, exact: true })
+      const head = page.locator('.a-head', { has: pill })
+      const text = head.locator(':scope > div').first()
+      await expect(pill, `${where}: the words are on the button, not only in its name`).toHaveText(label)
+      await expect(pill.locator('svg'), `${where}: the plus is still there`).toHaveCount(1)
+      const box = await pill.boundingBox()
+      const headBox = await head.boundingBox()
+      const textBox = await text.boundingBox()
+      expect(box.height, `${where}: the pill is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+      expect(box.x, `${where}: the pill is inside the screen`).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width, `${where}: the pill is inside the screen`).toBeLessThanOrEqual(size.width)
+      expect(await noHorizontalScroll(page), `${where}: no sideways scroll`).toBe(true)
+      // the same on a phone and on a computer: the title and the description, then the actions on a row of their own under them, at the start
+      // (the right edge, in Hebrew), the title row being the title alone
+      expect(box.y, `${where}: the pill is under the description`).toBeGreaterThanOrEqual(textBox.y + textBox.height - 1)
+      expect(box.x + box.width, `${where}: the pill is at the start of the heading`).toBeGreaterThanOrEqual(headBox.x + headBox.width - 1)
+      expect(textBox.x + textBox.width, `${where}: the text starts where the pill starts`).toBeGreaterThanOrEqual(headBox.x + headBox.width - 1)
+      expect(await head.locator('h1, h2').boundingBox().then((h) => h.y + h.height), `${where}: nothing but the title is on the title row`).toBeLessThanOrEqual(box.y)
+      // it is the one solid violet near the top of the screen: the account circle is the quiet tint, on a phone and on a computer
+      expect(await backgroundOf(pill), `${where}: the pill is the primary colour`).toBe(primary)
+      const circle = phone ? accountButton(page) : accountButton(page).locator('.a-avatar')
+      expect(await backgroundOf(circle), `${where}: the account circle is not the solid primary`).not.toBe(primary)
+      expect(await backgroundOf(circle), `${where}: the account circle is the violet tint`).toBe(tint)
+      if (screen !== 'points') continue
+      // the print button comes after the pill, in the page and on the screen (it is on its left, in Hebrew), and both fit at this width
+      const print = page.getByRole('button', { name: 'הדפסת כל השלטים' })
+      const after = await pill.evaluate((element, other) => !!(element.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING), await print.elementHandle())
+      expect(after, `${where}: the pill is first in the page`).toBe(true)
+      const printBox = await print.boundingBox()
+      expect(printBox.x + printBox.width, `${where}: the print button is on the left of the pill`).toBeLessThanOrEqual(box.x + 1)
+      expect(printBox.x, `${where}: the print button is inside the screen`).toBeGreaterThanOrEqual(0)
+      expect(printBox.width, `${where}: the print button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+    }
+  }
+})
+
+test('on a phone the focus goes from the account circle to the add button, and then on to the other actions of the heading', async ({ page }) => {
+  await adminSignIn(page, 'points')
+  await page.setViewportSize({ width: 360, height: 740 })
+  await accountButton(page).focus()
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('button', { name: 'נקודה חדשה', exact: true })).toBeFocused()
+  await page.keyboard.press('Tab')
+  await expect(page.getByRole('button', { name: 'הדפסת כל השלטים' })).toBeFocused()
 })
 
 // ---- the account menu ---------------------------------------------------------------------------------------------------------

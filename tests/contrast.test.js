@@ -44,7 +44,7 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
   for (const [sn, s] of Object.entries(surfaces)) {
     for (const k of ['--w-text', '--w-text-2', '--w-text-3']) check(`${k} on ${sn}`, c(k), s, 4.5)
   }
-  // Text and icons on a filled primary button (.w-btn, the round add button of the committee app). White on the light violet of the
+  // Text and icons on a filled primary button (.w-btn, the add button in the heading of a committee screen). White on the light violet of the
   // dark theme would be 2.4:1, so the colour on it is a token of its own: white in the light theme, the dark background in the dark one.
   check('--w-on-primary on primary', c('--w-on-primary'), c('--w-primary'), 4.5)
   check('--w-on-primary on primary (hover)', c('--w-on-primary'), c('--w-primary-hover'), 4.5)
@@ -73,6 +73,10 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
     check(`--w-text on the ${tint} tint`, c('--w-text'), bg, 4.5)
     check(`focus ring on the ${tint} tint`, c('--w-focus'), bg, 3)
   }
+  // The account circle (.a-avatar in src/admin/admin.css): the initial is --w-tint-violet-ink on the violet tint (the first pair of the loop above),
+  // and the ring that shows its open state is --w-info, drawn inside the disc: it is read against the tint on its inside and the page on its outside.
+  check('--w-info on the violet tint (the open ring of the account circle)', c('--w-info'), c('--w-tint-violet'), 3)
+  check('--w-info on bg (the open ring of the account circle, against the page)', c('--w-info'), surfaces.bg, 3)
   for (const sn of ['surface', 'surface-2', 'bg']) {
     check(`field border on ${sn}`, c('--w-field-border'), surfaces[sn], 3)
     check(`field border (hover) on ${sn}`, c('--w-field-border-hover'), surfaces[sn], 3)

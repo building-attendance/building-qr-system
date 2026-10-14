@@ -4,7 +4,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
-import { IconButton } from '../src/admin/ui.jsx'
+import { IconButton, AddButton } from '../src/admin/ui.jsx'
 import { IconTrash, IconEdit, IconPlus } from '../src/admin/icons.jsx'
 
 const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
@@ -64,8 +64,42 @@ describe('icon button styling', () => {
   })
 })
 
+describe('the account circle and the headings that have an add button', () => {
+  const css = fs.readFileSync(path.join(root, 'src', 'admin', 'admin.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+  const rule = (selector) => css.match(new RegExp(`${selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\{([^}]*)\\}`))?.[1] ?? ''
+
+  it('the account circle is the violet tint with its ink, not the solid primary (tests/contrast.test.js holds the pair to 4.5:1)', () => {
+    const circle = rule('.a-avatar')
+    expect(circle).toContain('background: var(--w-tint-violet)')
+    expect(circle).toContain('color: var(--w-tint-violet-ink)')
+    expect(circle).not.toContain('--w-primary')
+    expect(circle).not.toContain('--w-on-primary')
+  })
+
+  it('it is a 44px disc, so the button stays a target of 44px (an image of the member can fill it later)', () => {
+    const circle = rule('.a-avatar')
+    expect(circle).toContain('width: 44px')
+    expect(circle).toContain('height: 44px')
+    expect(circle).toContain('border-radius: 50%')
+  })
+
+  it('under the pointer it shows a ring, and while its menu is open a stronger one (drawn inside: the focus ring outside it is the global one)', () => {
+    expect(css).toMatch(/\.a-avatar--btn:hover\s*\{\s*box-shadow:\s*inset 0 0 0 2px var\(--w-info-line\)/)
+    expect(css).toMatch(/\.a-avatar--btn\[aria-expanded='true'\]\s*\{\s*box-shadow:\s*inset 0 0 0 2px var\(--w-info\)/)
+    expect(css, 'no state of the circle is the solid primary').not.toMatch(/\.a-avatar[^{]*\{[^}]*--w-primary/)
+  })
+
+  it('a heading with an add button puts its actions in a row under the text, on a phone and on a computer (no media query: the same layout)', () => {
+    expect(rule('.a-head--add')).toContain('flex-direction: column')
+    expect(rule('.a-head--add > :first-child'), 'the text is no longer a flexible column beside the actions').toContain('flex: none')
+    // it is not the rule of one width: nothing of it is inside a media query, and no `row-reverse` reorders the pill away from the page order
+    expect(css.match(/@media[^{]*\{(?:[^{}]*\{[^}]*\})*[^{}]*\}/g)?.filter((block) => block.includes('.a-head--add')) ?? []).toEqual([])
+    expect(css).not.toContain('row-reverse')
+  })
+})
+
 describe('the same design on a phone and on a computer', () => {
-  const app = fs.readFileSync(path.join(root, 'src', 'pages', 'AdminApp.jsx'), 'utf8')
+  const app =fs.readFileSync(path.join(root, 'src', 'pages', 'AdminApp.jsx'), 'utf8')
   const css = fs.readFileSync(path.join(root, 'src', 'admin', 'admin.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
 
   it('the provider-app link, the light / dark choice and the sign-out are one account menu, the same in the side rail and in the top bar', () => {
@@ -165,10 +199,25 @@ describe('the tiles and headers of the committee screens', () => {
     for (const f of views) expect(read(f), `${f} still has a tile actions row`).not.toContain('a-card__actions')
   })
 
-  it('every page that adds something offers it as the primary round button', () => {
-    for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx', 'AgentView.jsx']) {
-      expect(read(f), f).toMatch(/icon=\{IconPlus\}[^>]*tone="primary"/)
+  it('every page that adds something offers it as a pill with the plus and its words, the first action of its heading', () => {
+    const adds = { 'PointsView.jsx': 'נקודה חדשה', 'ProvidersView.jsx': 'נותן שירות חדש', 'SettingsView.jsx': 'חבר ועד חדש', 'AgentView.jsx': 'מפתח חדש' }
+    for (const [f, label] of Object.entries(adds)) {
+      // the heading is marked (a-head--add: its actions go under the text), and the pill is the first thing in its actions
+      const pill = new RegExp(`<div className="a-head[^"]*a-head--add">[\\s\\S]*?<div className="a-actions">\\s*<AddButton label="${label}" onClick=\\{[^}]*\\} />`)
+      expect(read(f), f).toMatch(pill)
     }
+  })
+
+  it('the add button is the small primary pill (the one of the empty states): the plus and the words, a button that is named by its words', () => {
+    const out = html(React.createElement(AddButton, { label: 'x', onClick: () => {} }))
+    expect(out).toContain('<button type="button" class="w-btn w-btn--small"')
+    expect(out).toMatch(/^<button[^>]*><svg[^>]*width="20"[^>]*height="20"[\s\S]*<\/svg>x<\/button>$/) // the plus first, then the words
+    expect(out).not.toContain('aria-label') // the name is the visible text
+    expect(out).not.toContain('title=')
+  })
+
+  it('no screen has the solid round "+" any more: the account circle is the quiet one and the pill is the one filled thing at the top', () => {
+    for (const f of views) expect(read(f), f).not.toContain('tone="primary"')
   })
 
   it('deleting a point is a real delete, and the confirmation says its scans stay in the history', () => {
