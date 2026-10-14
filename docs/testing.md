@@ -137,7 +137,7 @@ breaking those rules; they are heuristics, not a replacement for reading the dif
 about the size budget (`npm run size`, `scripts/check-bundle-size.json`) are in [`AGENTS.md`](../AGENTS.md), "Testing".
 
 The unit tests and each E2E project run in parts side by side, each part a job with its own Postgres container that runs
-its share of the tests: `unit` in 2 parts (`ci.yml`, `--shard`), Chromium in 3 and WebKit in 4 (`.github/workflows/e2e.yml`,
+its share of the tests: `unit` in 2 parts (`ci.yml`), Chromium in 3 and WebKit in 4 (`.github/workflows/e2e.yml`,
 called by `ci.yml`). Each required check (`unit`, `e2e (android-chrome)`, `e2e (iphone-webkit)`) is a small job that
 passes only when every one of its parts passed. A failed part shows as `unit part <n>` or `e2e (<project>) part <n>`; the
 HTML report and the traces of a failed E2E part are the artifact `playwright-<project>-part-<n>`. To run one part on your
@@ -155,6 +155,13 @@ only decide which files share a part, so a small change needs no update. Every p
 part is clearly the longest), take the timings of a green run of `master` and write the weights of each project:
 `gh run download <run id> --pattern "timings-iphone-webkit-*" --dir timings-webkit`, then
 `node e2e/parts.js --weights --project=iphone-webkit --report=timings-webkit`, and the same for `android-chrome`.
+
+The unit tests are split the same way, through a Vitest sequencer (`tests/time-sequencer.js`, set in `vitest.config.js`):
+`--shard` hands it every test file, and each part keeps its share by the weights of the project `unit` in
+`e2e/part-weights.json` (a file under `tests/` by its path, `tests/<file>`). `npx vitest run --shard=1/2` runs the same
+part on your machine. Their timings are the artifacts `timings-unit-part-<n>` (Vitest's JSON report), and their weights
+are written the same way: `gh run download <run id> --pattern "timings-unit-*" --dir timings-unit`, then
+`node e2e/parts.js --weights --project=unit --report=timings-unit`.
 
 On CI, Playwright retries a failed test once and then fails the run anyway (`failOnFlakyTests` in `playwright.config.js`).
 The retry only tells the two cases apart in the report: a test that failed twice is broken, and a test that passed on its

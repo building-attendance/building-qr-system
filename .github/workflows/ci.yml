@@ -162,8 +162,8 @@ jobs:
           fi
 
   # The unit tests in parts side by side, each part a job with its own Postgres container that runs its share of the test
-  # files (Vitest --shard: 54 and 53 of 107 files). The required check `unit` is the small job after them, which passes only
-  # when every part passed, like the e2e checks below.
+  # files (Vitest --shard, split by the seconds of each file, not by their count: tests/time-sequencer.js). The required
+  # check `unit` is the small job after them, which passes only when every part passed, like the e2e checks below.
   unit-parts:
     name: unit part ${{ matrix.part }}
     runs-on: ubuntu-latest
@@ -201,11 +201,21 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
+      # --shard splits the test files by how long each takes (tests/time-sequencer.js, the weights of "unit" in
+      # e2e/part-weights.json), and the JSON report keeps this part's timings for the next weights.
       - name: Run this part of the tests
         env:
           PART: ${{ matrix.part }}
           PARTS: ${{ strategy.job-total }}
-        run: npx vitest run --shard="$PART/$PARTS" --reporter=default --reporter=github-actions
+        run: npx vitest run --shard="$PART/$PARTS" --reporter=default --reporter=github-actions --reporter=json --outputFile.json=vitest-timings.json
+      - name: Keep the timings of this part
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: timings-unit-part-${{ matrix.part }}
+          path: vitest-timings.json
+          retention-days: 7
+          if-no-files-found: ignore
 
   unit:
     name: unit
