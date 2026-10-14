@@ -9,7 +9,7 @@
 // One exception, with its conditions (AGENTS.md, owner decision of 12/10/2026): the column heads of a table of consecutive days may write
 // each day as DD/MM (`formatDayShort`), only when the table shows its whole range in DD/MM/YYYY right above it and each head carries its
 // full date for a screen reader. Anywhere else a day keeps its year. tests/dates.test.js pins that `formatDayShort` is used by the Home
-// screen's week table and nowhere else.
+// screen's day bars and nowhere else.
 
 // The building's time zone is written once, in shared/contract.js (the server stores `scans.local_date` in the same zone).
 // It is re-exported here so that the code that imports it from this file keeps working.
@@ -95,7 +95,7 @@ export function formatDay(ymd) {
  * '2026-10-01' as '01/10': the day and the month, '-' when it is not a real day.
  *
  * ONLY for the column heads of a table of consecutive days, and only when the table shows its whole range in DD/MM/YYYY right above it
- * (its caption) and every head carries its full date (`formatDay`) for a screen reader: the exception that the owner decided on 12/10/2026
+ * (in the header of its card, which names the table) and every head carries its full date (`formatDay`) for a screen reader: the exception that the owner decided on 12/10/2026
  * (AGENTS.md, Rules for every change). A day anywhere else is written by `formatDay`, with its year. tests/dates.test.js fails when another
  * file uses this function.
  */

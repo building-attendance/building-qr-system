@@ -5,6 +5,9 @@ import fs from 'node:fs'
 import { CHROME_COLORS } from '../src/ui/theme.js'
 
 const css = fs.readFileSync(new URL('../src/ui/ui.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+// The opacity of the bars of the Home summary card, as src/admin/admin.css writes it.
+const adminCss = fs.readFileSync(new URL('../src/admin/admin.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+const barOpacity = Number(/\.a-bar__fill \{[^}]*\bopacity: ([\d.]+)/.exec(adminCss)?.[1])
 
 const block = (selectorStart) => {
   const at = css.indexOf(selectorStart)
@@ -47,6 +50,12 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
   check('--w-on-primary on primary (hover)', c('--w-on-primary'), c('--w-primary-hover'), 4.5)
   // The summary card of the Home screen (--w-hero) and the text on it.
   check('--w-on-hero on hero', c('--w-on-hero'), c('--w-hero'), 4.5)
+  // The bars of that card (.a-bar__fill in src/admin/admin.css) are --w-on-hero at the opacity that the stylesheet gives them (read from it, so
+  // that the number cannot drift): a graphic that shows the numbers beside it, held to 3:1 against the card all the same (V2). The focus
+  // ring on the card is --w-on-hero (the pair above): --w-focus on --w-hero is 1:1 in the light theme.
+  check('the bars of the summary card over hero', over({ ...c('--w-on-hero'), a: barOpacity }, c('--w-hero')), c('--w-hero'), 3)
+  // The filled dot of a provider's row on the Home screen (--w-primary) on the card it stands on; its empty ring is --w-field-border (below).
+  check('--w-primary on surface (the filled dot of a provider)', c('--w-primary'), c('--w-surface'), 3)
   // The three steps on the provider's home card (.w-step in src/ui/ui.css): pale pills drawn over the card, and the text on them.
   const pill = parse(css.match(/\.w-step \{[^}]*?background: (rgba\([^)]*\));/)[1])
   check('--w-on-hero on a step pill over the hero card', c('--w-on-hero'), over(pill, c('--w-hero')), 4.5)
@@ -81,7 +90,8 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
     }
   }
 
-  // The four steps of the count cells of the Home table (--w-count-1 to 4, used by .a-count in src/admin/admin.css): a tint of violet
+  // The four steps of the count cells of the Home table (--w-count-1 to 4; no screen draws them since Home became the summary card, and
+  // they stay, with this check, until a change of their own removes both): a tint of violet
   // over the surface of the table. The number in a cell is --w-text (4.5:1), and the focus ring, which is drawn inside the cell, has to
   // stand out from the step it is on (3:1). So does the hover ring, which is --w-info: it used to be the focus colour in both themes, and
   // with the violet palette it is a deeper violet (light) or a paler one (dark), so it is checked on every step by itself.
