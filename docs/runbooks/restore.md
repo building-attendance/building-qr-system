@@ -316,10 +316,15 @@ The steps:
    project. With the Neon CLI:
 
    ```
+   neon branches create --project-id <project id> --name <check branch> --parent main --schema-only --expires-at <ISO time> --no-secrets
    neon databases create --project-id <project id> --branch <check branch> --name restore_check
    ```
 
-   The database is empty on purpose: `pg_restore` makes the tables itself.
+   The database is empty on purpose: `pg_restore` makes the tables itself. For a dump, the check branch needs none of
+   production's own data, so `--schema-only` makes it without copying any; `--expires-at` (two hours ahead, say) deletes it
+   by itself if a drill is interrupted; and `--no-secrets` matters, because `neon branches create` prints the connection
+   credentials by default. A branch is made with the roles of production: assume they have production's passwords, and
+   treat its connection string as production's.
 2. Put the connection of that database in the environment of this one terminal window. The direct connection string of the
    empty database holds the host, the role, the password and the database name. It is a secret: it goes into variables in
    memory (never into a command you type, a file in the repository, a chat, an issue or a pull request).
@@ -435,3 +440,13 @@ copy keeps its own drill log here, or removes them.
   had been made from 05/10 to 13/10, because the scheduled task started during the laptop's short standby wakes and was
   killed by its one-hour limit. The task now waits for a network and also runs after an unlock, and the owner's phone gets
   a push when the backup's healthchecks.io check goes down.
+- `14/10/2026`: the first restore of a dump of production onto a Neon branch of production. A check branch of the
+  production project (`--schema-only`, so no copy of production's data; `--expires-at` two hours ahead; `--no-secrets`),
+  an empty database `restore_check` on it, and the newest daily dump restored there with the command of step 3, the
+  connection taken into variables as step 2 writes it (nothing printed). `pg_restore` exited 0 in 46 s (the network from
+  the owner's computer; the local drill took 0.5 s); all 26 tables have the row counts of the dump's own data (150 rows in
+  all); the newest migration is the repository's (014); the copy carries the `production` marker; the six append-only
+  triggers are there, and a delete from `audit_log` and a truncate of `scans` were refused. The branch was deleted at the
+  end and only `main` was left. Found on the way: `neon branches create` prints the connection credentials unless it is
+  given `--no-secrets`, and `--schema-only` makes a check branch without production's data; step 1 above now says both.
+  The drill is repeatable with the owner's script `restore-drill-neon.sh <dump>` (kept outside the repository).
