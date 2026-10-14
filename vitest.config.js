@@ -1,4 +1,5 @@
 import { defineConfig } from 'vitest/config'
+import TimeSequencer from './tests/time-sequencer.js'
 
 export default defineConfig({
   // Component tests are written in JSX without importing React in the test file. (Oxc transforms it: Vite 8 deprecates
@@ -16,5 +17,7 @@ export default defineConfig({
     hookTimeout: 60000,
     // Integration tests share one Postgres; each file uses its own throwaway schema.
     fileParallelism: false,
+    // `--shard` (the parts of CI) splits the files by how long each takes, not by their count (tests/time-sequencer.js).
+    sequence: { sequencer: TimeSequencer },
   },
 })

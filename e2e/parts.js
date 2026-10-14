@@ -1,7 +1,8 @@
 // The parts of a Playwright project in CI (.github/workflows/e2e.yml): each part runs a share of the project's test files,
 // chosen by how long each file takes, so that the parts take about as long as each other. Playwright's own --shard splits
 // by the number of tests and keeps a file whole in the part where its first test falls, so one part used to get the three
-// slowest files and run about twice as long as the next (#218).
+// slowest files and run about twice as long as the next (#218). The unit tests use the same split through a Vitest
+// sequencer (tests/time-sequencer.js), with the weights of the project "unit".
 //
 // How a part is chosen, the same way in every part so that they agree without talking to each other:
 //   1. the project's full list of test files comes from Playwright itself (`playwright test --list`), so a file that
@@ -85,6 +86,30 @@ export function filesOfReport(report) {
   }
   for (const suite of report?.suites ?? []) walk(suite, suite.file)
   return files
+}
+
+/**
+ * The test files of a Vitest JSON report (`--reporter=json`), relative to the repository as `tests/<file>`, each with the
+ * seconds from its start to its end. Vitest writes absolute paths, which differ between machines (a CI runner, a laptop),
+ * so the name starts at the last `/tests/` of the path.
+ * @param {any} report
+ * @returns {Map<string, number>}
+ */
+export function filesOfVitestReport(report) {
+  const files = new Map()
+  for (const result of report?.testResults ?? []) {
+    const full = String(result.name ?? '').split('\\').join('/')
+    const at = full.lastIndexOf('/tests/')
+    const name = at >= 0 ? full.slice(at + 1) : full
+    const seconds = Math.max(0, (Number(result.endTime) - Number(result.startTime)) / 1000) || 0
+    files.set(name, (files.get(name) ?? 0) + seconds)
+  }
+  return files
+}
+
+/** The files of a JSON report of either runner: Vitest's has `testResults`, Playwright's has `suites`. */
+export function filesOfAnyReport(report) {
+  return Array.isArray(report?.testResults) ? filesOfVitestReport(report) : filesOfReport(report)
 }
 
 /**
@@ -184,7 +209,7 @@ export function updateWeights({ project, report }, { weightsFile = WEIGHTS_FILE 
   if (typeof report !== 'string' || report === '') throw new Error('--report is missing')
   const seconds = new Map()
   for (const file of reportFiles(report)) {
-    for (const [name, s] of filesOfReport(JSON.parse(fs.readFileSync(file, 'utf8')))) seconds.set(name, (seconds.get(name) ?? 0) + s)
+    for (const [name, s] of filesOfAnyReport(JSON.parse(fs.readFileSync(file, 'utf8')))) seconds.set(name, (seconds.get(name) ?? 0) + s)
   }
   if (seconds.size === 0) throw new Error(`no test file in the report at ${report}`)
   const all = fs.existsSync(weightsFile) ? readWeights(weightsFile) : {}
