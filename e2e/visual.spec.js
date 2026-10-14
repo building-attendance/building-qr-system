@@ -26,7 +26,17 @@
 //   - The service worker is blocked: this spec answers the map's tiles itself (page.route), which a worker would bypass.
 //
 // The size of the images: about 150 KB at most each (`scale: 'css'`, one pixel per CSS pixel, a plain screen compresses well).
-// The thresholds are Playwright's own defaults: no pixel may differ.
+//
+// How strict the comparison is. Playwright compares a picture with its baseline by pixelmatch, pixel by pixel, in two steps:
+//   - A pixel counts as different only when its colour moved further than the per-pixel `threshold` allows (`PIXEL_THRESHOLD`
+//     below): the squared YIQ distance of the two colours against 35215 * threshold^2. The scale runs from 0 (any change counts)
+//     to about 0.97 (black against white). A pixel that pixelmatch takes for the anti-aliasing of an edge never counts, at any
+//     threshold (pixelmatch's `includeAA: false`, which Playwright keeps).
+//   - The picture fails when one pixel counts (`maxDiffPixels`, Playwright's default of 0, kept on purpose: a budget of pixels
+//     would let a small shape, a dot or an icon, change colour).
+// So no pixel may differ by more than the threshold, which is not the same as no pixel may differ. Playwright's default threshold,
+// 0.2, let a solid colour move a long way unnoticed: the amber circle of #226 went from #8A3E05 to #B4530A (0.109 on this scale)
+// and the end-to-end job passed with the old baseline, and the primary colour's move in #223 from #0B63CE to #5B4BDB is 0.171.
 import { deflateSync, crc32 } from 'node:zlib'
 import ar from '../src/i18n/ar.js'
 import {
@@ -61,6 +71,18 @@ const COMMITTEE_COMPUTER = { ...SAME, viewport: { width: 1280, height: 800 }, is
 test.describe.configure({ timeout: 120_000 })
 
 // ---- the pictures --------------------------------------------------------------------------------------------------------------
+
+/**
+ * The per-pixel threshold of every picture (the top of this file says what it measures): the owner's decision of 14/10/2026.
+ * Measured that day on 42 runs of this spec on CI runners (five CPU models), with no change to the screens, on master before and
+ * after #226 and #228. The only pixels that counted were four on the rounded corners of the two selects of the filters sheet
+ * (dark, 360 px), each one level off in one or two colour channels (0.0032 on this scale at most), in 3 of the 36 runs whose
+ * every pixel was measured; at 0 those runs fail. The edges of the other curves differed by up to eight levels, but pixelmatch
+ * took every one of those pixels for anti-aliasing. A change of one level in every channel is at most 0.0039, of two levels
+ * 0.0078. So 0.01: it lets the rendering round a pixel by two levels, and it fails on a colour that moves by three levels of
+ * grey or more (the amber of #226 is 0.109, the violet tint that #223 gave the page, #F4F5F7 to #F7F5FF, is 0.0103).
+ */
+const PIXEL_THRESHOLD = 0.01
 
 /**
  * What changes from one run to the next, as locators to mask (a pink box over each). Read from the real screens:
@@ -113,6 +135,7 @@ async function shot(page, name, { whole = true, within = page, alsoMask = [] } =
       animations: 'disabled',
       caret: 'hide',
       scale: 'css',
+      threshold: PIXEL_THRESHOLD,
     })
   } finally {
     if (whole) await page.setViewportSize(viewport)
