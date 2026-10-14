@@ -64,7 +64,7 @@ describe('the form of a new point', () => {
     expect(form.queryByText('בדיקת מיקום')).toBeNull()
     for (const mode of GPS_MODES) expect(form.queryByText(GPS_MODE_LABELS[mode]), mode).toBeNull() // no option, no hint that names a mode
     expect(form.queryByRole('combobox', { name: /מיקום/ })).toBeNull()
-    expect(form.getByRole('application', { name: 'מפה לסימון מיקום הנקודה' })).toBeTruthy()
+    expect(await form.findByRole('application', { name: 'מפה לסימון מיקום הנקודה' })).toBeTruthy() // the map is downloaded when the form first opens
     for (const label of ['קו רוחב', 'קו אורך', 'רדיוס (מטרים)']) expect(form.getByLabelText(label), label).toBeTruthy()
     expect(form.getByLabelText('רדיוס (מטרים)').value).toBe(String(POINT_RADIUS_DEFAULT_M))
     expect(form.queryByText(OLD_MODE_NOTE), 'a new point has no old mode to move away from').toBeNull()
@@ -111,7 +111,7 @@ describe('the form of a new point', () => {
     await show([])
     fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
     fireEvent.change(within(dialog()).getByLabelText('שם הנקודה'), { target: { value: 'חדר מדרגות' } })
-    fireEvent.click(within(dialog()).getByRole('button', { name: 'סימון במפה' }))
+    fireEvent.click(await within(dialog()).findByRole('button', { name: 'סימון במפה' }))
     expect(within(dialog()).getByLabelText('קו רוחב').value).toBe('32.0853')
     fireEvent.click(within(dialog()).getByRole('button', { name: 'שמירה' }))
 
@@ -183,7 +183,7 @@ describe('a point that an older installation holds with another mode', () => {
     expect(await within(dialog()).findByText(NO_PIN_ERROR)).toBeTruthy()
     expect(writes()).toEqual([])
 
-    fireEvent.click(within(dialog()).getByRole('button', { name: 'סימון במפה' }))
+    fireEvent.click(await within(dialog()).findByRole('button', { name: 'סימון במפה' }))
     fireEvent.click(within(dialog()).getByRole('button', { name: 'שמירה' }))
     await waitFor(() => expect(writes()).toHaveLength(1), WAIT)
     expect(writes()[0][1].body).toMatchObject({ gps_mode: GPS_MODE_REQUIRED, lat: 32.0853, lng: 34.7818 })

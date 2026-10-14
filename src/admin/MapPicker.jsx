@@ -1,6 +1,10 @@
+// The map of the point form. Leaflet is about half of the committee app's code and only this form uses it, so this file is
+// never imported as it is: PointsView loads it with React.lazy the first time the form opens, and Vite makes it a file of
+// its own (with Leaflet, its stylesheet and the marker pictures). Importing it statically anywhere would put Leaflet back
+// into the code of every committee screen (`npm run size` measures both files).
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
-import 'leaflet/dist/leaflet.css' // bundled with the committee app only (the provider app never loads it)
+import 'leaflet/dist/leaflet.css' // comes with this file's own chunk (the provider app never loads it)
 import markerIconUrl from 'leaflet/dist/images/marker-icon.png'
 import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png'
 import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png'
@@ -8,7 +12,7 @@ import { POINT_RADIUS_DEFAULT_M } from '../../shared/contract.js'
 
 // Leaflet's default marker images do not survive bundling (it guesses their address from the stylesheet's URL), so point
 // them at the PNGs of the leaflet package: Vite bundles them (each is under 4 KB, so they are inlined as data: URLs in
-// the committee chunk). The markers work offline, the page loads nothing from cdnjs, and a Content-Security-Policy later
+// this file's chunk). The markers work offline, the page loads nothing from cdnjs, and a Content-Security-Policy later
 // needs no entry for it.
 delete L.Icon.Default.prototype._getIconUrl
 L.Icon.Default.mergeOptions({
