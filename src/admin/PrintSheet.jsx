@@ -28,7 +28,8 @@ export default function PrintSheet({ points, layout, onDone }) {
       .then((urls) => !cancelled && setImages(urls))
       .catch(() => {
         if (cancelled) return
-        toast.error('לא הצלחנו ליצור את קודי ה-QR להדפסה. נסו שוב.')
+        // Most likely the QR library did not download (src/admin/qr.js), which only a reload of the page tries again.
+        toast.error('לא הצלחנו ליצור את קודי ה-QR להדפסה. בדקו את החיבור, רעננו את הדף ונסו שוב.')
         onDone()
       })
     return () => {
