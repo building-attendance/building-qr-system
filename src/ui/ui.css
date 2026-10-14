@@ -290,7 +290,10 @@
 /* max-width: min(22em, 100%): this line holds the point name inside first-strong isolates (translate() in src/i18n/core.js), and WebKit
    sizes a centred box that holds an isolate in a right-to-left page by its longest line, not by the width that is left, even with
    overflow-wrap: anywhere. Measured on a point name of one word: the line was 418px (the 22em) in a 280px column. The cap is the column. */
-.w-result__body { color: var(--w-text-2); font-size: var(--w-font-xl); max-width: min(22em, 100%); overflow-wrap: anywhere; }
+.w-result__body { color: var(--w-text-2); font-size: var(--w-font-xl); max-width: min(22em, 100%); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+/* tabular-nums: this line holds the time of the visit, and the box is as wide as its text. Rubik's own figures are proportional ("11:11"
+   is about three quarters of the width of "00:00"), so the line, and the box that the picture tests mask over the time, would change
+   width with the time of day; its tabular figures (the font's tnum) are all one width. */
 .w-result__warning { color: var(--w-warn); font-weight: var(--w-weight-semibold); }
 .w-chip { display: inline-flex; align-items: center; gap: var(--w-space-2); padding: var(--w-space-2) var(--w-space-4); border-radius: var(--w-radius-pill); background: var(--w-surface-2); border: 1px solid var(--w-border); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
 .w-who { display: inline-flex; align-items: center; gap: var(--w-space-2); margin: 0; color: var(--w-text-2); font-size: var(--w-font-base); max-width: 100%; overflow-wrap: anywhere; }

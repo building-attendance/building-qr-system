@@ -240,7 +240,7 @@ select.a-input {
 .a-filter-sheet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--w-space-4) var(--w-space-3); align-items: start; }
 .a-filter-sheet > * { grid-column: 1 / -1; min-width: 0; }
 .a-filter-sheet > .a-filter-date { grid-column: auto; }
-.a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); }
+.a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); font-variant-numeric: tabular-nums; }
 .a-scans { list-style: none; margin: 0; padding: 0; background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); overflow: hidden; }
 .a-scan { display: grid; gap: var(--w-space-1) var(--w-space-3-5); grid-template-columns: auto 1fr auto; align-items: center; padding: var(--w-space-3) var(--w-space-4); border-block-end: 1px solid var(--w-border); }
 .a-scan:last-child { border-block-end: 0; }
