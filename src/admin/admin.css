@@ -384,11 +384,16 @@ select.a-input {
 .a-secret .a-code { flex: 1; user-select: all; }
 
 /* ----- filters + history ----- */
-.a-filters { display: grid; gap: var(--w-space-3); grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); align-items: end; padding: var(--w-space-4); background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); margin-block-end: var(--w-space-4); }
+/* A column is at least 190px: a date field and the button of its calendar beside it, with room for the whole of DD/MM/YYYY (about 99px of
+   digits at the field's size). */
+.a-filters { display: grid; gap: var(--w-space-3); grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); align-items: end; padding: var(--w-space-4); background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); margin-block-end: var(--w-space-4); }
 .a-filters > * { min-width: 0; }
 /* The date fields are text fields that always read DD/MM/YYYY (DateInput in src/admin/ui.jsx): the digits run left to
-   right whatever the page direction, and sit at the end of the field like the labels. They shrink to fit their column. */
+   right whatever the page direction, and sit at the end of the field like the labels. They shrink to fit their column.
+   Each has the button of its calendar beside it, at its end (src/admin/DatePicker.jsx). */
 .a-input--date { min-width: 0; direction: ltr; text-align: end; }
+.a-date { display: flex; align-items: center; gap: var(--w-space-2); min-width: 0; }
+.a-date .a-input--date { flex: 1; }
 /* On a phone (below 1024px) the block above is not drawn: a bar stands in its place and the controls are in a sheet (src/admin/filters.jsx).
    The bar is the button, the dates that are applied, and a chip for every other filter that is on, each a button that removes it. */
 .a-filterbar { display: flex; flex-direction: column; gap: var(--w-space-2-5); margin-block-end: var(--w-space-3); }
@@ -408,10 +413,9 @@ select.a-input {
 .a-chip > span { min-width: 0; overflow-wrap: anywhere; }
 .a-chip svg { flex: none; }
 @media (hover: hover) { .a-chip:hover { box-shadow: inset 0 0 0 2px var(--w-info-line); } }
-/* The sheet: the two dates side by side, every other control the whole width. */
-.a-filter-sheet { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--w-space-4) var(--w-space-3); align-items: start; }
-.a-filter-sheet > * { grid-column: 1 / -1; min-width: 0; }
-.a-filter-sheet > .a-filter-date { grid-column: auto; }
+/* The sheet: one control under the other, each the whole width (a date field and its calendar button need more than half of a 320px phone). */
+.a-filter-sheet { display: grid; gap: var(--w-space-4); align-items: start; }
+.a-filter-sheet > * { min-width: 0; }
 .a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); padding-inline: var(--w-space-1); font-variant-numeric: tabular-nums; }
 /* The rows of one day (the History and the audit log) sit in one soft card, as the tiles do: a shadow and no edge, the rows inset in it and
    rounded (the card's own radius less its padding). A row of the History: the time in a pill at its start, the text, and the "more" button at
@@ -497,11 +501,54 @@ select.a-input {
   .a-modal--sheet::before { visibility: visible; }
 }
 .a-modal--sheet .a-modal__body:last-child { padding-block-end: calc(var(--w-space-5) + env(safe-area-inset-bottom)); }
+/* The date picker (`size="popover"` of Modal, src/admin/DatePicker.jsx). On a phone a sheet, as every dialog, with a narrow body at the sides:
+   seven days of 44px take 308px, which a 320px phone has only without the usual 20px. From 640px a box beside its field (placed by Modal),
+   with no dimmed page behind it and an edge as the menu has, its title smaller. */
+.a-modal--popover .a-modal__body { padding-inline: var(--w-space-1-5); padding-block-end: calc(var(--w-space-4) + env(safe-area-inset-bottom)); }
+@media (min-width: 640px) {
+  .a-overlay--popover { background: none; padding: 0; }
+  .a-modal--popover { position: fixed; width: auto; max-height: calc(100vh - 4 * var(--w-space-2)); border: 1px solid var(--w-border); border-radius: var(--w-radius-3xl); }
+  .a-modal--popover::before { display: none; }
+  .a-modal--popover .a-modal__head { padding-block-start: var(--w-space-2); padding-inline-start: var(--w-space-4); }
+  .a-modal--popover .a-modal__head h2 { font-size: var(--w-font-lg); }
+  .a-modal--popover .a-modal__body { padding: 0 var(--w-space-3) var(--w-space-3); }
+}
+
+/* ----- the month grid of the date picker (src/admin/DatePicker.jsx) ----- */
+/* The month between its two arrows; the initials of the days over seven columns; a day is a 44px circle. The chosen dates are filled with the
+   primary colour, the days between them stand on a band of the violet tint, today has a ring, and a day that cannot be chosen (after today) is
+   the quieter text colour. Every pair is held to AA in both themes by tests/contrast.test.js. */
+.a-cal { display: flex; flex-direction: column; gap: var(--w-space-2); }
+.a-cal__head { display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-2); }
+.a-cal__head, .a-cal__quick { padding-inline: var(--w-space-2); } /* the grid alone takes the whole width of a narrow sheet */
+.a-cal__month { font-size: var(--w-font-xl); font-weight: var(--w-weight-bold); } /* MM/YYYY: digits round a slash keep their order in Hebrew */
+.a-cal__nav[aria-disabled='true'] { color: var(--w-text-3); background: none; cursor: not-allowed; }
+[dir='ltr'] .a-cal__nav--back svg { transform: scaleX(-1); } /* back points to the start of the line: right in Hebrew, left in English */
+.a-cal__grid { width: 100%; border-collapse: collapse; }
+.a-cal__grid th { padding-block-end: var(--w-space-1); color: var(--w-text-2); font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); }
+.a-cal__grid td { position: relative; height: 44px; padding: 0; text-align: center; } /* an empty week keeps its height too */
+.a-cal__grid td.is-in::before { content: ''; position: absolute; inset: var(--w-space-0-5) 0; background: var(--w-tint-violet); }
+.a-cal__grid td.is-start::before { inset-inline-start: 50%; }
+.a-cal__grid td.is-end::before { inset-inline-end: 50%; }
+.a-cal__day {
+  position: relative; width: 44px; height: 44px; border: 0; border-radius: 50%; background: none; color: var(--w-text);
+  font-size: var(--w-font-base); font-variant-numeric: tabular-nums; cursor: pointer;
+}
+@media (hover: hover) { .a-cal__day:hover { background: var(--w-surface-2); } }
+.a-cal__day[aria-current='date'] { box-shadow: inset 0 0 0 2px var(--w-primary); font-weight: var(--w-weight-bold); }
+.a-cal__day.is-chosen { background: var(--w-primary); color: var(--w-on-primary); font-weight: var(--w-weight-semibold); }
+.a-cal__day[aria-disabled='true'] { background: none; color: var(--w-text-3); cursor: not-allowed; }
+.a-cal__day:focus-visible { z-index: 1; } /* the ring stands over the neighbouring days */
+.a-cal__quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--w-space-1-5); padding-block-start: var(--w-space-3); border-block-start: 1px solid var(--w-border); }
+.a-cal__quick .a-cal__range { padding-inline: var(--w-space-1); }
 
 /* ----- the "more" menu (src/admin/ui.jsx Menu) ----- */
-/* Its button: a round 44px target with three dots on the background colour, violet while hovered and while its menu is open. */
-.a-menu-btn { width: 44px; height: 44px; display: grid; place-items: center; flex: none; border: 0; border-radius: 50%; background: var(--w-bg); color: var(--w-text); cursor: pointer; }
-@media (hover: hover) { .a-menu-btn:hover { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); } }
+/* Its button: a round 44px target with three dots on the background colour, violet while hovered and while its menu is open. The button of a
+   date field's calendar and the arrows of the month grid are the same round button. */
+.a-menu-btn, .a-date__btn, .a-cal__nav { width: 44px; height: 44px; display: grid; place-items: center; flex: none; border: 0; border-radius: 50%; background: var(--w-bg); color: var(--w-text); cursor: pointer; }
+@media (hover: hover) {
+  .a-menu-btn:hover, .a-date__btn:hover, .a-cal__nav:not([aria-disabled='true']):hover { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); }
+}
 .a-menu-btn[aria-expanded='true'] { background: var(--w-tint-violet); color: var(--w-tint-violet-ink); box-shadow: 0 0 0 3px var(--w-focus-ring); }
 /* The menu, placed by Menu under or over its button (its position is fixed, so no box that clips can cut it). An edge as well as the
    shadow: in the dark theme the menu and the card under it are the same surface, and a shadow hardly shows on a dark page. Its width

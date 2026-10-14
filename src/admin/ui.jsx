@@ -91,6 +91,33 @@ export function DateInput({ value, onChange, onPendingChange, 'aria-invalid': in
 
 const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea:not([disabled]),[tabindex]:not([tabindex="-1"])'
 
+const POPOVER_EDGE = 8 // px that a popover keeps from the edges of the screen, as the menu does (MENU_EDGE)
+const POPOVER_GAP = 4 // px between the field and its popover, as between a button and its menu (MENU_GAP)
+// From this width a dialog is no longer a sheet from the bottom (admin.css, the rules of .a-modal), and a popover stands beside its field.
+const POPOVER_QUERY = '(min-width: 640px)'
+
+/**
+ * Puts a popover (`box`, a fixed dialog) beside the element that it belongs to (`anchor`): under it with its start at the start of the
+ * anchor, over it when there is no room under it, and always inside the screen, even when that means covering a part of the anchor (a
+ * low window). Below 640 px it stands nowhere in particular: it is a sheet from the bottom, as every dialog is there (the CSS of
+ * .a-modal--popover is fixed only from 640 px, so the place written here does nothing below it).
+ */
+function placePopover(box, anchor) {
+  if (!anchor || !window.matchMedia?.(POPOVER_QUERY)?.matches) {
+    box.style.left = ''
+    box.style.top = ''
+    return
+  }
+  const at = anchor.getBoundingClientRect()
+  const { width, height } = box.getBoundingClientRect()
+  const start = getComputedStyle(anchor).direction === 'rtl' ? at.right - width : at.left
+  const below = at.bottom + POPOVER_GAP
+  const above = at.top - POPOVER_GAP - height
+  const top = below + height <= window.innerHeight - POPOVER_EDGE || above < POPOVER_EDGE ? below : above
+  box.style.left = `${Math.max(POPOVER_EDGE, Math.min(start, document.documentElement.clientWidth - POPOVER_EDGE - width))}px`
+  box.style.top = `${Math.max(POPOVER_EDGE, Math.min(top, window.innerHeight - POPOVER_EDGE - height))}px`
+}
+
 // Open dialogs, oldest first. Only the top one reacts to the keyboard, so Esc on a confirmation that sits on top
 // of another dialog closes just the confirmation.
 const modalStack = []
@@ -136,10 +163,16 @@ export function useDirty(value) {
  * form as it was typed when it fails; a dialog that closed meanwhile would lose the answer (the key that is shown only
  * once) or let the change be saved after the person was told it was discarded.
  *
+ * `size="popover"` is a dialog that belongs to one field (the date picker, src/admin/DatePicker.jsx): a sheet like every dialog on a
+ * phone, and from 640 px a small box beside the element that `anchor()` gives (`placePopover`), with no dimmed page behind it. It is
+ * still modal: a click outside it closes it, as a tap outside a sheet does.
+ *
  * `question` is the words of that question when "save" is not what the dialog does: `{ title, body, confirmLabel, cancelLabel }`, each
  * part optional (the filters of a long list are shown, not saved). `initialFocus` is where the focus goes when the dialog opens: 'field'
  * (the default) is its first field, 'dialog' is the dialog itself, for a dialog whose first field is a text field that would bring up
- * the keyboard of a phone over it at once.
+ * the keyboard of a phone over it at once, and a function of the dialog's element gives the element itself (the day of the date picker).
+ * Tab and Shift+Tab go round the elements of the dialog that are in the tab order (a grid that moves its own focus with the arrows has
+ * one there).
  *
  * When it closes, the focus goes back to the element that had it when the dialog opened (the opener). That element can be gone by then (the
  * screen drew another layout meanwhile), or there can have been none (Safari does not focus a button that is tapped, so the page's body
@@ -148,13 +181,15 @@ export function useDirty(value) {
  * dialog whose opener is gone puts the focus on the page's `main` (the shell's own target when a screen changes), but only while nothing else
  * has taken it: two dialogs that close together, one of them opened from the other, must not fight over it.
  */
-export function Modal({ title, onClose, dirty = false, busy = false, question, initialFocus = 'field', returnFocus, children, footer, size = 'md' }) {
+export function Modal({ title, onClose, dirty = false, busy = false, question, initialFocus = 'field', returnFocus, anchor, children, footer, size = 'md' }) {
   const ref = useRef(null)
   const titleId = useId()
   const closeRef = useRef(onClose)
   closeRef.current = onClose
   const returnFocusRef = useRef(returnFocus)
   returnFocusRef.current = returnFocus
+  const anchorRef = useRef(anchor)
+  anchorRef.current = anchor
   const dirtyRef = useRef(dirty)
   dirtyRef.current = dirty
   const busyRef = useRef(busy)
@@ -168,16 +203,34 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
     else closeRef.current()
   }
 
+  // A popover stands beside its anchor before it is first painted, and again when the window or a box of the page moves under it (a fixed
+  // box does not move with the page). The effect below places it once more after it has locked the page's scroll, which can widen the page.
+  const placeRef = useRef(null)
+  useLayoutEffect(() => {
+    if (!anchorRef.current) return undefined
+    const place = () => placePopover(ref.current, anchorRef.current?.())
+    placeRef.current = place
+    place()
+    window.addEventListener('resize', place)
+    window.addEventListener('scroll', place, true) // true: the scroll of a box inside the page moves the anchor too
+    return () => {
+      window.removeEventListener('resize', place)
+      window.removeEventListener('scroll', place, true)
+    }
+  }, [])
+
   useEffect(() => {
     const me = Symbol('modal')
     if (!modalStack.length) bodyOverflow = document.body.style.overflow
     modalStack.push(me)
     const opener = document.activeElement
     document.body.style.overflow = 'hidden'
+    placeRef.current?.()
     const el = ref.current
-    const items = () => [...el.querySelectorAll(FOCUSABLE)]
-    // Prefer the first form field over the close button, unless the dialog asks to start on itself.
-    ;(initialFocus === 'dialog' ? el : el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el).focus()
+    const items = () => [...el.querySelectorAll(FOCUSABLE)].filter((item) => item.tabIndex >= 0) // what Tab reaches
+    // Prefer the first form field over the close button, unless the dialog asks to start on itself or names where to start.
+    const first = typeof initialFocus === 'function' ? initialFocus(el) : null
+    ;(first ?? (initialFocus === 'dialog' ? el : el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el)).focus()
 
     const onKey = (e) => {
       if (modalStack[modalStack.length - 1] !== me) return
@@ -226,7 +279,7 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
   return (
     <>
       {createPortal(
-        <div className={`a-overlay${size === 'sheet' ? ' a-overlay--sheet' : ''}`} onMouseDown={onOverlayMouseDown}>
+        <div className={`a-overlay${size === 'sheet' || size === 'popover' ? ` a-overlay--${size}` : ''}`} onMouseDown={onOverlayMouseDown}>
           <div className={`a-modal a-modal--${size}`} role="dialog" aria-modal="true" aria-labelledby={titleId} ref={ref} tabIndex={-1} inert={asking}>
             {/* Plain <div>s, not <header> and <footer>: inside a role="dialog" (which is not sectioning content) those two
                 become the page's banner and contentinfo landmarks, a second banner next to the top bar of the phone layout. */}

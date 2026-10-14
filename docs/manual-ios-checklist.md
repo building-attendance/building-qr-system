@@ -64,9 +64,12 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
     with that many rows, and Back returns to Home. More ("עוד") opens a sheet
     from the bottom with the other four screens, its last row clear of the home indicator; after choosing one,
     VoiceOver (or an external keyboard) is on the new screen, not lost. On History, Filter ("סינון") opens
-    the filters sheet: its two date fields sit side by side without overlapping, the keyboard does not come up by itself,
-    Show results ("הצגת תוצאות") is fully visible above the home indicator, and after it the chips above the list say
-    what is filtered. The point tiles show an edit button and a "more" button (QR, switch off and delete are in its menu), and nothing scrolls sideways.
+    the filters sheet: its two date fields stand one under the other, each with its calendar button beside it, the keyboard
+    does not come up by itself, Show results ("הצגת תוצאות") is fully visible above the home indicator, and after it the
+    chips above the list say what is filtered. A calendar button opens a second sheet from the bottom with the month
+    (MM/YYYY), the seven day initials and the quick ranges, the last of them clear of the home indicator; a tap on a day
+    or a quick range closes it and fills the field (or both fields) as DD/MM/YYYY, and VoiceOver reads each day as its
+    full DD/MM/YYYY. The point tiles show an edit button and a "more" button (QR, switch off and delete are in its menu), and nothing scrolls sideways.
 
 ## Updates
 

@@ -500,6 +500,34 @@ function committeeFilters(width) {
 }
 
 /**
+ * The date picker, open (owner decision of 14/10/2026): the calendar of "מתאריך" of the History tab, over the sheet of filters at 360 px (a
+ * sheet from the bottom, as every dialog on a phone) and beside its field at 1280 px (a popover). The clock is fixed at HOME_NOW (12/10/2026),
+ * so the month of the grid, today and the default week (the band from 06/10 to 12/10) are the same in every run, and the visits behind it are
+ * the fixed list of `stubHistory`. Nothing in the picture changes with the real date, so only what is inside the picker is looked at for a
+ * mask (a box over what it covers would be drawn on the picture): the grid has no text that a mask would take.
+ */
+function committeeDatePicker(width) {
+  test('the date picker, open', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(HOME_NOW))
+    await stubHistory(page)
+    await committeeSignedIn(page) // the history
+    await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
+    let scope = page
+    if (width === '360') {
+      await page.getByRole('button', { name: /^סינון/ }).click()
+      scope = page.getByRole('dialog', { name: 'סינון', exact: true })
+      await expect(scope).toBeVisible()
+    }
+    await scope.getByRole('button', { name: 'לוח שנה: תאריך התחלה' }).click()
+    const picker = page.getByRole('dialog', { name: 'תאריך התחלה', exact: true })
+    await expect(picker.getByRole('button', { name: '06/10/2026', exact: true })).toBeFocused() // the chosen day, the start of the default week
+    await expect(picker.getByRole('heading', { level: 3 })).toHaveText('10/2026')
+    await page.mouse.move(0, 0) // the pointer is where the button was clicked: its hover look is not what the picture is for
+    await shotBothThemes(page, `committee-${width}-date-picker`, { whole: false, within: picker })
+  })
+}
+
+/**
  * The sheet that the fourth button of the tab bar opens, over the help (which it marks as the current screen; the help is text only, so
  * no mask lands on the sheet). It exists where the tab bar does, below 1024 px: at 360 px, and at 768 px, where it stays at the bottom
  * of the screen, 480 px wide.
@@ -576,6 +604,7 @@ test.describe('committee app', () => {
     test.use(COMMITTEE_PHONE)
     committeeScreens('360')
     committeeFilters('360')
+    committeeDatePicker('360')
     committeeSheet('360')
     committeeAccountMenu('360')
     committeePhoto('360')
@@ -584,6 +613,7 @@ test.describe('committee app', () => {
   test.describe('at 1280 px', () => {
     test.use(COMMITTEE_COMPUTER)
     committeeScreens('1280')
+    committeeDatePicker('1280')
     committeeAccountMenu('1280')
     committeePhoto('1280')
   })

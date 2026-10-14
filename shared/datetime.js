@@ -1,6 +1,6 @@
 // The one place that writes a date or a time for a person: DD/MM/YYYY and HH:MM (24 hours), in the building's time
-// zone. The same on every phone and every computer: never the device's own region or language, and never a month name
-// or a weekday. Anything shown on a screen or written into a file for people goes through here, in the browser and on
+// zone. The same on every phone and every computer: never the device's own region or language, never a month name, and
+// no weekday but the initials of the date picker (below). Anything shown on a screen or written into a file for people goes through here, in the browser and on
 // the server (the committee's CSV). tests/dates.test.js fails if another way of writing a date turns up in the code.
 //
 // What is NOT for people keeps its machine format on purpose: the API and the agent read ISO dates (2026-10-01,
@@ -10,6 +10,11 @@
 // each day as DD/MM (`formatDayShort`), only when the table shows its whole range in DD/MM/YYYY right above it and each head carries its
 // full date for a screen reader. Anywhere else a day keeps its year. tests/dates.test.js pins that `formatDayShort` is used by the Home
 // screen's day bars and nowhere else.
+//
+// A second exception (AGENTS.md, owner decision of 14/10/2026): the app's own date picker (src/admin/DatePicker.jsx) heads the columns of its
+// month grid with the one-letter initials of the days of the week, titles the month as MM/YYYY and shows each day as its number. The three
+// functions that write them are below `formatDayShort`, and tests/dates.test.js pins that the picker is the one file that uses them, where
+// every day of the grid is a button named by its full DD/MM/YYYY and the chosen date shows in its field as DD/MM/YYYY.
 
 // The building's time zone is written once, in shared/contract.js (the server stores `scans.local_date` in the same zone).
 // It is re-exported here so that the code that imports it from this file keeps working.
@@ -102,6 +107,32 @@ export function formatDay(ymd) {
 export function formatDayShort(ymd) {
   const full = formatDay(ymd)
   return full === '-' ? full : full.slice(0, 5)
+}
+
+// The three writers of the month grid of the app's own date picker (the second exception in the header of this file). ONLY for that grid,
+// whose every day is a button named by its full date (`formatDay`) and whose chosen date shows in its field as DD/MM/YYYY.
+// tests/dates.test.js fails when another file uses one of them.
+
+/** '2026-10-14' (any day of the month) as '10/2026', the title of the month grid; '-' when it is not a real day. */
+export function formatMonth(ymd) {
+  const full = formatDay(ymd)
+  return full === '-' ? full : full.slice(3)
+}
+
+/** '2026-10-05' as '5', a day of the month grid; '-' when it is not a real day. Its button is named by its full date. */
+export function formatDayNumber(ymd) {
+  const full = formatDay(ymd)
+  return full === '-' ? full : String(Number(full.slice(0, 2)))
+}
+
+// The heads of the seven columns, Sunday first as the week runs in Israel: the first letter of each day's Hebrew name (alef, bet, gimel,
+// dalet, he, vav, shin). Written as escapes because the code of the repository is in English (AGENTS.md); the letters are what the
+// committee app shows.
+const DAY_INITIALS = Object.freeze(['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'])
+
+/** The one-letter initials of the days of the week, Sunday first: the column heads of the month grid. */
+export function dayInitials() {
+  return [...DAY_INITIALS]
 }
 
 /**

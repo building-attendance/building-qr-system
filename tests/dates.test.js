@@ -9,6 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import {
   formatDate, formatTime, formatDateTime, formatDateTimeUtc, formatDay, formatDayShort, buildingHour, isoDay, parseDay, maskDay, editDay,
+  formatMonth, formatDayNumber, dayInitials,
 } from '../shared/datetime.js'
 import { findDateProblems } from '../scripts/text-rules.mjs'
 
@@ -159,6 +160,26 @@ describe('a calendar day', () => {
     for (const bad of ['', '1 Oct 2026', '2026-02-30', '2027-02-29', '2026-13-01', '01/10/2026', null, undefined]) {
       expect(formatDayShort(bad), String(bad)).toBe('-')
     }
+  })
+
+  it('is written for the month grid of the date picker: the month as MM/YYYY, a day as its number, "-" for what is not a real day', () => {
+    expect(formatMonth('2026-10-14')).toBe('10/2026')
+    expect(formatMonth('2026-01-01')).toBe('01/2026')
+    expect(formatMonth('2028-02-29')).toBe('02/2028') // a leap year
+    expect(formatDayNumber('2026-10-05')).toBe('5')
+    expect(formatDayNumber('2026-10-25')).toBe('25')
+    expect(formatDayNumber('2026-10-31')).toBe('31')
+    for (const bad of ['', '1 Oct 2026', '2026-02-30', '2027-02-29', '2026-13-01', '01/10/2026', null, undefined]) {
+      expect(formatMonth(bad), String(bad)).toBe('-')
+      expect(formatDayNumber(bad), String(bad)).toBe('-')
+    }
+  })
+
+  it('heads the seven columns of the month grid with the initials of the days, Sunday first, the week of Israel', () => {
+    expect(dayInitials()).toEqual(['א', 'ב', 'ג', 'ד', 'ה', 'ו', 'ש'])
+    const mine = dayInitials()
+    mine[0] = 'x'
+    expect(dayInitials()[0], 'each call gives a list of its own').toBe('א')
   })
 
   it('is read back from what a person types, only when it is a real date', () => {
@@ -333,14 +354,61 @@ describe('no other way of writing a date in the code', () => {
   it('the committee screens write dates through the shared module', () => {
     const history = fs.readFileSync(path.join(root, 'src/admin/views/HistoryView.jsx'), 'utf8')
     expect(history).toContain("from '../../../shared/datetime.js'")
-    // The two date fields are the app's own DateInput (never the browser's date field), drawn by `DateRangeFields`, which the History
-    // tab and the audit log share (src/admin/filters.jsx); the History tab hands it its own filters.
+    // The two date fields are the app's own date picker (never the browser's date field), drawn by `DateRangeFields`, which the History
+    // tab and the audit log share (src/admin/filters.jsx); the History tab hands it its own filters. The picker's field is DateInput.
     expect(history).toMatch(/<DateRangeFields from=\{values\.from\} to=\{values\.to\}/)
     const filters = fs.readFileSync(path.join(root, 'src/admin/filters.jsx'), 'utf8')
     expect(filters).toContain("from '../../shared/datetime.js'")
-    expect(filters).toMatch(/<DateInput value=\{from\}/)
-    expect(filters).toMatch(/<DateInput value=\{to\}/)
+    expect(filters).toMatch(/<DatePicker\b[^\n]*\bvalue=\{from\}/)
+    expect(filters).toMatch(/<DatePicker\b[^\n]*\bvalue=\{to\}/)
+    expect(fs.readFileSync(path.join(root, PICKER), 'utf8')).toMatch(/<DateInput\b[^\n]*\bvalue=\{value\}/)
     const hooks = fs.readFileSync(path.join(root, 'src/admin/hooks.js'), 'utf8')
     expect(hooks).toContain("export { formatDateTime } from '../../shared/datetime.js'")
   })
+
+  // The second place where a day is written without its year, and the one place for a weekday: the month grid of the app's own date picker
+  // (AGENTS.md, owner decision of 14/10/2026; the header of shared/datetime.js). Its three writers (the month as MM/YYYY, a day as its
+  // number, the initials of the days) are used by the picker and by nothing else, and the picker has the two conditions in its source: each
+  // day is a button named by its full DD/MM/YYYY, and the chosen date goes into its field, DateInput, which writes DD/MM/YYYY
+  // (tests/components/date-picker.test.jsx proves both on the screen).
+  it('the writers of the month grid (MM/YYYY, a day as its number, the initials of the days) are used by the date picker only', () => {
+    expect(usersOfPickerWriters(files, readSource), 'the files that use formatMonth, formatDayNumber or dayInitials').toEqual([PICKER])
+    const picker = readSource(PICKER)
+    for (const name of PICKER_WRITERS) expect(picker.match(new RegExp(`\\b${name}\\(`, 'g')), `${name} is called once`).toHaveLength(1)
+    // a day: a button named by its full date (formatDay), showing its number and nothing else
+    const shown = picker.indexOf('{formatDayNumber(day)}')
+    const button = picker.slice(picker.lastIndexOf('<button', shown), shown)
+    expect(button, 'the day is a button').toMatch(/^<button\b[\s\S]*\btype="button"/)
+    expect(button, 'named by its full DD/MM/YYYY').toMatch(/\baria-label=\{formatDay\(day\)\}/)
+    expect(picker.slice(shown), 'its number is all that the button shows').toMatch(/^\{formatDayNumber\(day\)\}\s*<\/button>/)
+    // the title of the grid is the month of the day that has the focus, and the heads of the columns are the initials
+    expect(picker).toMatch(/aria-live="polite">\{formatMonth\(focused\)\}<\/h3>/)
+    expect(picker).toMatch(/\{dayInitials\(\)\.map\(\(initial, i\) => <th key=\{i\} scope="col">\{initial\}<\/th>\)\}/)
+    // the chosen date goes into the field, which shows it as DD/MM/YYYY
+    expect(picker).toMatch(/<DateInput\b/)
+    expect(readSource('src/admin/ui.jsx')).toMatch(/useState\(\(\) => \(value \? formatDay\(value\) : ''\)\)/)
+  })
+
+  // The check above reads every file of src/, server/ and shared/, so it is checked by itself first: a call of any of the three writers planted
+  // in another file, in the browser's code, the server's or the shared code, is found.
+  it('the check finds a writer of the month grid called anywhere but the picker', () => {
+    expect(usersOfPickerWriters(files, readSource)).toEqual([PICKER])
+    for (const name of PICKER_WRITERS) {
+      for (const victim of ['src/admin/views/HistoryView.jsx', 'src/admin/filters.jsx', 'server/scans.js', 'shared/contract.js']) {
+        const planted = (file) => (file === victim ? `${readSource(file)}\nexport const planted = ${name}('2026-10-14')\n` : readSource(file))
+        expect(usersOfPickerWriters(files, planted), `${name} in ${victim}`).toEqual([PICKER, victim].sort())
+      }
+    }
+  })
 })
+
+// ---- the writers of the date picker's month grid, and who uses them -------------------------------------------------------------
+
+const PICKER = 'src/admin/DatePicker.jsx'
+const PICKER_WRITERS = ['formatMonth', 'formatDayNumber', 'dayInitials']
+const readSource = (file) => fs.readFileSync(path.join(root, file), 'utf8')
+
+/** The files of `list`, other than shared/datetime.js, whose text names one of the picker's writers (`read(file)` gives the text). */
+function usersOfPickerWriters(list, read) {
+  return list.filter((file) => file !== 'shared/datetime.js' && PICKER_WRITERS.some((name) => new RegExp(`\\b${name}\\b`).test(read(file)))).sort()
+}
