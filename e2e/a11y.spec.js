@@ -419,8 +419,8 @@ test.describe('committee app', () => {
 
     await page.getByRole('button', { name: 'כניסת פיתוח' }).click()
     await signedIn(page, SCREEN_TITLES.home) // the first screen, with no screen in the address, is Home
-    // Home of a week with no visit: every provider is a row of empty cells that read "0", and none of them is a link
-    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table')).toBeVisible()
+    // Home of a week with no visit: seven bars of 0 and no link among them, and every provider a row of empty dots and a total of 0
+    await expect(page.getByRole('region', { name: 'השבוע בבניין' }).getByRole('table')).toBeVisible()
     await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
     await scanBothThemes(page, 'committee phone: home, no visits this week')
     // A new installation has nothing in it: Home says to start with a point and a provider (the numbers are answered here, as if it were new).
@@ -519,13 +519,13 @@ test.describe('committee app with the sample data filled in', () => {
   test('the eight screens and the sheet under "עוד", on a phone and on a computer', async ({ page }) => {
     allowConsoleErrors(page, /status of 401/) // the first load of /admin, before the sign-in
     await markPloniOutdated(page)
-    await stubHome(page) // Home's week table with a week of visits of every size (the sample data has none), so that every step of its colour is scanned
+    await stubHome(page) // Home's summary card and providers with a week of visits of every size (the sample data has none), so that every bar and every dot is scanned
     await adminSignIn(page)
     await signedIn(page)
     await expect(page.getByRole('banner')).toContainText(BUILDING_NAME) // the top bar says the name of the building, not the plain brand
     // (every screen is named by a plain string, so that tests/a11y-report.test.js can read the names from this file)
     await openTab(page, 'home', SCREEN_TITLES.home)
-    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table').getByRole('link').first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'השבוע בבניין' }).getByRole('table').getByRole('link').first()).toBeVisible()
     await scanBothThemes(page, 'committee phone: home')
     await openTab(page, 'points', 'נקודות סריקה')
     await scanBothThemes(page, 'committee phone: points')
@@ -612,7 +612,7 @@ test.describe('committee app with the sample data filled in', () => {
     // them are enough to see the rail (its two groups and the line between them) and the wider layout.
     await page.setViewportSize(COMPUTER)
     await openTab(page, 'home', SCREEN_TITLES.home)
-    await expect(page.getByRole('region', { name: 'נוכחות ב-7 הימים האחרונים' }).getByRole('table').getByRole('link').first()).toBeVisible()
+    await expect(page.getByRole('region', { name: 'השבוע בבניין' }).getByRole('table').getByRole('link').first()).toBeVisible()
     await scanBothThemes(page, 'committee computer: home')
     await openTab(page, 'points', 'נקודות סריקה')
     await expect(page.getByRole('complementary')).toContainText(BUILDING_NAME) // the side rail says the name of the building too

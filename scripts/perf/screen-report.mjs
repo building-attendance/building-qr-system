@@ -76,7 +76,7 @@ export const targetFor = (screen, profile) => TARGET_MS[screen.target][profile]
 //   { label }                      a field with this label                          (getByLabel(label, { exact: true }))
 // The same description is turned into a Playwright wait by the spec and into the page-side test by `probe` below, so they cannot differ.
 const TITLES = Object.freeze({
-  home_week: 'נוכחות ב-7 הימים האחרונים', // HomeView.jsx: the <h2> of the week table (the <h1> is a greeting that follows the hour)
+  home_week: 'השבוע בבניין', // HomeView.jsx: the <h2> of the summary card (the <h1> is a greeting that follows the hour)
   history: 'היסטוריית נוכחות', // HistoryView.jsx
   points: 'נקודות סריקה', // PointsView.jsx
   providers: 'נותני שירות', // ProvidersView.jsx
@@ -123,7 +123,7 @@ export function screensFor(today) {
       hash: '#home',
       ready: [{ heading: 2, name: TITLES.home_week }],
       api: ['/api/admin/home'],
-      rows: { role: 'row', atLeast: plan.providers },
+      rows: { role: 'listitem', atLeast: plan.providers }, // a row of the providers of the week (a list: each is a link)
     }),
     screen({
       key: 'history',
