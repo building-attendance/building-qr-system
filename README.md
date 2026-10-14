@@ -11,7 +11,7 @@ It is free and open source (MIT). Any building committee can install its own cop
 
 | Provider app: pick your name (first time on a phone) | Provider app: the check-in is recorded | Committee app on a phone: the points |
 |:---:|:---:|:---:|
-| <img src="docs/screenshots/provider-phone-sign-in.png" width="220" alt="The provider app on a phone, opened by a scan. A list of five names to choose from, in Hebrew."> | <img src="docs/screenshots/provider-phone-check-in.png" width="220" alt="The provider app after signing in. A green check mark and a message that the attendance was recorded, with the point, the time and the provider."> | <img src="docs/screenshots/committee-phone-points.png" width="220" alt="The committee app on a phone, the Points tab. A list of scan points, each with its QR, edit, switch off and delete buttons."> |
+| <img src="docs/screenshots/provider-phone-sign-in.png" width="220" alt="The provider app on a phone, opened by a scan. A list of five names to choose from, in Hebrew."> | <img src="docs/screenshots/provider-phone-check-in.png" width="220" alt="The provider app after signing in. A green check mark and a message that the attendance was recorded, with the point, the time and the provider."> | <img src="docs/screenshots/committee-phone-points.png" width="220" alt="The committee app on a phone, the Points tab. A list of scan points under a button that adds one, each with its edit button and a "more" button."> |
 
 <p align="center">
   <img src="docs/screenshots/committee-computer-history.png" width="720" alt="The committee app on a computer, the History tab. Filters on top, and the visits grouped by day, each with its point, provider and time.">

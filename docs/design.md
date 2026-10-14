@@ -61,10 +61,8 @@ and never clears what was typed.**
 - **Source:** GOV.UK error message, as in F3 (research); Impeccable
   [`harden`](https://github.com/pbakaus/impeccable/blob/main/skill/reference/harden.md), "Preserve user input on
   error"; Vercel, Forms, "Warn on unsaved changes before navigation" (expert opinion).
-- **Check:** `tests/components/dialog-unsaved-changes.test.jsx` (the dialog and every form of the committee app that has one),
-  and the tap outside and Esc in a real browser in `e2e/admin.spec.js`. The dialog asks only when a form passes `dirty` to
-  `Modal` (`useDirty` in `src/admin/ui.jsx`), and passes `busy` while its save is on its way (Esc and a tap outside then do
-  nothing), so a new form with fields does the same and adds its case to that test.
+- **Check:** `tests/components/dialog-unsaved-changes.test.jsx` (every form of the committee app that has fields) and the tap
+  outside and Esc in `e2e/admin.spec.js`. A new form passes `dirty` (and `busy` while it saves) to `Modal` and adds its case.
 
 **F5. Text inputs are at least 16px on phones, so that iOS does not zoom.**
 - **Why:** iOS Safari zooms into a field under 16px and stays zoomed, which leaves the form cropped. The cure is the
@@ -145,6 +143,12 @@ deleting (see `AGENTS.md`, Rules for every change).**
   (expert opinion).
 - **Check:** `planned: e2e 320px reflow` (`fitsTheWidth` in `e2e/error-boundary.spec.js` does it for one screen).
 
+**T3. A floating bar hides nothing a tap can reach: on a phone the page fades into the background colour behind it, and
+the end of every page stands clear above the fade.**
+- **Why:** content peeked out under and beside the floating tab bar, and a tap could reach a control that nobody could see.
+- **Source:** this project; the owner's decision of 14/10/2026 (D10 of the redesign), made on his iPhone.
+- **Check:** `e2e/admin.spec.js`, "the page fades out behind the tab bar of the phone", at 360 and 320 px.
+
 ## RTL and languages
 
 **R1. Layout uses logical CSS properties (inline and block). A physical property appears only in the list of exceptions,
@@ -177,22 +181,13 @@ controls, the QR code, logos or checkmarks.**
 
 **V1. Colours, font weights, spacing, radii and font sizes come from the tokens.**
 - **Why:** one set of tokens keeps the light and dark themes in step: a colour written in place passes in one theme and
-  fails in the other. The sizes follow the same rule: spacing (`--w-space-*`), radius (`--w-radius-*`) and font size
-  (`--w-font-*`) are three families of tokens, defined once on `:root` in `src/ui/base.css` next to the weight tokens, and
-  a size that has a token is written as the token. The scales are consolidated (the rare radii and font sizes
-  were folded into their neighbours), and a size that must keep its exact value, such as the room above the tab bar, is a
-  named layout constant (`--w-layout-*`, next to them), so no literal is left in a spacing, radius or font-size declaration.
-  The colours are tokens of each theme in `src/ui/ui.css` (the dark block, and the light one that sets every token again),
-  in these families: the surfaces (`--w-bg`, `--w-surface`, `--w-surface-2`, `--w-surface-3`); the lines (`--w-border`,
-  and `--w-field-border` with its `-hover`, 3:1 or more on every surface); the text (`--w-text`, `-2`, `-3`); the primary
-  colour (`--w-primary`, `-hover`) and the colour of the text on it (`--w-on-primary`, white in light and dark in dark,
-  because white on the light violet of the dark theme fails); the focus (`--w-focus`, `--w-focus-ring`); the four states,
-  each with its background and its line (`--w-success`, `--w-warn`, `--w-danger`, `--w-info`, `-bg`, `-line`); the
-  summary card and its text (`--w-hero`, `--w-on-hero`); four tints for tiles, chips and badges, each with the ink that is
-  read on it (`--w-tint-violet`, `-peach`, `-mint`, `-sky`, and `-ink`); the steps of the count cells (`--w-count-1` to
-  `4`); and the overlay and the three shadows (`--w-overlay`, `--w-shadow` for a card, `--w-shadow-raised` for the summary
-  card, `--w-shadow-pop` for a menu or a sheet). The page around the apps and the browser's bar take `--w-bg`. One
-  typeface, Rubik, is pinned, with every subset (Hebrew, Latin, Cyrillic, Arabic) in the offline precache.
+  fails in the other. Spacing (`--w-space-*`), radius (`--w-radius-*`) and font size (`--w-font-*`) are tokens on `:root` in
+  `src/ui/base.css`, and a size that must keep its exact value, such as the room above the tab bar, is a named layout
+  constant (`--w-layout-*`), so no literal is left in a spacing, radius or font-size declaration. The colours are tokens of
+  each theme in `src/ui/ui.css` (the dark block, and the light one that sets every token again), and the text on the primary
+  colour is white in light and dark in dark: white on the light violet of the dark theme fails. The page around the apps and
+  the browser's bar take `--w-bg`. One typeface, Rubik, is pinned, with every subset (Hebrew, Latin, Cyrillic, Arabic) in
+  the offline precache.
 - **Source:** this project; Refactoring UI (the advice to fix the spacing, sizing and type scales in advance;
   [book](https://refactoringui.com/), expert opinion, paraphrased).
 - **Check:** `tests/contrast.test.js`, `tests/typography.test.js`, and `tests/design-css.test.js` (a literal of a size that
@@ -222,6 +217,23 @@ and adds no animation library (the size budget).**
   [`emil-design-eng`](https://github.com/emilkowalski/skills/blob/main/skills/emil-design-eng/SKILL.md) (expert opinion,
   paraphrased); [WCAG 2.3.3](https://www.w3.org/WAI/WCAG22/Understanding/animation-from-interactions.html) (standard, AAA).
 - **Check:** `review`, and the bundle budget (`npm run size`, `scripts/check-bundle-size.json`).
+
+**V5. At the top of a committee screen the one filled thing is the action: an add button is a pill that says what it adds,
+and the person is a quiet circle with their Google photo, or their initial when there is no photo or it does not load.**
+- **Why:** two solid violet circles, the account and a round "+", stood one above the other, and the eye did not know where
+  to look; a lone "+" does not name what it adds (F7). The photo is never the only way the circle works, so a missing,
+  refused or failed photo shows the initial and never a broken picture. The photo is decoration (`alt=""`): the name
+  is beside it.
+- **Source:** this project; the owner's decisions of 14/10/2026 (D11 and D12 of the redesign), made on his iPhone.
+- **Check:** `tests/admin-icon-buttons.test.js` and the heading tests of `e2e/admin.spec.js`; `tests/contrast.test.js` (the
+  ink of the circle); `tests/components/member-face.test.jsx` and `e2e/admin-photo.spec.js` (the photo and its fallback).
+
+**V6. The sign for "scan" is a frame of four corner brackets, in the apps and in the app icon, and the icon is that frame
+in white on the primary violet.**
+- **Why:** the earlier drawing of a QR code read as a grid of apps, and the Home Screen icon was still the old blue.
+- **Source:** this project; the owner's decision of 14/10/2026 (D13 of the redesign), made on his iPhone from four options.
+- **Check:** `tests/pwa-icons.test.js` (the violet and white, the artwork's size and place) and `tests/png.test.js`; the
+  drawings inside the apps are `review` and the visual baselines (`e2e/visual.spec.js`).
 
 ## Copy
 
