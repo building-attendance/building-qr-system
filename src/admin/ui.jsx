@@ -260,13 +260,13 @@ const MENU_GAP = 4 // px between the button and its menu
 const MENU_EDGE = 8 // px that the menu keeps from the edges of the screen
 
 /**
- * The "more" button of a tile or a row, and the menu of actions that it opens: a tile shows its edit action, and every other action is
- * in this menu (AGENTS.md, "Rules for every change"). It follows the menu button pattern of the WAI-ARIA Authoring Practices
+ * The "more" button of a tile or a row, and the menu of actions that it opens: a tile shows this one button, and every action, edit
+ * first, is in this menu (AGENTS.md, "Rules for every change"). It follows the menu button pattern of the WAI-ARIA Authoring Practices
  * (https://www.w3.org/WAI/ARIA/apg/patterns/menu-button/).
  *
  * `label` names the button and its menu with the thing they act on ("עוד פעולות ללובי"): a screen reader goes through tiles that look
  * alike, and the name tells them apart. It is the tooltip too. `items` are the actions, each `{ label, icon, onSelect, danger, disabled }`,
- * in the order of the rule (the actions of the screen, then switch off / on); an entry that is false or null is left out, for an action
+ * in the order of the rule (edit, the actions of the screen, then switch off / on); an entry that is false or null is left out, for an action
  * that one tile has and another has not. The action that deletes is marked `danger`: it is red, after a separator and last, wherever it
  * stands in `items`, so that no screen can put it anywhere else. A `disabled` item stays in the menu and takes the focus (a person can
  * still read it), but choosing it does nothing. With no item at all there is no button.

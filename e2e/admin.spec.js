@@ -1,11 +1,11 @@
 // The committee screens on a phone and on a computer: the same icons, nothing spilling off the screen, and deleting.
 import { randomUUID } from 'node:crypto'
 import {
-  test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, SCREEN_TITLES, SCREEN_NAV, adminSignIn, openScreen, clearScans, allowConsoleErrors,
+  test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, SCREEN_TITLES, SCREEN_NAV, BAR_SCREENS, adminSignIn, openScreen, clearScans, allowConsoleErrors,
   changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS, HOME_NOW, ADMIN_EMAIL, accountButton, openAccountMenu, signOut,
   moreButton, openTileMenu, chooseFromMenu,
 } from './fixtures.js'
-import { SCAN_ERROR_POINT_INACTIVE } from '../shared/contract.js'
+import { SCAN_ERROR_POINT_INACTIVE, NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH } from '../shared/contract.js'
 import { formatDateTime, formatDay } from '../shared/datetime.js'
 
 const COMPUTER = { width: 1280, height: 800 }
@@ -22,18 +22,16 @@ test.beforeEach(async ({ page, request }) => {
 // viewport to the width of the content, so a page that scrolls sideways still has scrollWidth <= innerWidth there (e2e/reflow.spec.js).
 const noHorizontalScroll = (page) => page.evaluate((width) => document.documentElement.scrollWidth <= width, page.viewportSize().width)
 
-test('the point tiles show their edit action and a "more" button that is named after the point, and keep every other action in its menu', async ({ page }) => {
+test('the point tiles show one "more" button that is named after the point, and keep every action in its menu, edit first', async ({ page }) => {
   await adminSignIn(page, 'points')
   const tile = page.getByRole('article').filter({ hasText: 'לובי' })
   const actions = tile.getByRole('button')
-  await expect(actions).toHaveCount(2)
-  await expect(actions.nth(0)).toHaveAccessibleName('עריכה: לובי')
-  await expect(actions.nth(0)).toHaveText('עריכה')
-  await expect(actions.nth(1)).toHaveAccessibleName('עוד פעולות ללובי')
-  await expect(actions.nth(1)).toHaveText('') // the three dots
-  // the other actions are in the menu, with the red delete last; each is still named as it was
+  await expect(actions).toHaveCount(1) // no edit pill beside it: edit is in the menu
+  await expect(actions.nth(0)).toHaveAccessibleName('עוד פעולות ללובי')
+  await expect(actions.nth(0)).toHaveText('') // the three dots
+  // every action is in the menu, edit first and the red delete last; each is still named as it was
   const menu = await openTileMenu(tile)
-  await expect(menu.getByRole('menuitem')).toHaveText(['QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
+  await expect(menu.getByRole('menuitem')).toHaveText(['עריכה', 'QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
   await page.keyboard.press('Escape')
   // adding a point is a pill that says so, in the heading (the test after this one measures it)
   await expect(page.getByRole('button', { name: 'נקודה חדשה' })).toBeVisible()
@@ -241,16 +239,17 @@ test('signing out from the account menu ends the session: the sign-in screen is 
   await expect(page.getByRole('heading', { level: 1, name: 'ניהול נוכחות הבניין' })).toBeVisible()
 })
 
+// 1024 is the narrowest computer: the side rail (280 px) leaves the page the least room there.
 test('every committee screen fits the width, on a phone and on a computer', async ({ page }) => {
   await adminSignIn(page)
-  for (const size of [null, COMPUTER]) {
+  for (const size of [null, { width: 1024, height: 800 }, COMPUTER]) {
     if (size) await page.setViewportSize(size)
     for (const [tab, title] of TABS) {
       await page.goto(`/admin#${tab}`)
       // measure the tab itself once its list has arrived, not the previous tab or a loading screen
       await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
       await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
-      expect(await noHorizontalScroll(page), `${tab} at ${size ? 'computer' : 'phone'} width`).toBe(true)
+      expect(await noHorizontalScroll(page), `${tab} at ${size ? size.width : 'phone'} px width`).toBe(true)
     }
   }
 })
@@ -263,7 +262,7 @@ test('every committee screen fits the width, on a phone and on a computer', asyn
 // nothing else measures these two.
 test('the tab bar of the phone fits 320 and 360 px screens: five buttons inside the bar, the current one names itself whole on one line, none under 44 px', async ({ page }) => {
   await adminSignIn(page)
-  const labels = ['בית', 'היסטוריה', 'נקודות', 'ספקים', 'עוד'] // the buttons, in the order of the page (the first is at the right: the page runs right to left)
+  const labels = [...BAR_SCREENS.map((key) => SCREEN_NAV[key]), 'עוד'] // the buttons, in the order of the page (the first is at the right: the page runs right to left)
   const screens = ['home', 'history', 'points', 'providers', 'settings'] // the screen that makes each of them the current one ("עוד" is current on a screen under it)
   for (const width of [320, 360]) {
     await page.setViewportSize({ width, height: 740 })
@@ -505,7 +504,7 @@ test('the page fades out behind the tab bar of the phone, the end of every page 
         lastY = y
         return still
       }, { message: `${where}: the page stands still` }).toBe(true)
-      // the bar's own taps: a touch on "נקודות" opens the Points screen
+      // the bar's own taps: a touch on the Points button opens the Points screen
       const pointsButton = await bar.getByRole('button', { name: SCREEN_NAV.points, exact: true }).boundingBox()
       await page.touchscreen.tap(pointsButton.x + pointsButton.width / 2, pointsButton.y + pointsButton.height / 2)
       await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES.points, exact: true }), `${where}: the bar still takes its taps`).toBeVisible()
@@ -565,9 +564,19 @@ test('the side rail has the eight screens in two groups with a separator, Home f
     expect(lines, `${name} is on one line`).toBe(1)
     expect((await button.boundingBox()).height, `${name}: a target of 44 px or more`).toBeGreaterThanOrEqual(44)
   }
-  // the rail floats: a white card 250 px wide with rounded corners, clear of the screen edges; the current screen is the violet pill
+  // the two groups look alike (owner decision of 14/10/2026): every item that is not the current one, in either group, has the same size,
+  // weight and colour, and so does its icon; the separator is the only difference between the groups
+  const look = (button) => button.evaluate((el) => {
+    const cs = getComputedStyle(el)
+    const icon = el.querySelector('svg').getBoundingClientRect()
+    return { height: el.getBoundingClientRect().height, fontSize: cs.fontSize, fontWeight: cs.fontWeight, color: cs.color, icon: `${icon.width}x${icon.height}` }
+  })
+  const looks = await Promise.all(Object.entries(SCREEN_NAV).filter(([key]) => key !== 'history').map(async ([key, name]) => [key, await look(rail.getByRole('button', { name, exact: true }))]))
+  for (const [key, got] of looks) expect(got, `the rail item "${key}" looks like the first one`).toEqual(looks[0][1])
+  expect(looks[0][1].fontWeight, 'in the medium weight').toBe('500')
+  // the rail floats: a white card 280 px wide with rounded corners, clear of the screen edges; the current screen is the violet pill
   const side = await page.getByRole('complementary').boundingBox()
-  expect(side.width, 'the rail is 250 px wide').toBe(250)
+  expect(side.width, 'the rail is 280 px wide').toBe(280)
   expect(side.x, 'it floats clear of the edge of the screen').toBeGreaterThanOrEqual(8)
   expect(side.y, 'and of the top').toBeGreaterThanOrEqual(8)
   expect(await page.getByRole('complementary').evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius)), 'with rounded corners').toBeGreaterThanOrEqual(24)
@@ -581,6 +590,23 @@ test('the side rail has the eight screens in two groups with a separator, Home f
   expect(account.y + account.height, 'the account button is at the foot of the rail').toBeGreaterThan(side.y + side.height - 40)
   await expect(accountButton(page)).toContainText('Dev Admin')
   await expect(accountButton(page)).toContainText(ADMIN_EMAIL)
+  // the e-mail is one line: an address of the usual length is whole, and a longer one ends in an ellipsis with its start in view (the page
+  // is told the address, as the sign-in tells it: the text of the line is replaced here, and the menu below still holds the real one)
+  const mail = accountButton(page).locator('.a-who__mail')
+  const oneLine = (text) => mail.evaluate((el, value) => {
+    el.textContent = value
+    const range = document.createRange()
+    range.selectNodeContents(el)
+    return { lines: new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size, cut: el.scrollWidth > el.clientWidth, direction: getComputedStyle(el).direction, overflow: getComputedStyle(el).textOverflow }
+  }, text)
+  expect(await oneLine('person1988b@gmail.com'), 'a usual address is whole, on one line').toMatchObject({ lines: 1, cut: false, direction: 'ltr', overflow: 'ellipsis' })
+  expect(await oneLine(`a-much-longer-mailbox-name-than-usual-${'x'.repeat(30)}@example.test`), 'a longer address is on one line, cut with an ellipsis').toMatchObject({ lines: 1, cut: true })
+  await expect(mail, 'the whole address is its title').toHaveAttribute('title', ADMIN_EMAIL)
+  const mailBox = await mail.boundingBox()
+  const accountBox = await accountButton(page).boundingBox()
+  expect(mailBox.x, 'the line stays inside the button').toBeGreaterThanOrEqual(accountBox.x)
+  expect(mailBox.x + mailBox.width, 'the line stays inside the button').toBeLessThanOrEqual(accountBox.x + accountBox.width)
+  await oneLine(ADMIN_EMAIL) // put the real address back
   // the whole rail is on the screen, also on a short one (it scrolls when it must; the account button is reachable)
   await page.setViewportSize({ width: 1280, height: 560 })
   await expect(rail.getByRole('button').last()).toBeVisible()
@@ -760,15 +786,17 @@ test('deleting a point keeps its scans, and a scan row can be deleted on its own
 
 // ---- the same actions in the same order on every screen ------------------------------------------------------------------------
 
-// Every tile of the card screens, and every row of the History, shows its edit action (when it has one) and a "more" button, and every other
-// action is in the menu of that button, in one order: the actions of the screen, then switching off or on, then a separator and the red
-// delete, last (AGENTS.md, "Rules for every change"). Each screen lists its menu as slots in that order. A slot holds the names that it may
+// Every tile of the card screens, and every row of the History, shows one "more" button, and every action is in the menu of that button, in one
+// order: edit (when it has one), the actions of the screen, then switching off or on, then a separator and the red delete, last (AGENTS.md,
+// "Rules for every change"). Each screen lists its menu as slots in that order, edit's slot first. A slot holds the names that it may
 // have (the switch reads "off" or "on" by the state of the tile), and an `optional` slot is one that some tiles do not have (the phones of a
-// provider that has none signed in; cancelling or restoring a visit, which a refused attempt has not). `tile` is the role of what holds the
-// button: a card is an article, a row of the History a list item.
+// provider that has none signed in; cancelling or restoring a visit, which a refused attempt has not). `edit` says that the screen has an
+// edit action, which is the first item of its menu. `tile` is the role of what holds the button: a card is an article, a row of the
+// History a list item.
+const EDIT = { any: ['עריכה'] }
 const CARD_SCREENS = {
-  points: { edit: true, menu: [{ any: ['QR והדפסה'] }, { any: ['השבתת הנקודה', 'הפעלת הנקודה'] }, { any: ['מחיקת הנקודה'] }] },
-  providers: { edit: true, menu: [{ any: ['מכשירים'], optional: true }, { any: ['סיסמה חדשה'] }, { any: ['השבתה', 'הפעלה'] }, { any: ['מחיקת נותן השירות'] }] },
+  points: { edit: true, menu: [EDIT, { any: ['QR והדפסה'] }, { any: ['השבתת הנקודה', 'הפעלת הנקודה'] }, { any: ['מחיקת הנקודה'] }] },
+  providers: { edit: true, menu: [EDIT, { any: ['מכשירים'], optional: true }, { any: ['סיסמה חדשה'] }, { any: ['השבתה', 'הפעלה'] }, { any: ['מחיקת נותן השירות'] }] },
   settings: { edit: false, menu: [{ any: ['הסרת גישה', 'החזרת גישה'] }, { any: ['מחיקה מהוועד'] }] },
   agent: { edit: false, menu: [{ any: ['ביטול המפתח'], optional: true }, { any: ['מחיקת המפתח'] }] },
   history: { tile: 'listitem', edit: false, menu: [{ any: ['ביטול הנוכחות', 'שחזור הנוכחות'], optional: true }, { any: ['מחיקת הנוכחות לצמיתות'] }] },
@@ -791,7 +819,7 @@ const near = (values, within, what) => {
   expect(Math.max(...values) - Math.min(...values), `${what}: ${values.map((v) => v.toFixed(1)).join(', ')}`).toBeLessThanOrEqual(within)
 }
 
-test('every tile shows its edit action and a "more" button, and its menu holds the other actions in the same order on every screen, with the red delete last', async ({ page, playwright }) => {
+test('every tile shows one "more" button, and its menu holds every action in the same order on every screen, edit first and the red delete last', async ({ page, playwright }) => {
   await adminSignIn(page)
   const tag = randomUUID().slice(0, 6)
   // sample data, so that every kind of tile exists in its different states
@@ -816,7 +844,6 @@ test('every tile shows its edit action and a "more" button, and its menu holds t
     expect((await page.request.post(`/api/admin/scans/${lobbyVisit.id}/void`, { data: { reason: 'נסרק בטעות' } })).ok(), 'the visit was cancelled').toBe(true)
 
     const moreEdge = {} // where the "more" button sits, measured from the end of its tile, per screen and width
-    const editGaps = [] // the distance between the edit button and the "more" button, on every tile that has both
     const phonesSeen = { with: 0, without: 0 } // provider tiles that have the phones action in their menu, and those that have not
     const historySeen = { cancel: 0, restore: 0, deleteOnly: 0 } // History rows that have cancelling, restoring, and the delete alone in their menu
     for (const size of [null, COMPUTER]) {
@@ -842,26 +869,22 @@ test('every tile shows its edit action and a "more" button, and its menu holds t
         const edges = []
         for (let i = 0; i < count; i++) {
           const tile = tiles.nth(i)
-          // What the tile shows with its menu closed: its edit action (when the screen has one) and the "more" button, and nothing else.
+          // What the tile shows with its menu closed: the "more" button, and nothing else (edit is in its menu, not beside it).
           const buttons = tile.getByRole('button')
-          await expect(buttons, `${tab} #${i} at ${where} width: the buttons that the tile shows`).toHaveCount(spec.edit ? 2 : 1)
-          if (spec.edit) {
-            await expect(buttons.first(), `${tab} #${i}: the edit action comes first`).toHaveAccessibleName(/^עריכה: ./)
-            await expect(buttons.first(), `${tab} #${i}: the edit action has its word on it`).toHaveText('עריכה')
-          }
-          await expect(buttons.last(), `${tab} #${i}: the "more" button comes last, named after its tile`).toHaveAccessibleName(/^עוד פעולות ל./)
-          const boxes = await Promise.all((await buttons.all()).map((b) => b.boundingBox()))
-          const more = boxes.at(-1)
+          await expect(buttons, `${tab} #${i} at ${where} width: the buttons that the tile shows`).toHaveCount(1)
+          await expect(buttons.first(), `${tab} #${i}: the "more" button, named after its tile`).toHaveAccessibleName(/^עוד פעולות ל./)
+          const more = await buttons.first().boundingBox()
           expect(more.width, `${tab} #${i}: the "more" button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
           // the text of the page runs right to left, so the end of a tile is its left edge, and the button at the end is the left-most
-          expect(more.x, `${tab} #${i}: the "more" button is at the end of the tile`).toBeLessThanOrEqual(Math.min(...boxes.map((b) => b.x)) + 0.5)
           edges.push(more.x - (await tile.boundingBox()).x)
-          if (spec.edit) editGaps.push(boxes[0].x - (more.x + more.width))
 
-          // Its menu: the names in the order of the rule, the red delete last after one separator, and only that one red.
+          // Its menu: the names in the order of the rule (edit first, when the screen has one), the red delete last after one separator, and
+          // only that one red.
           const menu = await openTileMenu(tile)
           const names = await menu.getByRole('menuitem').allTextContents()
           expect(inOrder(names, spec.menu), `${tab} #${i}: the actions of the menu, in order (they are: ${names.join(' | ')})`).toBe(true)
+          if (spec.edit) expect(names[0], `${tab} #${i}: edit is the first item of the menu`).toBe('עריכה')
+          else expect(names, `${tab} #${i}: this screen has no edit`).not.toContain('עריכה')
           if (tab === 'providers') phonesSeen[names.includes('מכשירים') ? 'with' : 'without']++
           if (tab === 'history') historySeen[names.includes('שחזור הנוכחות') ? 'restore' : names.includes('ביטול הנוכחות') ? 'cancel' : 'deleteOnly']++
           const paint = await menu.evaluate((el) => {
@@ -895,10 +918,7 @@ test('every tile shows its edit action and a "more" button, and its menu holds t
     for (const where of ['phone', 'computer']) {
       near(Object.keys(CARD_SCREENS).map((tab) => moreEdge[`${tab}/${where}`]), 1, `${where}: the "more" button is where it is on every card screen`)
     }
-    // the edit button is the same distance from the "more" button on every tile, whatever the screen
-    near(editGaps, 1, 'the edit button is the same distance from the "more" button on every tile')
-
-    // providers: some tiles have the phones of the provider in their menu and some do not, and the edit button does not move because of it
+    // providers: some tiles have the phones of the provider in their menu and some do not, and the "more" button does not move because of it
     expect(phonesSeen.with, 'some providers have a phone signed in').toBeGreaterThan(0)
     expect(phonesSeen.without, 'and some do not').toBeGreaterThan(0)
 
@@ -936,21 +956,35 @@ test('the menu of a tile works by keyboard and by touch, and a dialog opened fro
   await page.keyboard.press('Enter')
   await expect(menu).toBeVisible()
   await expect(more).toHaveAttribute('aria-expanded', 'true')
-  await expect(items).toHaveText(['QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
+  await expect(items).toHaveText(['עריכה', 'QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
   await expect(items.nth(0)).toBeFocused()
   await page.keyboard.press('ArrowDown')
   await expect(items.nth(1)).toBeFocused()
   await page.keyboard.press('End')
-  await expect(items.nth(2)).toBeFocused()
+  await expect(items.nth(3)).toBeFocused()
   await page.keyboard.press('ArrowDown') // past the last goes round to the first
   await expect(items.nth(0)).toBeFocused()
   await page.keyboard.press('Escape')
   await expect(menu).toHaveCount(0)
   await expect(more).toBeFocused()
 
-  // keyboard: Space opens it, and Enter on the first item opens the QR dialog; Esc closes the dialog and the focus is on the button
+  // keyboard: Space opens it, and Enter on the first item (edit) opens the form of the point; Esc closes the form (nothing was typed) and the
+  // focus is on the button
   await page.keyboard.press(' ')
   await expect(items.nth(0)).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(menu).toHaveCount(0)
+  const edit = page.getByRole('dialog', { name: 'עריכת נקודה: לובי' })
+  await expect(edit).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(edit).toHaveCount(0)
+  await expect(more, 'the form of the point gave the focus back to the button that opened it').toBeFocused()
+
+  // keyboard: the arrow down and Enter on the second item open the QR dialog; Esc closes it and the focus is on the button
+  await page.keyboard.press('ArrowDown') // on the button, the arrow opens the menu on its first item
+  await expect(items.nth(0)).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(items.nth(1)).toBeFocused()
   await page.keyboard.press('Enter')
   await expect(menu).toHaveCount(0)
   const qr = page.getByRole('dialog', { name: 'QR: לובי' })
@@ -962,8 +996,9 @@ test('the menu of a tile works by keyboard and by touch, and a dialog opened fro
   // keyboard: the question before switching off can be answered "no" with the keyboard, and the focus is back on the button after it
   await page.keyboard.press('ArrowDown')
   await page.keyboard.press('ArrowDown')
-  await expect(items.nth(1)).toBeFocused()
-  await expect(items.nth(1)).toHaveText('השבתת הנקודה')
+  await page.keyboard.press('ArrowDown')
+  await expect(items.nth(2)).toBeFocused()
+  await expect(items.nth(2)).toHaveText('השבתת הנקודה')
   await page.keyboard.press('Enter')
   const question = page.getByRole('dialog', { name: 'להשבית את "לובי"?' })
   await expect(question).toBeVisible()
@@ -981,6 +1016,13 @@ test('the menu of a tile works by keyboard and by touch, and a dialog opened fro
   await more.tap()
   await items.nth(0).tap()
   await expect(menu).toHaveCount(0)
+  await expect(edit).toBeVisible()
+  await edit.getByTitle('סגירה').tap()
+  await expect(edit).toHaveCount(0)
+  await expect(more, 'the form of the point gave the focus back to the button').toBeFocused()
+  await more.tap()
+  await items.nth(1).tap()
+  await expect(menu).toHaveCount(0)
   await expect(qr).toBeVisible()
   await qr.getByTitle('סגירה').tap()
   await expect(qr).toHaveCount(0)
@@ -995,7 +1037,8 @@ test('the menu of a tile works by keyboard and by touch, and a dialog opened fro
   const ploniItems = ploni.getByRole('menuitem')
   await page.keyboard.press('End')
   await expect(ploniItems.last(), 'the delete is the last item').toHaveText('מחיקת נותן השירות')
-  // the new password is the first item, or the second when a phone is signed in (the phones come first): arrow down to it, and choose it
+  await expect(ploniItems.first(), 'edit is the first item').toHaveText('עריכה')
+  // the new password comes after edit, and after the phones when a phone is signed in: arrow down to it, and choose it
   const at = (await ploniItems.allTextContents()).indexOf('סיסמה חדשה')
   expect(at, 'the new password is in the menu').toBeGreaterThanOrEqual(0)
   await page.keyboard.press('Home')
@@ -1114,12 +1157,12 @@ test('the menu of a History row works by keyboard and by touch, a dialog opened 
 
 // ---- a long name in a tile and in the head of a dialog ---------------------------------------------------------------------
 
-// On a phone, the tools of a point's tile (its edit button and its "more" button) leave its title a column of about 100 px, and a
-// long word of the name (an English "Maintenance" or a Russian word) would be cut in the middle. So the tools wrap below the title, at
-// the end of the row, when the title does not fit on one line beside them, and the title gets the whole width. The same name in the head of a dialog wraps over several
-// lines, and the close button stays at the top of the head instead of the middle of it. 360 px is the narrowest phone in use (the
-// two E2E devices are 390 and 412 wide), and the computer shows the tile in a column of its own width.
-test('a long point name is readable in its tile and in the head of a dialog: no word is cut across lines, the buttons keep their order and end of the row, and the close button is at the top', async ({ page }) => {
+// The "more" button of a point's tile never moves below its title (the next test measures that), so on a phone it leaves the title a
+// column of about 100 px, and a long word of the name (an English "Maintenance" or a Russian word) breaks inside that column, which is what
+// the owner chose (14/10/2026). The computer shows the tile in a wider column, where no word of the name is cut. The same name in the head
+// of a dialog wraps over several lines, with no word cut, and the close button stays at the top of the head instead of the middle of it.
+// 360 px is the narrowest phone in use (the two E2E devices are 390 and 412 wide).
+test('a long point name is readable in its tile on a computer and in the head of a dialog: no word is cut across lines, the "more" button keeps its end of the row, and the close button is at the top', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
   await adminSignIn(page)
   const name = `Maintenance switchboard room north ${randomUUID().slice(0, 6)}`
@@ -1147,15 +1190,15 @@ test('a long point name is readable in its tile and in the head of a dialog: no 
       await loaded(page, 'נקודות סריקה')
       const tile = page.getByRole('article').filter({ hasText: name })
       const title = tile.getByRole('heading', { name })
-      expect(await cutWords(title), `${where}: words of the title that are cut across lines`).toEqual([])
-      // the order of the buttons and the end of the row: the "more" button is the last one, and at the same distance from the end of the tile
-      // as on a tile with a short name (the text runs right to left, so the end of a tile is its left edge)
+      // a word that does not fit beside the button breaks on a phone, by design; on a computer there is room for the whole of each
+      if (size) expect(await cutWords(title), `${where}: words of the title that are cut across lines`).toEqual([])
+      // the end of the row: the "more" button is at the same distance from the end of the tile as on a tile with a short name (the text runs
+      // right to left, so the end of a tile is its left edge)
       const edgeOf = async (article) => {
         const buttons = article.getByRole('button')
-        await expect(buttons.last(), `${where}: the "more" button is the last one`).toHaveAccessibleName(/^עוד פעולות ל./)
-        const boxes = await Promise.all((await buttons.all()).map((b) => b.boundingBox()))
-        expect(boxes.map((b) => b.x), `${where}: each button is to the left of the one before it`).toEqual([...boxes.map((b) => b.x)].sort((a, b) => b - a))
-        return boxes[boxes.length - 1].x - (await article.boundingBox()).x
+        await expect(buttons, `${where}: the "more" button is the only one`).toHaveCount(1)
+        await expect(buttons.last(), `${where}: the "more" button is named after its tile`).toHaveAccessibleName(/^עוד פעולות ל./)
+        return (await buttons.first().boundingBox()).x - (await article.boundingBox()).x
       }
       near([await edgeOf(tile), await edgeOf(page.getByRole('article').filter({ hasText: 'לובי' }).first())], 1, `${where}: the "more" button is in the same place on a long and on a short tile`)
       expect(await noHorizontalScroll(page), `${where}: the points do not scroll sideways`).toBe(true)
@@ -1186,6 +1229,125 @@ test('a long point name is readable in its tile and in the head of a dialog: no 
     await page.keyboard.press('Escape')
   } finally {
     await page.request.delete(`/api/admin/points/${point.id}`, { data: {} })
+  }
+})
+
+// ---- the "more" button stays beside the title of every card ---------------------------------------------------------------------
+
+// The "more" button of a card is on the row of its title, on a computer and on a phone, however long the title is (owner decision of
+// 14/10/2026): the block of the title takes what the button leaves and wraps its own text, and a word with no space in it breaks wherever it
+// must. The rule before it let the button drop below the title when the title did not fit beside it, and a row that kept the button beside
+// a narrow title once overflowed on a long word with no space. So each card screen is measured, at 320, 360 and 1280 px, with the longest
+// title that its field allows (words, and the same length with one long word in it) and with a short title for comparison:
+//   - the button is inside the row of the title, centred on it (the mark at the other end is centred the same way) and beside the block of
+//     the title, never under it;
+//   - the row is as tall as its tallest part and no more (nothing is stacked under the title), and starts where the title block starts;
+//   - the card, its title and its second line have no horizontal overflow, the button is inside the card, and the page does not scroll
+//     sideways.
+// A card with a short title and nothing under it (a point with no description, a key) has a row as tall as the button, and there the top of
+// the button is the top of the row; with a second line, or a title of several lines, the row is taller and the button is centred on it.
+const LONG_WORDS = ['Maintenance', 'switchboard', 'room', 'north', 'annex', 'corridor', 'elevator', 'lobby']
+/** As many of the words, in a ring, as fit in `max` characters. */
+function wordsUpTo(max) {
+  let out = ''
+  for (let i = 0; ; i++) {
+    const next = out ? `${out} ${LONG_WORDS[i % LONG_WORDS.length]}` : LONG_WORDS[i % LONG_WORDS.length]
+    if (next.length > max) return out
+    out = next
+  }
+}
+/** `max` characters in all: words, and then one word of about `max / 2` characters with no space in it. */
+const withLongWord = (max) => {
+  const word = 'Wxyz'.repeat(Math.floor(max / 8))
+  return `${wordsUpTo(max - word.length - 1)} ${word}`
+}
+
+test('the "more" button of a card stays on the row of its title, however long the title is, at 320, 360 and 1280 px, on every card screen', async ({ page }) => {
+  await adminSignIn(page, 'points')
+  const tag = randomUUID().slice(0, 6)
+  const created = []
+  const make = async (url, data, pick) => {
+    const response = await page.request.post(url, { data })
+    expect(response.ok(), `POST ${url} ${response.status()}`).toBeTruthy()
+    created.push(`${url}/${pick(await response.json()).id}`)
+  }
+  // Each screen: the limit of the field that holds its title, and how a card is made with a title and the other text that sits under it.
+  const SCREENS = [
+    {
+      tab: 'points', max: NAME_MAX_LENGTH,
+      add: (title, variant) => make('/api/admin/points', {
+        name: title, description: variant === 'short' ? undefined : variant === 'words' ? wordsUpTo(DESCRIPTION_MAX_LENGTH) : 'Desc'.repeat(30),
+        lat: SAMPLE_POINT.lat, lng: SAMPLE_POINT.lng, gps_mode: 'none',
+      }, (r) => r.point),
+    },
+    {
+      tab: 'providers', max: NAME_MAX_LENGTH,
+      add: (title, variant) => make('/api/admin/providers', {
+        contact_name: title, company: variant === 'short' ? 'ניקיון' : variant === 'words' ? wordsUpTo(NAME_MAX_LENGTH) : 'Corp'.repeat(30), password: 'dev-pass-card-row',
+      }, (r) => r.provider),
+    },
+    {
+      tab: 'settings', max: NAME_MAX_LENGTH,
+      add: (title, variant) => make('/api/admin/admins', {
+        name: title, email: variant === 'long-word' ? `${'a'.repeat(60)}-${tag}@${'b'.repeat(60)}.example.test` : `${variant}-${tag}@example.test`,
+      }, (r) => r.admin),
+    },
+    { tab: 'agent', max: KEY_NAME_MAX_LENGTH, add: (title) => make('/api/admin/api-keys', { name: title }, (r) => r.api_key) },
+  ]
+  const SHORT = { points: 'חדר', providers: 'אבי', settings: 'דנה', agent: 'מפתח' } // one word of a few letters: one line at every width
+  const VARIANTS = (screen) => [['short', SHORT[screen.tab]], ['words', wordsUpTo(screen.max)], ['long-word', withLongWord(screen.max)]]
+  try {
+    for (const screen of SCREENS) for (const [variant, title] of VARIANTS(screen)) await screen.add(title, variant)
+    await page.reload() // the lists were loaded before the cards existed
+
+    for (const width of [320, 360, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      for (const screen of SCREENS) {
+        await page.goto(`/admin#${screen.tab}`)
+        await loaded(page, SCREEN_TITLES[screen.tab])
+        for (const [variant, title] of VARIANTS(screen)) {
+          const where = `${width} px, ${screen.tab}, a ${variant} title`
+          const heading = page.getByRole('heading', { name: title, exact: true })
+          await expect(heading, `${where}: the card is there`).toBeVisible()
+          const m = await heading.evaluate((h) => {
+            const article = h.closest('article')
+            const row = h.closest('.a-card__top')
+            const id = row.firstElementChild
+            const button = row.querySelector('button[aria-haspopup="menu"]')
+            const box = (el) => { const b = el.getBoundingClientRect(); return { top: b.top, bottom: b.bottom, left: b.left, right: b.right, height: b.height } }
+            return {
+              row: box(row), id: box(id), title: box(h), button: button ? box(button) : null, article: box(article), buttons: row.querySelectorAll('button').length,
+              articleOverflow: article.scrollWidth - article.clientWidth, titleOverflow: h.scrollWidth - h.clientWidth,
+              subOverflow: Math.max(0, ...[...article.querySelectorAll('.a-card__sub')].map((el) => el.scrollWidth - el.clientWidth)),
+            }
+          })
+          expect(m.buttons, `${where}: the row has the "more" button and no other`).toBe(1)
+          expect(m.button, `${where}: the "more" button is there`).toBeTruthy()
+          const centre = (b) => (b.top + b.bottom) / 2
+          expect(m.button.top, `${where}: the button is inside its row (top)`).toBeGreaterThanOrEqual(m.row.top - 0.5)
+          expect(m.button.bottom, `${where}: the button is inside its row (bottom)`).toBeLessThanOrEqual(m.row.bottom + 0.5)
+          expect(Math.abs(centre(m.button) - centre(m.row)), `${where}: the button is centred on the row of the title`).toBeLessThanOrEqual(1)
+          expect(m.button.top < m.id.bottom && m.button.bottom > m.id.top, `${where}: the button is level with the title block, not under it`).toBe(true)
+          expect(m.button.right <= m.id.left + 0.5 || m.button.left >= m.id.right - 0.5, `${where}: the button is beside the title block, not over it`).toBe(true)
+          expect(m.row.height, `${where}: the row is as tall as its tallest part: nothing is stacked under the title`).toBeLessThanOrEqual(Math.max(m.id.height, m.button.height) + 1)
+          expect(Math.abs(m.id.top - m.row.top), `${where}: the title block starts at the top of the row`).toBeLessThanOrEqual(1)
+          // a row that is no taller than its button (a title of one line and no second line under it): the top of the button is the top of the row
+          if (m.id.height <= m.button.height + 1) expect(Math.abs(m.button.top - m.row.top), `${where}: the top of the button is the top of the row`).toBeLessThanOrEqual(1)
+          expect(m.article.left, `${where}: the card is inside the screen`).toBeGreaterThanOrEqual(-0.5)
+          expect(m.article.right, `${where}: the card is inside the screen`).toBeLessThanOrEqual(width + 0.5)
+          expect(m.button.left, `${where}: the button is inside the card`).toBeGreaterThanOrEqual(m.article.left - 0.5)
+          expect(m.button.right, `${where}: the button is inside the card`).toBeLessThanOrEqual(m.article.right + 0.5)
+          expect(m.title.left, `${where}: the title is inside its block`).toBeGreaterThanOrEqual(m.id.left - 0.5)
+          expect(m.title.right, `${where}: the title is inside its block`).toBeLessThanOrEqual(m.id.right + 0.5)
+          expect(m.articleOverflow, `${where}: the card does not overflow sideways`).toBeLessThanOrEqual(0)
+          expect(m.titleOverflow, `${where}: the title does not overflow its box`).toBeLessThanOrEqual(0)
+          expect(m.subOverflow, `${where}: the line under the title does not overflow its box`).toBeLessThanOrEqual(0)
+        }
+        expect(await noHorizontalScroll(page), `${width} px, ${screen.tab}: the page does not scroll sideways`).toBe(true)
+      }
+    }
+  } finally {
+    for (const path of created.reverse()) await page.request.delete(path, { data: {} })
   }
 })
 
@@ -1831,7 +1993,7 @@ test('the "עוד" sheet: opens, lists the four other screens, marks the current
   await expect(more).toBeFocused()
 
   // a screen of the bar: "עוד" is not the current item any more
-  await bar.getByRole('button', { name: 'נקודות', exact: true }).click()
+  await bar.getByRole('button', { name: SCREEN_NAV.points, exact: true }).click()
   await expect(page.getByRole('heading', { level: 1, name: 'נקודות סריקה' })).toBeVisible()
   await expect(more).not.toHaveAttribute('aria-current', 'page')
 })

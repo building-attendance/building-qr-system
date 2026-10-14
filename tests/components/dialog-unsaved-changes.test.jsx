@@ -458,7 +458,7 @@ describe('the point form', () => {
 
   it('asks before the change to a point is lost, and not when nothing was changed', async () => {
     await show([point])
-    const edit = () => fireEvent.click(within(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article')).getByRole('button', { name: /^עריכה/ }))
+    const edit = () => choose(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article'), 'עריכה')
     edit()
     esc()
     noDialog('עריכת נקודה: לובי')
@@ -468,7 +468,7 @@ describe('the point form', () => {
     expectItAsksBeforeLosingWhatWasTyped('עריכת נקודה: לובי', 'רדיוס (מטרים)', '75')
   })
 
-  const editLobby = () => fireEvent.click(within(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article')).getByRole('button', { name: /^עריכה/ }))
+  const editLobby = () => choose(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article'), 'עריכה')
 
   it('does not count a coordinate that was typed over and put back exactly as the database had it (a number there, text in the field)', async () => {
     await show([point])
@@ -591,7 +591,6 @@ describe('the provider forms', () => {
     await screen.findByRole('heading', { name: 'פלוני', level: 2 }, WAIT)
   }
   const tile = () => screen.getByRole('heading', { name: 'פלוני', level: 2 }).closest('article')
-  const card = () => within(tile())
 
   it('asks before a new provider that was started is lost, and not for the password that the form made up', async () => {
     await show()
@@ -605,7 +604,7 @@ describe('the provider forms', () => {
 
   it('asks before the change to a provider is lost', async () => {
     await show()
-    fireEvent.click(card().getByRole('button', { name: /^עריכה/ }))
+    choose(tile(), 'עריכה')
     expectItAsksBeforeLosingWhatWasTyped('עריכה: פלוני', 'שם העובד', 'דנה')
   })
 
