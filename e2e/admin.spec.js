@@ -2,7 +2,7 @@
 import { randomUUID } from 'node:crypto'
 import {
   test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, SCREEN_TITLES, SCREEN_NAV, adminSignIn, openScreen, clearScans, allowConsoleErrors,
-  changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS,
+  changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS, ADMIN_EMAIL, accountButton, openAccountMenu, signOut,
 } from './fixtures.js'
 import { SCAN_ERROR_POINT_INACTIVE } from '../shared/contract.js'
 import { formatDateTime, formatDay } from '../shared/datetime.js'
@@ -36,19 +36,126 @@ test('the point tiles offer their actions as icons that have names, and no text 
   await expect(page.getByRole('button', { name: 'הדפסת כל השלטים' })).toBeVisible()
 })
 
-test('the provider-app, light/dark and sign-out icons are the same on a phone and on a computer', async ({ page }) => {
+// ---- the account menu ---------------------------------------------------------------------------------------------------------
+// The three icons of the old top bar (the provider app, light / dark, sign-out) are one account button: the member's initial in the top
+// bar of a phone, the name and the e-mail at the foot of the side rail on a computer. It opens a popover (a dialog that is not modal, see
+// src/admin/AccountMenu.jsx). The unit test (tests/components/AccountMenu.test.jsx) proves the parts; these prove them in the two real
+// browsers, with the real layout.
+
+test('the account button opens the same menu on a phone and on a computer: the member, the mode, the provider app and the sign-out', async ({ page }) => {
   await adminSignIn(page)
-  const tools = async () => {
-    await expect(page.getByRole('link', { name: 'אפליקציית נותני השירות' })).toBeVisible()
-    // both layouts are in the page, one of them hidden: a role query sees only the one that is shown
-    await expect(page.getByRole('combobox', { name: he['theme.label'] })).toBeVisible()
-    await expect(page.getByRole('button', { name: 'יציאה' })).toBeVisible()
+  for (const size of [null, COMPUTER]) {
+    if (size) await page.setViewportSize(size)
+    const where = size ? 'computer' : 'phone'
+    const button = accountButton(page)
+    await expect(button, `${where}: closed to begin with`).toHaveAttribute('aria-expanded', 'false')
+    const box = await button.boundingBox()
+    expect(box.width, `${where}: the button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+    expect(box.height, `${where}: the button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+    // the three icons are gone from the screen: what they did is behind the one button
+    await expect(page.getByRole('link', { name: 'אפליקציית נותני השירות' }), `${where}: no link before the menu opens`).toHaveCount(0)
+    await expect(page.getByRole('combobox', { name: he['theme.label'] }), `${where}: no light / dark picker before the menu opens`).toHaveCount(0)
+
+    const menu = await openAccountMenu(page)
+    await expect(button, `${where}: open`).toHaveAttribute('aria-expanded', 'true')
+    await expect(menu, `${where}: it is not modal`).not.toHaveAttribute('aria-modal', /.*/)
+    await expect(menu).toContainText('Dev Admin') // the sample member
+    await expect(menu).toContainText(ADMIN_EMAIL)
+    await expect(menu.getByRole('group', { name: he['theme.label'] }).getByRole('radio')).toHaveCount(3)
+    for (const name of [he['theme.light'], he['theme.dark'], he['theme.system']]) await expect(menu.getByRole('radio', { name })).toBeVisible()
+    await expect(menu.getByRole('link', { name: 'אפליקציית נותני השירות' })).toHaveAttribute('href', '/')
+    await expect(menu.getByRole('button', { name: 'יציאה', exact: true })).toBeVisible()
+
+    // the menu is inside the screen, and it does not cover its own button
+    const view = page.viewportSize()
+    const pop = await menu.boundingBox()
+    expect(pop.x, `${where}: inside the screen`).toBeGreaterThanOrEqual(0)
+    expect(pop.x + pop.width, `${where}: inside the screen`).toBeLessThanOrEqual(view.width)
+    expect(pop.y, `${where}: inside the screen`).toBeGreaterThanOrEqual(0)
+    expect(pop.y + pop.height, `${where}: inside the screen`).toBeLessThanOrEqual(view.height)
+    const overlaps = pop.x < box.x + box.width && box.x < pop.x + pop.width && pop.y < box.y + box.height && box.y < pop.y + pop.height
+    expect(overlaps, `${where}: the menu stands beside its button, not over it`).toBe(false)
+    expect(await noHorizontalScroll(page), `${where}: the open menu does not make the page scroll sideways`).toBe(true)
+
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(button, `${where}: Esc gives the focus back`).toBeFocused()
   }
-  await tools() // the phone's width, as the project sets it
-  await page.setViewportSize(COMPUTER)
-  await tools()
-  // on a computer there are no text rows left for them in the side rail
-  await expect(page.getByRole('complementary').getByRole('button', { name: 'יציאה' })).toHaveText('')
+})
+
+test('the account menu by keyboard: Enter opens it on the chosen mode, the arrows choose, Tab goes on and out and closes it, Esc closes it', async ({ page }) => {
+  await adminSignIn(page)
+  const button = accountButton(page)
+  const menu = page.getByRole('dialog', { name: 'החשבון שלי', exact: true })
+  const html = page.locator('html')
+  await button.focus()
+  await page.keyboard.press('Enter')
+  await expect(menu).toBeVisible()
+  await expect(menu.getByRole('radio', { name: he['theme.system'] }), 'the focus is on the mode that is chosen').toBeFocused()
+  // the arrows of the radio group choose a mode, and the page follows at once (the order is light, dark, like the device; up goes back one: only
+  // Chromium wraps at the end of the group, WebKit stops there, so the test goes the way that both go)
+  await page.keyboard.press('ArrowUp')
+  await expect(menu.getByRole('radio', { name: he['theme.dark'] })).toBeChecked()
+  await expect(html).toHaveAttribute('data-theme', 'dark')
+  await page.keyboard.press('ArrowUp')
+  await expect(menu.getByRole('radio', { name: he['theme.light'] })).toBeChecked()
+  await expect(html).toHaveAttribute('data-theme', 'light')
+  await expect(menu, 'choosing a mode does not close the menu').toBeVisible()
+  // Tab goes on through what is in the menu and out of it, and that closes it (at most the link, the sign-out, and the next control)
+  for (let i = 0; i < 4 && (await menu.count()) > 0; i++) await page.keyboard.press('Tab')
+  await expect(menu).toHaveCount(0)
+  await expect(button).toHaveAttribute('aria-expanded', 'false')
+  // Esc, from a control inside the menu, closes it and the focus goes back to the button
+  await button.focus()
+  await page.keyboard.press('Space')
+  await expect(menu).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(button).toBeFocused()
+  // the sign-out is reachable by keyboard: Enter on it signs out
+  await page.keyboard.press('Enter')
+  await menu.getByRole('button', { name: 'יציאה', exact: true }).focus()
+  await page.keyboard.press('Enter')
+  await expect(page.getByRole('heading', { level: 1, name: 'ניהול נוכחות הבניין' })).toBeVisible()
+})
+
+test('a tap outside the account menu closes it, and so does choosing the button again', async ({ page }) => {
+  await adminSignIn(page)
+  const menu = await openAccountMenu(page)
+  await page.mouse.click(page.viewportSize().width / 2, page.viewportSize().height - 2) // the page, outside the menu
+  await expect(menu).toHaveCount(0)
+  await accountButton(page).click()
+  await expect(menu).toBeVisible()
+  await accountButton(page).click()
+  await expect(menu).toHaveCount(0)
+})
+
+test('the mode chosen in the account menu applies at once, survives a reload, and is what the menu shows next time', async ({ page }) => {
+  await adminSignIn(page)
+  const html = page.locator('html')
+  const menu = await openAccountMenu(page)
+  const radio = (name) => menu.getByRole('radio', { name })
+  await radio(he['theme.dark']).check()
+  await expect(html).toHaveAttribute('data-theme', 'dark')
+  expect(await page.evaluate(() => window.localStorage.getItem('qr.theme'))).toBe('dark')
+  await radio(he['theme.light']).check()
+  await expect(html).toHaveAttribute('data-theme', 'light')
+  await radio(he['theme.dark']).check()
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES.history })).toBeVisible()
+  await expect(html, 'a reload keeps the mode').toHaveAttribute('data-theme', 'dark')
+  await openAccountMenu(page)
+  await expect(radio(he['theme.dark'])).toBeChecked()
+  await radio(he['theme.system']).check() // back to following the device, as every test starts
+  expect(await page.evaluate(() => window.localStorage.getItem('qr.theme'))).toBe('system')
+})
+
+test('signing out from the account menu ends the session: the sign-in screen is there, and a reload does not bring the member back', async ({ page }) => {
+  await adminSignIn(page)
+  await signOut(page)
+  await expect(page.getByRole('heading', { level: 1, name: 'ניהול נוכחות הבניין' })).toBeVisible()
+  await page.reload()
+  await expect(page.getByRole('heading', { level: 1, name: 'ניהול נוכחות הבניין' })).toBeVisible()
 })
 
 test('every committee screen fits the width, on a phone and on a computer', async ({ page }) => {
@@ -65,38 +172,83 @@ test('every committee screen fits the width, on a phone and on a computer', asyn
   }
 })
 
-// The tab bar of the phone has five equal columns: home, history, points, providers and "עוד" (more), which opens the sheet with the other
-// four screens. On the narrowest phone that is still in use (360 px) each label has 72 px, the same as the five columns this bar had
-// before Home came (it had five once, and "נותני שירות" wrapped onto two lines in them, which made the bar taller and set its icon higher
-// than the others; the button says "ספקים", `nav` in TABS, src/pages/AdminApp.jsx, while the top bar, the heading and the title keep the
-// long name). The two E2E devices are 412 and 390 px wide, so nothing else measures 360.
-test('the tab bar of the phone fits a 360 px screen: five buttons, each label on one line and not cut, every button the same height', async ({ page }) => {
-  await page.setViewportSize({ width: 360, height: 740 })
+// The tab bar of the phone floats and has five buttons: home, history, points, providers and "עוד" (more), which opens the sheet with the
+// other four screens. Each is an icon, and the current one is a pill that also says its name (the other four keep theirs for a screen
+// reader). On the narrowest phones that are still in use (360 px, and 320 px for the reflow rule) the longest name, "היסטוריה", has to fit
+// beside four buttons of 44 px or more: below 360 px the pill drops its icon to make the room. The button says "ספקים", `nav` in TABS,
+// src/pages/AdminApp.jsx, while the top bar, the heading and the title keep the long name. The two E2E devices are 412 and 390 px wide, so
+// nothing else measures these two.
+test('the tab bar of the phone fits 320 and 360 px screens: five buttons inside the bar, the current one names itself whole on one line, none under 44 px', async ({ page }) => {
   await adminSignIn(page)
-  const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
   const labels = ['בית', 'היסטוריה', 'נקודות', 'ספקים', 'עוד'] // the buttons, in the order of the page (the first is at the right: the page runs right to left)
-  await expect(bar.getByRole('button')).toHaveCount(labels.length)
-  const heights = []
-  const xs = []
-  for (const [index, label] of labels.entries()) {
-    const button = bar.getByRole('button').nth(index)
-    await expect(button, `the name of button ${index + 1} is its visible label`).toHaveAccessibleName(label)
-    const text = button.getByText(label, { exact: true })
-    const { lines, scrollWidth, clientWidth } = await text.evaluate((span) => {
-      const range = document.createRange()
-      range.selectNodeContents(span)
-      return { lines: range.getClientRects().length, scrollWidth: span.scrollWidth, clientWidth: span.clientWidth }
-    })
-    expect(scrollWidth, `${label} is not cut (its text is wider than its box)`).toBeLessThanOrEqual(clientWidth)
-    expect(lines, `${label} is on one line`).toBe(1)
-    const box = await button.boundingBox()
-    heights.push(box.height)
-    xs.push(box.x)
-    expect(box.height, `${label} is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+  const screens = ['home', 'history', 'points', 'providers', 'settings'] // the screen that makes each of them the current one ("עוד" is current on a screen under it)
+  for (const width of [320, 360]) {
+    await page.setViewportSize({ width, height: 740 })
+    for (const [current, screen] of screens.entries()) {
+      await page.goto(`/admin#${screen}`)
+      await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
+      const where = `${width} px, "${labels[current]}" is the current button`
+      const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
+      const buttons = bar.getByRole('button')
+      await expect(buttons, where).toHaveCount(labels.length)
+      const barBox = await bar.boundingBox()
+      expect(barBox.x, `${where}: the bar is inside the screen`).toBeGreaterThanOrEqual(0)
+      expect(barBox.x + barBox.width, `${where}: the bar is inside the screen`).toBeLessThanOrEqual(width)
+      const heights = []
+      const xs = []
+      for (const [index, label] of labels.entries()) {
+        const button = buttons.nth(index)
+        await expect(button, `${where}: button ${index + 1} has the name ${label}`).toHaveAccessibleName(label)
+        const box = await button.boundingBox()
+        expect(box.width, `${where}: ${label} is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+        expect(box.height, `${where}: ${label} is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+        expect(box.x, `${where}: ${label} is inside the bar`).toBeGreaterThanOrEqual(barBox.x)
+        expect(box.x + box.width, `${where}: ${label} is inside the bar`).toBeLessThanOrEqual(barBox.x + barBox.width + 0.5)
+        heights.push(box.height)
+        xs.push(box.x)
+        const { lines, scrollWidth, clientWidth, drawn } = await button.getByText(label, { exact: true }).evaluate((span) => {
+          const range = document.createRange()
+          range.selectNodeContents(span)
+          return { lines: range.getClientRects().length, scrollWidth: span.scrollWidth, clientWidth: span.clientWidth, drawn: span.getBoundingClientRect().width > 2 }
+        })
+        if (index === current) {
+          expect(drawn, `${where}: ${label} says its name`).toBe(true)
+          expect(scrollWidth, `${where}: ${label} is not cut (its text is wider than its box)`).toBeLessThanOrEqual(clientWidth)
+          expect(lines, `${where}: ${label} is on one line`).toBe(1)
+          await expect(button, `${where}: ${label} is the current button`).toHaveAttribute('aria-current', 'page')
+        } else {
+          expect(drawn, `${where}: ${label} is only an icon (its name is for a screen reader)`).toBe(false)
+          await expect(button, `${where}: ${label} is not the current button`).not.toHaveAttribute('aria-current', 'page')
+        }
+      }
+      expect(Math.max(...heights) - Math.min(...heights), `${where}: the heights of the five buttons: ${heights.join(', ')}`).toBeLessThan(0.5)
+      expect(xs, `${where}: the first button is at the start of the bar (the right, in right-to-left), "עוד" at the end`).toEqual([...xs].sort((p, q) => q - p))
+      expect(await noHorizontalScroll(page), `${where}: the page does not scroll sideways`).toBe(true)
+    }
   }
-  expect(Math.max(...heights) - Math.min(...heights), `the heights of the five buttons: ${heights.join(', ')}`).toBeLessThan(0.5)
-  expect(xs, 'the first button is at the start of the bar (the right, in right-to-left), "עוד" at the end').toEqual([...xs].sort((p, q) => q - p))
-  expect(await noHorizontalScroll(page), 'the page does not scroll sideways at 360 px').toBe(true)
+})
+
+// The bar floats over the page: a pill that stands clear of the bottom edge and of both sides, and the end of every page stands above it.
+test('the tab bar of the phone floats clear of the screen edges, and the page ends above it', async ({ page }) => {
+  await adminSignIn(page, 'settings') // a long page
+  await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0) // whole: the page grows while its lists load, and the end moves with it
+  await expect(page.getByLabel('שם הבניין', { exact: true })).toBeVisible()
+  const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
+  const view = page.viewportSize()
+  const box = await bar.boundingBox()
+  expect(box.x, 'clear of the left edge').toBeGreaterThanOrEqual(8)
+  expect(view.width - (box.x + box.width), 'clear of the right edge').toBeGreaterThanOrEqual(8)
+  expect(view.height - (box.y + box.height), 'clear of the bottom edge (and of the home indicator, which the inset adds)').toBeGreaterThanOrEqual(8)
+  expect(await bar.evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius)), 'a pill: the corners are at least half its height').toBeGreaterThanOrEqual(box.height / 2)
+  expect(await bar.evaluate((el) => getComputedStyle(el).position), 'it stays while the page scrolls').toBe('fixed')
+  // the page's own end clears the bar: the room under the last thing of the page is more than the bar and the gap under it take
+  const room = await page.getByRole('main').evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom))
+  expect(room, 'the room under the last thing of the page (--w-layout-tabbar-clearance)').toBeGreaterThanOrEqual(view.height - box.y + 8)
+  await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  await expect.poll(async () => {
+    const last = await page.getByRole('main').evaluate((el) => el.lastElementChild.getBoundingClientRect().bottom)
+    return last <= (await bar.boundingBox()).y
+  }, { message: 'at the end of the page, its last thing is above the bar' }).toBe(true)
 })
 
 // The side rail of a computer has all eight screens in two groups, the work screens and the management screens, with a line between
@@ -128,10 +280,52 @@ test('the side rail has the eight screens in two groups with a separator, Home f
     expect(lines, `${name} is on one line`).toBe(1)
     expect((await button.boundingBox()).height, `${name}: a target of 44 px or more`).toBeGreaterThanOrEqual(44)
   }
-  // the whole rail is on the screen, also on a short one (it scrolls when it must; the sign-out is reachable)
+  // the rail floats: a white card 250 px wide with rounded corners, clear of the screen edges; the current screen is the violet pill
+  const side = await page.getByRole('complementary').boundingBox()
+  expect(side.width, 'the rail is 250 px wide').toBe(250)
+  expect(side.x, 'it floats clear of the edge of the screen').toBeGreaterThanOrEqual(8)
+  expect(side.y, 'and of the top').toBeGreaterThanOrEqual(8)
+  expect(await page.getByRole('complementary').evaluate((el) => parseFloat(getComputedStyle(el).borderTopLeftRadius)), 'with rounded corners').toBeGreaterThanOrEqual(24)
+  await expect(rail.getByRole('button', { name: SCREEN_NAV.history, exact: true })).toHaveAttribute('aria-current', 'page')
+  const pill = await rail.getByRole('button', { name: SCREEN_NAV.history, exact: true }).evaluate((el) => ({ fill: getComputedStyle(el).backgroundColor, radius: parseFloat(getComputedStyle(el).borderTopLeftRadius), height: el.getBoundingClientRect().height }))
+  expect(pill.fill, 'the current screen is filled').not.toBe('rgba(0, 0, 0, 0)')
+  expect(pill.radius, 'and it is a pill').toBeGreaterThanOrEqual(pill.height / 2)
+  expect(await rail.getByRole('button', { name: SCREEN_NAV.points, exact: true }).evaluate((el) => getComputedStyle(el).backgroundColor), 'another one is not').toBe('rgba(0, 0, 0, 0)')
+  // the account button is at the foot of the rail, with the member's name and e-mail
+  const account = await accountButton(page).boundingBox()
+  expect(account.y + account.height, 'the account button is at the foot of the rail').toBeGreaterThan(side.y + side.height - 40)
+  await expect(accountButton(page)).toContainText('Dev Admin')
+  await expect(accountButton(page)).toContainText(ADMIN_EMAIL)
+  // the whole rail is on the screen, also on a short one (it scrolls when it must; the account button is reachable)
   await page.setViewportSize({ width: 1280, height: 560 })
   await expect(rail.getByRole('button').last()).toBeVisible()
-  await expect(page.getByRole('complementary').getByRole('button', { name: 'יציאה' })).toBeVisible()
+  await expect(accountButton(page)).toBeVisible()
+  await openAccountMenu(page)
+  await expect(page.getByRole('dialog', { name: 'החשבון שלי', exact: true }).getByRole('button', { name: 'יציאה', exact: true })).toBeVisible()
+})
+
+// Every screen can be reached from the navigation that is on the screen, by the name on its button (the tab bar and the sheet under "עוד"
+// on a phone, the side rail on a computer), and Back goes to the screen before, with nothing left open.
+test('every screen opens from the navigation by the name of its button, and Back returns to the screen before, on a phone and on a computer', async ({ page }) => {
+  await adminSignIn(page, 'home')
+  for (const size of [null, COMPUTER]) {
+    if (size) await page.setViewportSize(size)
+    const where = size ? 'computer' : 'phone'
+    for (const [key, title] of TABS) {
+      await openScreen(page, key)
+      await expect(page.getByRole('heading', { level: 1, name: title, exact: true }), `${where}: ${key} opens`).toBeVisible()
+      await expect(page.getByRole('dialog'), `${where}: nothing is left open after ${key}`).toHaveCount(0)
+    }
+    const trail = ['history', 'points', 'providers', 'settings', 'audit']
+    for (const key of trail) {
+      await openScreen(page, key)
+      await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[key], exact: true })).toBeVisible()
+    }
+    for (const key of trail.slice(0, -1).reverse()) {
+      await page.goBack()
+      await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[key], exact: true }), `${where}: Back goes to ${key}`).toBeVisible()
+    }
+  }
 })
 
 // The tab is kept in the address. A link to a tab that is opened in the moment after signing in (the shell has just appeared)
@@ -204,7 +398,7 @@ test('a tab that was open before shows its list at once and refreshes it in the 
 
       // signing out and in again: the first visit of a tab loads from the beginning, as it did
       const again = hold()
-      await page.getByRole('button', { name: 'יציאה' }).click()
+      await signOut(page)
       await page.getByRole('button', { name: 'כניסת פיתוח' }).click()
       await expect(page.getByRole('heading', { level: 1, name: 'נקודות סריקה' }), `${where}: signed in again`).toBeVisible()
       await expect(loading, `${where}: the first visit after a sign-in has its loading state`).toBeVisible()
@@ -1064,10 +1258,17 @@ test('the "עוד" sheet: opens, lists the four other screens, marks the current
   await expect(sheet).toBeVisible()
   await expect(more).toHaveAttribute('aria-expanded', 'true')
   await expect(sheet).toHaveAttribute('aria-modal', 'true')
-  await expect(items).toHaveText(['אייג׳נט', 'הגדרות', 'יומן פעולות', 'איך עובדים עם המערכת'])
-  // each item has its icon and a target of 44 px or more, and the sheet is at the bottom of the screen
+  // each row is named by the screen's name and described by the line under it, so a button is still found by its name
+  const rows = [['אייג׳נט', 'מפתחות לסוכן ה-AI של הוועד'], ['הגדרות', 'חברי הוועד ופרטי הבניין'], ['יומן פעולות', 'מי שינה מה ומתי'], ['איך עובדים עם המערכת', 'מדריך קצר']]
+  await expect(items).toHaveCount(rows.length)
+  for (const [index, [name, line]] of rows.entries()) {
+    await expect(items.nth(index)).toHaveAccessibleName(name)
+    await expect(items.nth(index)).toHaveAccessibleDescription(line)
+    await expect(items.nth(index)).toContainText(line) // and the line is drawn
+  }
+  // each item has its icon (and a chevron) and a target of 44 px or more, and the sheet is at the bottom of the screen
   for (const item of await items.all()) {
-    await expect(item.locator('svg')).toHaveCount(1)
+    await expect(item.locator('svg')).toHaveCount(2)
     expect((await item.boundingBox()).height).toBeGreaterThanOrEqual(44)
   }
   const [sheetBox, view] = [await sheet.boundingBox(), page.viewportSize()]
@@ -1103,7 +1304,7 @@ test('the "עוד" sheet: opens, lists the four other screens, marks the current
   await expect(page.getByRole('main'), 'the focus moved to the content, as for any change of screen').toBeFocused()
   expect(await page.title()).toMatch(/^הגדרות · /)
   await more.click()
-  await expect(sheet.locator('[aria-current="page"]')).toHaveText(['הגדרות'])
+  await expect(sheet.locator('[aria-current="page"]')).toHaveText([/^הגדרות/])
   await expect(items.filter({ hasText: 'אייג׳נט' })).not.toHaveAttribute('aria-current', 'page')
   await page.keyboard.press('Escape')
   await expect(more).toBeFocused()
@@ -1129,7 +1330,7 @@ test('each screen under "עוד" opens from the sheet with its title and its add
   await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
   const sheet = page.getByRole('dialog', { name: 'עוד', exact: true })
   const colours = await sheet.evaluate((el) => {
-    const item = el.querySelector('.a-nav__item:not([aria-current])')
+    const item = el.querySelector('.a-more__row:not([aria-current])')
     return { sheet: getComputedStyle(el).backgroundColor, text: getComputedStyle(item).color }
   })
   expect(colours.text).not.toBe(colours.sheet)

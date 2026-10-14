@@ -68,19 +68,22 @@ describe('the same design on a phone and on a computer', () => {
   const app = fs.readFileSync(path.join(root, 'src', 'pages', 'AdminApp.jsx'), 'utf8')
   const css = fs.readFileSync(path.join(root, 'src', 'admin', 'admin.css'), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
 
-  it('the provider-app, light/dark and sign-out controls are the same three icons in the side rail and in the top bar', () => {
-    expect(app.match(/<ShellTools onSignOut=\{signOut\} \/>/g)).toHaveLength(2) // once in .a-side, once in .a-top
-    const tools = app.slice(app.indexOf('function ShellTools'), app.indexOf('function Shell('))
-    expect(tools).toContain('label="אפליקציית נותני השירות"')
-    expect(tools).toContain('<ThemeSwitch')
-    expect(tools).toContain('label="יציאה"')
+  it('the provider-app link, the light / dark choice and the sign-out are one account menu, the same in the side rail and in the top bar', () => {
+    expect(app.match(/<AccountMenu admin=\{admin\} onSignOut=\{signOut\} where="(rail|top)" \/>/g)).toHaveLength(2) // once in .a-side, once in .a-top
+    expect(app).not.toContain('ShellTools') // the three icons are gone
+    const menu = fs.readFileSync(path.join(root, 'src', 'admin', 'AccountMenu.jsx'), 'utf8')
+    expect(menu).toContain('href="/"')
+    expect(menu).toContain('אפליקציית נותני השירות')
+    expect(menu).toContain('type="radio"') // the light / dark choice: a radio group
+    expect(menu).toContain('<span>יציאה</span>')
   })
 
-  it('the page icons are the same in the side rail, in the bottom bar and in the sheet under "עוד", at the same size', () => {
-    // in the order of the source: the sheet, then the side rail, then the bar (whose fourth button, "עוד", is not a screen and has its own icon)
+  it('the page icons are the same in the side rail and in the bottom bar, at the same size, and the sheet under "עוד" has them too', () => {
+    // in the order of the source: the side rail, then the bar (whose fifth button, "עוד", is not a screen and has its own icon)
     const sizes = [...app.matchAll(/<NavItem [^\n]*className="(a-nav__item|a-tab)" size=\{(\d+)\}/g)].map((m) => `${m[1]}:${m[2]}`)
-    expect(sizes).toEqual(['a-nav__item:24', 'a-nav__item:24', 'a-tab:24'])
+    expect(sizes).toEqual(['a-nav__item:24', 'a-tab:24'])
     expect(app).toContain('<IconMore size={24} />')
+    expect(app).toContain('<t.icon size={22} />') // the rows of the sheet
     // one list of screens, with the icon of each, feeds all three: the rail shows both groups, the bar the work group, the sheet the rest
     expect(app).toContain('const WORK_TABS = TABS.filter(')
     expect(app).toContain('const MORE_TABS = TABS.filter(')

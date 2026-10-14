@@ -2,7 +2,8 @@ import { Fragment, useCallback, useEffect, useRef, useState, useSyncExternalStor
 import '../ui/ui.css'
 import '../admin/admin.css'
 import { adminApi } from '../admin/api.js'
-import { ToastProvider, ConfirmProvider, Modal, Spinner, IconButton, useToast } from '../admin/ui.jsx'
+import { ToastProvider, ConfirmProvider, Modal, Spinner, useToast } from '../admin/ui.jsx'
+import AccountMenu from '../admin/AccountMenu.jsx'
 import LoginScreen from '../admin/LoginScreen.jsx'
 import HomeView from '../admin/views/HomeView.jsx'
 import PointsView from '../admin/views/PointsView.jsx'
@@ -17,19 +18,19 @@ import { BuildingNameProvider, useBuildingName, APP_NAME } from '../admin/buildi
 import { useErrorReport, clearLoadCache } from '../admin/hooks.js'
 import { noteClientError, setPlace, currentPlace } from '../ui/errorReport.js'
 import { applyUpdate, isUpdateReady, subscribeUpdate } from '../worker/update.js'
-import ThemeSwitch, { HEBREW_THEME_LABELS as THEME_LABELS } from '../ui/ThemeSwitch.jsx'
-import { IconHome, IconPin, IconUsers, IconList, IconKey, IconClock, IconInfo, IconSettings, IconMore, IconLogout, IconQr, IconDevice, IconAlert, IconRefresh } from '../admin/icons.jsx'
+import { IconHome, IconPin, IconUsers, IconList, IconKey, IconClock, IconInfo, IconSettings, IconMore, IconChevron, IconAlert, IconRefresh } from '../admin/icons.jsx'
 
-// The screens of the committee app, in the order of the side rail (a computer). `label` is the name of the screen as a page: the top bar,
-// the title of the document and the list under "עוד". `nav` is the name on its button in the side rail and in the tab bar of the phone.
-// Two screens have a `nav` shorter than their `label`, and each was measured (e2e/admin.spec.js), not guessed. The providers' button says
-// "ספקים" because "נותני שירות" wrapped onto two lines in a fifth of a 360 px screen (72 px), which is the share of each of the five buttons of the bar. The help's says "עזרה"
-// because "איך עובדים עם המערכת" is 168 px wide and the name on a button of the side rail has 157 px. The sheet under "עוד" has room for
-// the whole name of a screen, so it shows the `label`.
+// The screens of the committee app, in the order of the side rail (a computer). `label` is the name of the screen as a page: the title of the
+// document and the list under "עוד". `nav` is the name on its button in the side rail and in the tab bar of the phone. Two screens have a
+// `nav` shorter than their `label`, and each was measured (e2e/admin.spec.js), not guessed. The providers' button says "ספקים" because
+// "נותני שירות" wrapped onto two lines in a fifth of a 360 px screen, which is the share of each of the five buttons of the bar when it
+// was a bar of labels. The help's says "עזרה" because "איך עובדים עם המערכת" is 168 px wide and the name on a button of the side rail has
+// 157 px. The sheet under "עוד" has room for the whole name of a screen, so it shows the `label`.
 //
 // `group` is where the screen sits. The side rail shows all eight, the work group and then the management group with a separator
 // between them. The tab bar of the phone has five buttons: the four screens of the work group, in this order (Home first), and "עוד" (more),
 // which opens a sheet with the management group. The first screen, Home, is the one that opens when the address names none.
+// `sub` (a line about the screen) and `tint` (the colour of its icon) are for the rows of that sheet only.
 const GROUP_WORK = 'work'
 const GROUP_MANAGE = 'manage'
 const TABS = [
@@ -37,10 +38,10 @@ const TABS = [
   { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', icon: IconList, View: HistoryView, group: GROUP_WORK },
   { key: 'points', label: 'נקודות', nav: 'נקודות', icon: IconPin, View: PointsView, group: GROUP_WORK },
   { key: 'providers', label: 'נותני שירות', nav: 'ספקים', icon: IconUsers, View: ProvidersView, group: GROUP_WORK },
-  { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconKey, View: AgentView, group: GROUP_MANAGE },
-  { key: 'settings', label: 'הגדרות', nav: 'הגדרות', icon: IconSettings, View: SettingsView, group: GROUP_MANAGE },
-  { key: 'audit', label: 'יומן פעולות', nav: 'יומן פעולות', icon: IconClock, View: AuditView, group: GROUP_MANAGE },
-  { key: 'help', label: 'איך עובדים עם המערכת', nav: 'עזרה', icon: IconInfo, View: HelpView, group: GROUP_MANAGE },
+  { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconKey, View: AgentView, group: GROUP_MANAGE, sub: 'מפתחות לסוכן ה-AI של הוועד', tint: 'violet' },
+  { key: 'settings', label: 'הגדרות', nav: 'הגדרות', icon: IconSettings, View: SettingsView, group: GROUP_MANAGE, sub: 'חברי הוועד ופרטי הבניין', tint: 'sky' },
+  { key: 'audit', label: 'יומן פעולות', nav: 'יומן פעולות', icon: IconClock, View: AuditView, group: GROUP_MANAGE, sub: 'מי שינה מה ומתי', tint: 'peach' },
+  { key: 'help', label: 'איך עובדים עם המערכת', nav: 'עזרה', icon: IconInfo, View: HelpView, group: GROUP_MANAGE, sub: 'מדריך קצר', tint: 'mint' },
 ]
 
 // The tab that is open lives in the address (#history), see src/admin/tab.js. The first tab is the one that opens by default.
@@ -48,51 +49,48 @@ const TAB_KEYS = TABS.map((t) => t.key)
 const WORK_TABS = TABS.filter((t) => t.group === GROUP_WORK)
 const MORE_TABS = TABS.filter((t) => t.group === GROUP_MANAGE)
 
-// Defined once, outside Shell: a component created inside a render would be a new type each time and every
-// tab change would remount the buttons (losing keyboard focus). `text` is what the button says (the `nav` name unless the caller
-// says otherwise: the sheet under "עוד" has room for the whole name of a screen).
-function NavItem({ tab, current, onGo, className, size, text = tab.nav }) {
+// Defined once, outside Shell: a component created inside a render would be a new type each time and every tab change would remount the
+// buttons (losing keyboard focus). `text` is what the button says. In the tab bar only the current button shows it: the others are an icon,
+// and the text stays in the page for a screen reader and for voice control (`w-sr`), so every button has its name.
+function NavItem({ tab, current, onGo, className, size, iconOnly = false }) {
   return (
     <button className={className} onClick={() => onGo(tab.key)} aria-current={current ? 'page' : undefined}>
-      <tab.icon size={size} /><span className="a-nav-label">{text}</span>
+      <tab.icon size={size} /><span className={iconOnly && !current ? 'a-nav-label w-sr' : 'a-nav-label'}>{tab.nav}</span>
     </button>
   )
 }
 
-// The sheet that "עוד" opens: the management screens, one button each, in the same look as the rows of the side rail. A real dialog
-// (the same `Modal` as every form of the app: focus moves in and is trapped, Esc and a tap outside close it). Choosing a screen goes
-// there and closes the sheet; the button that opened it takes the focus back (Shell). It has no form, so it never asks about unsaved changes.
+// The sheet that "עוד" opens: the management screens, one row each (an icon on its tint, the name, a line about the screen, and a chevron).
+// A real dialog (the same `Modal` as every form of the app: focus moves in and is trapped, Esc and a tap outside close it). Choosing a screen
+// goes there and closes the sheet; the button that opened it takes the focus back (Shell). It has no form, so it never asks about unsaved
+// changes. The name of a row is the screen's name; the line under it is its description, so that a button is still found by its name.
 function MoreSheet({ tab, onGo, onClose }) {
   return (
     <Modal title="עוד" onClose={onClose} size="sheet">
-      <nav className="a-nav" aria-label="מסכים נוספים">
+      <nav className="a-more" aria-label="מסכים נוספים">
         {MORE_TABS.map((t) => (
-          <NavItem key={t.key} tab={t} text={t.label} current={tab === t.key} onGo={(key) => { onGo(key); onClose() }} className="a-nav__item" size={24} />
+          <button
+            key={t.key} className="a-more__row" aria-current={tab === t.key ? 'page' : undefined}
+            aria-labelledby={`more-${t.key}`} aria-describedby={`more-${t.key}-sub`} onClick={() => { onGo(t.key); onClose() }}
+          >
+            <span className={`a-more__icon a-more__icon--${t.tint}`}><t.icon size={22} /></span>
+            <span className="a-more__text"><span id={`more-${t.key}`}>{t.label}</span><span id={`more-${t.key}-sub`}>{t.sub}</span></span>
+            <IconChevron size={18} className="w-flip" />
+          </button>
         ))}
       </nav>
     </Modal>
   )
 }
 
-// The same three icons on every screen size (the side rail on a computer, the top bar on a phone): the provider app,
-// light / dark, and signing out. Only the place they sit changes with the width, never what they look like.
-function ShellTools({ onSignOut }) {
-  return (
-    <div className="a-tools">
-      <IconButton icon={IconDevice} label="אפליקציית נותני השירות" href="/" />
-      <ThemeSwitch labels={THEME_LABELS} />
-      <IconButton icon={IconLogout} label="יציאה" onClick={onSignOut} />
-    </div>
-  )
-}
-
-// The brand: the building's name when the committee set one (kept to a few lines by CSS, an 80 character name included), else the
-// name of the app. It is the same text in the side rail of a computer and in the top bar of a phone, and the end of the window title.
+// The brand: the building's name when the committee set one (kept to a few lines by CSS, an 80 character name included), else the name of
+// the app, and under it what the app is. It is the same text in the side rail of a computer and in the top bar of a phone, and the end of
+// the window title.
 function Brand({ name }) {
   return (
     <div className="a-brand">
-      <span className="a-brand__mark"><IconQr size={22} /></span>
       <span className="a-brand__text" dir="auto">{name || APP_NAME}</span>
+      <span className="a-brand__sub">ועד הבית</span>
     </div>
   )
 }
@@ -103,6 +101,7 @@ function Shell({ admin, onSignedOut }) {
   const [tab, goTo] = useTab(TAB_KEYS)
   setPlace(`committee:${tab}`) // the screen for an error report (src/ui/errorReport.js), told while rendering so that a first draw that breaks is on this tab
   const { View, label } = TABS.find((t) => t.key === tab)
+  const moreCurrent = MORE_TABS.some((t) => t.key === tab)
   const updateReady = useSyncExternalStore(subscribeUpdate, isUpdateReady)
   const mainRef = useRef(null)
   const first = useRef(true)
@@ -164,15 +163,12 @@ function Shell({ admin, onSignedOut }) {
             </Fragment>
           ))}
         </nav>
-        <div className="a-side__foot">
-          <div className="a-user"><strong>{admin.name || 'חבר ועד'}</strong><span dir="ltr">{admin.email}</span></div>
-          <ShellTools onSignOut={signOut} />
-        </div>
+        <AccountMenu admin={admin} onSignOut={signOut} where="rail" />
       </aside>
 
       <header className="a-top">
         <Brand name={buildingName} />
-        <ShellTools onSignOut={signOut} />
+        <AccountMenu admin={admin} onSignOut={signOut} where="top" />
       </header>
 
       <main className="a-main" ref={mainRef} tabIndex={-1} style={{ outline: 'none' }}>
@@ -187,11 +183,11 @@ function Shell({ admin, onSignedOut }) {
       </main>
 
       <nav className="a-tabbar" aria-label="ניווט ראשי (טלפון)">
-        {WORK_TABS.map((t) => <NavItem key={t.key} tab={t} current={tab === t.key} onGo={goTo} className="a-tab" size={24} />)}
-        {/* The fourth button is the current item while one of the screens under it is open; the sheet marks which one. */}
+        {WORK_TABS.map((t) => <NavItem key={t.key} tab={t} current={tab === t.key} onGo={goTo} className="a-tab" size={24} iconOnly />)}
+        {/* The fifth button is the current item while one of the screens under it is open; the sheet marks which one. */}
         <button type="button" className="a-tab" ref={moreRef} onClick={() => setMoreOpen(true)} aria-haspopup="dialog" aria-expanded={moreOpen}
-          aria-current={MORE_TABS.some((t) => t.key === tab) ? 'page' : undefined}>
-          <IconMore size={24} /><span className="a-nav-label">עוד</span>
+          aria-current={moreCurrent ? 'page' : undefined}>
+          <IconMore size={24} /><span className={moreCurrent ? 'a-nav-label' : 'a-nav-label w-sr'}>עוד</span>
         </button>
       </nav>
       {moreOpen && <MoreSheet tab={tab} onGo={goTo} onClose={closeMore} />}

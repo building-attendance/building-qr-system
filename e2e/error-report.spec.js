@@ -9,7 +9,7 @@
 // the one thing allowed is the browser's own line about the 401 that the test provokes.
 //
 // Both projects run it (the Pixel in Chromium and the iPhone in WebKit); nothing here goes offline.
-import { test, expect, he, PEOPLE, adminSignIn, signIn, allowConsoleErrors, isErrorReport, expectErrorReport } from './fixtures.js'
+import { test, expect, he, PEOPLE, adminSignIn, signIn, allowConsoleErrors, isErrorReport, expectErrorReport, signOut } from './fixtures.js'
 
 // The service worker is not what is tested here, and a page that it controls can send a request round the test's route.
 test.use({ serviceWorkers: 'block' })
@@ -90,7 +90,7 @@ test('a committee member whose session the server ended is reported after the ne
 test('a committee member who signs out by choice is not reported', async ({ page }) => {
   allowConsoleErrors(page, /status of 401/) // the sign-in screen asks /api/admin/me before anyone is signed in
   await adminSignIn(page)
-  await page.getByRole('button', { name: 'יציאה' }).first().click()
+  await signOut(page)
   await expect(page.getByRole('heading', { name: 'ניהול נוכחות הבניין' })).toBeVisible()
   expect(await outboxOf(page)).toBeNull()
 })
