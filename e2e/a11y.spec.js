@@ -597,6 +597,10 @@ test.describe('committee app with the sample data filled in', () => {
     await expect(page.getByText('נדחתה: רחוק מהנקודה')).toBeVisible()
     await expect(page.getByText(/מבוטלת: נסרק בטעות/)).toBeVisible()
     await scanBothThemes(page, 'committee phone: history, every kind of row') // the bar now holds the chips of the three filters
+    // the "more" menu of a row, open: restoring a cancelled visit, a separator, and the red delete
+    await openTileMenu(page.getByRole('listitem').filter({ hasText: /מבוטלת: נסרק בטעות/ }).first())
+    await scanBothThemes(page, 'committee phone: the "more" menu of a cancelled visit, open')
+    await page.keyboard.press('Escape')
     // a date field that holds a date that does not exist (31 February): flagged with aria-invalid, in red
     const unfinished = await openFilters(page)
     const until = unfinished.getByLabel('עד תאריך')
@@ -640,6 +644,9 @@ test.describe('committee app with the sample data filled in', () => {
     await expect(page.getByRole('dialog')).toHaveCount(0)
     await openTab(page, 'history', 'היסטוריית נוכחות')
     await scanBothThemes(page, 'committee computer: history')
+    await openTileMenu(page.getByRole('listitem').filter({ hasText: 'מינוס 1' }).first()) // cancelling, a separator, and the red delete
+    await scanBothThemes(page, 'committee computer: the "more" menu of a visit, open')
+    await page.keyboard.press('Escape')
     await page.getByLabel('סוג').selectOption({ label: 'לא נקלטו' })
     await expect(page.getByText('נקודה כבויה').first()).toBeVisible()
     await expect(page.getByText('מהתור בטלפון').first()).toBeVisible()
@@ -771,11 +778,11 @@ test.describe('committee app with the sample data filled in', () => {
     // history: cancelling a visit, deleting one
     await openTab(page, 'history', 'היסטוריית נוכחות')
     const row = page.getByRole('listitem').filter({ hasText: 'מינוס 1' }).first()
-    await row.getByRole('button', { name: 'ביטול הנוכחות' }).click()
+    await chooseFromMenu(row, 'ביטול הנוכחות')
     await expect(dialog('ביטול נוכחות')).toBeVisible()
     await scanBothThemes(page, 'committee phone: cancel a visit')
     await closeWithEscape('ביטול נוכחות')
-    await row.getByRole('button', { name: 'מחיקת הנוכחות לצמיתות' }).click()
+    await chooseFromMenu(row, 'מחיקת הנוכחות לצמיתות')
     await expect(dialog('למחוק את הנוכחות לצמיתות?')).toBeVisible()
     await scanBothThemes(page, 'committee phone: confirm, delete a visit')
     await closeWithEscape('למחוק את הנוכחות לצמיתות?')

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Modal, Field, Badge, DateInput, useDirty } from './ui.jsx'
+import { Modal, Field, DateInput, useDirty } from './ui.jsx'
 import { IconFilter, IconX } from './icons.jsx'
 import { formatDay } from '../../shared/datetime.js'
 
@@ -113,10 +113,10 @@ export function FilterBar({ count, from, to, chips, onOpen, ref }) {
   return (
     <div className="a-filterbar" ref={ref}>
       <div className="a-filterbar__main">
-        <button type="button" className="w-btn w-btn--quiet w-btn--small" aria-haspopup="dialog" onClick={onOpen}>
+        <button type="button" className="w-btn w-btn--small" aria-haspopup="dialog" onClick={onOpen}>
           <IconFilter size={20} />
           <span>סינון</span>
-          {count > 0 && <Badge tone="info">{count}</Badge>}
+          {count > 0 && <span className="a-filterbar__count">{count}</span>}
           {count > 0 && <span className="w-sr">פעילים</span>}
         </button>
         <Range from={from} to={to} />

@@ -571,7 +571,7 @@ test('deleting a point keeps its scans, and a scan row can be deleted on its own
   await page.goto('/admin#history')
   const row = page.getByRole('listitem').filter({ hasText: name })
   await expect(row).toHaveCount(1)
-  await row.getByRole('button', { name: 'מחיקת הנוכחות לצמיתות' }).click()
+  await chooseFromMenu(row, 'מחיקת הנוכחות לצמיתות')
   await expect(page.getByRole('dialog')).toContainText('אי אפשר לשחזר')
   await page.getByRole('dialog').getByRole('button', { name: 'מחיקה', exact: true }).click()
   await expect(row).toHaveCount(0)
@@ -579,18 +579,19 @@ test('deleting a point keeps its scans, and a scan row can be deleted on its own
 
 // ---- the same actions in the same order on every screen ------------------------------------------------------------------------
 
-// Every tile of the four card screens shows its edit action (when it has one) and a "more" button, and every other action is in the menu
-// of that button, in one order: the actions of the screen, then switching off or on, then a separator and the red delete, last
-// (AGENTS.md, "Rules for every change"). Each screen lists its menu as slots in that order. A slot holds the names that it may have (the
-// switch reads "off" or "on" by the state of the tile), and an `optional` slot is one that some tiles do not have (the phones of a provider
-// that has none signed in). The rows of the History still have their icons until they move to the menu too: they are measured the old way.
+// Every tile of the card screens, and every row of the History, shows its edit action (when it has one) and a "more" button, and every other
+// action is in the menu of that button, in one order: the actions of the screen, then switching off or on, then a separator and the red
+// delete, last (AGENTS.md, "Rules for every change"). Each screen lists its menu as slots in that order. A slot holds the names that it may
+// have (the switch reads "off" or "on" by the state of the tile), and an `optional` slot is one that some tiles do not have (the phones of a
+// provider that has none signed in; cancelling or restoring a visit, which a refused attempt has not). `tile` is the role of what holds the
+// button: a card is an article, a row of the History a list item.
 const CARD_SCREENS = {
   points: { edit: true, menu: [{ any: ['QR והדפסה'] }, { any: ['השבתת הנקודה', 'הפעלת הנקודה'] }, { any: ['מחיקת הנקודה'] }] },
   providers: { edit: true, menu: [{ any: ['מכשירים'], optional: true }, { any: ['סיסמה חדשה'] }, { any: ['השבתה', 'הפעלה'] }, { any: ['מחיקת נותן השירות'] }] },
   settings: { edit: false, menu: [{ any: ['הסרת גישה', 'החזרת גישה'] }, { any: ['מחיקה מהוועד'] }] },
   agent: { edit: false, menu: [{ any: ['ביטול המפתח'], optional: true }, { any: ['מחיקת המפתח'] }] },
+  history: { tile: 'listitem', edit: false, menu: [{ any: ['ביטול הנוכחות', 'שחזור הנוכחות'], optional: true }, { any: ['מחיקת הנוכחות לצמיתות'] }] },
 }
-const HISTORY_REMOVE = 'מחיקת הנוכחות לצמיתות' // the last icon of a row of the History, the red trash can
 
 /** Whether the names of a menu are exactly its slots, in their order: no name out of its place, none missing, none extra. */
 const inOrder = (names, slots) => {
@@ -619,7 +620,8 @@ test('every tile shows its edit action and a "more" button, and its menu holds t
   const dead = (await (await page.request.post('/api/admin/api-keys', { data: { name: `בוטל ${tag}` } })).json()).api_key
   // a write needs a JSON body, even an empty one
   expect((await page.request.post(`/api/admin/api-keys/${dead.id}/revoke`, { data: {} })).ok()).toBe(true)
-  // Ploni signs in on a phone (a connected device) and makes one visit that is accepted and one that is refused as too far
+  // Ploni signs in on a phone (a connected device) and makes one visit that is accepted, one that is refused as too far, and one that is
+  // accepted and then cancelled by the committee, so that the History has a row of each kind (each has its own menu)
   const phone = await playwright.request.newContext({ baseURL: page.url().split('/admin')[0] })
   try {
     const providers = (await (await phone.get('/api/public/providers')).json()).providers
@@ -628,19 +630,30 @@ test('every tile shows its edit action and a "more" button, and its menu holds t
     const scan = (code, gps) => phone.post('/api/scan', { headers: { authorization: `Bearer ${session.token}` }, data: { id: randomUUID(), code, gps } })
     expect((await (await scan(POINTS.basement, null)).json()).scan.outcome).toBe('accepted')
     expect((await (await scan(POINTS.gym, { lat: FAR.latitude, lng: FAR.longitude, accuracy: FAR.accuracy })).json()).scan.outcome).toBe('rejected_far')
+    const lobbyVisit = (await (await scan(POINTS.lobby, null)).json()).scan
+    expect(lobbyVisit.outcome).toBe('accepted')
+    expect((await page.request.post(`/api/admin/scans/${lobbyVisit.id}/void`, { data: { reason: 'נסרק בטעות' } })).ok(), 'the visit was cancelled').toBe(true)
 
     const moreEdge = {} // where the "more" button sits, measured from the end of its tile, per screen and width
     const editGaps = [] // the distance between the edit button and the "more" button, on every tile that has both
     const phonesSeen = { with: 0, without: 0 } // provider tiles that have the phones action in their menu, and those that have not
-    const historySteps = [] // History only: the distance between the trash can and the icon next to it
-    const historyEdges = []
+    const historySeen = { cancel: 0, restore: 0, deleteOnly: 0 } // History rows that have cancelling, restoring, and the delete alone in their menu
     for (const size of [null, COMPUTER]) {
       if (size) await page.setViewportSize(size)
       const where = size ? 'computer' : 'phone'
       for (const [tab, spec] of Object.entries(CARD_SCREENS)) {
         await page.goto(`/admin#${tab}`) // a tab loads its list when it is opened
         await loaded(page, SCREEN_TITLES[tab])
-        const tiles = page.getByRole('article').filter({ has: page.getByRole('button', { name: /^עוד פעולות/ }) })
+        if (tab === 'history') {
+          // the refused attempt and the cancelled visit are listed too (on a phone: chosen in the sheet)
+          await changeFilters(page, async (filters) => {
+            await filters.getByLabel('סוג').selectOption('all')
+            await filters.getByLabel('כולל מבוטלות').check()
+          })
+          await expect(page.getByText('נדחתה: רחוק מהנקודה')).toBeVisible()
+          await expect(page.getByText('מבוטלת: נסרק בטעות')).toBeVisible()
+        }
+        const tiles = page.getByRole(spec.tile ?? 'article').filter({ has: page.getByRole('button', { name: /^עוד פעולות/ }) })
         const count = await tiles.count()
         // your own committee card has no menu (you cannot delete yourself), so that screen has just the other member's
         expect(count, `${tab}: tiles that have a menu`).toBeGreaterThan(tab === 'settings' ? 0 : 1)
@@ -669,6 +682,7 @@ test('every tile shows its edit action and a "more" button, and its menu holds t
           const names = await menu.getByRole('menuitem').allTextContents()
           expect(inOrder(names, spec.menu), `${tab} #${i}: the actions of the menu, in order (they are: ${names.join(' | ')})`).toBe(true)
           if (tab === 'providers') phonesSeen[names.includes('מכשירים') ? 'with' : 'without']++
+          if (tab === 'history') historySeen[names.includes('שחזור הנוכחות') ? 'restore' : names.includes('ביטול הנוכחות') ? 'cancel' : 'deleteOnly']++
           const paint = await menu.evaluate((el) => {
             const probe = document.createElement('span') // the colour of the danger token, as this page draws it
             probe.style.color = 'var(--w-danger)'
@@ -695,30 +709,7 @@ test('every tile shows its edit action and a "more" button, and its menu holds t
         near(edges, 1, `${tab} at ${where} width: the "more" button is in the same place on every tile`)
         moreEdge[`${tab}/${where}`] = edges[0]
       }
-
-      // The History keeps its icons until its rows move to the menu too (its own change): the red trash can is the last icon of a row,
-      // at the end of it, at the same distance on every row.
-      await page.goto('/admin#history')
-      await loaded(page, SCREEN_TITLES.history)
-      await changeFilters(page, (filters) => filters.getByLabel('סוג').selectOption('all')) // the refused visit is listed too (on a phone: in the sheet)
-      await expect(page.getByText('נדחתה: רחוק מהנקודה')).toBeVisible()
-      const remove = page.getByRole('button', { name: HISTORY_REMOVE })
-      const rows = page.getByRole('listitem').filter({ has: remove })
-      expect(await rows.count(), 'history: rows that have a trash can').toBeGreaterThan(1)
-      for (let i = 0; i < await rows.count(); i++) {
-        const row = rows.nth(i)
-        const buttons = row.getByRole('button')
-        await expect(buttons.last(), `history #${i}: the trash can is the last action`).toHaveAccessibleName(HISTORY_REMOVE)
-        const rowBox = await row.boundingBox()
-        const boxes = await Promise.all((await buttons.all()).map((b) => b.boundingBox()))
-        const trash = boxes.at(-1)
-        expect(trash.x, `history #${i}: the trash can is the icon at the end`).toBeLessThanOrEqual(Math.min(...boxes.map((b) => b.x)) + 0.5)
-        historyEdges.push(trash.x - rowBox.x)
-        if (boxes.length > 1) historySteps.push(boxes.at(-2).x - trash.x)
-      }
-      near(historyEdges.splice(0), 1, `history at ${where} width: the trash can is in the same place on every row`)
     }
-    near(historySteps, 1, 'history: the icon next to the trash can is always the same distance from it')
     // the same place from one screen to the next: the "more" button is where it is on every card screen, at each width
     for (const where of ['phone', 'computer']) {
       near(Object.keys(CARD_SCREENS).map((tab) => moreEdge[`${tab}/${where}`]), 1, `${where}: the "more" button is where it is on every card screen`)
@@ -729,6 +720,11 @@ test('every tile shows its edit action and a "more" button, and its menu holds t
     // providers: some tiles have the phones of the provider in their menu and some do not, and the edit button does not move because of it
     expect(phonesSeen.with, 'some providers have a phone signed in').toBeGreaterThan(0)
     expect(phonesSeen.without, 'and some do not').toBeGreaterThan(0)
+
+    // history: a visit that counts has cancelling, a cancelled one has restoring, and a refused attempt has the delete alone
+    expect(historySeen.cancel, 'some visits can be cancelled').toBeGreaterThan(0)
+    expect(historySeen.restore, 'some visits can be restored').toBeGreaterThan(0)
+    expect(historySeen.deleteOnly, 'and some rows have the delete alone').toBeGreaterThan(0)
 
     // committee cards are all the same height, also the one that has no menu
     await page.goto('/admin#settings')
@@ -830,6 +826,109 @@ test('the menu of a tile works by keyboard and by touch, and a dialog opened fro
   await page.keyboard.press('Escape')
   await expect(password).toHaveCount(0)
   await expect(moreButton(ploni), 'the focus is back on the button of the provider').toBeFocused()
+})
+
+// The same on the rows of the History: Enter opens the menu of a row on its first item, the arrows move, Esc closes it and gives the focus back
+// to the button of that row; choosing an action by key or by tap opens its dialog (the form of cancelling, the question before deleting), and
+// when that closes without an answer the focus is on the button of the same row. Each button is named after its visit, so the rows are told
+// apart; cancelling a visit from the menu does what the icon did.
+test('the menu of a History row works by keyboard and by touch, a dialog opened from it gives the focus back to the button of that row, and the buttons name their visits', async ({ page, playwright }) => {
+  await adminSignIn(page)
+  const phone = await playwright.request.newContext({ baseURL: page.url().split('/admin')[0] })
+  try {
+    const providers = (await (await phone.get('/api/public/providers')).json()).providers
+    const ploni = providers.find((p) => p.contact_name === PEOPLE.ploni.name)
+    const session = await (await phone.post('/api/session', { data: { provider_id: ploni.id, password: PEOPLE.ploni.password } })).json()
+    const scan = (code) => phone.post('/api/scan', { headers: { authorization: `Bearer ${session.token}` }, data: { id: randomUUID(), code, gps: null } })
+    for (const code of [POINTS.basement, POINTS.lobby]) expect((await (await scan(code)).json()).scan.outcome).toBe('accepted')
+  } finally {
+    await phone.dispose()
+  }
+  await page.reload() // the list was loaded before the visits existed
+
+  for (const size of [null, COMPUTER]) {
+    if (size) await page.setViewportSize(size)
+    const where = size ? 'computer' : 'phone'
+    await page.goto('/admin#agent') // from another tab, so that the History opens its list again
+    await loaded(page, SCREEN_TITLES.agent)
+    await page.goto('/admin#history')
+    await loaded(page, SCREEN_TITLES.history)
+    const row = page.getByRole('listitem').filter({ hasText: 'מינוס 1' })
+    const other = page.getByRole('listitem').filter({ hasText: 'לובי' })
+    await expect(row, `${where}: the visit at the basement`).toHaveCount(1)
+    const more = moreButton(row)
+    const menu = row.getByRole('menu')
+    const items = menu.getByRole('menuitem')
+
+    // the buttons of two rows have two names: the point, the person, and the day and time of the visit
+    // (the person is the name that the visit recorded: the company and the contact)
+    await expect(more).toHaveAccessibleName(new RegExp(`^עוד פעולות לביקור: מינוס 1 · .*${PEOPLE.ploni.name} · \\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}$`))
+    await expect(moreButton(other)).toHaveAccessibleName(new RegExp(`^עוד פעולות לביקור: לובי · .*${PEOPLE.ploni.name} · `))
+    expect(await more.getAttribute('aria-label'), 'two rows, two names').not.toBe(await moreButton(other).getAttribute('aria-label'))
+
+    // keyboard: Enter, then the arrows, then Esc
+    await more.focus()
+    await page.keyboard.press('Enter')
+    await expect(menu).toBeVisible()
+    await expect(more).toHaveAttribute('aria-expanded', 'true')
+    await expect(items).toHaveText(['ביטול הנוכחות', 'מחיקת הנוכחות לצמיתות'])
+    await expect(items.nth(0)).toBeFocused()
+    await page.keyboard.press('ArrowDown')
+    await expect(items.nth(1)).toBeFocused()
+    await page.keyboard.press('ArrowDown') // past the last goes round to the first
+    await expect(items.nth(0)).toBeFocused()
+    await page.keyboard.press('Escape')
+    await expect(menu).toHaveCount(0)
+    await expect(more, `${where}: Esc gave the focus back to the button`).toBeFocused()
+
+    // keyboard: Space opens it, Enter on the first item opens the form of cancelling, and Esc closes the form (nothing was typed)
+    await page.keyboard.press(' ')
+    await expect(items.nth(0)).toBeFocused()
+    await page.keyboard.press('Enter')
+    await expect(menu).toHaveCount(0)
+    const cancelForm = page.getByRole('dialog', { name: 'ביטול נוכחות' })
+    await expect(cancelForm).toBeVisible()
+    await page.keyboard.press('Escape')
+    await expect(cancelForm).toHaveCount(0)
+    await expect(more, `${where}: the form gave the focus back to the button of its row`).toBeFocused()
+
+    // keyboard: the red delete is the second item; its question is answered "no" with the keyboard, and the focus is on the button again
+    await page.keyboard.press('ArrowUp') // opens it on the last item
+    await expect(items.nth(1)).toBeFocused()
+    await expect(items.nth(1)).toHaveText('מחיקת הנוכחות לצמיתות')
+    await page.keyboard.press('Enter')
+    const question = page.getByRole('dialog', { name: 'למחוק את הנוכחות לצמיתות?' })
+    await expect(question).toBeVisible()
+    await question.getByRole('button', { name: 'ביטול' }).click()
+    await expect(question).toHaveCount(0)
+    await expect(more, `${where}: the question gave the focus back to the button`).toBeFocused()
+    await expect(row, 'saying no deleted nothing').toHaveCount(1)
+
+    // touch: a tap opens the menu, a tap outside closes it, a tap on an item chooses it
+    await more.tap()
+    await expect(menu).toBeVisible()
+    await page.getByRole('heading', { level: 1 }).tap() // plain text: it takes no focus
+    await expect(menu).toHaveCount(0)
+    await expect(more, `${where}: a tap outside gave the focus back to the button`).toBeFocused()
+    await more.tap()
+    await items.nth(0).tap()
+    await expect(menu).toHaveCount(0)
+    await expect(cancelForm).toBeVisible()
+    await cancelForm.getByRole('button', { name: 'סגירה' }).tap()
+    await expect(cancelForm).toHaveCount(0)
+    await expect(more).toBeFocused()
+  }
+
+  // cancelling a visit from its menu does what the icon did: the form takes the reason, the visit is cancelled, and it leaves the list of
+  // the visits that count
+  const row = page.getByRole('listitem').filter({ hasText: 'מינוס 1' })
+  await chooseFromMenu(row, 'ביטול הנוכחות')
+  const form = page.getByRole('dialog', { name: 'ביטול נוכחות' })
+  await form.getByLabel('סיבה (לא חובה)').fill('נסרק בטעות')
+  await form.getByRole('button', { name: 'ביטול הנוכחות' }).click()
+  await expect(form).toHaveCount(0)
+  await expect(row).toHaveCount(0)
+  await expect(page.getByRole('listitem').filter({ hasText: 'לובי' }), 'the other visit is where it was').toHaveCount(1)
 })
 
 // ---- a long name in a tile and in the head of a dialog ---------------------------------------------------------------------
@@ -1269,7 +1368,7 @@ test.describe('dates on the committee screens', () => {
         await expect(page.getByRole('heading', { level: 2 }).filter({ hasText: /\d{2}\/\d{2}\/\d{4}/ }).first()).toHaveText(/^\d{2}\/\d{2}\/\d{4} · \d+$/)
         const row = page.getByRole('listitem').filter({ hasText: 'מינוס 1' }).first()
         await expect(row).toContainText(/\b\d{2}:\d{2}\b/)
-        await row.getByRole('button', { name: 'מחיקת הנוכחות לצמיתות' }).click()
+        await chooseFromMenu(row, 'מחיקת הנוכחות לצמיתות')
         await expect(page.getByRole('dialog')).toContainText(/\d{2}\/\d{2}\/\d{4} \d{2}:\d{2}/)
         await page.getByRole('dialog').getByRole('button', { name: 'סגירה' }).click() // close without deleting
         await noOtherFormat('history')
