@@ -231,6 +231,8 @@ test('the tab bar of the phone fits 320 and 360 px screens: five buttons inside 
 // The bar floats over the page: a pill that stands clear of the bottom edge and of both sides, and the end of every page stands above it.
 test('the tab bar of the phone floats clear of the screen edges, and the page ends above it', async ({ page }) => {
   await adminSignIn(page, 'settings') // a long page
+  await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0) // whole: the page grows while its lists load, and the end moves with it
+  await expect(page.getByLabel('שם הבניין', { exact: true })).toBeVisible()
   const bar = page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' })
   const view = page.viewportSize()
   const box = await bar.boundingBox()
@@ -243,8 +245,10 @@ test('the tab bar of the phone floats clear of the screen edges, and the page en
   const room = await page.getByRole('main').evaluate((el) => parseFloat(getComputedStyle(el).paddingBottom))
   expect(room, 'the room under the last thing of the page (--w-layout-tabbar-clearance)').toBeGreaterThanOrEqual(view.height - box.y + 8)
   await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
-  const last = await page.getByRole('main').evaluate((el) => el.lastElementChild.getBoundingClientRect().bottom)
-  expect(last, 'at the end of the page, its last thing is above the bar').toBeLessThanOrEqual((await bar.boundingBox()).y)
+  await expect.poll(async () => {
+    const last = await page.getByRole('main').evaluate((el) => el.lastElementChild.getBoundingClientRect().bottom)
+    return last <= (await bar.boundingBox()).y
+  }, { message: 'at the end of the page, its last thing is above the bar' }).toBe(true)
 })
 
 // The side rail of a computer has all eight screens in two groups, the work screens and the management screens, with a line between
