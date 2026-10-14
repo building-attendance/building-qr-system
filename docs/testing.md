@@ -137,11 +137,24 @@ breaking those rules; they are heuristics, not a replacement for reading the dif
 about the size budget (`npm run size`, `scripts/check-bundle-size.json`) are in [`AGENTS.md`](../AGENTS.md), "Testing".
 
 The unit tests and each E2E project run in parts side by side, each part a job with its own Postgres container that runs
-its share of the tests (`--shard`): `unit` in 2 parts (`ci.yml`), Chromium in 2 and WebKit in 4 (`.github/workflows/e2e.yml`,
+its share of the tests: `unit` in 2 parts (`ci.yml`, `--shard`), Chromium in 3 and WebKit in 4 (`.github/workflows/e2e.yml`,
 called by `ci.yml`). Each required check (`unit`, `e2e (android-chrome)`, `e2e (iphone-webkit)`) is a small job that
 passes only when every one of its parts passed. A failed part shows as `unit part <n>` or `e2e (<project>) part <n>`; the
 HTML report and the traces of a failed E2E part are the artifact `playwright-<project>-part-<n>`. To run one part on your
-machine, give the same option: `npx vitest run --shard=1/2`, `npx playwright test --project=iphone-webkit --shard=2/4`.
+machine, as CI does: `npx vitest run --shard=1/2`; for an E2E part, `node e2e/parts.js --project=iphone-webkit --part=2
+--parts=4 --out=part.txt` (it prints which files each part gets), then `npx playwright test --project=iphone-webkit
+--test-list=part.txt`.
+
+The E2E files are split by time, not by count: `e2e/parts.js` takes the project's full list of test files from
+Playwright (`--list`), sorts it by the seconds of each file in `e2e/part-weights.json`, and gives each file to the part
+that has the fewest seconds so far, so every file runs in exactly one part, and a part that would get no file fails. A
+new file with no weight counts as the median file. The weights are the seconds of each file in a green CI run, because a
+local run is not the same: `e2e/visual.spec.js` runs only on Linux, so on Windows or macOS it takes no time at all. They
+only decide which files share a part, so a small change needs no update. Every part keeps its timings as the artifact
+`timings-<project>-part-<n>` (7 days, the JSON report of `playwright.config.js` on CI). When the parts drift apart (one
+part is clearly the longest), take the timings of a green run of `master` and write the weights of each project:
+`gh run download <run id> --pattern "timings-iphone-webkit-*" --dir timings-webkit`, then
+`node e2e/parts.js --weights --project=iphone-webkit --report=timings-webkit`, and the same for `android-chrome`.
 
 On CI, Playwright retries a failed test once and then fails the run anyway (`failOnFlakyTests` in `playwright.config.js`).
 The retry only tells the two cases apart in the report: a test that failed twice is broken, and a test that passed on its
