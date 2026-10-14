@@ -38,7 +38,7 @@ import {
 const ROOT = fileURLToPath(new URL('..', import.meta.url))
 const HOME = { lat: 32.0853, lng: 34.7818 }
 const T = '2026-09-01T10:00:00.000Z' // the phone's clock in the items below
-const DASH = '–' // the separator of "company - contact" in a snapshot of a provider's name
+const NAME_A = 'Fake Person (Fake Cleaners)' // the snapshot of the name of provider A, as the server writes it (shared/providerName.js)
 const COLUMNS = ['at', 'client_time', 'code', 'device_id', 'id', 'point_id', 'point_name', 'provider_id', 'provider_name', 'scan_id', 'source']
 
 let db, cookie
@@ -203,7 +203,7 @@ describe('every permanent code of the sync contract is recorded', () => {
             source,
             code,
             provider_id: A.id,
-            provider_name: `Fake Cleaners ${DASH} Fake Person`,
+            provider_name: NAME_A,
             device_id: A.deviceId,
             point_id: point?.id ?? null,
             point_name: point?.name ?? null,
@@ -543,8 +543,8 @@ describe('when the record cannot be written', () => {
 })
 
 describe('the snapshots', () => {
-  it('writes the name of the provider as a scan does: the company, a dash and the contact, or the company alone', async () => {
-    expect(providerSnapshotName({ company: 'Fake Co', contact_name: 'Fake Person' })).toBe(`Fake Co ${DASH} Fake Person`)
+  it('writes the name of the provider as a scan does: the contact and the company in parentheses, or the company alone', async () => {
+    expect(providerSnapshotName({ company: 'Fake Co', contact_name: 'Fake Person' })).toBe('Fake Person (Fake Co)')
     expect(providerSnapshotName({ company: 'Fake Co', contact_name: '' })).toBe('Fake Co')
     expect(providerSnapshotName({ company: 'Fake Co', contact_name: null })).toBe('Fake Co')
     // The same string that the scan of the same provider carries.
@@ -585,7 +585,7 @@ describe('the snapshots', () => {
     expect(res.json.results[0].error.code).toBe(SCAN_ERROR_POINT_INACTIVE)
     const [row] = await rowsAfter(m)
     expect(Array.from(row.provider_name)).toHaveLength(243)
-    expect(row.provider_name.startsWith('א'.repeat(200))).toBe(true)
+    expect(row.provider_name).toBe('ב'.repeat(243)) // "contact (company)": the contact comes first, and the cut keeps its start
   })
 
   it('the checks of the table: the code (1 to 40 characters), the names (243 and 120), and the source', async () => {

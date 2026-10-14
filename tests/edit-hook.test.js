@@ -9,8 +9,9 @@ import { spawnSync } from 'node:child_process'
 
 const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const HOOK = path.join(root, 'scripts', 'hooks', 'check-edit.mjs')
-// Built from its code point, so that this file does not contain the character either.
+// Built from their code points, so that this file does not contain the characters either.
 const EM_DASH = String.fromCharCode(0x2014)
+const EN_DASH = String.fromCharCode(0x2013)
 
 let project // the temporary project folder (CLAUDE_PROJECT_DIR)
 let outside // another temporary folder, not inside the project
@@ -77,6 +78,38 @@ describe('the edit hook: the em dash', () => {
   it('accepts a path relative to the project folder', () => {
     write('docs/relative.md', `x ${EM_DASH} y\n`)
     expect(runHook(edited(path.join('docs', 'relative.md'))).code).toBe(2)
+  })
+})
+
+describe('the edit hook: the en dash', () => {
+  it('exits 2 and names the file, the line and the dash', () => {
+    const file = write('docs/en.md', `# Notes\nfine - a hyphen\nsecond ${EN_DASH} line is not\n`)
+    const result = runHook(edited(file))
+    expect(result.code).toBe(2)
+    expect(result.stderr).toContain('docs/en.md')
+    expect(result.stderr).toMatch(/an en dash on line 3\b/)
+    expect(result.stderr).not.toMatch(/em dash/)
+    expect(result.stderr).toMatch(/fix it now/)
+  })
+
+  it('in code under src as in a document, also as the separator of a name', () => {
+    const file = write('src/name.js', `export const name = (a, b) => \`\${a} ${EN_DASH} \${b}\`\n`)
+    const result = runHook(edited(file))
+    expect(result.code).toBe(2)
+    expect(result.stderr).toMatch(/an en dash on line 1\b/)
+  })
+
+  it('names each dash on its own lines when a file has both', () => {
+    const file = write('docs/both.md', `a ${EN_DASH} b\r\nc ${EM_DASH} d\r\ne ${EN_DASH} f ${EM_DASH} g\r\n`)
+    const result = runHook(edited(file))
+    expect(result.code).toBe(2)
+    expect(result.stderr).toMatch(/an em dash on lines 2, 3\b/)
+    expect(result.stderr).toMatch(/an en dash on lines 1, 3\b/)
+  })
+
+  it('says nothing about the escape that names the character in code', () => {
+    const file = write('src/escape.js', "export const OLD = '\\u2013' // the old separator, read by its escape\n")
+    expect(runHook(edited(file))).toEqual({ code: 0, stdout: '', stderr: '' })
   })
 })
 

@@ -6,7 +6,7 @@
 //   - PHONE_HEALTH_LATERAL (server/deviceStatus.js): the phone-health part of the providers list of the committee and of the agent
 //     (the committee's numbers are proved in tests/providers-phone-health.test.js, the agent's in
 //     tests/agent-phones-building-voids.test.js);
-//   - looksSecret (shared/secretLike.js).
+//   - looksSecret and hasSecretWord (shared/secretLike.js).
 // None of them changed what any route answers: the answers themselves are proved by the tests of the routes. No database is
 // needed: the statements are read from a pool that records them.
 import { describe, it, expect, afterEach } from 'vitest'
@@ -15,7 +15,7 @@ import { setPool } from '../server/db.js'
 import { scanWhere, listScans, SCAN_WHERE_FILTERS, SCAN_FILTERS } from '../server/scans.js'
 import { listRefusals, listAgentRefusals, REFUSAL_FILTERS, AGENT_REFUSAL_COLUMNS } from '../server/scanRefusals.js'
 import { PHONE_HEALTH_LATERAL } from '../server/deviceStatus.js'
-import { looksSecret } from '../shared/secretLike.js'
+import { looksSecret, hasSecretWord } from '../shared/secretLike.js'
 import { FILTER_TEXT_MAX_LENGTH } from '../server/config.js'
 
 /** A pool that records the statements it is asked to run and answers with no rows. */
@@ -226,5 +226,44 @@ describe('looksSecret (shared/secretLike.js)', () => {
     for (const no of ['Lobby 2', 'dana@example.test', 'point_name', 'Parking', 'ab_cd', '', '   ', null, 12, undefined, {}]) {
       expect(looksSecret(no), String(no)).toBe(false)
     }
+  })
+})
+
+describe('hasSecretWord (shared/secretLike.js)', () => {
+  it('finds a word that looks like a secret anywhere in a text, also wrapped in brackets, quotes or punctuation', () => {
+    for (const yes of [
+      'qrk_abcdef123456', // a whole text that is one, as looksSecret
+      'pasted qrk_abcdef123456 by mistake', // a word of a sentence
+      'Dana (qrk_abcdef012345)', // in the parentheses of a provider's name, "contact (company)"
+      '(qrk_abcdef012345) Dana',
+      'see qra_ABCDEFGHIJ, then', // before a comma
+      'the key "qra_ABCDEFGHIJ" here', // in double quotes
+      "the key 'qra_ABCDEFGHIJ'.", // in single quotes, before a full stop
+      '[a1b2c3d4e5f60718293a4b5c6d7e8f90]', // a hash in brackets
+      'id: (3f2a9c1e-7b4d-4e8a-9c3f-1a2b3c4d5e6f),', // an id in parentheses, before a comma
+      'end qrk_abcdef123456.', // a key before a full stop
+      'eyJhbGciOiJIUzI1NiJ9.abc123DEF456ghi789?', // a token before a question mark
+    ]) {
+      expect(hasSecretWord(yes), yes).toBe(true)
+    }
+  })
+
+  it('lets names, sentences and punctuation alone through, and what is not a text', () => {
+    for (const no of [
+      'Dana (Fake Cleaners)', 'פלוני (ניקיון)', 'John (Cleaning Co)', 'Lobby 2', '(Lobby)', '"quoted", and (bracketed).', 'ab_cd (ef_gh)',
+      'dana@example.test', 'point_name', '', '   ', '()', null, 12, undefined, {},
+    ]) {
+      expect(hasSecretWord(no), String(no)).toBe(false)
+    }
+  })
+
+  it('never finds less than looksSecret does word by word: the marks are taken away only for a second look', () => {
+    for (const text of ['qrk_abcdef123456', 'a qrk_abcdef123456 b', 'abcdefghijklmnopqrstuvw1.', 'x (abcdefghijklmnopqrstuvwx1)']) {
+      const plain = text.split(/\s+/).some(looksSecret)
+      if (plain) expect(hasSecretWord(text), text).toBe(true)
+    }
+    // A word of 24 characters with its full stop is a long run; without it, 23 are not: the word as it is still counts.
+    expect(looksSecret('abcdefghijklmnopqrstuv1.')).toBe(true)
+    expect(hasSecretWord('see abcdefghijklmnopqrstuv1.')).toBe(true)
   })
 })

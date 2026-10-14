@@ -164,6 +164,11 @@ validates answers should not refuse a field it does not know.
 
 `distance_m` is null when no GPS fix was sent, and also when the point has no coordinates.
 
+`provider_name` is the provider's name at the time of the scan, written `contact (company)`, for example `Dana (Sparkle Cleaning)`,
+or the company alone when the provider had no contact person (`Sparkle Cleaning` above). A scan recorded before 14/10/2026 was stored
+with the company first, a dash and then the contact: the API gives it in this same form, so every scan, count, refused visit and audit
+entry names a provider in one form. Match a provider by `provider_id`, never by its name.
+
 The last four fields are the details of a scan that the committee sees in its history:
 
 | Key | Meaning |
@@ -213,9 +218,9 @@ The same request for the first two days of September (`from=2026-09-01&to=2026-0
 {
   "group_by": ["day", "provider"],
   "counts": [
+    { "day": "2026-09-01", "provider_id": "uuid", "provider_name": "Dana (Sparkle Cleaning)", "point_id": null, "point_name": null, "service_type": null, "count": 3 },
     { "day": "2026-09-01", "provider_id": "uuid", "provider_name": "Green Gardens", "point_id": null, "point_name": null, "service_type": null, "count": 1 },
-    { "day": "2026-09-01", "provider_id": "uuid", "provider_name": "Sparkle Cleaning – Dana", "point_id": null, "point_name": null, "service_type": null, "count": 3 },
-    { "day": "2026-09-02", "provider_id": "uuid", "provider_name": "Sparkle Cleaning – Dana", "point_id": null, "point_name": null, "service_type": null, "count": 2 }
+    { "day": "2026-09-02", "provider_id": "uuid", "provider_name": "Dana (Sparkle Cleaning)", "point_id": null, "point_name": null, "service_type": null, "count": 2 }
   ],
   "total": 6
 }
@@ -244,7 +249,7 @@ A row of `counts` (`/counts`):
 |---|---|
 | `day` | The day of the visits in the group, `YYYY-MM-DD` in Israel time (the `local_date` of the scans), or null when the answer is not grouped by day |
 | `provider_id` | uuid of the service provider, or null when the answer is not grouped by provider. A deleted provider keeps its scans, so this can be an id that `/providers` no longer lists |
-| `provider_name` | Company – contact name as the scans recorded it, or null when the answer is not grouped by provider. The name on the newest counted visit of that provider, the same in every row of it |
+| `provider_name` | The provider's name as the scans recorded it, in the form of a scan (`contact (company)`, or the company alone), or null when the answer is not grouped by provider. The name on the newest counted visit of that provider, the same in every row of it |
 | `point_id` | uuid of the service point, or null when the answer is not grouped by point. A deleted point keeps its scans, so this can be an id that `/points` no longer lists |
 | `point_name` | Name of the point as the scans recorded it (it stays when the point is renamed or deleted), or null when the answer is not grouped by point. The name on the newest counted visit of that point, the same in every row of it |
 | `service_type` | The kind of service that the scans carry (from the point, else the provider), or null: when the answer is grouped by `service_type`, the visits that have none, and when it is not, not grouped |
@@ -291,7 +296,7 @@ there.
   "scan_id": "uuid",
   "source": "offline_sync",
   "code": "point_inactive",
-  "provider_id": "uuid", "provider_name": "Sparkle Cleaning – Dana",
+  "provider_id": "uuid", "provider_name": "Dana (Sparkle Cleaning)",
   "point_id": "uuid", "point_name": "Roof",
   "client_time": "2026-09-30T05:58:02.000Z"
 }
@@ -307,7 +312,7 @@ A refused visit (`/refusals`):
 | `source` | `online` (the phone had a signal and the visit arrived at once) or `offline_sync` (the phone uploaded it later from its queue). The same two words as the source of a scan |
 | `code` | Why the server refused the visit: one of the codes below |
 | `provider_id` | uuid of the service provider who scanned. A provider can be deleted by the committee: its refusals stay, so this can be an id that `/providers` no longer lists |
-| `provider_name` | Company – contact name at the time of the visit (kept even if the provider is renamed or deleted) |
+| `provider_name` | The provider's name at the time of the visit (kept even if the provider is renamed or deleted), in the form of a scan: `contact (company)`, or the company alone |
 | `point_id` | uuid of the service point that the scanned code named, or null when the visit was refused before its code could be matched to a point. A deleted point keeps its refusals, so this can be an id that `/points` no longer lists |
 | `point_name` | Name of the point at the time of the visit, or null when `point_id` is null |
 | `client_time` | UTC ISO time on the phone's own clock when the person scanned, or null when the phone sent no believable time (a real date between the years 2000 and 2100). The time at which the server refused the visit is `at` |
@@ -420,7 +425,7 @@ An entry (`/audit`):
 | `action` | What was done, as `<group>.<verb>`: one of the actions below. An entry of a newer version can carry an action that is not listed here, and its detail is then null |
 | `entity` | What the entry is about: `point`, `provider`, `admin` (a committee member), `api_key`, `scan` or `building`, or null for `retention.run` |
 | `entity_id` | uuid of the thing the entry is about, as text, or null when there is none (the building, the daily job) |
-| `entity_name` | The current name of the point, provider (the company, and the contact when there is one), committee member (the name, or the e-mail) or agent key. Null for any other entity, and when that thing no longer exists |
+| `entity_name` | The current name of the point, provider (`contact (company)`, or the company alone, as a scan names it), committee member (the name, or the e-mail) or agent key. Null for any other entity, and when that thing no longer exists |
 | `actor_type` | `admin` (a committee member), `system` (the daily job, and the first member of a deployment, added by the system) or `script` (a command that the owner ran) |
 | `actor_id` | uuid of the committee member, or null for the system and for a command. Use it as the `actor_id` filter |
 | `actor_name` | The name of the member as it was when they made the change (their e-mail when they had no name), or, for an older entry without one, their current name or e-mail. Null for the system and for a command |

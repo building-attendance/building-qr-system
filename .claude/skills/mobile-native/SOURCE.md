@@ -6,11 +6,12 @@ Where this skill disagrees with AGENTS.md or docs/design.md, those win.
 
 ## Local changes
 
-Only the em dash, which this project never allows (AGENTS.md, `tests/no-em-dash.test.js`). The upstream file has 22. Each was replaced by hand with the text that keeps the meaning, and nothing else was changed:
+Only the em dash and the en dash, which this project never allows (AGENTS.md, `tests/no-em-dash.test.js`; the en dash since the owner's decision of 14/10/2026). The upstream file has 22 em dashes and 1 en dash. Each was replaced by hand with the text that keeps the meaning, and nothing else was changed:
 
 - 17 by a colon (a list item or a sentence that explains the term before it, such as the "What was wrong / What changed / What needs a phone" lines).
 - 4 by two pairs of parentheses (the sentence about the platform layer, and the one about inner scrollables).
 - 1 by a comma, in the `description` of the front matter, where a colon would not be valid YAML.
+- The en dash by a hyphen, in the range "100-160ms" of section 5, "Tap feels laggy" (14/10/2026).
 
 ## Where it disagrees with this project
 

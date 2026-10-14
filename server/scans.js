@@ -11,6 +11,7 @@ import {
   FILTER_TEXT_MAX_LENGTH,
 } from './config.js'
 import { FLAG_DEMO } from '../shared/flags.js'
+import { providerName, readProviderName } from '../shared/providerName.js'
 import {
   OUTCOME_ACCEPTED,
   SCAN_ERROR_INVALID_SCAN_ID,
@@ -50,7 +51,7 @@ export function scanJson(r) {
     point_id: r.point_id,
     point_name: r.point_name,
     provider_id: r.provider_id,
-    provider_name: r.provider_name,
+    provider_name: readProviderName(r.provider_name), // a row written before 14/10/2026 holds the older form
     service_type: r.service_type,
     source: r.source,
     outcome: r.outcome,
@@ -114,12 +115,23 @@ export function normalizeGps(gps) {
 
 /**
  * The name of a provider as a record keeps it (scans.provider_name, scan_refusals.provider_name): a snapshot made when the
- * record is written, so that it stays readable after the provider is renamed or deleted. "Company – contact" (an en dash),
- * or just the company when there is no contact name.
+ * record is written, so that it stays readable after the provider is renamed or deleted. "Contact (company)", or just the
+ * company when there is no contact name (shared/providerName.js). A record written before 14/10/2026 holds the older form,
+ * and every reader turns it into this one (readProviderName there, providerNameSql below).
  * @param {{ company: string, contact_name?: string | null }} provider
  */
-export const providerSnapshotName = (provider) =>
-  provider.contact_name ? `${provider.company} – ${provider.contact_name}` : provider.company
+export const providerSnapshotName = (provider) => providerName(provider)
+
+/**
+ * The SQL of readProviderName (shared/providerName.js) over a column or an expression that holds a stored name of a provider: the
+ * name in today's form. For a statement that groups or orders by the name (server/scanCounts.js), where the row mappers come too
+ * late. The old separator is a space, the character 8211 (U+2013) and a space, and the split is at the last one that has text on
+ * both sides (the greedy first group); every other en dash becomes a hyphen. tests/provider-name.test.js runs it in the database
+ * against readProviderName.
+ * @param {string} column  a column or an SQL expression of the statement's own (never a value of a request)
+ */
+export const providerNameSql = (column) =>
+  `replace(regexp_replace(${column}, '^(.+) ' || chr(8211) || ' (.+)$', '\\2 (\\1)'), chr(8211), '-')`
 
 /**
  * Attaches to a refusal the point that the code named, for the record that server/scanRefusals.js keeps of it. It is a

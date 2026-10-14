@@ -10,6 +10,7 @@ import { verifyGoogleCredential, googlePhotoUrl } from '../google.js'
 import { firstCommitteeMember } from '../firstAdmin.js'
 import { readBuilding, saveBuilding, parseAddress, parseName } from '../building.js'
 import { listScans, listAllScans, scanJson, COMMITTEE_CSV_COLUMNS, committeeCsvRow } from '../scans.js'
+import { readProviderName } from '../../shared/providerName.js'
 import { audit, adminActor, changesOf, idsChanged } from '../audit.js'
 import { commit } from '../health.js'
 import { PHONE_HEALTH_LATERAL } from '../deviceStatus.js'
@@ -691,7 +692,7 @@ route('DELETE', '/admin/scans/:id', async ({ req, params }) => {
       entityId: id,
       detail: {
         point_name: gone.point_name,
-        provider_name: gone.provider_name,
+        provider_name: readProviderName(gone.provider_name), // today's form, also for a scan stored before 14/10/2026
         checked_in_at: new Date(gone.checked_in_at).toISOString(),
         outcome: gone.outcome,
         voided: gone.voided_at != null,

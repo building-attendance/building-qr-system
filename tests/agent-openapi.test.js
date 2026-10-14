@@ -584,7 +584,7 @@ describe('the real agent API answers what the document says', () => {
       const named = i % 2 === 0
       await db.pool.query(
         `insert into scan_refusals (scan_id, source, code, provider_id, provider_name, device_id, point_id, point_name, client_time)
-         values ($1, $2, $3, $4, 'Sparkle Cleaning – Test', $5, $6, $7, $8)`,
+         values ($1, $2, $3, $4, 'Test (Sparkle Cleaning)', $5, $6, $7, $8)`,
         [i % 3 === 2 ? null : randomUUID(), SCAN_SOURCES[i % 2], code, cleaner.id, randomUUID(), named ? lobby.id : null, named ? 'Lobby' : null, named ? null : new Date().toISOString()],
       )
     }
