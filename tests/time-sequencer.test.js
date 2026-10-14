@@ -5,7 +5,7 @@ import { describe, it, expect, afterEach } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import TimeSequencer, { fileName, shardByTime } from './time-sequencer.js'
+import TimeSequencer, { FILE_LOAD_SECONDS, fileName, shardByTime } from './time-sequencer.js'
 import { filesOfAnyReport, filesOfVitestReport, readWeights, updateWeights } from '../e2e/parts.js'
 
 const ROOT = path.join(os.tmpdir(), 'repo')
@@ -34,6 +34,16 @@ describe('shardByTime', () => {
     expect(names(two)).toEqual(['tests/components/history.test.jsx', 'tests/migrate.test.js'])
   })
 
+  it('counts the load of each file, so that many small files do not all go to one part', () => {
+    const small = Array.from({ length: 10 }, (_, i) => spec(`tests/s${i}.test.js`))
+    const files = [spec('tests/big.test.js'), ...small]
+    const weights = Object.fromEntries([['tests/big.test.js', 5], ...small.map((s) => [fileName(ROOT, s.moduleId), 0.5])])
+    const without = shardByTime(files, { root: ROOT, index: 2, count: 2, weights })
+    const withLoad = shardByTime(files, { root: ROOT, index: 2, count: 2, weights, perFile: 1 })
+    expect(without).toHaveLength(10) // 5 s of measured seconds each side, but one file against ten
+    expect(withLoad.length).toBeLessThan(10)
+  })
+
   it('returns the specifications themselves, not copies, so that Vitest runs them as they are', () => {
     const [first] = shardByTime(SPECS, { root: ROOT, index: 1, count: 1, weights: WEIGHTS })
     expect(SPECS).toContain(first)
@@ -46,7 +56,7 @@ describe('shardByTime', () => {
   it('is what the sequencer does with the shard that Vitest gives it', async () => {
     const sequencer = new TimeSequencer(/** @type {any} */ ({ config: { root: ROOT, shard: { index: 1, count: 2 } } }))
     const mine = await sequencer.shard(SPECS)
-    const theirs = shardByTime(SPECS, { root: ROOT, index: 1, count: 2, weights: readWeights().unit?.files ?? {} })
+    const theirs = shardByTime(SPECS, { root: ROOT, index: 1, count: 2, weights: readWeights().unit?.files ?? {}, perFile: FILE_LOAD_SECONDS })
     expect(names(mine)).toEqual(names(theirs))
   })
 })

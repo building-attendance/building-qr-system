@@ -12,20 +12,28 @@ import path from 'node:path'
 import { BaseSequencer } from 'vitest/node'
 import { assignParts, readWeights } from '../e2e/parts.js'
 
+/**
+ * What loading a file costs on top of its own seconds, which Vitest's report does not count (its timings run from the
+ * file's start to its end): on CI on 14/10/2026 the two test steps took 242 s for 186 s of measured files (115 files). Added
+ * to every file, it keeps the parts even in files as well as in seconds (57 and 58 files, not 71 and 44).
+ */
+export const FILE_LOAD_SECONDS = 0.5
+
 /** The name of a test file as the weights write it: relative to the repository, with forward slashes. */
 export const fileName = (root, moduleId) => path.relative(root, moduleId).split(path.sep).join('/')
 
 /**
  * This part's files of `files` (Vitest's test specifications, each with a `moduleId`): `index` of `count`, 1-based, split
- * by `weights` (file name -> seconds). Throws when the part gets no file.
+ * by `weights` (file name -> seconds), each file counting `perFile` seconds more. Throws when the part gets no file.
  * @template {{ moduleId: string }} T
  * @param {T[]} files
- * @param {{ root: string, index: number, count: number, weights: Record<string, number> }} options
+ * @param {{ root: string, index: number, count: number, weights: Record<string, number>, perFile?: number }} options
  * @returns {T[]}
  */
-export function shardByTime(files, { root, index, count, weights }) {
+export function shardByTime(files, { root, index, count, weights, perFile = 0 }) {
   const byName = new Map(files.map((spec) => [fileName(root, spec.moduleId), spec]))
-  const mine = assignParts([...byName.keys()], weights, count)[index - 1]
+  const loaded = Object.fromEntries(Object.entries(weights).map(([name, seconds]) => [name, seconds + perFile]))
+  const mine = assignParts([...byName.keys()], loaded, count)[index - 1]
   if (!mine || mine.files.length === 0) {
     throw new Error(`part ${index} of ${count} of the unit tests has no test file (${byName.size} files): use fewer parts`)
   }
@@ -35,6 +43,7 @@ export function shardByTime(files, { root, index, count, weights }) {
 export default class TimeSequencer extends BaseSequencer {
   async shard(files) {
     const { root, shard } = this.ctx.config
-    return shardByTime(files, { root, index: shard.index, count: shard.count, weights: readWeights().unit?.files ?? {} })
+    const weights = readWeights().unit?.files ?? {}
+    return shardByTime(files, { root, index: shard.index, count: shard.count, weights, perFile: FILE_LOAD_SECONDS })
   }
 }
