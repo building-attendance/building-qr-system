@@ -17,7 +17,7 @@
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, EMAIL_MAX_LENGTH } from '../shared/contract.js'
-import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled, openFilters, stubHome, homeSummary, openAccountMenu } from './fixtures.js'
+import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled, openFilters, stubHome, homeSummary, openAccountMenu, openTileMenu, chooseFromMenu } from './fixtures.js'
 
 const PHONE = { width: 320, height: 640 }
 const NEAR = { latitude: SAMPLE_POINT.lat, longitude: SAMPLE_POINT.lng, accuracy: 10 }
@@ -527,13 +527,16 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
     }
 
     await openTab(page, 'points')
+    await openTileMenu(pointTile(page))
+    await check('committee phone: the menu of a tile (the long point)')
+    await page.keyboard.press('Escape')
     await pointTile(page).getByRole('button', { name: 'עריכה' }).click()
     const form = dialog(`עריכת נקודה: ${POINT_NAME}`)
     await expect(form.locator('img.leaflet-tile-loaded').first()).toBeAttached() // the map has drawn
     await check('committee phone: point form (the long point)')
     await close(`עריכת נקודה: ${POINT_NAME}`)
 
-    await pointTile(page).getByRole('button', { name: 'QR והדפסה' }).click()
+    await chooseFromMenu(pointTile(page), 'QR והדפסה')
     const qr = dialog(`QR: ${POINT_NAME}`)
     await expect.poll(() => qr.getByRole('img').evaluate((img) => img.naturalWidth)).toBeGreaterThan(0)
     await check('committee phone: QR dialog (the long point)')
@@ -550,7 +553,7 @@ test.describe('T2 reflow at 320 px: the committee app', () => {
     await check('committee phone: new provider form')
     await close('נותן שירות חדש')
 
-    await workerTile(page).getByRole('button', { name: 'סיסמה חדשה' }).click()
+    await chooseFromMenu(workerTile(page), 'סיסמה חדשה')
     await expect(dialog(`סיסמה חדשה: ${WORKERS.he.name}`)).toBeVisible()
     await check('committee phone: new password dialog (the long worker)')
     await close(`סיסמה חדשה: ${WORKERS.he.name}`)
@@ -604,7 +607,7 @@ test.describe('F5 input font size on a phone', () => {
     await closeAfter('נותן שירות חדש', 'committee: new provider form')
     await workerTile(page).getByRole('button', { name: 'עריכה' }).click()
     await closeAfter(`עריכה: ${WORKERS.he.name}`, 'committee: edit provider form')
-    await workerTile(page).getByRole('button', { name: 'סיסמה חדשה' }).click()
+    await chooseFromMenu(workerTile(page), 'סיסמה חדשה')
     await closeAfter(`סיסמה חדשה: ${WORKERS.he.name}`, 'committee: new password dialog')
 
     await openTab(page, 'agent')

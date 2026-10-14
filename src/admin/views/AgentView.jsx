@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { Modal, Field, Badge, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconPlus, IconKey, IconCopy, IconBan, IconAlert, IconInfo, IconTrash } from '../icons.jsx'
 import { KEY_NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { agentPrompt } from '../agentPrompt.js'
@@ -119,18 +119,26 @@ export default function AgentView() {
         {list.map((k) => (
           <article key={k.id} className={`a-card${k.revoked_at ? ' is-off' : ''}`}>
             <div className="a-card__top">
-              <h2 className="a-card__title">{k.name}</h2>
+              <div className="a-card__id">
+                <span className="a-card__icon" aria-hidden="true"><IconKey size={22} /></span>
+                <h2 className="a-card__title">{k.name}</h2>
+              </div>
               <div className="a-card__tools">
-                {!k.revoked_at && <IconButton icon={IconBan} label="ביטול המפתח" onClick={() => revoke(k)} disabled={busy} />}
-                <IconButton icon={IconTrash} label="מחיקת המפתח" tone="danger" onClick={() => remove(k)} disabled={busy} />
+                <Menu
+                  label={`עוד פעולות למפתח ${k.name}`}
+                  items={[
+                    !k.revoked_at && { label: 'ביטול המפתח', icon: IconBan, disabled: busy, onSelect: () => revoke(k) },
+                    { label: 'מחיקת המפתח', icon: IconTrash, danger: true, disabled: busy, onSelect: () => remove(k) },
+                  ]}
+                />
               </div>
             </div>
             <div className="a-meta"><Badge tone={k.revoked_at ? 'neutral' : 'ok'}>{k.revoked_at ? 'בוטל' : 'פעיל'}</Badge></div>
-            <dl className="a-facts">
-              <dt>מפתח</dt><dd className="a-code">{k.key_prefix}…</dd>
-              <dt>נוצר</dt><dd>{formatDateTime(k.created_at)}</dd>
-              <dt>שימוש אחרון</dt><dd>{k.last_used_at ? formatDateTime(k.last_used_at) : 'עוד לא נעשה בו שימוש'}</dd>
-              {hasUsage(k) && <><dt>קריאות היום</dt><dd>{k.requests_today}</dd><dt>קריאות ב-7 ימים</dt><dd>{k.requests_7d}</dd></>}
+            <dl className="a-facts a-facts--tiles">
+              <div><dt>מפתח</dt><dd className="a-code">{k.key_prefix}…</dd></div>
+              <div><dt>נוצר</dt><dd>{formatDateTime(k.created_at)}</dd></div>
+              <div><dt>שימוש אחרון</dt><dd>{k.last_used_at ? formatDateTime(k.last_used_at) : 'עוד לא נעשה בו שימוש'}</dd></div>
+              {hasUsage(k) && <><div><dt>קריאות היום</dt><dd>{k.requests_today}</dd></div><div><dt>קריאות ב-7 ימים</dt><dd>{k.requests_7d}</dd></div></>}
             </dl>
             {k.refused_30d > 0 && <p className="a-warn-line"><IconAlert size={18} />{refusedNote(k.refused_30d)}</p>}
           </article>

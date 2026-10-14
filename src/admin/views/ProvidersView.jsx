@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import { adminApi, errorText, copyText, providerDevices } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { IconPlus, IconEdit, IconKey, IconDevice, IconBan, IconCheck, IconCopy, IconRefresh, IconUsers, IconAlert, IconTrash } from '../icons.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { IconPlus, IconKey, IconDevice, IconBan, IconCheck, IconCopy, IconRefresh, IconUsers, IconAlert, IconTrash } from '../icons.jsx'
 import { generatePassword } from '../password.js'
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 
@@ -143,6 +143,14 @@ const STUCK_AFTER_MS = 24 * 60 * 60 * 1000
 const isStuck = (p) => p.waiting > 0 && Boolean(p.oldest_waiting_at) && Date.now() - Date.parse(p.oldest_waiting_at) > STUCK_AFTER_MS
 const outdatedNote = (n) => (n === 1 ? 'גרסה ישנה במכשיר' : `גרסה ישנה ב-${n} מכשירים`)
 
+// The mark of a card is the initial of the provider, on the tint of its kind of service (four tints for four kinds). A provider that is
+// switched off has the grey of every switched-off card (admin.css).
+const SERVICE_TINT = { cleaning: 'violet', gardening: 'mint', maintenance: 'peach', other: 'sky' }
+const markTint = (p) => {
+  const tint = SERVICE_TINT[p.service_type] ?? 'violet'
+  return { '--tint': `var(--w-tint-${tint})`, '--tint-ink': `var(--w-tint-${tint}-ink)` }
+}
+
 /** A date and time inside a line of Hebrew: DD/MM/YYYY HH:MM, kept in one piece and left to right. */
 const Stamp = ({ at }) => <span className="a-stamp">{formatDateTime(at)}</span>
 
@@ -271,36 +279,47 @@ export default function ProvidersView() {
       )}
 
       <div className="a-grid">
-        {list.map((p) => (
-          <article key={p.id} className={`a-card${p.is_active ? '' : ' is-off'}`}>
-            <div className="a-card__top">
-              <div>
-                <h2 className="a-card__title">{p.contact_name || p.company}</h2>
-                {p.contact_name && <p className="a-card__sub">{p.company}</p>}
+        {list.map((p) => {
+          const name = p.contact_name || p.company
+          return (
+            <article key={p.id} className={`a-card${p.is_active ? '' : ' is-off'}`}>
+              <div className="a-card__top">
+                <div className="a-card__id">
+                  <span className="a-card__icon a-card__icon--round" style={markTint(p)} aria-hidden="true">{[...name][0].toUpperCase()}</span>
+                  <div>
+                    <h2 className="a-card__title">{name}</h2>
+                    {p.contact_name && <p className="a-card__sub">{p.company}</p>}
+                  </div>
+                </div>
+                <div className="a-card__tools">
+                  <button type="button" className="w-btn w-btn--quiet w-btn--small" aria-label={`עריכה: ${name}`} onClick={() => setEditing(p)}>עריכה</button>
+                  <Menu
+                    label={`עוד פעולות ל${name}`}
+                    items={[
+                      p.active_devices > 0 && { label: 'מכשירים', icon: IconDevice, onSelect: () => setPhones(p) },
+                      { label: 'סיסמה חדשה', icon: IconKey, onSelect: () => setResetting(p) },
+                      { label: p.is_active ? 'השבתה' : 'הפעלה', icon: p.is_active ? IconBan : IconCheck, disabled: busy, onSelect: () => toggleActive(p) },
+                      { label: 'מחיקת נותן השירות', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deleteProvider(p) },
+                    ]}
+                  />
+                </div>
               </div>
-              <div className="a-card__tools">
-                {p.active_devices > 0 && <IconButton icon={IconDevice} label="מכשירים" onClick={() => setPhones(p)} />}
-                <IconButton icon={IconKey} label="סיסמה חדשה" onClick={() => setResetting(p)} />
-                <IconButton icon={IconEdit} label="עריכה" onClick={() => setEditing(p)} />
-                <IconButton icon={p.is_active ? IconBan : IconCheck} label={p.is_active ? 'השבתה' : 'הפעלה'} onClick={() => toggleActive(p)} disabled={busy} />
-                <IconButton icon={IconTrash} label="מחיקת נותן השירות" tone="danger" onClick={() => deleteProvider(p)} disabled={busy} />
+              <div className="a-meta">
+                <Badge tone={p.is_active ? 'ok' : 'neutral'}>{p.is_active ? 'פעיל' : 'מושבת'}</Badge>
+                {p.service_type && <Badge tone="info">{serviceLabel(p.service_type)}</Badge>}
+                {p.is_demo && <Badge tone="warn">דמו</Badge>}
+                {!p.has_password && <Badge tone="danger">אין סיסמה</Badge>}
+                {isStuck(p) && <Badge tone="warn">ממתינות מעל 24 שעות</Badge>}
+                {p.outdated_devices > 0 && <Badge>{outdatedNote(p.outdated_devices)}</Badge>}
               </div>
-            </div>
-            <div className="a-meta">
-              <Badge tone={p.is_active ? 'ok' : 'neutral'}>{p.is_active ? 'פעיל' : 'מושבת'}</Badge>
-              {p.service_type && <Badge tone="info">{serviceLabel(p.service_type)}</Badge>}
-              {p.is_demo && <Badge tone="warn">דמו</Badge>}
-              {!p.has_password && <Badge tone="danger">אין סיסמה</Badge>}
-              {isStuck(p) && <Badge tone="warn">ממתינות מעל 24 שעות</Badge>}
-              {p.outdated_devices > 0 && <Badge>{outdatedNote(p.outdated_devices)}</Badge>}
-            </div>
-            <dl className="a-facts">
-              <dt>נוכחות אחרונה</dt><dd><Stamp at={p.last_scan_at} /></dd>
-              <dt>מכשירים מחוברים</dt><dd>{p.active_devices}</dd>
-              {p.waiting > 0 && <><dt>ממתינות בטלפון</dt><dd><Waiting count={p.waiting} since={p.oldest_waiting_at} /></dd></>}
-            </dl>
-          </article>
-        ))}
+              <dl className="a-facts a-facts--tiles">
+                <div><dt>נוכחות אחרונה</dt><dd><Stamp at={p.last_scan_at} /></dd></div>
+                <div><dt>מכשירים מחוברים</dt><dd>{p.active_devices}</dd></div>
+                {p.waiting > 0 && <div><dt>ממתינות בטלפון</dt><dd><Waiting count={p.waiting} since={p.oldest_waiting_at} /></dd></div>}
+              </dl>
+            </article>
+          )
+        })}
       </div>
 
       {editing && (

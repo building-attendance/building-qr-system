@@ -390,6 +390,28 @@ export async function signOut(page) {
   await menu.getByRole('button', { name: 'יציאה', exact: true }).click()
 }
 
+// ---- the "more" menu of a tile -------------------------------------------------------------------------------------------------
+
+/** The "more" button of a tile (a card or a row): "עוד פעולות ל<name>", so a tile is told from the next one by its own name. */
+export const moreButton = (tile) => tile.getByRole('button', { name: /^עוד פעולות/ })
+
+/** The edit button of a tile: "עריכה: <name>". */
+export const editButton = (tile) => tile.getByRole('button', { name: /^עריכה/ })
+
+/** Opens the menu of a tile (src/admin/ui.jsx Menu) and returns it. */
+export async function openTileMenu(tile) {
+  await moreButton(tile).click()
+  const menu = tile.getByRole('menu')
+  await expect(menu).toBeVisible()
+  return menu
+}
+
+/** Chooses one action of the menu of a tile, by its name (the menu closes, and the action runs). */
+export async function chooseFromMenu(tile, name) {
+  const menu = await openTileMenu(tile)
+  await menu.getByRole('menuitem', { name, exact: true }).click()
+}
+
 /**
  * Signs the committee in through the local-only shortcut that the scratch-schema API offers, and waits for the first screen: the
  * history, unless the test names another one (`screen`, a key of SCREEN_TITLES), which is then the address that the sign-in starts from.

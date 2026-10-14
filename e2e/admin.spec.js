@@ -3,6 +3,7 @@ import { randomUUID } from 'node:crypto'
 import {
   test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, SCREEN_TITLES, SCREEN_NAV, adminSignIn, openScreen, clearScans, allowConsoleErrors,
   changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS, HOME_NOW, ADMIN_EMAIL, accountButton, openAccountMenu, signOut,
+  moreButton, openTileMenu, chooseFromMenu,
 } from './fixtures.js'
 import { SCAN_ERROR_POINT_INACTIVE } from '../shared/contract.js'
 import { formatDateTime, formatDay } from '../shared/datetime.js'
@@ -21,16 +22,19 @@ test.beforeEach(async ({ page, request }) => {
 // viewport to the width of the content, so a page that scrolls sideways still has scrollWidth <= innerWidth there (e2e/reflow.spec.js).
 const noHorizontalScroll = (page) => page.evaluate((width) => document.documentElement.scrollWidth <= width, page.viewportSize().width)
 
-test('the point tiles offer their actions as icons that have names, and no text buttons', async ({ page }) => {
+test('the point tiles show their edit action and a "more" button that is named after the point, and keep every other action in its menu', async ({ page }) => {
   await adminSignIn(page, 'points')
   const tile = page.getByRole('article').filter({ hasText: 'לובי' })
   const actions = tile.getByRole('button')
-  await expect(actions).toHaveCount(4)
-  await expect(actions.nth(0)).toHaveAccessibleName('QR והדפסה')
-  await expect(actions.nth(1)).toHaveAccessibleName('עריכה')
-  await expect(actions.nth(2)).toHaveAccessibleName('השבתת הנקודה')
-  await expect(actions.nth(3)).toHaveAccessibleName('מחיקת הנקודה')
-  await expect(actions).toHaveText(['', '', '', '']) // icons only
+  await expect(actions).toHaveCount(2)
+  await expect(actions.nth(0)).toHaveAccessibleName('עריכה: לובי')
+  await expect(actions.nth(0)).toHaveText('עריכה')
+  await expect(actions.nth(1)).toHaveAccessibleName('עוד פעולות ללובי')
+  await expect(actions.nth(1)).toHaveText('') // the three dots
+  // the other actions are in the menu, with the red delete last; each is still named as it was
+  const menu = await openTileMenu(tile)
+  await expect(menu.getByRole('menuitem')).toHaveText(['QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
+  await page.keyboard.press('Escape')
   // adding a point is the round primary button at the end of the title row
   await expect(page.getByRole('button', { name: 'נקודה חדשה' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'הדפסת כל השלטים' })).toBeVisible()
@@ -457,7 +461,7 @@ test('deleting a point keeps its scans, and a scan row can be deleted on its own
   await page.reload() // the list was loaded before the point existed
   await page.goto('/admin#points')
   const tile = page.getByRole('article').filter({ hasText: name })
-  await tile.getByRole('button', { name: 'מחיקת הנקודה' }).click()
+  await chooseFromMenu(tile, 'מחיקת הנקודה')
   const dialog = page.getByRole('dialog')
   await expect(dialog).toContainText('נשארת בהיסטוריה')
   await dialog.getByRole('button', { name: 'מחיקת הנקודה' }).click()
@@ -473,16 +477,29 @@ test('deleting a point keeps its scans, and a scan row can be deleted on its own
   await expect(row).toHaveCount(0)
 })
 
-// ---- the same actions in the same places on every screen -----------------------------------------------------------
+// ---- the same actions in the same order on every screen ------------------------------------------------------------------------
 
-// The screens that have tiles or rows with actions, and the name of the last action of each (the red trash can). The audit log and the help
-// have none: they are read only (their tests say so).
-const REMOVE = {
-  points: 'מחיקת הנקודה',
-  providers: 'מחיקת נותן השירות',
-  settings: 'מחיקה מהוועד',
-  agent: 'מחיקת המפתח',
-  history: 'מחיקת הנוכחות לצמיתות',
+// Every tile of the four card screens shows its edit action (when it has one) and a "more" button, and every other action is in the menu
+// of that button, in one order: the actions of the screen, then switching off or on, then a separator and the red delete, last
+// (AGENTS.md, "Rules for every change"). Each screen lists its menu as slots in that order. A slot holds the names that it may have (the
+// switch reads "off" or "on" by the state of the tile), and an `optional` slot is one that some tiles do not have (the phones of a provider
+// that has none signed in). The rows of the History still have their icons until they move to the menu too: they are measured the old way.
+const CARD_SCREENS = {
+  points: { edit: true, menu: [{ any: ['QR והדפסה'] }, { any: ['השבתת הנקודה', 'הפעלת הנקודה'] }, { any: ['מחיקת הנקודה'] }] },
+  providers: { edit: true, menu: [{ any: ['מכשירים'], optional: true }, { any: ['סיסמה חדשה'] }, { any: ['השבתה', 'הפעלה'] }, { any: ['מחיקת נותן השירות'] }] },
+  settings: { edit: false, menu: [{ any: ['הסרת גישה', 'החזרת גישה'] }, { any: ['מחיקה מהוועד'] }] },
+  agent: { edit: false, menu: [{ any: ['ביטול המפתח'], optional: true }, { any: ['מחיקת המפתח'] }] },
+}
+const HISTORY_REMOVE = 'מחיקת הנוכחות לצמיתות' // the last icon of a row of the History, the red trash can
+
+/** Whether the names of a menu are exactly its slots, in their order: no name out of its place, none missing, none extra. */
+const inOrder = (names, slots) => {
+  let at = 0
+  for (const slot of slots) {
+    if (names[at] !== undefined && slot.any.includes(names[at])) at++
+    else if (!slot.optional) return false
+  }
+  return at === names.length
 }
 const loaded = async (page, title) => {
   await expect(page.getByRole('heading', { level: 1, name: title })).toBeVisible()
@@ -492,7 +509,7 @@ const near = (values, within, what) => {
   expect(Math.max(...values) - Math.min(...values), `${what}: ${values.map((v) => v.toFixed(1)).join(', ')}`).toBeLessThanOrEqual(within)
 }
 
-test('every screen has its actions in the same order and places, with the red trash can last', async ({ page, playwright }) => {
+test('every tile shows its edit action and a "more" button, and its menu holds the other actions in the same order on every screen, with the red delete last', async ({ page, playwright }) => {
   await adminSignIn(page)
   const tag = randomUUID().slice(0, 6)
   // sample data, so that every kind of tile exists in its different states
@@ -512,82 +529,113 @@ test('every screen has its actions in the same order and places, with the red tr
     expect((await (await scan(POINTS.basement, null)).json()).scan.outcome).toBe('accepted')
     expect((await (await scan(POINTS.gym, { lat: FAR.latitude, lng: FAR.longitude, accuracy: FAR.accuracy })).json()).scan.outcome).toBe('rejected_far')
 
-    const trashEdge = {} // where the trash can sits, measured from the end of its tile, per screen
-    const steps = [] // the distance between the trash can and the icon next to it, on every tile
+    const moreEdge = {} // where the "more" button sits, measured from the end of its tile, per screen and width
+    const editGaps = [] // the distance between the edit button and the "more" button, on every tile that has both
+    const phonesSeen = { with: 0, without: 0 } // provider tiles that have the phones action in their menu, and those that have not
+    const historySteps = [] // History only: the distance between the trash can and the icon next to it
+    const historyEdges = []
     for (const size of [null, COMPUTER]) {
       if (size) await page.setViewportSize(size)
       const where = size ? 'computer' : 'phone'
-      for (const tab of Object.keys(REMOVE)) {
-        const title = SCREEN_TITLES[tab]
+      for (const [tab, spec] of Object.entries(CARD_SCREENS)) {
         await page.goto(`/admin#${tab}`) // a tab loads its list when it is opened
-        await loaded(page, title)
-        if (tab === 'history') {
-          // the refused visit is listed too: its row keeps the place of the cancel icon, and the trash can does not move
-          await changeFilters(page, (filters) => filters.getByLabel('סוג').selectOption('all')) // (on a phone: in the sheet)
-          await expect(page.getByText('נדחתה: רחוק מהנקודה')).toBeVisible()
-        }
-        const remove = page.getByRole('button', { name: REMOVE[tab] })
-        const tiles = (tab === 'history' ? page.getByRole('listitem') : page.getByRole('article')).filter({ has: remove })
+        await loaded(page, SCREEN_TITLES[tab])
+        const tiles = page.getByRole('article').filter({ has: page.getByRole('button', { name: /^עוד פעולות/ }) })
         const count = await tiles.count()
-        // your own committee card has none (you cannot delete yourself), so that screen has just the other member's
-        expect(count, `${tab}: tiles that have a trash can`).toBeGreaterThan(tab === 'settings' ? 0 : 1)
+        // your own committee card has no menu (you cannot delete yourself), so that screen has just the other member's
+        expect(count, `${tab}: tiles that have a menu`).toBeGreaterThan(tab === 'settings' ? 0 : 1)
 
         const edges = []
         for (let i = 0; i < count; i++) {
           const tile = tiles.nth(i)
+          // What the tile shows with its menu closed: its edit action (when the screen has one) and the "more" button, and nothing else.
           const buttons = tile.getByRole('button')
-          await expect(buttons.last(), `${tab} #${i}: the trash can is the last action`).toHaveAccessibleName(REMOVE[tab])
-          const tileBox = await tile.boundingBox()
+          await expect(buttons, `${tab} #${i} at ${where} width: the buttons that the tile shows`).toHaveCount(spec.edit ? 2 : 1)
+          if (spec.edit) {
+            await expect(buttons.first(), `${tab} #${i}: the edit action comes first`).toHaveAccessibleName(/^עריכה: ./)
+            await expect(buttons.first(), `${tab} #${i}: the edit action has its word on it`).toHaveText('עריכה')
+          }
+          await expect(buttons.last(), `${tab} #${i}: the "more" button comes last, named after its tile`).toHaveAccessibleName(/^עוד פעולות ל./)
           const boxes = await Promise.all((await buttons.all()).map((b) => b.boundingBox()))
-          const trash = boxes[boxes.length - 1]
-          // the text of the page runs right to left, so the end of the tile is its left edge
-          expect(trash.x, `${tab} #${i}: the trash can is the icon at the end`).toBeLessThanOrEqual(Math.min(...boxes.map((b) => b.x)) + 0.5)
-          edges.push(trash.x - tileBox.x)
-          if (boxes.length > 1) steps.push(boxes[boxes.length - 2].x - trash.x)
+          const more = boxes.at(-1)
+          expect(more.width, `${tab} #${i}: the "more" button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+          // the text of the page runs right to left, so the end of a tile is its left edge, and the button at the end is the left-most
+          expect(more.x, `${tab} #${i}: the "more" button is at the end of the tile`).toBeLessThanOrEqual(Math.min(...boxes.map((b) => b.x)) + 0.5)
+          edges.push(more.x - (await tile.boundingBox()).x)
+          if (spec.edit) editGaps.push(boxes[0].x - (more.x + more.width))
+
+          // Its menu: the names in the order of the rule, the red delete last after one separator, and only that one red.
+          const menu = await openTileMenu(tile)
+          const names = await menu.getByRole('menuitem').allTextContents()
+          expect(inOrder(names, spec.menu), `${tab} #${i}: the actions of the menu, in order (they are: ${names.join(' | ')})`).toBe(true)
+          if (tab === 'providers') phonesSeen[names.includes('מכשירים') ? 'with' : 'without']++
+          const paint = await menu.evaluate((el) => {
+            const probe = document.createElement('span') // the colour of the danger token, as this page draws it
+            probe.style.color = 'var(--w-danger)'
+            el.append(probe)
+            const danger = getComputedStyle(probe).color
+            probe.remove()
+            const items = [...el.querySelectorAll('[role="menuitem"]')]
+            return {
+              danger,
+              colors: items.map((item) => getComputedStyle(item).color),
+              tops: items.map((item) => item.getBoundingClientRect().top),
+              separators: el.querySelectorAll('[role="separator"]').length,
+              separatorBeforeLast: items.at(-1).previousElementSibling?.getAttribute('role') === 'separator',
+            }
+          })
+          expect(paint.colors.at(-1), `${tab} #${i}: the last action is red`).toBe(paint.danger)
+          expect(paint.colors.slice(0, -1).filter((color) => color === paint.danger), `${tab} #${i}: and the only red one`).toEqual([])
+          expect(paint.separators, `${tab} #${i}: one separator, before the delete (none when the delete is alone)`).toBe(names.length > 1 ? 1 : 0)
+          expect(paint.separatorBeforeLast || names.length === 1, `${tab} #${i}: the separator is right before the delete`).toBe(true)
+          expect(paint.tops, `${tab} #${i}: the items run down the screen in the order of the page`).toEqual([...paint.tops].sort((a, b) => a - b))
+          await page.keyboard.press('Escape')
+          await expect(menu).toHaveCount(0)
         }
-        near(edges, 1, `${tab} at ${where} width: the trash can is in the same place on every tile`)
-        trashEdge[`${tab}/${where}`] = edges[0]
+        near(edges, 1, `${tab} at ${where} width: the "more" button is in the same place on every tile`)
+        moreEdge[`${tab}/${where}`] = edges[0]
       }
+
+      // The History keeps its icons until its rows move to the menu too (its own change): the red trash can is the last icon of a row,
+      // at the end of it, at the same distance on every row.
+      await page.goto('/admin#history')
+      await loaded(page, SCREEN_TITLES.history)
+      await changeFilters(page, (filters) => filters.getByLabel('סוג').selectOption('all')) // the refused visit is listed too (on a phone: in the sheet)
+      await expect(page.getByText('נדחתה: רחוק מהנקודה')).toBeVisible()
+      const remove = page.getByRole('button', { name: HISTORY_REMOVE })
+      const rows = page.getByRole('listitem').filter({ has: remove })
+      expect(await rows.count(), 'history: rows that have a trash can').toBeGreaterThan(1)
+      for (let i = 0; i < await rows.count(); i++) {
+        const row = rows.nth(i)
+        const buttons = row.getByRole('button')
+        await expect(buttons.last(), `history #${i}: the trash can is the last action`).toHaveAccessibleName(HISTORY_REMOVE)
+        const rowBox = await row.boundingBox()
+        const boxes = await Promise.all((await buttons.all()).map((b) => b.boundingBox()))
+        const trash = boxes.at(-1)
+        expect(trash.x, `history #${i}: the trash can is the icon at the end`).toBeLessThanOrEqual(Math.min(...boxes.map((b) => b.x)) + 0.5)
+        historyEdges.push(trash.x - rowBox.x)
+        if (boxes.length > 1) historySteps.push(boxes.at(-2).x - trash.x)
+      }
+      near(historyEdges.splice(0), 1, `history at ${where} width: the trash can is in the same place on every row`)
     }
-    near(steps, 1, 'the icon next to the trash can is always the same distance from it')
-    // the same place from one screen to the next (a card and a history row differ by their own padding, no more)
+    near(historySteps, 1, 'history: the icon next to the trash can is always the same distance from it')
+    // the same place from one screen to the next: the "more" button is where it is on every card screen, at each width
     for (const where of ['phone', 'computer']) {
-      near(['points', 'providers', 'settings', 'agent'].map((tab) => trashEdge[`${tab}/${where}`]), 1, `${where}: the trash can is where it is on every card screen`)
+      near(Object.keys(CARD_SCREENS).map((tab) => moreEdge[`${tab}/${where}`]), 1, `${where}: the "more" button is where it is on every card screen`)
     }
+    // the edit button is the same distance from the "more" button on every tile, whatever the screen
+    near(editGaps, 1, 'the edit button is the same distance from the "more" button on every tile')
 
-    // providers: the edit icon does not move whether or not a phone is signed in, and committee cards are all the same height
-    await page.goto('/admin#providers')
-    await loaded(page, 'נותני שירות')
-    const edits = page.getByRole('article').filter({ has: page.getByRole('button', { name: 'עריכה' }) })
-    const editEdges = []
-    for (let i = 0; i < await edits.count(); i++) {
-      const tile = edits.nth(i)
-      editEdges.push((await tile.getByRole('button', { name: 'עריכה' }).boundingBox()).x - (await tile.boundingBox()).x)
-    }
-    expect(editEdges.length).toBeGreaterThan(2)
-    near(editEdges, 1, 'providers: the edit icon is in the same place on every tile')
-    // the icon for signed-in phones is there for some providers and not for others, and nothing else moved because of it
-    const phonesButton = page.getByRole('button', { name: 'מכשירים', exact: true })
-    const withPhones = await phonesButton.count()
-    expect(withPhones, 'some providers have a phone signed in').toBeGreaterThan(0)
-    expect(withPhones, 'and some do not').toBeLessThan(editEdges.length)
-    // "מכשירים" is a screen action, so on every tile that has it, it is the first icon: before the new password, edit, switch off
-    // and delete, in the markup and on the screen (the text runs right to left, so the first icon is the rightmost)
-    const phoneTiles = page.getByRole('article').filter({ has: phonesButton })
-    for (let i = 0; i < await phoneTiles.count(); i++) {
-      const buttons = phoneTiles.nth(i).getByRole('button')
-      const names = await Promise.all((await buttons.all()).map((b) => b.getAttribute('aria-label')))
-      expect(names, `providers #${i}: the actions in order`).toEqual(['מכשירים', 'סיסמה חדשה', 'עריכה', names[3], 'מחיקת נותן השירות'])
-      expect(['השבתה', 'הפעלה']).toContain(names[3])
-      const xs = (await Promise.all((await buttons.all()).map((b) => b.boundingBox()))).map((box) => box.x)
-      expect(xs, `providers #${i}: each icon is to the left of the one before it`).toEqual([...xs].sort((a, b) => b - a))
-    }
+    // providers: some tiles have the phones of the provider in their menu and some do not, and the edit button does not move because of it
+    expect(phonesSeen.with, 'some providers have a phone signed in').toBeGreaterThan(0)
+    expect(phonesSeen.without, 'and some do not').toBeGreaterThan(0)
 
+    // committee cards are all the same height, also the one that has no menu
     await page.goto('/admin#settings')
     await loaded(page, 'הגדרות')
     const heights = await Promise.all((await page.getByRole('article').all()).map(async (a) => (await a.boundingBox()).height))
     expect(heights.length, 'your own card and the other member').toBeGreaterThan(1)
-    near(heights, 1, 'settings: every member card is the same height, also the one with no icons')
+    near(heights, 1, 'settings: every member card is the same height, also the one with no menu')
   } finally {
     await phone.dispose()
     await page.request.delete(`/api/admin/admins/${member.id}`)
@@ -595,14 +643,103 @@ test('every screen has its actions in the same order and places, with the red tr
   }
 })
 
+// The menu of a tile on a real screen, by keyboard and by touch: Enter or Space on the "more" button opens it on its first item, the arrows
+// move, Esc closes it and gives the focus back to the button; choosing an action by key or by tap opens its dialog, and when the dialog
+// closes the focus is on the "more" button again (the button is the opener, so a person who works by keyboard is where they were). The
+// component's own keys are measured on its own page (e2e/components.spec.js); this is the same on the Points and Providers screens.
+test('the menu of a tile works by keyboard and by touch, and a dialog opened from it gives the focus back to its button', async ({ page }) => {
+  await adminSignIn(page, 'points')
+  const lobby = page.getByRole('article').filter({ hasText: 'לובי' })
+  const more = moreButton(lobby)
+  const menu = lobby.getByRole('menu')
+  const items = menu.getByRole('menuitem')
+
+  // keyboard: Enter, then the arrows, then Esc
+  await more.focus()
+  await page.keyboard.press('Enter')
+  await expect(menu).toBeVisible()
+  await expect(more).toHaveAttribute('aria-expanded', 'true')
+  await expect(items).toHaveText(['QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
+  await expect(items.nth(0)).toBeFocused()
+  await page.keyboard.press('ArrowDown')
+  await expect(items.nth(1)).toBeFocused()
+  await page.keyboard.press('End')
+  await expect(items.nth(2)).toBeFocused()
+  await page.keyboard.press('ArrowDown') // past the last goes round to the first
+  await expect(items.nth(0)).toBeFocused()
+  await page.keyboard.press('Escape')
+  await expect(menu).toHaveCount(0)
+  await expect(more).toBeFocused()
+
+  // keyboard: Space opens it, and Enter on the first item opens the QR dialog; Esc closes the dialog and the focus is on the button
+  await page.keyboard.press(' ')
+  await expect(items.nth(0)).toBeFocused()
+  await page.keyboard.press('Enter')
+  await expect(menu).toHaveCount(0)
+  const qr = page.getByRole('dialog', { name: 'QR: לובי' })
+  await expect(qr).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(qr).toHaveCount(0)
+  await expect(more, 'the dialog gave the focus back to the button that opened it').toBeFocused()
+
+  // keyboard: the question before switching off can be answered "no" with the keyboard, and the focus is back on the button after it
+  await page.keyboard.press('ArrowDown')
+  await page.keyboard.press('ArrowDown')
+  await expect(items.nth(1)).toBeFocused()
+  await expect(items.nth(1)).toHaveText('השבתת הנקודה')
+  await page.keyboard.press('Enter')
+  const question = page.getByRole('dialog', { name: 'להשבית את "לובי"?' })
+  await expect(question).toBeVisible()
+  await question.getByRole('button', { name: 'ביטול' }).click()
+  await expect(question).toHaveCount(0)
+  await expect(more, 'the question gave the focus back to the button').toBeFocused()
+  await expect(lobby.getByText('פעילה', { exact: true })).toBeVisible() // saying no changed nothing
+
+  // touch: a tap opens the menu, a tap on an item chooses it, a tap outside closes it
+  await more.tap()
+  await expect(menu).toBeVisible()
+  await page.getByRole('heading', { level: 1 }).tap() // plain text: it takes no focus
+  await expect(menu).toHaveCount(0)
+  await expect(more, 'a tap outside gave the focus back to the button').toBeFocused()
+  await more.tap()
+  await items.nth(0).tap()
+  await expect(menu).toHaveCount(0)
+  await expect(qr).toBeVisible()
+  await qr.getByTitle('סגירה').tap()
+  await expect(qr).toHaveCount(0)
+  await expect(more).toBeFocused()
+
+  // the Providers screen: the password dialog, from the keyboard, and the focus back on the button of that provider
+  await page.goto('/admin#providers')
+  await loaded(page, 'נותני שירות')
+  const ploni = page.getByRole('article').filter({ hasText: PEOPLE.ploni.name })
+  await moreButton(ploni).focus()
+  await page.keyboard.press('Enter')
+  const ploniItems = ploni.getByRole('menuitem')
+  await page.keyboard.press('End')
+  await expect(ploniItems.last(), 'the delete is the last item').toHaveText('מחיקת נותן השירות')
+  // the new password is the first item, or the second when a phone is signed in (the phones come first): arrow down to it, and choose it
+  const at = (await ploniItems.allTextContents()).indexOf('סיסמה חדשה')
+  expect(at, 'the new password is in the menu').toBeGreaterThanOrEqual(0)
+  await page.keyboard.press('Home')
+  for (let i = 0; i < at; i++) await page.keyboard.press('ArrowDown')
+  await expect(ploniItems.nth(at)).toBeFocused()
+  await page.keyboard.press('Enter')
+  const password = page.getByRole('dialog', { name: `סיסמה חדשה: ${PEOPLE.ploni.name}` })
+  await expect(password).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(password).toHaveCount(0)
+  await expect(moreButton(ploni), 'the focus is back on the button of the provider').toBeFocused()
+})
+
 // ---- a long name in a tile and in the head of a dialog ---------------------------------------------------------------------
 
-// On a phone, the four icons of a point's tile left its title a column of about 100 px, and a long word of the name (an English
-// "Maintenance" or a Russian word) was cut in the middle. Now the icons wrap below the title, at the end of the row, when the title
-// does not fit on one line beside them, and the title gets the whole width. The same name in the head of a dialog wraps over several
+// On a phone, the tools of a point's tile (its edit button and its "more" button) leave its title a column of about 100 px, and a
+// long word of the name (an English "Maintenance" or a Russian word) would be cut in the middle. So the tools wrap below the title, at
+// the end of the row, when the title does not fit on one line beside them, and the title gets the whole width. The same name in the head of a dialog wraps over several
 // lines, and the close button stays at the top of the head instead of the middle of it. 360 px is the narrowest phone in use (the
 // two E2E devices are 390 and 412 wide), and the computer shows the tile in a column of its own width.
-test('a long point name is readable in its tile and in the head of a dialog: no word is cut across lines, the icons keep their order and end of the row, and the close button is at the top', async ({ page }) => {
+test('a long point name is readable in its tile and in the head of a dialog: no word is cut across lines, the buttons keep their order and end of the row, and the close button is at the top', async ({ page }) => {
   await page.setViewportSize({ width: 360, height: 740 })
   await adminSignIn(page)
   const name = `Maintenance switchboard room north ${randomUUID().slice(0, 6)}`
@@ -631,20 +768,20 @@ test('a long point name is readable in its tile and in the head of a dialog: no 
       const tile = page.getByRole('article').filter({ hasText: name })
       const title = tile.getByRole('heading', { name })
       expect(await cutWords(title), `${where}: words of the title that are cut across lines`).toEqual([])
-      // the order of the icons and the end of the row: the trash can is the last icon, and at the same distance from the end of the tile
+      // the order of the buttons and the end of the row: the "more" button is the last one, and at the same distance from the end of the tile
       // as on a tile with a short name (the text runs right to left, so the end of a tile is its left edge)
       const edgeOf = async (article) => {
         const buttons = article.getByRole('button')
-        await expect(buttons.last(), `${where}: the trash can is the last action`).toHaveAccessibleName('מחיקת הנקודה')
+        await expect(buttons.last(), `${where}: the "more" button is the last one`).toHaveAccessibleName(/^עוד פעולות ל./)
         const boxes = await Promise.all((await buttons.all()).map((b) => b.boundingBox()))
-        expect(boxes.map((b) => b.x), `${where}: each icon is to the left of the one before it`).toEqual([...boxes.map((b) => b.x)].sort((a, b) => b - a))
+        expect(boxes.map((b) => b.x), `${where}: each button is to the left of the one before it`).toEqual([...boxes.map((b) => b.x)].sort((a, b) => b - a))
         return boxes[boxes.length - 1].x - (await article.boundingBox()).x
       }
-      near([await edgeOf(tile), await edgeOf(page.getByRole('article').filter({ hasText: 'לובי' }).first())], 1, `${where}: the trash can is in the same place on a long and on a short tile`)
+      near([await edgeOf(tile), await edgeOf(page.getByRole('article').filter({ hasText: 'לובי' }).first())], 1, `${where}: the "more" button is in the same place on a long and on a short tile`)
       expect(await noHorizontalScroll(page), `${where}: the points do not scroll sideways`).toBe(true)
 
       // the dialog: its title is "QR: " and the name, which wraps over several lines on a phone
-      await tile.getByRole('button', { name: 'QR והדפסה' }).click()
+      await chooseFromMenu(tile, 'QR והדפסה')
       const dialog = page.getByRole('dialog')
       const head = dialog.getByRole('heading', { level: 2 })
       await expect(head).toContainText(name)
@@ -661,7 +798,7 @@ test('a long point name is readable in its tile and in the head of a dialog: no 
       await expect(dialog).toHaveCount(0)
     }
     // a title of one line stays where it was: centred against the close button
-    await page.getByRole('article').filter({ hasText: 'לובי' }).first().getByRole('button', { name: 'QR והדפסה' }).click()
+    await chooseFromMenu(page.getByRole('article').filter({ hasText: 'לובי' }).first(), 'QR והדפסה')
     const shortHead = page.getByRole('dialog').getByRole('heading', { level: 2 })
     const [shortBox, shortClose] = await Promise.all([shortHead.boundingBox(), page.getByRole('dialog').getByTitle('סגירה').boundingBox()])
     expect(shortBox.height, 'the title of the lobby is one line').toBeLessThan(shortClose.height)
@@ -710,7 +847,7 @@ test("a provider's phones: the card says what waits on them, and a dialog lists 
     expect(await noHorizontalScroll(page), 'the card at phone width').toBe(true)
 
     // the dialog: both phones, the one that reported with everything it said, the other as "not reporting"; never the label
-    await tile.getByRole('button', { name: 'מכשירים', exact: true }).click()
+    await chooseFromMenu(tile, 'מכשירים')
     const dialog = page.getByRole('dialog', { name: `מכשירים: ${PEOPLE.john.name}` })
     await expect(dialog).toBeVisible()
     await expect(dialog.getByRole('heading', { level: 3 })).toHaveCount(2)
@@ -765,7 +902,11 @@ test("a provider's phones: the card says what waits on them, and a dialog lists 
     await question.getByRole('button', { name: 'ניתוק', exact: true }).click()
     await expect(page.getByRole('status').filter({ hasText: 'המכשירים נותקו' })).toBeVisible()
     await expect(dialog).toHaveCount(0)
-    await expect(tile.getByRole('button', { name: 'מכשירים', exact: true })).toHaveCount(0)
+    await expect(moreButton(tile), 'the dialog that was opened from the menu gave the focus back to its button').toBeFocused()
+    const menu = await openTileMenu(tile)
+    await expect(menu.getByRole('menuitem', { name: 'מכשירים', exact: true }), 'no phone is signed in: the menu has no phones action').toHaveCount(0)
+    await expect(menu.getByRole('menuitem', { name: 'סיסמה חדשה', exact: true })).toBeVisible()
+    await page.keyboard.press('Escape')
     await expect(tile.getByText('ממתינות בטלפון')).toHaveCount(0)
     await expect(tile.getByText('ממתינות מעל 24 שעות')).toHaveCount(0)
     // and the phone really is signed out: the server refuses its next report
@@ -876,7 +1017,7 @@ test('a provider, a committee member and an agent key can each be deleted from t
   const deleteFrom = async (tab, title, tile, button, confirmLabel, mentions) => {
     await page.goto(`/admin#${tab}`)
     await loaded(page, title)
-    await tile.getByRole('button', { name: button }).click()
+    await chooseFromMenu(tile, button)
     const dialog = page.getByRole('dialog')
     await expect(dialog).toContainText(mentions)
     await dialog.getByRole('button', { name: confirmLabel }).click()

@@ -15,7 +15,7 @@ import ar from '../src/i18n/ar.js'
 import { PROVIDER_TOKEN_PREFIX } from '../shared/contract.js'
 import {
   test, expect, he, en, ru, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, adminSignIn, clearScans, allowConsoleErrors, expectNoA11yViolations,
-  changeFilters, openFilters, SCREEN_TITLES, stubHome, homeSummary, openAccountMenu,
+  changeFilters, openFilters, SCREEN_TITLES, stubHome, homeSummary, openAccountMenu, openTileMenu, chooseFromMenu,
 } from './fixtures.js'
 import { openHarness } from './harness.js'
 
@@ -624,7 +624,11 @@ test.describe('committee app with the sample data filled in', () => {
     await scanBothThemes(page, 'committee computer: points')
     await openTab(page, 'providers', 'נותני שירות')
     await scanBothThemes(page, 'committee computer: providers')
-    await page.getByRole('article').filter({ hasText: PEOPLE.ploni.name }).getByRole('button', { name: 'מכשירים', exact: true }).click()
+    // a tile's "more" menu, open: the screen's actions, switching off, a separator, and the red delete
+    await openTileMenu(page.getByRole('article').filter({ hasText: PEOPLE.ploni.name }))
+    await scanBothThemes(page, 'committee computer: the "more" menu of a provider, open')
+    await page.keyboard.press('Escape')
+    await chooseFromMenu(page.getByRole('article').filter({ hasText: PEOPLE.ploni.name }), 'מכשירים')
     // (a phone that an earlier test signed Ploni in on is listed too, so "at least his two": the one that reports and the one that does not)
     await expect(page.getByRole('dialog', { name: `מכשירים: ${PEOPLE.ploni.name}` }).getByRole('heading', { level: 3 }).nth(1)).toBeVisible()
     await scanBothThemes(page, 'committee computer: provider phones dialog')
@@ -666,6 +670,9 @@ test.describe('committee app with the sample data filled in', () => {
 
     // the form with the map, with an error, the QR dialog, and the questions
     const lobby = page.getByRole('article').filter({ hasText: 'לובי' })
+    await openTileMenu(lobby)
+    await scanBothThemes(page, 'committee phone: the "more" menu of a point, open')
+    await page.keyboard.press('Escape')
     await lobby.getByRole('button', { name: 'עריכה' }).click()
     const form = dialog('עריכת נקודה: לובי')
     await expect(form.locator('img.leaflet-tile-loaded').first()).toBeAttached() // the map has drawn
@@ -676,7 +683,7 @@ test.describe('committee app with the sample data filled in', () => {
     await scanBothThemes(page, 'committee phone: point form with an error')
     await discardWithEscape('עריכת נקודה: לובי', () => scanBothThemes(page, 'committee phone: the question before a form with typed changes is closed'))
 
-    await lobby.getByRole('button', { name: 'QR והדפסה' }).click()
+    await chooseFromMenu(lobby, 'QR והדפסה')
     const qr = dialog('QR: לובי')
     await expect.poll(() => qr.getByRole('img', { name: 'קוד QR של הנקודה לובי' }).evaluate((img) => img.naturalWidth)).toBeGreaterThan(0)
     await scanBothThemes(page, 'committee phone: QR dialog')
@@ -700,7 +707,7 @@ test.describe('committee app with the sample data filled in', () => {
     await page.emulateMedia({ media: null })
     await page.evaluate(() => window.dispatchEvent(new Event('afterprint'))) // what the browser says when printing is over: the sheet goes
 
-    await lobby.getByRole('button', { name: 'מחיקת הנקודה' }).click()
+    await chooseFromMenu(lobby, 'מחיקת הנקודה')
     await expect(dialog('למחוק את "לובי"?')).toBeVisible()
     await scanBothThemes(page, 'committee phone: confirm, delete a point')
     await closeWithEscape('למחוק את "לובי"?')
@@ -721,7 +728,7 @@ test.describe('committee app with the sample data filled in', () => {
     await scanBothThemes(page, 'committee phone: password shown once, with a message on the screen')
     await closeWithEscape('הסיסמה נשמרה')
 
-    await page.getByRole('article').filter({ hasText: PEOPLE.ploni.name }).getByRole('button', { name: 'סיסמה חדשה' }).click()
+    await chooseFromMenu(page.getByRole('article').filter({ hasText: PEOPLE.ploni.name }), 'סיסמה חדשה')
     await expect(dialog(`סיסמה חדשה: ${PEOPLE.ploni.name}`)).toBeVisible()
     await scanBothThemes(page, 'committee phone: new password dialog')
     await closeWithEscape(`סיסמה חדשה: ${PEOPLE.ploni.name}`)
@@ -729,22 +736,22 @@ test.describe('committee app with the sample data filled in', () => {
     // the phones of a provider: what each phone reported, read only, with the sign-out of all of them at the bottom; then the
     // same dialog for a provider whose phones were all signed out meanwhile (answered here) and when the list cannot be loaded
     const phones = `מכשירים: ${PEOPLE.ploni.name}`
-    const phonesButton = page.getByRole('article').filter({ hasText: PEOPLE.ploni.name }).getByRole('button', { name: 'מכשירים', exact: true })
-    await phonesButton.click()
+    const ploni = page.getByRole('article').filter({ hasText: PEOPLE.ploni.name })
+    await chooseFromMenu(ploni, 'מכשירים')
     await expect(dialog(phones).getByRole('heading', { level: 3 }).nth(1)).toBeVisible() // at least his two phones (see the computer scan)
     await expect(dialog(phones).getByText('ישנה', { exact: true })).toBeVisible()
     await scanBothThemes(page, 'committee phone: provider phones dialog')
     await closeWithEscape(phones)
 
     await page.route('**/api/admin/providers/*/devices', (route) => route.fulfill({ json: { devices: [] } }))
-    await phonesButton.click()
+    await chooseFromMenu(ploni, 'מכשירים')
     await expect(dialog(phones).getByRole('heading', { name: 'אין מכשירים מחוברים' })).toBeVisible()
     await scanBothThemes(page, 'committee phone: provider phones dialog, no phone')
     await closeWithEscape(phones)
 
     allowConsoleErrors(page, /status of 500/) // the list that is answered with an error below
     await page.route('**/api/admin/providers/*/devices', (route) => route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'x' } } }))
-    await phonesButton.click()
+    await chooseFromMenu(ploni, 'מכשירים')
     await expect(dialog(phones).getByRole('heading', { name: 'לא הצלחנו לטעון' })).toBeVisible()
     await expect(dialog(phones).getByRole('button', { name: 'ניתוק כל המכשירים' })).toBeVisible()
     await scanBothThemes(page, 'committee phone: provider phones dialog, not loaded')
@@ -783,6 +790,10 @@ test.describe('committee app with the sample data filled in', () => {
     await expect(dialog('המפתח נוצר')).toBeVisible()
     await scanBothThemes(page, 'committee phone: agent key shown once')
     await closeWithEscape('המפתח נוצר')
+    // the key's card has no edit action: its "more" button is alone, and its menu holds revoking and the red delete
+    await openTileMenu(page.getByRole('article').filter({ hasText: NEW_KEY }).first())
+    await scanBothThemes(page, 'committee phone: the "more" menu of an agent key, open')
+    await page.keyboard.press('Escape')
 
     // settings: adding a member, and taking an access away
     await openTab(page, 'settings', 'הגדרות')
@@ -795,7 +806,11 @@ test.describe('committee app with the sample data filled in', () => {
     await expect(add.getByText('כתובת מייל לא תקינה.')).toBeVisible()
     await scanBothThemes(page, 'committee phone: new member with an error')
     await discardWithEscape('חבר ועד חדש', () => scanBothThemes(page, 'committee phone: the question before a new member with a typed address is closed'))
-    await page.getByRole('article').filter({ hasText: committee.member.name }).getByRole('button', { name: 'הסרת גישה' }).click()
+    const member = page.getByRole('article').filter({ hasText: committee.member.name })
+    await openTileMenu(member)
+    await scanBothThemes(page, 'committee phone: the "more" menu of a member, open')
+    await page.keyboard.press('Escape')
+    await chooseFromMenu(member, 'הסרת גישה')
     await expect(page.getByRole('dialog')).toBeVisible()
     await scanBothThemes(page, 'committee phone: confirm, remove an access')
     await page.keyboard.press('Escape')

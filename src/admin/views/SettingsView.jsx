@@ -1,7 +1,7 @@
 import { useId, useRef, useState } from 'react'
 import { adminApi, errorText } from '../api.js'
 import { useLoad, setLoadCache, LOAD_KEY, formatDateTime } from '../hooks.js'
-import { Modal, Field, Badge, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { Modal, Field, Badge, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconPlus, IconBan, IconCheck, IconShield, IconAlert, IconTrash } from '../icons.jsx'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { useBuildingName } from '../buildingName.jsx'
@@ -225,24 +225,33 @@ export default function SettingsView({ admin }) {
         <div className="a-grid">
           {list.map((a) => {
             const me = a.id === admin.id
+            const name = a.name || 'חבר ועד'
             return (
               <article key={a.id} className={`a-card${a.is_active ? '' : ' is-off'}`}>
                 <div className="a-card__top">
-                  <div>
-                    <h3 className="a-card__title">{a.name || 'חבר ועד'}{me && ' (אתם)'}</h3>
-                    {/* an address reads left to right, but it lines up with the title like the other cards' second line */}
-                    <p className="a-card__sub"><bdi dir="ltr">{a.email}</bdi></p>
+                  <div className="a-card__id">
+                    <span className="a-card__icon a-card__icon--round" aria-hidden="true">{[...(a.name || a.email)][0].toUpperCase()}</span>
+                    <div>
+                      <h3 className="a-card__title">{name}{me && ' (אתם)'}</h3>
+                      {/* an address reads left to right, but it lines up with the title like the other cards' second line */}
+                      <p className="a-card__sub"><bdi dir="ltr">{a.email}</bdi></p>
+                    </div>
                   </div>
-                  {/* your own card has no icons: you cannot remove or delete yourself */}
+                  {/* your own card has no menu: you cannot remove or delete yourself */}
                   {!me && (
                     <div className="a-card__tools">
-                      <IconButton icon={a.is_active ? IconBan : IconCheck} label={a.is_active ? 'הסרת גישה' : 'החזרת גישה'} onClick={() => toggle(a)} disabled={busy} />
-                      <IconButton icon={IconTrash} label="מחיקה מהוועד" tone="danger" onClick={() => deleteMember(a)} disabled={busy} />
+                      <Menu
+                        label={`עוד פעולות ל${a.name || a.email}`}
+                        items={[
+                          { label: a.is_active ? 'הסרת גישה' : 'החזרת גישה', icon: a.is_active ? IconBan : IconCheck, disabled: busy, onSelect: () => toggle(a) },
+                          { label: 'מחיקה מהוועד', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deleteMember(a) },
+                        ]}
+                      />
                     </div>
                   )}
                 </div>
                 <div className="a-meta"><Badge tone={a.is_active ? 'ok' : 'neutral'}>{a.is_active ? 'פעיל' : 'הוסר'}</Badge></div>
-                <dl className="a-facts"><dt>כניסה אחרונה</dt><dd>{a.last_login_at ? formatDateTime(a.last_login_at) : 'עוד לא נכנס'}</dd></dl>
+                <dl className="a-facts a-facts--tiles"><div><dt>כניסה אחרונה</dt><dd>{a.last_login_at ? formatDateTime(a.last_login_at) : 'עוד לא נכנס'}</dd></div></dl>
               </article>
             )
           })}

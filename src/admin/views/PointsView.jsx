@@ -2,10 +2,10 @@ import { lazy, Suspense, useCallback, useState } from 'react'
 import { reloadApp } from '../../ui/crash.js'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel } from '../hooks.js'
-import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
+import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { downloadDataUrl, safeFileName, useQrImage } from '../qr.js'
 import PrintSheet from '../PrintSheet.jsx'
-import { IconPlus, IconEdit, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
+import { IconPlus, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
 import { GPS_MODE_LABELS } from '../auditLabels.js'
 import {
   GPS_MODE_REQUIRED,
@@ -361,15 +361,23 @@ export default function PointsView() {
           return (
             <article key={p.id} className={`a-card${p.is_active ? '' : ' is-off'}`}>
               <div className="a-card__top">
-                <div>
-                  <h2 className="a-card__title">{p.name}</h2>
-                  {p.description && <p className="a-card__sub">{p.description}</p>}
+                <div className="a-card__id">
+                  <span className="a-card__icon" aria-hidden="true"><IconPin size={22} /></span>
+                  <div>
+                    <h2 className="a-card__title">{p.name}</h2>
+                    {p.description && <p className="a-card__sub">{p.description}</p>}
+                  </div>
                 </div>
                 <div className="a-card__tools">
-                  <IconButton icon={IconQr} label="QR והדפסה" onClick={() => setQrFor(p)} />
-                  <IconButton icon={IconEdit} label="עריכה" onClick={() => setEditing(p)} />
-                  <IconButton icon={p.is_active ? IconBan : IconCheck} label={p.is_active ? 'השבתת הנקודה' : 'הפעלת הנקודה'} onClick={() => toggleActive(p)} disabled={busy} />
-                  <IconButton icon={IconTrash} label="מחיקת הנקודה" tone="danger" onClick={() => deletePoint(p)} disabled={busy} />
+                  <button type="button" className="w-btn w-btn--quiet w-btn--small" aria-label={`עריכה: ${p.name}`} onClick={() => setEditing(p)}>עריכה</button>
+                  <Menu
+                    label={`עוד פעולות ל${p.name}`}
+                    items={[
+                      { label: 'QR והדפסה', icon: IconQr, onSelect: () => setQrFor(p) },
+                      { label: p.is_active ? 'השבתת הנקודה' : 'הפעלת הנקודה', icon: p.is_active ? IconBan : IconCheck, disabled: busy, onSelect: () => toggleActive(p) },
+                      { label: 'מחיקת הנקודה', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deletePoint(p) },
+                    ]}
+                  />
                 </div>
               </div>
               <div className="a-meta">
@@ -378,10 +386,9 @@ export default function PointsView() {
                 {p.gps_mode !== GPS_MODE_REQUIRED && <Badge tone="warn">{GPS_MODE_LABELS[p.gps_mode] ?? p.gps_mode}</Badge>}
                 {missingCoords && <Badge tone="warn">חסר מיקום במפה</Badge>}
               </div>
-              <dl className="a-facts">
-                <dt>מי סורק</dt>
-                <dd>{p.provider_ids.length ? p.provider_ids.map((id) => names[id] ?? '…').join(', ') : 'כל נותני השירות'}</dd>
-                <dt>רדיוס</dt><dd>{p.radius_m} מ׳</dd>
+              <dl className="a-facts a-facts--tiles">
+                <div><dt>מי סורק</dt><dd>{p.provider_ids.length ? p.provider_ids.map((id) => names[id] ?? '…').join(', ') : 'כל נותני השירות'}</dd></div>
+                <div><dt>רדיוס</dt><dd>{p.radius_m} מ׳</dd></div>
               </dl>
             </article>
           )

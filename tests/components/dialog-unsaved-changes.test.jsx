@@ -17,6 +17,7 @@ import HistoryView from '../../src/admin/views/HistoryView.jsx'
 import { clearLoadCache } from '../../src/admin/loadCache.js'
 import { api } from '../../src/api/client.js'
 import { OUTCOME_ACCEPTED, SOURCE_ONLINE } from '../../shared/contract.js'
+import { choose } from './tile-menu.js'
 
 vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
 vi.mock('../../src/admin/MapPicker.jsx', () => ({
@@ -457,7 +458,7 @@ describe('the point form', () => {
 
   it('asks before the change to a point is lost, and not when nothing was changed', async () => {
     await show([point])
-    const edit = () => fireEvent.click(within(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article')).getByRole('button', { name: 'עריכה' }))
+    const edit = () => fireEvent.click(within(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article')).getByRole('button', { name: /^עריכה/ }))
     edit()
     esc()
     noDialog('עריכת נקודה: לובי')
@@ -467,7 +468,7 @@ describe('the point form', () => {
     expectItAsksBeforeLosingWhatWasTyped('עריכת נקודה: לובי', 'רדיוס (מטרים)', '75')
   })
 
-  const editLobby = () => fireEvent.click(within(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article')).getByRole('button', { name: 'עריכה' }))
+  const editLobby = () => fireEvent.click(within(screen.getByRole('heading', { name: 'לובי', level: 2 }).closest('article')).getByRole('button', { name: /^עריכה/ }))
 
   it('does not count a coordinate that was typed over and put back exactly as the database had it (a number there, text in the field)', async () => {
     await show([point])
@@ -589,7 +590,8 @@ describe('the provider forms', () => {
     render(<ToastProvider><ConfirmProvider><ProvidersView /></ConfirmProvider></ToastProvider>)
     await screen.findByRole('heading', { name: 'פלוני', level: 2 }, WAIT)
   }
-  const card = () => within(screen.getByRole('heading', { name: 'פלוני', level: 2 }).closest('article'))
+  const tile = () => screen.getByRole('heading', { name: 'פלוני', level: 2 }).closest('article')
+  const card = () => within(tile())
 
   it('asks before a new provider that was started is lost, and not for the password that the form made up', async () => {
     await show()
@@ -603,17 +605,17 @@ describe('the provider forms', () => {
 
   it('asks before the change to a provider is lost', async () => {
     await show()
-    fireEvent.click(card().getByRole('button', { name: 'עריכה' }))
+    fireEvent.click(card().getByRole('button', { name: /^עריכה/ }))
     expectItAsksBeforeLosingWhatWasTyped('עריכה: פלוני', 'שם העובד', 'דנה')
   })
 
   it('asks before a password that was changed is lost, and not for the one that was made up', async () => {
     await show()
-    fireEvent.click(card().getByRole('button', { name: 'סיסמה חדשה' }))
+    choose(tile(), 'סיסמה חדשה')
     esc()
     expect(screen.queryByRole('dialog'), 'untouched: closed at once').toBeNull()
 
-    fireEvent.click(card().getByRole('button', { name: 'סיסמה חדשה' }))
+    choose(tile(), 'סיסמה חדשה')
     expectItAsksBeforeLosingWhatWasTyped('סיסמה חדשה: פלוני', 'סיסמה', 'sample-password-1')
   })
 })

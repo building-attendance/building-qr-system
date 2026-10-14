@@ -9,6 +9,7 @@ import AgentView from '../../src/admin/views/AgentView.jsx'
 import { ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
 import { clearLoadCache } from '../../src/admin/loadCache.js'
 import { api } from '../../src/api/client.js'
+import { menuLabels, shownButtons } from './tile-menu.js'
 
 vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
 
@@ -121,12 +122,13 @@ describe('the card: refused requests', () => {
     expect(screen.queryByText(WARNING)).toBeNull()
   })
 
-  it('keeps the actions of the card as they were: cancel, then the red trash can last', async () => {
+  it('keeps the actions of the card as they were, now in its menu: cancel, then the red trash can last', async () => {
     server({ keys: [apiKey({ refused_30d: 4, requests_today: 61, requests_7d: 61 })] })
     show()
     await screen.findByRole('heading', { level: 2, name: 'הסוכן של הוועד' }, WAIT)
-    const names = within(card('הסוכן של הוועד')).getAllByRole('button').map((b) => b.getAttribute('aria-label'))
-    expect(names).toEqual(['ביטול המפתח', 'מחיקת המפתח'])
+    // a key has no edit action: its card shows the "more" button alone, and the menu holds the two actions
+    expect(shownButtons(card('הסוכן של הוועד'))).toEqual(['עוד פעולות למפתח הסוכן של הוועד'])
+    expect(menuLabels(card('הסוכן של הוועד'))).toEqual(['ביטול המפתח', 'מחיקת המפתח'])
   })
 })
 
