@@ -20,8 +20,8 @@ test.describe('manifest', () => {
       scope: '/',
       lang: 'he',
       dir: 'rtl',
-      theme_color: '#0b0b0d',
-      background_color: '#0b0b0d',
+      theme_color: '#15121f',
+      background_color: '#15121f',
     })
     const sizes = manifest.icons.map((icon) => icon.sizes)
     expect(sizes).toEqual(expect.arrayContaining(['192x192', '512x512']))

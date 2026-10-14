@@ -15,5 +15,5 @@
   root.setAttribute('data-theme', theme);
   root.style.colorScheme = theme;
   var chrome = document.querySelector('meta[name="theme-color"]');
-  if (chrome) chrome.setAttribute('content', light ? '#f4f5f7' : '#0b0b0d');
+  if (chrome) chrome.setAttribute('content', light ? '#f7f5ff' : '#15121f');
 })();

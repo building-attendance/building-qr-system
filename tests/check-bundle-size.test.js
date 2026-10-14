@@ -62,7 +62,7 @@ const PRECACHED = [
   'assets/index-AAA111.css',
   'assets/AdminApp-BBB222.js',
   'assets/AdminApp-BBB222.css',
-  'assets/heebo-hebrew-CCC333.woff2',
+  'assets/rubik-hebrew-CCC333.woff2',
   'pwa-192x192.svg',
   'pwa-192x192.png',
 ]
@@ -74,7 +74,7 @@ function defaultFiles() {
     'assets/index-AAA111.css': text(5, 100),
     'assets/AdminApp-BBB222.js': text(7, 300),
     'assets/AdminApp-BBB222.css': text(11, 80),
-    'assets/heebo-hebrew-CCC333.woff2': crypto.randomBytes(3000),
+    'assets/rubik-hebrew-CCC333.woff2': crypto.randomBytes(3000),
     'pwa-192x192.svg': text(13, 20),
     'pwa-192x192.png': crypto.randomBytes(500),
     // the two icons are listed a second time, as they are in the real manifest
@@ -152,7 +152,7 @@ describe('check-bundle-size: the committee app chunk', () => {
     'assets/index-AAA111.css',
     'assets/AdminApp-BBB222.js',
     'assets/AdminApp-BBB222.css',
-    'assets/heebo-hebrew-CCC333.woff2',
+    'assets/rubik-hebrew-CCC333.woff2',
   ]
 
   it('finds the JavaScript and the CSS by the AdminApp- prefix', () => {
@@ -293,8 +293,8 @@ describe('check-bundle-size: measuring a built folder', () => {
     expect(noSw.values).not.toHaveProperty('precacheBytes')
     expect(noSw.values).not.toHaveProperty('precacheEntries')
 
-    const noFont = measureDir(makeDist({ 'assets/heebo-hebrew-CCC333.woff2': null }).dir)
-    expect(noFont.problems.some((p) => p.startsWith('precache:') && p.includes('heebo-hebrew-CCC333.woff2'))).toBe(true)
+    const noFont = measureDir(makeDist({ 'assets/rubik-hebrew-CCC333.woff2': null }).dir)
+    expect(noFont.problems.some((p) => p.startsWith('precache:') && p.includes('rubik-hebrew-CCC333.woff2'))).toBe(true)
     expect(noFont.values).not.toHaveProperty('precacheEntries')
     expect(noFont.values).toHaveProperty('entryJs')
   })

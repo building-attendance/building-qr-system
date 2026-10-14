@@ -40,8 +40,8 @@ export default defineConfig({
         name: 'נוכחות בבניין',
         short_name: 'נוכחות',
         description: 'רישום נוכחות נותני שירות בבניין באמצעות QR',
-        theme_color: '#0b0b0d',
-        background_color: '#0b0b0d',
+        theme_color: '#15121f',
+        background_color: '#15121f',
         display: 'standalone',
         dir: 'rtl',
         lang: 'he',
@@ -62,12 +62,11 @@ export default defineConfig({
       workbox: {
         globPatterns: ['**/*.{js,css,html,svg,png,ico,woff,woff2}'],
         // Every phone downloads the precache when the app is installed and again with each new version, so it holds only
-        // what the app shows. Heebo's "math" and "symbols" subsets (about 38 KB) cover characters that no screen needs to
-        // work offline: the browser still downloads one of them by itself if a page ever shows such a character (the
-        // arrow of the audit log, which needs the network anyway). The other subsets (Hebrew, Latin, Latin Extended) stay.
-        // The maskable icon (about 4 KB) is left out for the same reason: the system fetches a launcher icon from the
-        // manifest when the app is installed, and no page ever shows it, so offline use does not need it.
-        globIgnores: ['**/heebo-math-*', '**/heebo-symbols-*', '**/pwa-maskable-*'],
+        // what the app shows. Every subset of the typeface (Rubik: Hebrew, Latin, Latin Extended, Cyrillic, Cyrillic
+        // Extended, Arabic) stays, so that a provider who reads the app in Russian or Arabic keeps its type offline too
+        // (owner decision of 14/10/2026). The maskable icon (about 4 KB) is left out: the system fetches a launcher icon from
+        // the manifest when the app is installed, and no page ever shows it, so offline use does not need it.
+        globIgnores: ['**/pwa-maskable-*'],
         // API calls and CSV downloads must never be answered with the app shell.
         navigateFallbackDenylist: [/^\/api\//],
         // No runtime caching: the map's tiles are cross-origin images without CORS (opaque answers), which a CacheFirst

@@ -2,6 +2,7 @@
 // from the real tokens in src/ui/ui.css, so a colour change that breaks readability fails here.
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
+import { CHROME_COLORS } from '../src/ui/theme.js'
 
 const css = fs.readFileSync(new URL('../src/ui/ui.css', import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
 
@@ -40,8 +41,19 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
   for (const [sn, s] of Object.entries(surfaces)) {
     for (const k of ['--w-text', '--w-text-2', '--w-text-3']) check(`${k} on ${sn}`, c(k), s, 4.5)
   }
-  check('white on primary', parse('#ffffff'), c('--w-primary'), 4.5)
-  check('white on primary (hover)', parse('#ffffff'), c('--w-primary-hover'), 4.5)
+  // Text and icons on a filled primary button (.w-btn, the round add button of the committee app). White on the light violet of the
+  // dark theme would be 2.4:1, so the colour on it is a token of its own: white in the light theme, the dark background in the dark one.
+  check('--w-on-primary on primary', c('--w-on-primary'), c('--w-primary'), 4.5)
+  check('--w-on-primary on primary (hover)', c('--w-on-primary'), c('--w-primary-hover'), 4.5)
+  // The summary card of the Home screen (--w-hero) and the text on it.
+  check('--w-on-hero on hero', c('--w-on-hero'), c('--w-hero'), 4.5)
+  // The four tints of tiles, chips and badges: the ink of each, the body text, and the focus ring of something drawn on it.
+  for (const tint of ['violet', 'peach', 'mint', 'sky']) {
+    const bg = c(`--w-tint-${tint}`)
+    check(`--w-tint-${tint}-ink on its tint`, c(`--w-tint-${tint}-ink`), bg, 4.5)
+    check(`--w-text on the ${tint} tint`, c('--w-text'), bg, 4.5)
+    check(`focus ring on the ${tint} tint`, c('--w-focus'), bg, 3)
+  }
   for (const sn of ['surface', 'surface-2', 'bg']) {
     check(`field border on ${sn}`, c('--w-field-border'), surfaces[sn], 3)
     check(`field border (hover) on ${sn}`, c('--w-field-border-hover'), surfaces[sn], 3)
@@ -56,13 +68,15 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
     }
   }
 
-  // The four steps of the count cells of the Home table (--w-count-1 to 4, used by .a-count in src/admin/admin.css): a tint of the primary blue
+  // The four steps of the count cells of the Home table (--w-count-1 to 4, used by .a-count in src/admin/admin.css): a tint of violet
   // over the surface of the table. The number in a cell is --w-text (4.5:1), and the focus ring, which is drawn inside the cell, has to
-  // stand out from the step it is on (3:1). The hover ring is --w-info, the same colour as --w-focus in both themes.
+  // stand out from the step it is on (3:1). So does the hover ring, which is --w-info: it used to be the focus colour in both themes, and
+  // with the violet palette it is a deeper violet (light) or a paler one (dark), so it is checked on every step by itself.
   const step = (n) => over(c(`--w-count-${n}`), surfaces.surface)
   for (const n of [1, 2, 3, 4]) {
     check(`--w-text on count step ${n} over surface`, c('--w-text'), step(n), 4.5)
     check(`focus ring on count step ${n} over surface`, c('--w-focus'), step(n), 3)
+    check(`hover ring (--w-info) on count step ${n} over surface`, c('--w-info'), step(n), 3)
   }
 
   it.each(pairs)(`${name}: %s`, (label, fg, bg, min) => {
@@ -75,9 +89,6 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
     expect(away[0], 'step 1 against the surface').toBeGreaterThan(1.05)
   })
 
-  it('the hover ring (--w-info) is the focus colour, so the pairs above hold for it too', () => {
-    expect(t['--w-info']).toBe(t['--w-focus'])
-  })
 })
 
 describe('controls do not lose their own type and colour to the reset', () => {
@@ -88,8 +99,8 @@ describe('controls do not lose their own type and colour to the reset', () => {
     expect(css).toContain(':where(.w-app, .a-app) :where(button, select, input, textarea) { font: inherit; color: inherit; }')
     expect(css).not.toMatch(/\.w-app button|\.a-app button/)
   })
-  it('the filled button is white text on the primary colour', () => {
-    expect(css).toMatch(/\.w-btn \{[^}]*background: var\(--w-primary\); color: #fff;/)
+  it('the filled button is --w-on-primary on the primary colour', () => {
+    expect(css).toMatch(/\.w-btn \{[^}]*background: var\(--w-primary\); color: var\(--w-on-primary\);/)
   })
 })
 
@@ -97,8 +108,33 @@ describe('the two themes define the same set of tokens', () => {
   it('light overrides only tokens that exist in dark, and every dark token is themed', () => {
     const raw = tokens(block(":root[data-theme='light'] .w-app"))
     for (const token of Object.keys(raw)) expect(themes.dark, token).toHaveProperty(token)
-    // colour tokens all differ between the themes (a forgotten one would stay dark on a light page)
-    const mustDiffer = Object.keys(themes.dark).filter((k) => /^--w-(bg|surface|border|field|text|focus|overlay|shadow)/.test(k))
+    // every token of the two blocks is a colour or a shadow, and the light block sets each one (a forgotten one would stay dark on a
+    // light page)
+    const mustDiffer = Object.keys(themes.dark)
+    expect(mustDiffer.length).toBeGreaterThan(40)
     for (const token of mustDiffer) expect(raw[token], `${token} is not themed`).toBeDefined()
+  })
+})
+
+describe('the page around the apps and the browser bar take --w-bg of each theme', () => {
+  // --w-bg is scoped to the two app roots, so the page behind them (src/ui/base.css), the colour of the browser's own bar (CHROME_COLORS
+  // in src/ui/theme.js, which tests/theme.test.js holds in step with public/theme-boot.js) and the first colour of the installed app (the
+  // meta tag of index.html and the manifest) repeat it. A new palette has to move them too, or a strip of the old colour shows.
+  const read = (file) => fs.readFileSync(new URL(`../${file}`, import.meta.url), 'utf8').replace(/\/\*[\s\S]*?\*\//g, '')
+  const dark = themes.dark['--w-bg']
+  const light = themes.light['--w-bg']
+
+  it('src/ui/base.css paints the page in it', () => {
+    const base = read('src/ui/base.css')
+    expect(base).toContain(`html, body { margin: 0; padding: 0; background: ${dark}; }`)
+    expect(base).toContain(`html[data-theme='light'], html[data-theme='light'] body { background: ${light}; }`)
+  })
+
+  it('the browser bar of each theme, and the first paint of the installed app, are in it', () => {
+    expect(CHROME_COLORS).toEqual({ dark, light })
+    expect(read('index.html')).toContain(`<meta name="theme-color" content="${dark}" />`)
+    const config = read('vite.config.js')
+    expect(config).toContain(`theme_color: '${dark}',`)
+    expect(config).toContain(`background_color: '${dark}',`)
   })
 })

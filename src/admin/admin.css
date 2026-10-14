@@ -122,7 +122,7 @@
 .a-stat__label { color: var(--w-text-2); overflow-wrap: anywhere; }
 .a-stat__note { color: var(--w-text-3); font-size: var(--w-font-md); overflow-wrap: anywhere; }
 
-.w-btn--danger { background: #b3261e; }
+.w-btn--danger { background: #b3261e; color: #fff; } /* white on this red in both themes (6.5:1); --w-on-primary is dark in the dark theme */
 .w-btn--danger:hover { background: #9c1f18; }
 .w-btn--small svg { flex: none; }
 .w-btn--ghost { background: none; border: 1px solid var(--w-border); color: var(--w-text); }
@@ -142,9 +142,9 @@
 @media (hover: hover) { .a-icon-btn--danger:hover:not(:disabled) { color: var(--w-danger); opacity: 0.7; } }
 .a-icon-btn--danger:active:not(:disabled) { color: var(--w-danger); opacity: 0.7; }
 /* The one main action of a page (adding something): a filled round button. */
-.a-icon-btn--primary, .a-icon-btn--primary:focus-visible { background: var(--w-primary); color: #fff; border-radius: 50%; }
-@media (hover: hover) { .a-icon-btn--primary:hover:not(:disabled) { background: var(--w-primary-hover); color: #fff; } }
-.a-icon-btn--primary:active:not(:disabled) { background: var(--w-primary-hover); color: #fff; }
+.a-icon-btn--primary, .a-icon-btn--primary:focus-visible { background: var(--w-primary); color: var(--w-on-primary); border-radius: 50%; }
+@media (hover: hover) { .a-icon-btn--primary:hover:not(:disabled) { background: var(--w-primary-hover); color: var(--w-on-primary); } }
+.a-icon-btn--primary:active:not(:disabled) { background: var(--w-primary-hover); color: var(--w-on-primary); }
 
 /* ----- cards ----- */
 .a-card { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); padding: var(--w-space-4-5); display: flex; flex-direction: column; gap: var(--w-space-3); }
