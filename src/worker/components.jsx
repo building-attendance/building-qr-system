@@ -288,7 +288,7 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
             <p className="w-only-desktop">{t('home.desktopHint')}</p>
           </div>
         </div>
-        <ol className="w-steps">
+        <ol className="w-steps" role="list">
           {[1, 2, 3].map((n) => (
             <li className="w-step" key={n}><span aria-hidden="true">{n}. </span>{t(`home.step${n}`)}</li>
           ))}
