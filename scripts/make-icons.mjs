@@ -14,10 +14,17 @@
 // The source is public/pwa-512x512.svg. To change the logo: replace that file, run `npm run icons`, commit the PNGs.
 // The drawing is done by the Chromium that Playwright already installs for the end-to-end tests, so there is no
 // extra tool to install.
+//
+// Chromium's PNG is written by a fast encoder, and every phone downloads three of these files with each version of the app
+// (the precache), so each file is written again, smaller, by scripts/png.mjs: as an indexed PNG when its picture has 256 colours
+// or fewer, otherwise as a truecolor one with better filtering and compression. Never by reducing the colours: the new file is
+// read back and kept only if every pixel (every RGBA value) is the same as in Chromium's picture, and when no encoding is
+// smaller the file stays as Chromium wrote it.
 import { chromium } from '@playwright/test'
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { smallestLossless } from './png.mjs'
 
 const publicDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'public')
 
@@ -50,10 +57,13 @@ try {
     await page.setContent(
       `<!doctype html><html><body style="margin:0;background:${background ?? 'transparent'}">${sized}</body></html>`,
     )
-    await page.screenshot({ path: path.join(publicDir, file), omitBackground: background === null })
+    const rendered = await page.screenshot({ omitBackground: background === null })
     await page.close()
+    const best = smallestLossless(rendered)
+    fs.writeFileSync(path.join(publicDir, file), best.bytes)
     const note = background ? `on ${background}` : 'transparent corners'
     console.log(`${file}  ${size}x${size}  ${note}${scale === 1 ? '' : `  artwork at ${scale * 100}% of the width`}`)
+    console.log(`  ${best.colours} different colours, written as ${best.kind}: ${best.bytes.length} bytes (Chromium's file: ${best.original})`)
   }
 } finally {
   await browser.close()

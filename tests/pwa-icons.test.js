@@ -5,7 +5,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import path from 'node:path'
-import zlib from 'node:zlib'
+import { decodePng as decodeBytes } from '../scripts/png.mjs'
 
 const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const read = (...parts) => fs.readFileSync(path.join(root, ...parts))
@@ -20,46 +20,17 @@ function pngSize(file) {
 }
 
 /**
- * The pixels of a PNG as the icons script writes them (8 bits a channel, RGB or RGBA, not interlaced): `at(x, y)` is
- * [red, green, blue, alpha]. A few lines of decoder instead of a new dependency, so the test can look at the icon itself.
+ * The pixels of a PNG of public/: `at(x, y)` is [red, green, blue, alpha]. scripts/png.mjs reads the files (8 bits a channel, not
+ * interlaced, RGB, RGBA or indexed, whatever the icons script chose for each) and throws on one it cannot read, which fails the test.
  */
 function decodePng(file) {
-  const [width, height] = pngSize(file)
-  const bytes = read('public', file)
-  const [bitDepth, colorType, interlace] = [bytes[24], bytes[25], bytes[28]]
-  expect([bitDepth, interlace], `${file} has 8 bits a channel and is not interlaced`).toEqual([8, 0])
-  const channels = colorType === 2 ? 3 : colorType === 6 ? 4 : 0
-  expect(channels, `${file} is RGB or RGBA`).toBeGreaterThan(0)
-
-  const data = []
-  for (let at = 8; at < bytes.length; at += 12 + bytes.readUInt32BE(at)) {
-    if (bytes.subarray(at + 4, at + 8).toString('ascii') === 'IDAT') data.push(bytes.subarray(at + 8, at + 8 + bytes.readUInt32BE(at)))
-  }
-  const raw = zlib.inflateSync(Buffer.concat(data))
-  const stride = width * channels
-  const pixels = Buffer.alloc(stride * height)
-  for (let y = 0; y < height; y++) {
-    const filter = raw[y * (stride + 1)]
-    expect([0, 1, 2, 3, 4], `${file} uses a known PNG filter`).toContain(filter)
-    for (let i = 0; i < stride; i++) {
-      const left = i >= channels ? pixels[y * stride + i - channels] : 0
-      const up = y > 0 ? pixels[(y - 1) * stride + i] : 0
-      const upLeft = y > 0 && i >= channels ? pixels[(y - 1) * stride + i - channels] : 0
-      const guess = left + up - upLeft
-      const paeth = [left, up, upLeft].reduce((best, near) => (Math.abs(guess - near) < Math.abs(guess - best) ? near : best))
-      const add = [0, left, up, (left + up) >> 1, paeth][filter]
-      pixels[y * stride + i] = (raw[y * (stride + 1) + 1 + i] + add) & 255
-    }
-  }
-  return {
-    width,
-    height,
-    at: (x, y) => {
-      const offset = y * stride + x * channels
-      return [pixels[offset], pixels[offset + 1], pixels[offset + 2], channels === 4 ? pixels[offset + 3] : 255]
-    },
-  }
+  const { width, height, rgba } = decodeBytes(read('public', file))
+  return { width, height, at: (x, y) => [...rgba.subarray((y * width + x) * 4, (y * width + x) * 4 + 4)] }
 }
+
+// The artwork's own violet (BRAND in scripts/make-icons.mjs, #5B4BDB): the background of every icon, and the colour of the
+// corners of the two that are a full square.
+const VIOLET = [91, 75, 219]
 
 describe('PNG icons', () => {
   it('are real PNG files of the sizes they are named and listed for', () => {
@@ -88,6 +59,21 @@ describe('PNG icons', () => {
     expect(fs.existsSync(path.join(root, 'public', 'pwa-512x512.svg'))).toBe(true)
   })
 
+  // iOS paints a see-through pixel of its Home Screen icon black, so that file is a full square on the violet. The two icons of the
+  // manifest keep the artwork's rounded corners: see-through outside them, the violet inside. (e2e/pwa.spec.js checks the same
+  // on what a browser decodes; this reads the files, whichever way scripts/png.mjs wrote them.)
+  it('the Home Screen icon is violet to the edge with no see-through pixel, and the two manifest icons have see-through rounded corners', () => {
+    const home = decodePng('apple-touch-icon.png')
+    for (let y = 0; y < home.height; y++) for (let x = 0; x < home.width; x++) if (home.at(x, y)[3] !== 255) throw new Error(`apple-touch-icon.png is see-through at ${x},${y}`)
+    const last = home.width - 1
+    for (const [x, y] of [[0, 0], [last, 0], [0, last], [last, last]]) expect(home.at(x, y), `the corner ${x},${y} of the Home Screen icon`).toEqual([...VIOLET, 255])
+    for (const [file, size] of [['pwa-192x192.png', 192], ['pwa-512x512.png', 512]]) {
+      const icon = decodePng(file)
+      for (const [x, y] of [[0, 0], [size - 1, 0], [0, size - 1], [size - 1, size - 1]]) expect(icon.at(x, y)[3], `the corner ${x},${y} of ${file}`).toBe(0)
+      expect(icon.at(0, size / 2), `the middle of the left edge of ${file}`).toEqual([...VIOLET, 255])
+    }
+  })
+
   // The icon is the app's primary violet and white, nothing else: a colour of an older logo (the old blue) left in
   // one of the files would show on a Home Screen or in a browser tab.
   it('are drawn in the one violet of the app and in white, in the script, in both SVGs and in the stylesheet', () => {
@@ -106,9 +92,6 @@ describe('PNG icons', () => {
 describe('the maskable icon', () => {
   const FILE = 'pwa-maskable-512x512.png'
   const SIZE = 512
-  // The artwork's own violet (BRAND in scripts/make-icons.mjs, #5B4BDB), the colour of the whole icon outside the white
-  // scan frame and the QR inside it.
-  const VIOLET = [91, 75, 219]
   // What every launcher shape keeps, whatever it is: the circle in the centre with a diameter of 80% of the width.
   const SAFE_RADIUS = 0.4 * SIZE
 
