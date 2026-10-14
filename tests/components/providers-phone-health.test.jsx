@@ -9,6 +9,7 @@ import { render, screen, fireEvent, waitFor, within, cleanup } from '@testing-li
 import ProvidersView from '../../src/admin/views/ProvidersView.jsx'
 import { ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
 import { api } from '../../src/api/client.js'
+import { choose, menuLabels, shownButtons } from './tile-menu.js'
 
 vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
 
@@ -59,7 +60,7 @@ const WAIT = { timeout: 4000 }
 const card = (name) => screen.getByRole('heading', { level: 2, name }).closest('article')
 /** The text of the value (dd) that follows a label (dt) inside `scope`. */
 const fact = (scope, label) => within(scope).getByText(label, { selector: 'dt' }).nextElementSibling
-const opensPhones = (article) => fireEvent.click(within(article).getByRole('button', { name: 'מכשירים', exact: true }))
+const opensPhones = (article) => choose(article, 'מכשירים')
 const phonesDialog = (name = 'מכשירים: פלוני') => screen.findByRole('dialog', { name }, WAIT)
 
 beforeEach(() => {
@@ -173,17 +174,17 @@ describe('the card: its actions', () => {
     server({ providers: [provider({ active_devices: 2 })] })
     show()
     await screen.findByRole('heading', { level: 2, name: 'פלוני' }, WAIT)
-    const names = within(card('פלוני')).getAllByRole('button').map((b) => b.getAttribute('aria-label'))
-    expect(names).toEqual(['מכשירים', 'סיסמה חדשה', 'עריכה', 'השבתה', 'מחיקת נותן השירות'])
-    expect(screen.queryByRole('button', { name: 'ניתוק מכשירים' })).toBeNull()
+    // the card shows its edit action and its "more" button; the rest is in the menu, the screen's actions first
+    expect(shownButtons(card('פלוני'))).toEqual(['עריכה: פלוני', 'עוד פעולות לפלוני'])
+    expect(menuLabels(card('פלוני'))).toEqual(['מכשירים', 'סיסמה חדשה', 'השבתה', 'מחיקת נותן השירות'])
+    expect(screen.queryByRole('menuitem', { name: 'ניתוק מכשירים' })).toBeNull()
   })
 
   it('has no such button for a provider with no phone signed in (as before)', async () => {
     server({ providers: [provider({ active_devices: 0 })] })
     show()
     await screen.findByRole('heading', { level: 2, name: 'פלוני' }, WAIT)
-    const names = within(card('פלוני')).getAllByRole('button').map((b) => b.getAttribute('aria-label'))
-    expect(names).toEqual(['סיסמה חדשה', 'עריכה', 'השבתה', 'מחיקת נותן השירות'])
+    expect(menuLabels(card('פלוני'))).toEqual(['סיסמה חדשה', 'השבתה', 'מחיקת נותן השירות'])
   })
 
   it('asks for the phones of that provider only when the dialog is opened', async () => {

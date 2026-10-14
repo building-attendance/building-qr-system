@@ -110,35 +110,58 @@ describe('the same design on a phone and on a computer', () => {
 })
 
 describe('the tiles and headers of the committee screens', () => {
+  // The actions of a tile are the items of the "more" menu of its card (`items={[ ... ]}` of a <Menu>, one item to a line); the rows of the
+  // History still have their icons (`a-scan__tools`) until they move to the menu too.
+  const menus = (f) => [...read(f).matchAll(/<Menu\b[\s\S]*?items=\{\[([\s\S]*?)\]\}/g)].map((m) => m[1])
+  const itemsOf = (menu) => menu.split(/\r?\n/).filter((line) => /\{ label:/.test(line))
+
   it('red is used for exactly one thing, deleting, and every screen that lists things has it', () => {
-    const uses = views.flatMap((f) => [...read(f).matchAll(/<IconButton([^>]*tone="danger"[^>]*)/g)].map((m) => [f, m[1]]))
+    const uses = views.flatMap((f) => [
+      ...[...read(f).matchAll(/<IconButton([^>]*tone="danger"[^>]*)/g)].map((m) => [f, m[1]]),
+      ...menus(f).flatMap((menu) => itemsOf(menu).filter((line) => line.includes('danger: true')).map((line) => [f, line])),
+    ])
     expect(uses.map(([f]) => f).sort()).toEqual([
       'AgentView.jsx', 'HistoryView.jsx', 'PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx',
     ])
-    for (const [f, attrs] of uses) expect(attrs, `${f}: a red button must be a trash can`).toContain('icon={IconTrash}')
+    for (const [f, attrs] of uses) expect(attrs, `${f}: a red action must be a trash can`).toMatch(/icon=\{IconTrash\}|icon: IconTrash/)
   })
 
-  it('the red trash can is the last icon of every tile and row, so it sits in the same place on every screen', () => {
+  it('the red trash can is the last action of every tile and row, so it sits in the same place on every screen', () => {
     let groups = 0
     for (const f of views) {
-      const found = [...read(f).matchAll(/className="(?:a-card__tools|a-scan__tools)">([\s\S]*?)\n\s*<\/div>/g)].map((m) => m[1])
+      for (const menu of menus(f)) {
+        groups++
+        const list = itemsOf(menu)
+        expect(list.at(-1), `${f}: the last action in the menu of a tile is the trash can`).toContain('danger: true')
+        expect(list.slice(0, -1).filter((line) => line.includes('danger')), `${f}: it is the only red one`).toEqual([])
+      }
+      const found = [...read(f).matchAll(/className="a-scan__tools">([\s\S]*?)\n\s*<\/div>/g)].map((m) => m[1])
       for (const group of found) {
         groups++
         // from the last button of the group to its end there is that button only, and it is the trash can
         const fromLast = group.slice(group.lastIndexOf('<IconButton'))
-        expect(fromLast, `${f}: the last action of a tile is the trash can`).toContain('icon={IconTrash}')
+        expect(fromLast, `${f}: the last action of a row is the trash can`).toContain('icon={IconTrash}')
       }
     }
     expect(groups, 'points, providers, committee, agent keys and history rows').toBe(5)
   })
 
-  it('removing something that can come back (switching off) uses the same icon on every screen: a circle with a bar', () => {
-    for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx', 'AgentView.jsx', 'HistoryView.jsx']) {
-      expect(read(f), f).toMatch(/icon=\{[^}]*IconBan[^}]*\}/)
+  it('a tile shows its edit action (when it has one) and its "more" menu, and no icon button of its own', () => {
+    for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx', 'AgentView.jsx']) {
+      expect(menus(f), `${f}: one menu for the tiles`).toHaveLength(1)
+      const tools = [...read(f).matchAll(/className="a-card__tools">([\s\S]*?)<\/div>/g)].map((m) => m[1])
+      expect(tools.length, `${f}: its tiles have tools`).toBeGreaterThan(0)
+      for (const group of tools) expect(group, `${f}: the tools of a tile are the edit button and the menu`).not.toContain('<IconButton')
     }
   })
 
-  it('no tile keeps a row of text buttons at its bottom (the actions are icons in its header)', () => {
+  it('removing something that can come back (switching off) uses the same icon on every screen: a circle with a bar', () => {
+    for (const f of ['PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx', 'AgentView.jsx', 'HistoryView.jsx']) {
+      expect(read(f), f).toMatch(/icon=\{[^}]*IconBan[^}]*\}|icon: [^,}]*IconBan/)
+    }
+  })
+
+  it('no tile keeps a row of text buttons at its bottom (the actions are in its header)', () => {
     for (const f of views) expect(read(f), `${f} still has a tile actions row`).not.toContain('a-card__actions')
   })
 

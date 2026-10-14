@@ -4,7 +4,7 @@
 // `import QRCode from 'qrcode'` (src/admin/qr.js). How a bundler turns that import into a default export is what changes
 // between Vite major versions, and a broken one shows only when the component runs: the unit tests never load either
 // package, and no other spec opens the point form or the QR dialog. So these tests render both on the real bundle.
-import { test, expect, SAMPLE_POINT, POINTS, adminSignIn, allowConsoleErrors } from './fixtures.js'
+import { test, expect, SAMPLE_POINT, POINTS, adminSignIn, allowConsoleErrors, chooseFromMenu } from './fixtures.js'
 
 // A 1x1 transparent PNG: the answer to every image that the map would fetch from the internet.
 const PIXEL = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=', 'base64')
@@ -87,7 +87,7 @@ test('the point form shows the map with the marker and the circle at the point, 
 
 test('the QR dialog draws the QR image of the point as a PNG and shows the address it holds', async ({ page }) => {
   await adminSignIn(page, 'points')
-  await lobbyTile(page).getByRole('button', { name: 'QR והדפסה' }).click()
+  await chooseFromMenu(lobbyTile(page), 'QR והדפסה')
   const dialog = page.getByRole('dialog', { name: 'QR: לובי' })
 
   // QRCode.toDataURL made the picture: a PNG as a data URL that the browser decoded into pixels
@@ -106,7 +106,7 @@ test('printing a sign builds the sheet with the name of the point and its QR ima
     window.print = () => { window.__prints += 1 }
   })
   await adminSignIn(page, 'points')
-  await lobbyTile(page).getByRole('button', { name: 'QR והדפסה' }).click()
+  await chooseFromMenu(lobbyTile(page), 'QR והדפסה')
   await page.getByRole('dialog', { name: 'QR: לובי' }).getByRole('button', { name: 'הדפסת שלט' }).click()
 
   // The sheet is hidden on a screen (it shows only in print), aria-hidden too, so a role or a visible text cannot find it:

@@ -139,7 +139,7 @@ describe('the map of the point form', () => {
 
     // once it is here, another form shows the map at once, with no second download
     fireEvent.click(form.getByRole('button', { name: 'ביטול' }))
-    fireEvent.click(lobbyTile().getByRole('button', { name: 'עריכה' }))
+    fireEvent.click(lobbyTile().getByRole('button', { name: /^עריכה/ }))
     const edit = within(screen.getByRole('dialog', { name: 'עריכת נקודה: לובי' }))
     expect(edit.getByRole('application', MAP)).toBeTruthy()
     expect(edit.queryByRole('status')).toBeNull()
