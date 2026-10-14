@@ -18,6 +18,7 @@ import { pageLimit, parseBound, providerSnapshotName } from './scans.js'
 import { AUDIT_DETAIL_ALLOW } from './audit.js'
 import { TIMEZONE, FILTER_TEXT_MAX_LENGTH, MAX_AUDIT_PAGE_SIZE } from './config.js'
 import { looksSecret } from '../shared/secretLike.js'
+import { readProviderName } from '../shared/providerName.js'
 
 /** @import { AuditEntry, AuditPage } from '../shared/types.js' */
 
@@ -219,6 +220,7 @@ function kindValue(kind, value) {
   if (value === null || value === undefined) return null
   switch (typeof kind === 'string' ? kind : kind.kind) {
     case 'text': return safeText(value)
+    case 'provider_name': return safeText(readProviderName(value)) // an entry written before 14/10/2026 holds the older form
     case 'count': return Number.isSafeInteger(value) && value >= 0 ? value : null
     case 'integer': return Number.isSafeInteger(value) ? value : null
     case 'number': return typeof value === 'number' && Number.isFinite(value) ? value : null
@@ -234,7 +236,7 @@ function kindValue(kind, value) {
 }
 
 /** The kinds that kindValue knows: the allow-list is checked against them when the server starts. */
-const KINDS = ['text', 'count', 'integer', 'number', 'boolean', 'timestamp', 'uuids', 'ids_change', 'ids_or_change', 'enum', 'changes']
+const KINDS = ['text', 'provider_name', 'count', 'integer', 'number', 'boolean', 'timestamp', 'uuids', 'ids_change', 'ids_or_change', 'enum', 'changes']
 
 /** Throws when the keys of one entry of the allow-list name a kind that kindValue does not know (a typo would otherwise show as a null for ever). */
 function checkKinds(allow, where) {

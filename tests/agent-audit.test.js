@@ -401,7 +401,7 @@ describe('the entry: fields, types, names', () => {
     const { entries } = (await agent('limit=200')).json
     const of = (entity, id) => entries.filter((e) => e.entity === entity && e.entity_id === id)
     for (const e of of('point', world.p1.id)) expect(e.entity_name, e.action).toBe('Lobby renamed')
-    for (const e of of('provider', world.v1.id)) expect(e.entity_name, e.action).toBe('Fake Cleaning Ltd – Fake Person Two')
+    for (const e of of('provider', world.v1.id)) expect(e.entity_name, e.action).toBe('Fake Person Two (Fake Cleaning Ltd)')
     for (const e of of('provider', world.v3.id)) expect(e.entity_name, e.action).toBe('Fake Gardens Ltd')
     for (const e of of('admin', world.m2)) expect(e.entity_name, e.action).toBe('Second Member')
     for (const e of of('admin', world.m4)) expect(e.entity_name, e.action).toBe('noname@test.local')
@@ -519,7 +519,7 @@ describe('the detail goes out only through the allow-list of its action', () => 
     expect(one('provider.delete', world.v2.id).detail).toEqual({ company: 'Doomed Ltd', contact_name: 'Gone Person', scans_kept: 0 })
     expect(entries.filter((e) => e.action === 'scan.void' && e.entity_id === world.s1).map((e) => e.detail.reason).sort()).toEqual(['a fake reason', 'a second fake reason'])
     expect(one('scan.unvoid', world.s1).detail).toEqual({ previous_reason: 'a fake reason' })
-    expect(one('scan.delete', world.s2).detail).toMatchObject({ point_name: 'Garage', provider_name: 'Fake Cleaning Ltd – Fake Person Two', outcome: 'accepted', voided: false })
+    expect(one('scan.delete', world.s2).detail).toMatchObject({ point_name: 'Garage', provider_name: 'Fake Person Two (Fake Cleaning Ltd)', outcome: 'accepted', voided: false })
     expect(one('scan.delete', world.s2).detail.checked_in_at).toMatch(ISO)
     expect(one('api_key.create', world.k2.id).detail).toEqual({ name: 'Fake agent K2' })
     expect(one('api_key.revoke', world.k1.id).detail).toBeNull()

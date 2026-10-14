@@ -322,9 +322,9 @@ async function prepareCommittee(playwright, baseURL) {
  * distance, an unverified location, none).
  */
 const HISTORY_ROWS = [
-  { time: '2026-03-02T10:40:00.000Z', point: 'גימבורי', who: 'ניקיון – פלוני', distance_m: 3, accuracy: 10, flags: [] },
-  { time: '2026-03-02T09:15:00.000Z', point: 'לובי', who: 'Cleaning Co – John', distance_m: null, accuracy: null, flags: ['location_unverified'] },
-  { time: '2026-03-02T07:05:00.000Z', point: 'מינוס 1', who: 'Уборка – Иван', distance_m: null, accuracy: null, flags: [] },
+  { time: '2026-03-02T10:40:00.000Z', point: 'גימבורי', who: 'פלוני (ניקיון)', distance_m: 3, accuracy: 10, flags: [] },
+  { time: '2026-03-02T09:15:00.000Z', point: 'לובי', who: 'John (Cleaning Co)', distance_m: null, accuracy: null, flags: ['location_unverified'] },
+  { time: '2026-03-02T07:05:00.000Z', point: 'מינוס 1', who: 'Иван (Уборка)', distance_m: null, accuracy: null, flags: [] },
 ].map((r, i) => ({
   id: `00000000-0000-4000-8000-00000000000${i + 1}`,
   checked_in_at: r.time,

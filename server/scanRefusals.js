@@ -21,6 +21,7 @@ import { query } from './db.js'
 import { bad, isUuid } from './http.js'
 import { failureLabel } from './logSafe.js'
 import { parseBound, providerSnapshotName } from './scans.js'
+import { readProviderName } from '../shared/providerName.js'
 import { parseClientTime } from './scanLogic.js'
 import {
   DEFAULT_PAGE_SIZE,
@@ -120,7 +121,10 @@ function decodeCursor(cursor) {
   }
 }
 
-/** One refusal as the API shows it. ISO times, as everywhere in the API (a machine must not guess day-month or month-day). */
+/**
+ * One refusal as the API shows it. ISO times, as everywhere in the API (a machine must not guess day-month or month-day). The name
+ * of the provider is in today's form, also on a row written before 14/10/2026 (shared/providerName.js).
+ */
 export const refusalJson = (r) => ({
   id: Number(r.id),
   at: new Date(r.at).toISOString(),
@@ -128,7 +132,7 @@ export const refusalJson = (r) => ({
   source: r.source,
   code: r.code,
   provider_id: r.provider_id,
-  provider_name: r.provider_name,
+  provider_name: readProviderName(r.provider_name),
   point_id: r.point_id,
   point_name: r.point_name,
   client_time: r.client_time === null ? null : new Date(r.client_time).toISOString(),
@@ -250,7 +254,7 @@ export const agentRefusalJson = (r) => ({
   source: r.source,
   code: r.code,
   provider_id: r.provider_id,
-  provider_name: r.provider_name,
+  provider_name: readProviderName(r.provider_name), // today's form, also on a row written before 14/10/2026
   point_id: r.point_id ?? null,
   point_name: r.point_name ?? null,
   client_time: r.client_time === null || r.client_time === undefined ? null : new Date(r.client_time).toISOString(),

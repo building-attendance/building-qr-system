@@ -11,6 +11,7 @@
 // of `{ added, removed }`), so both are read.
 import { formatDay, formatDateTime } from '../../shared/datetime.js'
 import { looksSecret } from '../../shared/secretLike.js'
+import { providerName, readProviderName } from '../../shared/providerName.js'
 import { serviceLabel } from './hooks.js'
 import {
   ACTION_LABELS, FIELD_LABELS, GPS_MODE_LABELS, METHOD_LABELS, RETENTION_LABELS, SYSTEM_ACTOR, SCRIPT_ACTOR, UNKNOWN_ACTOR,
@@ -73,7 +74,8 @@ const plain = (value) => (typeof value === 'string' && value.trim() && !looksSec
 
 /**
  * What the entry is about, from the name that the detail kept, for a thing that is gone (a delete): the API's own
- * `entity_name` is the current name and wins (when it is fit to show). A provider is "Company – Contact", as the committee's history names one.
+ * `entity_name` is the current name and wins (when it is fit to show). A provider is "contact (company)", as the committee's history
+ * names one (shared/providerName.js).
  * @param {string | null | undefined} entity
  * @param {Record<string, unknown>} detail
  */
@@ -81,7 +83,7 @@ function keptName(entity, detail) {
   if (entity === 'provider') {
     const company = plain(detail.company)
     const contact = plain(detail.contact_name)
-    return company && contact ? `${company} – ${contact}` : company
+    return company && providerName({ company, contact_name: contact })
   }
   if (entity === 'scan') return plain(detail.point_name)
   if (entity === 'admin') return plain(detail.name) ?? plain(detail.email)
@@ -152,7 +154,7 @@ function detailLines(entry, detail, subject) {
   if (email && email.includes('@') && !repeatsSubject(email)) field('אימייל', email)
 
   if (entry.entity === 'scan') {
-    const provider = plain(detail.provider_name)
+    const provider = plain(readProviderName(detail.provider_name)) // an entry written before 14/10/2026 holds the older form
     if (provider) field('נותן שירות', provider)
     const when = typeof detail.checked_in_at === 'string' ? dateText(detail.checked_in_at) : null
     if (when) field('זמן הנוכחות', when)

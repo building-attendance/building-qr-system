@@ -1042,9 +1042,9 @@ test('the menu of a History row works by keyboard and by touch, a dialog opened 
     const items = menu.getByRole('menuitem')
 
     // the buttons of two rows have two names: the point, the person, and the day and time of the visit
-    // (the person is the name that the visit recorded: the company and the contact)
-    await expect(more).toHaveAccessibleName(new RegExp(`^עוד פעולות לביקור: מינוס 1 · .*${PEOPLE.ploni.name} · \\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}$`))
-    await expect(moreButton(other)).toHaveAccessibleName(new RegExp(`^עוד פעולות לביקור: לובי · .*${PEOPLE.ploni.name} · `))
+    // (the person is the name that the visit recorded: the contact, and the company in parentheses)
+    await expect(more).toHaveAccessibleName(new RegExp(`^עוד פעולות לביקור: מינוס 1 · ${PEOPLE.ploni.name} \\(ניקיון\\) · \\d{2}/\\d{2}/\\d{4} \\d{2}:\\d{2}$`))
+    await expect(moreButton(other)).toHaveAccessibleName(new RegExp(`^עוד פעולות לביקור: לובי · ${PEOPLE.ploni.name} \\(ניקיון\\) · `))
     expect(await more.getAttribute('aria-label'), 'two rows, two names').not.toBe(await moreButton(other).getAttribute('aria-label'))
 
     // keyboard: Enter, then the arrows, then Esc

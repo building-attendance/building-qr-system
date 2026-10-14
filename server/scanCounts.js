@@ -17,7 +17,7 @@
 // The index it uses depends on the range: `scans_local_date_idx` for a `from` and `to` that are days, `scans_checked_in_idx` for moments.
 import { query } from './db.js'
 import { bad } from './http.js'
-import { parseBound, scanWhere, SCAN_WHERE_FILTERS } from './scans.js'
+import { parseBound, providerNameSql, scanWhere, SCAN_WHERE_FILTERS } from './scans.js'
 import { COUNTS_MAX_DAYS, COUNTS_MAX_ROWS } from './config.js'
 
 /**
@@ -83,7 +83,9 @@ function checkRange(q) {
  *  - `day` is the visit's `local_date`, the day in the building's time zone that was written when the visit was recorded;
  *  - `provider` and `point` group by the id, and carry the name that the NEWEST visit of that provider (or point) among the selected
  *    ones carries, so that a provider that was renamed inside the range is one row with one name and not two rows (two names on
- *    visits at the very same moment: the one that sorts last);
+ *    visits at the very same moment: the one that sorts last). A provider's name is read in today's form (providerNameSql, the
+ *    form that GET /scans shows), also from a visit stored before 14/10/2026 with the older form, so the name and the order of the
+ *    rows by name are those of today's form;
  *  - `service_type` is the visit's own, the one the scans list shows and filters by (null when the visit has none).
  * The rows come out ordered by the dimensions in the order day, provider (by name, then id), point (by name, then id), service_type.
  * One row more than the limit is asked for, to know whether the answer is too long.
@@ -115,13 +117,18 @@ export function countsQuery(q = {}) {
   const columns = [has('day') ? 'g.local_date as day' : 'null::date as day'] // the select list, in the order of COUNT_FIELDS
   const joins = []
   const order = has('day') ? ['g.local_date'] : []
-  for (const [dimension, idColumn, nameColumn] of [['provider', 'provider_id', 'provider_name'], ['point', 'point_id', 'point_name']]) {
+  // Each dimension that has a name: its id, its name column, and the name as the answer writes it (a provider's in today's form).
+  /** @type {Array<[string, string, string, (column: string) => string]>} */
+  const named = [['provider', 'provider_id', 'provider_name', providerNameSql], ['point', 'point_id', 'point_name', (column) => column]]
+  for (const [dimension, idColumn, nameColumn, nameOf] of named) {
     if (has(dimension)) {
       const lookup = `${dimension}_names`
-      // Few rows come out of the inner select (one for each name that an id was recorded with), and the newest of them is picked.
+      // Few rows come out of the inner select (one for each name that an id was recorded with), and the newest of them is picked. The
+      // name is written in its form for the answer there, once for each of those few rows and not for every visit.
       ctes.push(`${lookup} as (
       select distinct on (${idColumn}) ${idColumn}, ${nameColumn}
-        from (select ${idColumn}, ${nameColumn}, max(checked_in_at) as last_at from s group by ${idColumn}, ${nameColumn}) names
+        from (select ${idColumn}, ${nameOf(`s.${nameColumn}`)} as ${nameColumn}, max(checked_in_at) as last_at
+                from s group by ${idColumn}, s.${nameColumn}) names
        order by ${idColumn}, last_at desc, ${nameColumn} desc
     )`)
       joins.push(`join ${lookup} on ${lookup}.${idColumn} = g.${idColumn}`)

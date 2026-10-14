@@ -181,7 +181,7 @@ describe('the detail of an update (`changes`)', () => {
 
   it('says an empty value as "ריק", a switch as yes and no, and a kind of service in its word', async () => {
     const row = await rowFor({
-      action: 'provider.update', entity: 'provider', entity_id: PROVIDER, entity_name: 'ניקיון – יוסי',
+      action: 'provider.update', entity: 'provider', entity_id: PROVIDER, entity_name: 'יוסי (ניקיון)',
       detail: { changes: { contact_name: { from: null, to: 'עמית' }, is_active: { from: true, to: false }, service_type: { from: 'cleaning', to: 'maintenance' }, is_demo: { from: false, to: true } }, password_changed: true },
     }, 'עדכון נותן שירות')
     const lines = [...row.querySelectorAll('.a-audit__detail > div')].map((d) => d.textContent)
@@ -279,7 +279,7 @@ describe('the other known keys', () => {
     expect(point.textContent).toContain('נוכחויות שנשארו בהיסטוריה: 12')
     cleanup()
     const provider = await rowFor({ action: 'provider.delete', entity: 'provider', entity_id: PROVIDER, entity_name: null, detail: { company: 'גינון ירוק', contact_name: 'שרה ברק', scans_kept: 0 } }, 'מחיקת נותן שירות')
-    expect(within(provider).getByText('גינון ירוק – שרה ברק')).toBeTruthy() // as the history names a provider
+    expect(within(provider).getByText('שרה ברק (גינון ירוק)')).toBeTruthy() // as the history names a provider: "contact (company)"
     expect(provider.querySelectorAll('.a-audit__detail > div')).toHaveLength(1) // the company and the contact are not said twice
     cleanup()
     const member = await rowFor({ action: 'admin.delete', entity: 'admin', entity_id: YOSSI.id, entity_name: null, detail: { email: 'gone@example.test', name: 'רונית אבני' } }, 'מחיקת חבר ועד')
@@ -290,14 +290,27 @@ describe('the other known keys', () => {
   it('names the visit that was deleted by its detail: the point, who, and when', async () => {
     const row = await rowFor({
       action: 'scan.delete', entity: 'scan', entity_id: 's1', entity_name: null,
-      detail: { point_name: 'מחסן', provider_name: 'ניקיון – יוסי', checked_in_at: '2026-09-30T05:15:00.000Z', outcome: 'accepted', voided: true },
+      detail: { point_name: 'מחסן', provider_name: 'יוסי (ניקיון)', checked_in_at: '2026-09-30T05:15:00.000Z', outcome: 'accepted', voided: true },
     }, 'מחיקת נוכחות')
     expect(within(row).getByText('מחסן')).toBeTruthy()
     const text = row.querySelector('.a-audit__detail').textContent
-    expect(text).toContain('נותן שירות: ניקיון – יוסי')
+    expect(text).toContain('נותן שירות: יוסי (ניקיון)')
     expect(text).toContain('זמן הנוכחות: 30/09/2026 08:15')
     expect(text).toContain('הנוכחות הייתה מבוטלת')
     expect(text).not.toContain('accepted')
+  })
+
+  it('names the provider of a visit deleted before 14/10/2026 in the form of today: "contact (company)", never the older one', async () => {
+    // An entry of the log is never changed, so one written before the decision keeps the name as the scan stored it then: the
+    // company, the old separator (a space, an en dash and a space, named here by its escape) and the contact.
+    const old = 'ניקיון' + ' \u2013 ' + 'יוסי'
+    const row = await rowFor({
+      action: 'scan.delete', entity: 'scan', entity_id: 's1', entity_name: null,
+      detail: { point_name: 'מחסן', provider_name: old, checked_in_at: '2026-09-30T05:15:00.000Z', outcome: 'accepted', voided: false },
+    }, 'מחיקת נוכחות')
+    const text = row.querySelector('.a-audit__detail').textContent
+    expect(text).toContain('נותן שירות: יוסי (ניקיון)')
+    expect(text).not.toContain(String.fromCharCode(0x2013))
   })
 
   it('says how a member signed in (and no subject: the member is the actor)', async () => {

@@ -123,7 +123,8 @@ const idsChangeSchema = {
 function kindSchema(kind) {
   const name = typeof kind === 'string' ? kind : kind.kind
   switch (name) {
-    case 'text': return orNull(string)
+    case 'text':
+    case 'provider_name': return orNull(string) // a text, in today's form of a provider's name
     case 'count': // a whole number, 0 or more
     case 'integer': return orNull(integer)
     case 'number': return orNull(number)
