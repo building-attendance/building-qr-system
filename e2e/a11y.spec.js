@@ -17,6 +17,7 @@ import {
   test, expect, he, en, ru, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, adminSignIn, clearScans, allowConsoleErrors, expectNoA11yViolations,
   changeFilters, openFilters, SCREEN_TITLES, stubHome, homeSummary,
 } from './fixtures.js'
+import { openHarness } from './harness.js'
 
 // No service worker: this spec answers some requests itself (page.route), and a page that a service worker controls
 // would not give those requests to it.
@@ -789,5 +790,36 @@ test.describe('committee app with the sample data filled in', () => {
     await scanBothThemes(page, 'committee phone: confirm, remove an access')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toHaveCount(0)
+  })
+})
+
+// The shared components on their own page (e2e/harness.js), before any screen uses them: the "more" menu of a tile (Menu in
+// src/admin/ui.jsx) open, with an item that is off, and inside a dialog, on a phone and on a computer. The screens scan it again where
+// they use it.
+test.describe('the shared components on their own page', () => {
+  test('the "more" menu, open: on a card, with an item that is off, and inside a dialog', async ({ page }) => {
+    const open = async (scope, label) => {
+      await scope.getByRole('button', { name: label, exact: true }).click()
+      await expect(scope.getByRole('menu', { name: label }).getByRole('menuitem').first()).toBeFocused()
+    }
+    await openHarness(page)
+    await open(page, 'עוד פעולות ללובי')
+    await page.keyboard.press('ArrowDown') // an item with the focus, the other with none
+    await scanBothThemes(page, 'components phone: the "more" menu, open')
+    await page.keyboard.press('Escape')
+    await open(page, 'עוד פעולות לנוכחות בחניון')
+    await scanBothThemes(page, 'components phone: a "more" menu with an item that is off')
+    await page.keyboard.press('Escape')
+    await page.getByRole('button', { name: 'פתיחת חלון' }).click()
+    const dialog = page.getByRole('dialog', { name: 'עריכת נקודה' })
+    await open(dialog, 'עוד פעולות לנקודה בחלון')
+    await scanBothThemes(page, 'components phone: a dialog with its "more" menu open')
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await expect(dialog).toHaveCount(0)
+
+    await page.setViewportSize(COMPUTER)
+    await open(page, 'עוד פעולות ללובי')
+    await scanBothThemes(page, 'components computer: the "more" menu, open')
   })
 })

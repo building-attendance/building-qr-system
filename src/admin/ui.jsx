@@ -309,19 +309,24 @@ export function Menu({ label, items, icon: Icon = IconMore }) {
     place()
     const entries = menu.querySelectorAll('[role="menuitem"]')
     entries[firstRef.current < 0 ? entries.length - 1 : 0].focus()
-    // A tap or a click outside the menu and its button closes the menu.
+    // A tap or a click outside the menu and its button closes the menu. On something that takes no focus (text, the page) the focus goes
+    // back to the button, and the press is kept from taking it away again: the browser moves the focus to the page on a press there.
+    // (mousedown and not pointerdown: a phone sends it for a tap and not for the touch that starts a scroll, and it is the event whose
+    // default moves the focus.)
     const outside = (e) => {
       if (menu.contains(e.target) || buttonRef.current.contains(e.target)) return
       setOpen(false)
-      if (!e.target.closest?.(FOCUSABLE)) buttonRef.current.focus()
+      if (e.target.closest?.(FOCUSABLE)) return
+      e.preventDefault()
+      buttonRef.current.focus()
     }
     window.addEventListener('resize', place)
     window.addEventListener('scroll', place, true) // true: the scroll of a box inside the page moves the button too
-    document.addEventListener('pointerdown', outside)
+    document.addEventListener('mousedown', outside)
     return () => {
       window.removeEventListener('resize', place)
       window.removeEventListener('scroll', place, true)
-      document.removeEventListener('pointerdown', outside)
+      document.removeEventListener('mousedown', outside)
     }
   }, [open])
 

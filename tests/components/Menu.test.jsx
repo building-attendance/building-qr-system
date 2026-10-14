@@ -66,7 +66,7 @@ describe('the button', () => {
   it('closes the menu on a second click, and keeps the focus', () => {
     render(<Menu label={LABEL} items={pointItems()} />)
     open()
-    fireEvent.pointerDown(trigger()) // the press itself is not "outside": the click decides
+    fireEvent.mouseDown(trigger()) // the press itself is not "outside": the click decides
     fireEvent.click(trigger())
     noMenu()
     expect(trigger().getAttribute('aria-expanded')).toBe('false')
@@ -234,7 +234,8 @@ describe('a tap or a click outside', () => {
   it('closes the menu, and gives the focus back to the button when what was tapped does not take it', () => {
     render(<><p>טקסט של הדף</p><Menu label={LABEL} items={pointItems()} /></>)
     open()
-    fireEvent.pointerDown(screen.getByText('טקסט של הדף'))
+    // false: the press is kept from moving the focus to the page, which a browser does on a press on something that takes no focus
+    expect(fireEvent.mouseDown(screen.getByText('טקסט של הדף'))).toBe(false)
     noMenu()
     expect(focused()).toBe(trigger())
   })
@@ -242,7 +243,7 @@ describe('a tap or a click outside', () => {
   it('closes the menu, and leaves the focus to a control that was tapped', () => {
     render(<><button type="button">אחר</button><Menu label={LABEL} items={pointItems()} /></>)
     open()
-    fireEvent.pointerDown(screen.getByRole('button', { name: 'אחר' }))
+    expect(fireEvent.mouseDown(screen.getByRole('button', { name: 'אחר' }))).toBe(true) // the press goes on: the control takes the focus
     noMenu()
     expect(focused()).not.toBe(trigger())
   })
@@ -250,7 +251,7 @@ describe('a tap or a click outside', () => {
   it('a press inside the menu does not close it', () => {
     render(<Menu label={LABEL} items={pointItems()} />)
     open()
-    fireEvent.pointerDown(items()[2])
+    fireEvent.mouseDown(items()[2])
     expect(menu()).toBeTruthy()
   })
 
@@ -260,8 +261,8 @@ describe('a tap or a click outside', () => {
     render(<Menu label={LABEL} items={pointItems()} />)
     open()
     key(focused(), 'Escape')
-    const added = add.mock.calls.filter(([type]) => type === 'pointerdown').map(([, fn]) => fn)
-    const removed = remove.mock.calls.filter(([type]) => type === 'pointerdown').map(([, fn]) => fn)
+    const added = add.mock.calls.filter(([type]) => type === 'mousedown').map(([, fn]) => fn)
+    const removed = remove.mock.calls.filter(([type]) => type === 'mousedown').map(([, fn]) => fn)
     expect(added).toHaveLength(1)
     expect(removed).toEqual(added)
     add.mockRestore()
