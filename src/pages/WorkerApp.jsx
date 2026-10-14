@@ -226,7 +226,7 @@ function WorkerShell({ session, setSession, building }) {
             <LoginScreen pointName={pointState.point?.name} notice={loginNotice} onSignedIn={onSignedIn} />
           ) : screen === 'working' ? (
             // a scanned code that is being looked up shows progress instead of the idle "scan a QR" screen
-            <WorkingView phase={view === 'working' ? workingPhase : 'loading'} />
+            <WorkingView phase={view === 'working' ? workingPhase : 'loading'} pointName={pointState.point?.name} />
           ) : screen === 'result' ? (
             <ResultView
               result={result}
