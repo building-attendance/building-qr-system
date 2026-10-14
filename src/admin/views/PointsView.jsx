@@ -1,9 +1,8 @@
-import { useCallback, useState } from 'react'
+import { Component, lazy, Suspense, useCallback, useState } from 'react'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel } from '../hooks.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { downloadDataUrl, safeFileName, useQrImage } from '../qr.js'
-import MapPicker from '../MapPicker.jsx'
 import PrintSheet from '../PrintSheet.jsx'
 import { IconPlus, IconEdit, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
 import { GPS_MODE_LABELS } from '../auditLabels.js'
@@ -21,6 +20,60 @@ const fromPoint = (p) => ({
   name: p.name, description: p.description ?? '', service_type: p.service_type ?? '',
   lat: p.lat ?? '', lng: p.lng ?? '', radius_m: String(p.radius_m), provider_ids: p.provider_ids, is_active: p.is_active,
 })
+
+/* ------------------------------------------------------------------ map */
+
+// Leaflet is about half of the committee app's code and only the point form uses it, so the map (src/admin/MapPicker.jsx) is a file
+// of its own, downloaded the first time the form opens. Every file of the app is in the precache, so an installed app has it offline
+// too. The lazy component is made once, here, so every later form shows the map at once; React keeps the failure of a lazy component,
+// so "try again" makes a new one.
+const importMap = () => import('../MapPicker.jsx')
+let LoadedMap = lazy(importMap)
+
+/** The map's space while the map downloads: the app's loading look, as high as the map and with its hint, so that the form does not jump. */
+function MapLoading({ hint }) {
+  return (
+    <div>
+      <div className="a-map" style={{ display: 'grid', placeItems: 'center' }}><Spinner label="טוען את המפה…" /></div>
+      {hint && <p className="w-small" style={{ marginBlockStart: 'var(--w-space-1-5)' }}>{hint}</p>}
+    </div>
+  )
+}
+
+/**
+ * The map of the point form (the props of src/admin/MapPicker.jsx), downloaded when it is first shown. A download that fails puts
+ * the error and "try again" in the map's place, and the rest of the form stays as it was typed (the coordinates can still be typed).
+ * React still needs a class to catch it: without one, the failure would reach the crash screen and throw the form away.
+ */
+class MapPicker extends Component {
+  state = { failed: false }
+
+  static getDerivedStateFromError() {
+    return { failed: true }
+  }
+
+  retry = () => {
+    LoadedMap = lazy(importMap)
+    this.setState({ failed: false })
+  }
+
+  render() {
+    if (this.state.failed) {
+      return (
+        <div className="w-banner w-banner--warn" role="alert">
+          <IconAlert />
+          <div className="w-banner__body">לא הצלחנו לטעון את המפה. נסו שוב, או הקלידו את קו הרוחב וקו האורך.</div>
+          <button type="button" className="w-btn w-btn--small w-btn--quiet" onClick={this.retry}>נסו שוב</button>
+        </div>
+      )
+    }
+    return (
+      <Suspense fallback={<MapLoading hint={this.props.hint} />}>
+        <LoadedMap {...this.props} />
+      </Suspense>
+    )
+  }
+}
 
 /* ------------------------------------------------------------ edit form */
 
@@ -176,7 +229,7 @@ const isLocalAddress = (url) => {
 function QrDialog({ point, onClose, onPrint, onChanged }) {
   const toast = useToast()
   const confirm = useConfirm()
-  const src = useQrImage(point.qr_url)
+  const qr = useQrImage(point.qr_url)
   const [busy, run] = useAction(toast, errorText)
   const local = isLocalAddress(point.qr_url)
 
@@ -201,10 +254,18 @@ function QrDialog({ point, onClose, onPrint, onChanged }) {
         </div>
       )}
       <div className="a-qr">
-        {src ? <img src={src} alt={`קוד QR של הנקודה ${point.name}`} /> : <Spinner />}
+        {qr.src && <img src={qr.src} alt={`קוד QR של הנקודה ${point.name}`} />}
+        {!qr.src && !qr.failed && <Spinner />}
+        {qr.failed && (
+          <div className="w-banner w-banner--warn" role="alert">
+            <IconAlert />
+            <div className="w-banner__body">לא הצלחנו ליצור את קוד ה-QR.</div>
+            <button type="button" className="w-btn w-btn--small w-btn--quiet" onClick={qr.retry}>נסו שוב</button>
+          </div>
+        )}
         <div className="a-actions" style={{ justifyContent: 'center' }}>
           <button className="w-btn w-btn--small" onClick={() => onPrint([point], 'single')}><IconPrinter size={20} />הדפסת שלט</button>
-          <button className="w-btn w-btn--ghost w-btn--small" disabled={!src} onClick={() => downloadDataUrl(src, `qr-${safeFileName(point.name)}.png`)}>
+          <button className="w-btn w-btn--ghost w-btn--small" disabled={!qr.src} onClick={() => downloadDataUrl(qr.src, `qr-${safeFileName(point.name)}.png`)}>
             <IconDownload size={20} />הורדה
           </button>
           <button className="w-btn w-btn--ghost w-btn--small" onClick={async () => toast.ok((await copyText(point.qr_url)) ? 'הקישור הועתק' : 'ההעתקה נכשלה')}>
