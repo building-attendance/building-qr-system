@@ -62,11 +62,12 @@ screen, the dialog at both widths) and the scans of the open menu in `e2e/a11y.s
 ## Visual regression
 
 `e2e/visual.spec.js` takes a picture of the key screens and compares it with the baseline image in
-`e2e/__screenshots__/visual.spec.js/` (`name.png`; 76 files, about 140 KB at most each). It is there to catch design drift
+`e2e/__screenshots__/visual.spec.js/` (`name.png`; 78 files, about 140 KB at most each). It is there to catch design drift
 that no behaviour test sees, and to show the owner the exact image diff of every intended change to a screen. It covers,
 each in the light and the dark theme:
 
-- the provider app in Hebrew: the sign-in list, the password screen, home with a visit, "recorded" and "too far", and in
+- the provider app in Hebrew: the sign-in list, the password screen, home with a visit, "recorded", "too far" and "saved on the
+  phone" (the server cannot be reached, so the visit goes into the phone's queue), and in
   English (left to right) and Arabic (right to left): the sign-in list and home, on a 390 px phone;
 - the committee app in Hebrew, at 360 px and at 1280 px: Home (a fixed week of invented visits, `stubHome`, with the clock at ten in the
   morning of its last day, so that the greeting is always the same) and the seven other screens (history, points, providers, agent,
