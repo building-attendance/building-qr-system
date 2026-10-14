@@ -16,12 +16,12 @@ test.describe('language', () => {
     await expect(page.getByRole('heading', { name: he['login.title'] })).toBeVisible()
 
     await page.getByLabel(he['lang.label']).selectOption('en')
-    await expect(page.getByRole('heading', { name: en['login.title'] })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Choose your account' })).toBeVisible()
     await expect(page.locator('html')).toHaveAttribute('lang', 'en')
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr')
 
     await page.reload()
-    await expect(page.getByRole('heading', { name: en['login.title'] })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Choose your account' })).toBeVisible()
   })
 
   test('Arabic and Russian switch the direction and the text', async ({ page }) => {
@@ -31,7 +31,7 @@ test.describe('language', () => {
     await expect(page.locator('html')).toHaveAttribute('lang', 'ar')
     await page.getByLabel('اللغة').selectOption('ru')
     await expect(page.locator('html')).toHaveAttribute('dir', 'ltr')
-    await expect(page.getByRole('heading', { name: ru['login.title'] })).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Выберите свой аккаунт' })).toBeVisible()
   })
 
   // The two pickers in the header are invisible <select>s over an icon, each in a 44 px box. WebKit lays the text of the chosen option
