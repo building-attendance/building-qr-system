@@ -1,9 +1,9 @@
-import { useCallback, useState } from 'react'
+import { lazy, Suspense, useCallback, useState } from 'react'
+import { reloadApp } from '../../ui/crash.js'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel } from '../hooks.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { downloadDataUrl, safeFileName, useQrImage } from '../qr.js'
-import MapPicker from '../MapPicker.jsx'
 import PrintSheet from '../PrintSheet.jsx'
 import { IconPlus, IconEdit, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
 import { GPS_MODE_LABELS } from '../auditLabels.js'
@@ -21,6 +21,67 @@ const fromPoint = (p) => ({
   name: p.name, description: p.description ?? '', service_type: p.service_type ?? '',
   lat: p.lat ?? '', lng: p.lng ?? '', radius_m: String(p.radius_m), provider_ids: p.provider_ids, is_active: p.is_active,
 })
+
+/* ------------------------------------------------------------------ map */
+
+/** The map's space while the map downloads: the app's loading look, as high as the map and with its hint, so that the form does not jump. */
+function MapLoading({ hint }) {
+  return (
+    <div>
+      <div className="a-map" style={{ display: 'grid', placeItems: 'center' }}><Spinner label="טוען את המפה…" /></div>
+      {hint && <p className="w-small" style={{ marginBlockStart: 'var(--w-space-1-5)' }}>{hint}</p>}
+    </div>
+  )
+}
+
+/**
+ * The map's place when its download failed. The form still works without it (the coordinates can be typed, or taken from "my
+ * location"). Trying again means loading the page again: a browser keeps the failure of a module's download for as long as the
+ * page is open (Chromium and WebKit do not ask the server again, measured on 14/10/2026). A reload loses what was typed, so a form
+ * with unsaved changes asks first, in the words of the dialog's own question (F4).
+ */
+function MapFailed({ dirty }) {
+  const confirm = useConfirm()
+  const reload = async () => {
+    if (dirty) {
+      const ok = await confirm({
+        title: 'לרענן בלי לשמור?', body: 'מה שהקלדתם עדיין לא נשמר. אם תרעננו עכשיו, הוא יאבד.',
+        confirmLabel: 'רענון בלי לשמור', cancelLabel: 'חזרה לעריכה', danger: true,
+      })
+      if (!ok) return
+    }
+    reloadApp()
+  }
+  return (
+    <div className="w-banner w-banner--warn" role="alert">
+      <IconAlert />
+      {/* The button goes under the words, not beside them: beside them, a 320 px phone leaves the words a column of one or two words a line. */}
+      <div className="w-banner__body">
+        <p>לא הצלחנו לטעון את המפה. אפשר להקליד את קו הרוחב וקו האורך, או לרענן את הדף.</p>
+        <button type="button" className="w-btn w-btn--small w-btn--quiet" style={{ marginBlockStart: 'var(--w-space-2)' }} onClick={reload}>רענון הדף</button>
+      </div>
+    </div>
+  )
+}
+
+// Leaflet is about half of the committee app's code and only the point form uses it, so the map (src/admin/MapPicker.jsx) is a file
+// of its own, downloaded the first time the form opens. Every file of the app is in the precache, so an installed app has it offline
+// too. The lazy component is made once, here, so every later form shows the map at once. A download that fails gives MapFailed
+// instead, for as long as the page is open, as the browser does: it is a state of the form, not a crash (the crash screen would throw
+// the form away, and its report would tell the owner of a phone with no reception).
+const LoadedMap = lazy(() => import('../MapPicker.jsx').catch(() => ({ default: MapFailed })))
+
+/**
+ * The map of the point form: the props of src/admin/MapPicker.jsx, and `dirty` (the form holds unsaved changes) for MapFailed. While
+ * the map downloads, the app's loading look stands in its place; the rest of the form works meanwhile.
+ */
+function MapPicker(props) {
+  return (
+    <Suspense fallback={<MapLoading hint={props.hint} />}>
+      <LoadedMap {...props} />
+    </Suspense>
+  )
+}
 
 /* ------------------------------------------------------------ edit form */
 
@@ -117,6 +178,7 @@ function PointForm({ point, providers, onClose, onSaved }) {
           lat={lat} lng={lng} radius={radius}
           onPick={(p) => { set('lat', +p.lat.toFixed(6)); set('lng', +p.lng.toFixed(6)) }}
           hint="לחצו על המפה כדי לסמן איפה הנקודה. העיגול הוא הרדיוס שבו נחשבת נוכחות."
+          dirty={dirty}
         />
         {point && point.gps_mode !== GPS_MODE_REQUIRED && <p className="w-small">בשמירה הנקודה תעבור לבדיקת מיקום חובה.</p>}
         <div className="a-form-row">
