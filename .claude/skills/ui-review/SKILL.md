@@ -9,14 +9,14 @@ The rules are `docs/design.md`. This skill applies them to one change. A finding
 eight questions of "Reviewing a UI change" at the end of that file; taste alone is not a finding. The visual identity is
 direction B of the redesign (owner decision of 14/10/2026), and it is fixed:
 
-- Rubik, the one typeface, and the violet palette with the other tokens of V1 (`--w-primary` is `#5b4bdb` in light,
+- Rubik, the one typeface, and the violet palette with the other tokens (V1; `--w-primary` is `#5b4bdb` in light,
   `src/ui/ui.css`).
 - A tile or row of the committee app shows its edit button (when it has one) and a "more" menu, whose order of actions
   is in `AGENTS.md`.
-- On a phone the tab bar of the committee app floats, with the page fading out behind it.
-- An add button is a pill with its words.
-- The account circle is a quiet violet tint, filled by the member's Google photo when there is one.
-- The scan sign is a frame of four corner brackets.
+- On a phone the tab bar of the committee app floats, with the page fading out behind it (T3).
+- An add button is a pill with its words, and the account circle is a quiet violet tint, filled by the member's Google
+  photo when there is one (V5).
+- The scan sign is a frame of four corner brackets (V6).
 
 A finding is fixed inside this identity: no new colour, size, font or library comes out of a review.
 
@@ -44,8 +44,8 @@ A finding is fixed inside this identity: no new colour, size, font or library co
    Done when you have opened every picture in scope.
 
 4. **Judge.** Apply every rule of `docs/design.md` that the scope touches (a form: F1 to F7; a delete: D1; a list or a
-   status: S1 to S3; anything tapped: T1, T2; layout or icons: R1 to R3; colour, size, focus, motion: V1 to V4; words:
-   C1), then the eight questions. On a phone screen also read the `mobile-native` skill.
+   status: S1 to S3; anything tapped, or a floating bar: T1 to T3; layout or icons: R1 to R3; colour, size, focus,
+   motion, the top of a committee screen, the scan sign: V1 to V6; words: C1), then the eight questions. On a phone screen also read the `mobile-native` skill.
    Done when every applicable rule has a verdict: pass, finding, or not applicable with the reason.
 
 5. **Report.** Rank the findings:
