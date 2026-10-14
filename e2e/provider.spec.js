@@ -1,5 +1,6 @@
 // The service provider's journey on a phone: open a scan link, sign in, check in, and every way it can be refused.
-import { test, expect, he, en, POINTS, PEOPLE, FAR, OFFLINE_NOISE, skipOfflineOnWebKit, signIn, clearScans, allowConsoleErrors } from './fixtures.js'
+import ar from '../src/i18n/ar.js'
+import { test, expect, he, en, ru, POINTS, PEOPLE, FAR, OFFLINE_NOISE, skipOfflineOnWebKit, signIn, clearScans, allowConsoleErrors } from './fixtures.js'
 
 const scanLink = (code) => `/scan?code=${code}`
 
@@ -36,6 +37,21 @@ test('signing in checks in at the point, names who signed in, and lists the visi
   await expect(page.getByRole('heading', { name: /שלום/ })).toContainText(PEOPLE.ploni.name)
   await expect(page.getByRole('list').getByText('לובי')).toBeVisible()
   await expect(page.getByRole('list').getByText(/^\d{2}:\d{2}$/)).toBeVisible() // the time of the visit: HH:MM
+
+  // The three steps on the violet card must not push today's visit below the fold of a 390 x 844 phone, in any of the four languages
+  // (the Russian words are the longest). The language is picked on the screen, so this signs in no one again (the sign-ins of a run are
+  // rationed: docs/testing.md, "Visual regression").
+  await page.setViewportSize({ width: 390, height: 844 })
+  let now = he
+  for (const [code, words] of [['he', he], ['en', en], ['ru', ru], ['ar', ar]]) {
+    await page.getByLabel(now['lang.label']).selectOption(code)
+    now = words
+    const visits = page.getByRole('region', { name: words['home.today'] })
+    await expect(visits).toBeVisible()
+    await page.evaluate(() => document.fonts.ready) // the letters of a language that was not on the screen yet change the line breaks
+    const box = await visits.boundingBox()
+    expect(box.y + box.height, `${code}: the bottom of today's visits, in a screen 844 px high`).toBeLessThanOrEqual(844)
+  }
 })
 
 test('scanning the same point again says it was already recorded', async ({ page }) => {
