@@ -7,7 +7,18 @@ description: Review a change to what a person sees (a screen, a form, a dialog, 
 
 The rules are `docs/design.md`. This skill applies them to one change. A finding names its rule (F1 to C1) or one of the
 eight questions of "Reviewing a UI change" at the end of that file; taste alone is not a finding. The visual identity is
-fixed (Heebo, the colour and weight tokens): no new colour, size, font or library comes out of a review.
+direction B of the redesign (owner decision of 14/10/2026), and it is fixed:
+
+- Rubik, the one typeface, and the violet palette with the other tokens of V1 (`--w-primary` is `#5b4bdb` in light,
+  `src/ui/ui.css`).
+- A tile or row of the committee app shows its edit button (when it has one) and a "more" menu, whose order of actions
+  is in `AGENTS.md`.
+- On a phone the tab bar of the committee app floats, with the page fading out behind it.
+- An add button is a pill with its words.
+- The account circle is a quiet violet tint, filled by the member's Google photo when there is one.
+- The scan sign is a frame of four corner brackets.
+
+A finding is fixed inside this identity: no new colour, size, font or library comes out of a review.
 
 ## Steps
 
