@@ -28,7 +28,7 @@ export default {
   'home.instruction': 'To check in, scan the QR code at the point with your phone camera.',
   'home.step1': 'Open the camera',
   'home.step2': 'Aim at the code',
-  'home.step3': 'Check-in recorded',
+  'home.step3': 'Visit recorded',
   'home.desktopHint': 'Check-in is done from a phone. Open the camera and scan the QR code.',
   'home.today': 'Your visits today',
   'home.empty': 'No check-ins yet today.',
