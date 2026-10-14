@@ -1,10 +1,12 @@
 // @vitest-environment jsdom
-// The provider app's two main screens, rendered with their real translations: the sign-in flow and the result screen.
+// The provider app's screens, rendered with their real translations: the sign-in flow, the home screen, the screen that waits for the
+// position, and the result screens.
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { I18nProvider } from '../../src/i18n/index.jsx'
-import { LoginView, ResultView } from '../../src/worker/components.jsx'
+import { LoginView, ResultView, HomeView, WorkingView } from '../../src/worker/components.jsx'
 import he from '../../src/i18n/he.js'
+import { DICTS, LANGS } from '../../src/i18n/core.js'
 import { api } from '../../src/api/client.js'
 import { SAMPLE_PROVIDER_NAMES } from '../../scripts/sample-data.mjs'
 
@@ -152,5 +154,133 @@ describe('ResultView', () => {
     show(success, { onDone })
     fireEvent.click(screen.getByRole('button', { name: he['checkin.done'] }))
     expect(onDone).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('ResultView, the recorded check-in', () => {
+  // 10:00 UTC on 1 October 2026 is 13:00 in the building (summer time, UTC+3)
+  const scan = (extra = {}) => ({ checked_in_at: '2026-10-01T10:00:00Z', point_name: 'לובי', distance_m: 8, flags: [], ...extra })
+  const show = (result) => withI18n(<ResultView result={result} pointName="לובי" provider={ploni} onDone={() => {}} onRetry={() => {}} />)
+
+  it('shows the time large with its day under it, and the point and the person as chips', () => {
+    show({ kind: 'success', scan: scan() })
+    expect(screen.getByText('13:00').className).toContain('w-stamp__time')
+    expect(screen.getByText('01/10/2026')).toBeTruthy()
+    expect(screen.getByText('לובי')).toBeTruthy()
+    expect(screen.getByText(/משתמש:/).closest('.w-chip')).toBeTruthy()
+  })
+
+  it('says the location was verified, with the distance, when the server measured one and flagged nothing', () => {
+    show({ kind: 'success', scan: scan() })
+    expect(screen.getByText(/המיקום אומת/).textContent).toContain('8')
+  })
+
+  it('says nothing about the location when there is no distance, or when the visit carries a flag about the position', () => {
+    for (const extra of [{ distance_m: null }, { flags: ['location_unverified'] }, { flags: ['location_outside_radius'] }, { flags: ['location_stale'] }, { flags: undefined, distance_m: undefined }]) {
+      show({ kind: 'success', scan: scan(extra) })
+      expect(screen.queryByText(/המיקום אומת/), JSON.stringify(extra)).toBeNull()
+      cleanup()
+    }
+  })
+
+  it('still verifies a visit whose flags are not about the position (an offline visit, a clock that was off)', () => {
+    show({ kind: 'success', scan: scan({ flags: ['offline_sync', 'clock_skew'] }) })
+    expect(screen.getByText(/המיקום אומת/)).toBeTruthy()
+  })
+
+  it('shows no time and no day on a refusal: nothing was recorded', () => {
+    show({ kind: 'far', scan: { distance_m: 5600 } })
+    expect(document.querySelector('.w-stamp')).toBeNull()
+    expect(screen.queryByText(/\d{2}\/\d{2}\/\d{4}/)).toBeNull()
+  })
+
+  it('puts the time of the phone, and a "no signal" chip, on a check-in that was saved on the phone', () => {
+    show({ kind: 'queued', persisted: true, located: true, client_time: '2026-10-01T10:00:00Z' })
+    expect(screen.getByText(he['checkin.queued.chip'])).toBeTruthy()
+    expect(screen.getByText('13:00')).toBeTruthy()
+    expect(document.querySelector('.w-stamp__date'), 'the day is only for a recorded visit').toBeNull()
+  })
+
+  it('has the main button last, below the outcome', () => {
+    show({ kind: 'success', scan: scan() })
+    expect(document.querySelector('.w-result').lastElementChild.className).toBe('w-actions')
+  })
+})
+
+describe('HomeView', () => {
+  const session = { token: 'qrp_token', provider: ploni }
+  const visits = [
+    { id: 'a', time: '2026-10-01T10:00:00Z', point: 'לובי', pending: false },
+    { id: 'b', time: '2026-10-01T09:00:00Z', point: 'חניון', pending: true },
+  ]
+  const show = (props = {}) =>
+    withI18n(<HomeView session={session} visits={visits} pending={0} syncing={false} onSync={() => {}} notice={null} onDismissNotice={() => {}} onSwitch={() => {}} {...props} />)
+  const stepsOf = (words) => [1, 2, 3].map((n) => `${n}. ${words[`home.step${n}`]}`)
+
+  it('names the person and the company, and draws three steps on the violet card', () => {
+    show()
+    expect(screen.getByRole('heading', { name: /שלום/ }).textContent).toContain(ploni.contact_name)
+    expect(screen.getByText(ploni.company)).toBeTruthy()
+    expect([...document.querySelectorAll('.w-hero .w-step')].map((el) => el.textContent)).toEqual(stepsOf(he))
+  })
+
+  it("gives each of today's visits a chip: recorded, or waiting to be sent", () => {
+    show()
+    const rows = [...document.querySelectorAll('.w-visit')]
+    expect(rows).toHaveLength(2)
+    expect(rows[0].textContent).toContain('13:00')
+    expect(rows[0].querySelector('.w-tag').textContent).toBe(he['home.recorded'])
+    expect(rows[0].querySelector('.w-tag').className).toContain('w-tag--ok')
+    expect(rows[1].querySelector('.w-tag').textContent).toBe(he['home.pending'])
+    expect(rows[1].querySelector('.w-tag').className).not.toContain('w-tag--ok')
+  })
+
+  it("shows the three steps and the two chips in every language, from that language's own words", () => {
+    for (const { code } of LANGS) {
+      window.localStorage.setItem('qr.lang', code)
+      show()
+      const words = DICTS[code]
+      expect([...document.querySelectorAll('.w-hero .w-step')].map((el) => el.textContent), code).toEqual(stepsOf(words))
+      expect([...document.querySelectorAll('.w-visit .w-tag')].map((el) => el.textContent), code).toEqual([words['home.recorded'], words['home.pending']])
+      cleanup()
+    }
+  })
+
+  it('keeps the live region in the page when there is nothing to say, and puts the visits that wait in it', () => {
+    show()
+    const live = document.querySelector('.w-live')
+    expect(live.getAttribute('aria-live')).toBe('polite')
+    expect(live.children).toHaveLength(0)
+    cleanup()
+    show({ pending: 2 })
+    expect(document.querySelector('.w-live').textContent).toContain('2')
+  })
+})
+
+describe('WorkingView', () => {
+  it('says what it is doing, advises standing at the code while it looks for the position, and names the point', () => {
+    withI18n(<WorkingView phase="locating" pointName="לובי" />)
+    expect(screen.getByText(he['checkin.locating'])).toBeTruthy()
+    expect(screen.getByText(he['checkin.locatingHint'])).toBeTruthy()
+    expect(screen.getByText('לובי')).toBeTruthy()
+  })
+
+  it('has no advice while it records the visit, and no chip when it does not know the point yet', () => {
+    withI18n(<WorkingView phase="saving" />)
+    expect(screen.getByText(he['checkin.saving'])).toBeTruthy()
+    expect(screen.queryByText(he['checkin.locatingHint'])).toBeNull()
+    expect(document.querySelector('.w-chip')).toBeNull()
+  })
+})
+
+describe('the avatar of a person', () => {
+  it('has the same tint on the sign-in list and on the password screen', () => {
+    withI18n(<LoginView providers={{ status: 'ready', providers: [ploni, almoni], reload: () => {} }} onSignedIn={() => {}} />)
+    const tintOf = (el) => [...el.classList].find((c) => c.startsWith('w-avatar--') && c !== 'w-avatar--lg')
+    const [onList] = [...document.querySelectorAll('.w-person')].filter((el) => el.textContent.includes(ploni.contact_name))
+    const listTint = tintOf(onList.querySelector('.w-avatar'))
+    fireEvent.click(onList)
+    expect(listTint).toBeTruthy()
+    expect(tintOf(document.querySelector('.w-avatar'))).toBe(listTint)
   })
 })

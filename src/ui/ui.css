@@ -152,15 +152,15 @@
 }
 /* margin-inline-start: auto keeps the two icons at the end of the bar when there is no address line before them
    (justify-content alone would pull a lone item to the start). */
-.w-topbar__tools { display: flex; align-items: center; gap: var(--w-space-0-5); margin-inline-start: auto; }
-/* The building's address is the title of the screen: large, and free to wrap onto a second line in a narrow phone or a
-   longer language, so it never pushes the two icons off the edge. It is the committee's own text (any language), and it
-   is absent when the committee typed none. */
-.w-brand { min-width: 0; font-size: var(--w-font-3xl); line-height: 1.25; font-weight: var(--w-weight-semibold); color: var(--w-text); overflow-wrap: anywhere; }
+.w-topbar__tools { display: flex; align-items: center; gap: var(--w-space-2); margin-inline-start: auto; }
+/* The building's name and address (the committee's own text, any language) are the two lines at the start of the bar: the name large, the
+   address under it quieter. They are free to wrap onto more lines in a narrow phone or a longer language, so they never push the two
+   icons off the edge. Both are absent when the committee typed none. */
+.w-brand { min-width: 0; font-size: var(--w-font-lg); line-height: 1.3; font-weight: var(--w-weight-semibold); color: var(--w-text); overflow-wrap: anywhere; }
 /* The name and the address are two lines in one box, so that the box is the one item that shrinks and wraps (a long name is as free to
    wrap as a long address). With a name, the name is the title and the address under it is the quieter line. */
 .w-brandbox { min-width: 0; display: flex; flex-direction: column; gap: var(--w-space-0-5); }
-.w-brand--sub { font-size: var(--w-font-md); line-height: 1.35; font-weight: var(--w-weight-medium); color: var(--w-text-2); }
+.w-brand--sub { font-size: var(--w-font-xs); line-height: 1.35; font-weight: var(--w-weight-regular); color: var(--w-text-3); }
 
 /* The appearance picker (src/ui/ThemeSwitch.jsx) and the language picker (TopBar) are just an icon: no edge, no fill,
    a 44px touch target. A real <select> lies invisibly over the icon, so the phone's own picker opens. Only the icon
@@ -178,8 +178,11 @@
 .w-theme--bare:active, .w-lang:active { color: var(--w-info); }
 /* No frame around the two icons, even while their list is open or on keyboard focus: the icon itself turns violet. */
 .w-theme--bare:has(select:focus-visible), .w-lang:has(select:focus-visible) { color: var(--w-info); outline: none; }
+/* On the provider's bar the two pickers are round white buttons with a soft shadow (the design canvas). The committee's own bar keeps the
+   bare icons: only the pickers inside .w-topbar take this. */
+.w-topbar .w-theme--bare, .w-topbar .w-lang { background: var(--w-surface); box-shadow: var(--w-shadow); border-radius: var(--w-radius-pill); }
 
-.w-main { flex: 1; display: flex; flex-direction: column; gap: var(--w-space-4); padding-block: var(--w-space-2) var(--w-space-4); }
+.w-main { flex: 1; display: flex; flex-direction: column; gap: var(--w-space-5); padding-block: var(--w-space-2) var(--w-space-4); }
 
 /* ----- text ----- */
 .w-h1 { font-size: var(--w-font-4xl); line-height: 1.2; font-weight: var(--w-weight-bold); overflow-wrap: anywhere; } /* it greets a person by name, which can be one long word (T2) */
@@ -220,7 +223,8 @@
 .w-admin-link:hover { color: var(--w-text-2); background: var(--w-surface); }
 
 /* ----- cards / banners ----- */
-.w-card { background: var(--w-surface); border: 1px solid var(--w-border); border-radius: var(--w-radius-2xl); padding: var(--w-space-4-5); }
+/* A card is a surface with a soft shadow and no edge (direction B): it needs no 3:1 line, the text and the controls inside it carry it. */
+.w-card { background: var(--w-surface); border-radius: var(--w-radius-3xl); padding: var(--w-space-4-5); box-shadow: var(--w-shadow); }
 /* A banner is a tint with no edge (the design canvas): its icon and its words carry it. */
 .w-banner {
   display: flex; align-items: center; gap: var(--w-space-3); padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-2xl);
@@ -232,25 +236,52 @@
 .w-banner--ok { background: var(--w-success-bg); }
 .w-banner--ok svg { color: var(--w-success); }
 .w-banner__body { flex: 1; min-width: 0; overflow-wrap: anywhere; } /* the banner that names the point: one long word wraps inside it (T2) */
+/* A banner with a button (a new version, visits that wait): when the words and the button do not fit side by side, the button goes under them. */
+.w-banner--wrap { flex-wrap: wrap; }
+.w-banner--wrap .w-banner__body { flex: 1 1 8em; }
+.w-banner--wrap .w-btn { margin-inline-start: auto; }
+/* The round close button at the end of a banner that stays until it is dismissed (the home screen's notice): a 44px target. */
+.w-banner__close { flex: none; width: 44px; height: 44px; display: grid; place-items: center; background: none; border: 0; border-radius: var(--w-radius-pill); cursor: pointer; color: var(--w-text-2); }
+.w-banner__close:hover { color: var(--w-text); }
+/* The live region of the home screen (the notice and the visits that wait): always in the page, so that a screen reader hears what is added
+   to it, and empty most of the time. An empty one takes back the gap that the column would put round it. */
+.w-live { display: flex; flex-direction: column; gap: var(--w-space-5); }
+.w-live:empty { margin-block-start: calc(-1 * var(--w-space-5)); }
 
 /* ----- provider list ----- */
 .w-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: var(--w-space-2-5); }
+/* A person is a card you tap: the soft shadow of every card and no edge, an avatar in one of the four tints, and a chevron that points
+   to the end of the line. */
 .w-person {
   display: flex; align-items: center; gap: var(--w-space-3-5); width: 100%; min-height: 68px; padding: var(--w-space-2-5) var(--w-space-4);
-  text-align: start; background: var(--w-surface); border: 1px solid var(--w-field-border); border-radius: var(--w-radius-2xl); cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  text-align: start; background: var(--w-surface); border: 0; border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); cursor: pointer;
+  transition: background 0.15s, transform 0.1s;
 }
-.w-person:hover { background: var(--w-surface-2); border-color: var(--w-field-border-hover); }
+.w-person:hover { background: var(--w-surface-2); }
 .w-person:active { transform: scale(0.99); }
 .w-avatar {
-  flex: none; width: 44px; height: 44px; border-radius: 50%; display: grid; place-items: center;
-  background: var(--w-info-bg); color: var(--w-info); font-weight: var(--w-weight-bold); font-size: var(--w-font-xl);
+  flex: none; width: 46px; height: 46px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--w-tint-violet); color: var(--w-tint-violet-ink); font-weight: var(--w-weight-semibold); font-size: var(--w-font-xl);
 }
+.w-avatar--lg { width: 56px; height: 56px; font-size: var(--w-font-3xl); }
+.w-avatar--mint { background: var(--w-tint-mint); color: var(--w-tint-mint-ink); }
+.w-avatar--peach { background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
+.w-avatar--sky { background: var(--w-tint-sky); color: var(--w-tint-sky-ink); }
 .w-person__text { flex: 1; min-width: 0; display: flex; flex-direction: column; }
-.w-person__name { font-size: var(--w-font-xl); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
-.w-person__sub { font-size: var(--w-font-md); color: var(--w-text-2); overflow-wrap: anywhere; }
+.w-person__name { font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
+.w-person__sub { font-size: var(--w-font-md); color: var(--w-text-3); overflow-wrap: anywhere; }
 .w-person svg { flex: none; color: var(--w-text-3); }
 [dir='rtl'] .w-flip { transform: scaleX(-1); }
+/* The privacy line under the list: a tinted note with a shield, in the ink that is read on that tint. */
+.w-note { display: flex; align-items: flex-start; gap: var(--w-space-3); padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-2xl); background: var(--w-tint-violet); color: var(--w-tint-violet-ink); font-size: var(--w-font-md); line-height: 1.55; }
+.w-note svg { flex: none; margin-block-start: var(--w-space-0-5); }
+.w-note > span { min-width: 0; overflow-wrap: anywhere; }
+/* The name above the form (the password screen: avatar, name, company) and above the home screen (name and company). */
+.w-greet { display: flex; align-items: center; gap: var(--w-space-3-5); }
+.w-greet__text { min-width: 0; display: flex; flex-direction: column; gap: var(--w-space-1); }
+.w-greet__sub { color: var(--w-text-3); font-size: var(--w-font-md); overflow-wrap: anywhere; }
+/* The password form sits on a card of its own. */
+.w-formcard { display: flex; flex-direction: column; gap: var(--w-space-4-5); background: var(--w-surface); border-radius: var(--w-radius-3xl); padding: var(--w-space-5); box-shadow: var(--w-shadow); }
 
 /* ----- form ----- */
 .w-field { display: flex; flex-direction: column; gap: var(--w-space-2); }
@@ -261,6 +292,9 @@
   width: 100%; min-height: 56px; padding-inline: var(--w-space-4) var(--w-layout-eye-width); font-size: var(--w-font-xl); /* >=16px: no iOS zoom */
   background: var(--w-surface); border: 1.5px solid var(--w-field-border); border-radius: var(--w-radius-lg); color: var(--w-text);
 }
+/* The field is dir="ltr" (a password is read left to right), but the show button sits at the end of the line of the PAGE, which is the left
+   side in Hebrew and Arabic: there the room for it is kept at the start of the field, or the first letters would run under the button. */
+[dir='rtl'] .w-input { padding-inline: var(--w-layout-eye-width) var(--w-space-4); }
 .w-input:focus { outline: none; border-color: var(--w-focus); box-shadow: 0 0 0 4px var(--w-focus-ring); }
 .w-input--error { border-color: var(--w-danger); }
 .w-eye {
@@ -275,48 +309,93 @@
 
 /* ----- pending / today ----- */
 .w-visits { list-style: none; margin: 0; padding: 0; }
-.w-visit { display: flex; align-items: center; gap: var(--w-space-3-5); padding: var(--w-space-3) 0; border-block-end: 1px solid var(--w-border); }
-.w-visit:last-child { border-block-end: 0; }
-.w-visit__time { font-variant-numeric: tabular-nums; font-weight: var(--w-weight-bold); min-width: 3.4em; direction: ltr; text-align: start; }
-.w-visit__point { flex: 1; min-width: 0; overflow-wrap: anywhere; }
-.w-tag { font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); padding: var(--w-space-1) var(--w-space-3); border-radius: var(--w-radius-pill); background: var(--w-tint-peach); color: var(--w-tint-peach-ink); white-space: nowrap; }
-.w-section-title { font-size: var(--w-font-lg); font-weight: var(--w-weight-semibold); margin-block-end: var(--w-space-1); }
+/* A visit: the time in a pill, the point, and a chip with its state (recorded, or waiting to be sent). In a narrow phone the chip wraps
+   under the point instead of squeezing it. */
+.w-visit { display: flex; flex-wrap: wrap; align-items: center; gap: var(--w-space-1-5) var(--w-space-3); min-height: 52px; }
+.w-visit__time {
+  flex: none; min-width: 62px; height: 36px; padding-inline: var(--w-space-2-5); display: grid; place-items: center; border-radius: var(--w-radius-pill);
+  background: var(--w-bg); font-variant-numeric: tabular-nums; font-weight: var(--w-weight-semibold); direction: ltr;
+}
+.w-visit__point { flex: 1 1 6em; min-width: 0; font-weight: var(--w-weight-medium); overflow-wrap: anywhere; }
+.w-tag { font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); padding: var(--w-space-1-5) var(--w-space-3); border-radius: var(--w-radius-pill); background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
+.w-tag--ok { background: var(--w-tint-mint); color: var(--w-tint-mint-ink); }
+.w-section-title { font-size: var(--w-font-xl); font-weight: var(--w-weight-semibold); margin-block-end: var(--w-space-2); }
+
+/* ----- the violet card of the home screen ----- */
+/* The summary card of direction B (--w-hero): the QR sign in a white tile, the instruction, and the three steps. The steps are pale
+   pills over the card: white at 12 percent is 4.7:1 for the text on them in the light theme and more in the dark one
+   (tests/contrast.test.js). */
+.w-hero { display: flex; flex-direction: column; gap: var(--w-space-4); padding: var(--w-space-5); border-radius: var(--w-radius-4xl); background: var(--w-hero); color: var(--w-on-hero); box-shadow: var(--w-shadow-raised); }
+.w-hero__top { display: flex; align-items: center; gap: var(--w-space-3-5); }
+.w-hero__icon { flex: none; width: 56px; height: 56px; border-radius: var(--w-radius-lg); background: var(--w-on-hero); color: var(--w-hero); display: grid; place-items: center; }
+.w-hero__text { flex: 1; min-width: 0; font-size: var(--w-font-xl); font-weight: var(--w-weight-medium); line-height: 1.45; overflow-wrap: anywhere; }
+.w-steps { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: var(--w-space-2); }
+.w-step { padding: var(--w-space-2-5) var(--w-space-1-5); border-radius: var(--w-radius-lg); background: rgba(255, 255, 255, 0.12); font-size: var(--w-font-md); line-height: 1.35; text-align: center; overflow-wrap: anywhere; }
+/* Three steps side by side need about 85px each for their words (a Russian word of eight letters is 77px at this size): from 380px up they stand
+   in a row, below it (a 320px or a 360px phone) in a column, where every step has the whole width. */
+@media (min-width: 380px) { .w-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
 
 /* ----- result screen ----- */
-.w-result { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--w-space-3-5); padding-block: var(--w-space-3); }
-.w-ring { width: 112px; height: 112px; border-radius: 50%; display: grid; place-items: center; border: 3px solid currentColor; margin-block-end: var(--w-space-2); }
-.w-ring svg { width: 56px; height: 56px; stroke-width: 2.4; }
-.w-result--success { color: var(--w-success); } .w-result--success .w-ring { background: var(--w-success-bg); }
-.w-result--info { color: var(--w-info); } .w-result--info .w-ring { background: var(--w-info-bg); }
-.w-result--warn { color: var(--w-warn); } .w-result--warn .w-ring { background: var(--w-warn-bg); }
-.w-result--danger { color: var(--w-danger); } .w-result--danger .w-ring { background: var(--w-danger-bg); }
-.w-result h1 { color: var(--w-text); font-size: var(--w-font-4xl); font-weight: var(--w-weight-bold); line-height: 1.2; }
+/* One column: the status chip (when there is one), the outcome in the middle of what is left, and the main button at the bottom. The
+   outcome is a ring of 148px with a status circle of 108px in it. The ring is a tint and the circle the colour of the outcome (success green,
+   refused red, saved on the phone amber, an answer that is not new violet); the icon in the circle is --w-on-primary, which is read on all of
+   them (tests/contrast.test.js). The crash screen (src/ui/ErrorBoundary.jsx) is this same screen. */
+.w-result {
+  flex: 1; display: flex; flex-direction: column; gap: var(--w-space-5); padding-block-start: var(--w-space-2);
+  --w-ring-tint: var(--w-tint-violet); --w-ring-disc: var(--w-primary);
+}
+.w-result--success { --w-ring-disc: var(--w-success); }
+.w-result--warn { --w-ring-tint: var(--w-warn-bg); --w-ring-disc: var(--w-warn); }
+.w-result--danger { --w-ring-tint: var(--w-danger-bg); --w-ring-disc: var(--w-danger); }
+.w-result__main { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: var(--w-space-4-5); }
+.w-ring { flex: none; width: 148px; height: 148px; border-radius: 50%; display: grid; place-items: center; background: var(--w-ring-tint); }
+.w-ring::before { content: ''; grid-area: 1 / 1; width: 108px; height: 108px; border-radius: 50%; background: var(--w-ring-disc); }
+.w-ring svg { grid-area: 1 / 1; width: 54px; height: 54px; stroke-width: 2.6; color: var(--w-on-primary); }
+.w-result h1 { color: var(--w-text); font-size: var(--w-font-4xl); font-weight: var(--w-weight-bold); line-height: 1.2; text-wrap: balance; }
 .w-result h1:focus { outline: none; }
 /* max-width: min(22em, 100%): this line holds the point name inside first-strong isolates (translate() in src/i18n/core.js), and WebKit
    sizes a centred box that holds an isolate in a right-to-left page by its longest line, not by the width that is left, even with
    overflow-wrap: anywhere. Measured on a point name of one word: the line was 418px (the 22em) in a 280px column. The cap is the column. */
-.w-result__body { color: var(--w-text-2); font-size: var(--w-font-xl); max-width: min(22em, 100%); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.w-result__body { color: var(--w-text-2); font-size: var(--w-font-lg); line-height: 1.55; max-width: min(22em, 100%); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
 /* tabular-nums: this line holds the time of the visit, and the box is as wide as its text. Rubik's own figures are proportional ("11:11"
    is about three quarters of the width of "00:00"), so the line, and the box that the picture tests mask over the time, would change
    width with the time of day; its tabular figures (the font's tnum) are all one width. */
 .w-result__warning { color: var(--w-warn); font-weight: var(--w-weight-semibold); }
-.w-chip { display: inline-flex; align-items: center; gap: var(--w-space-2); padding: var(--w-space-2-5) var(--w-space-4); border-radius: var(--w-radius-pill); background: var(--w-surface); box-shadow: var(--w-shadow); color: var(--w-text); font-weight: var(--w-weight-semibold); overflow-wrap: anywhere; }
-.w-who { display: inline-flex; align-items: center; gap: var(--w-space-2); margin: 0; color: var(--w-text-2); font-size: var(--w-font-base); max-width: 100%; overflow-wrap: anywhere; }
-/* The same WebKit case as .w-result__body (the name is in isolates): the text is an element of its own, so that it can shrink below
-   its longest line. Text that sits straight in a flex box is an anonymous item, which a rule cannot reach. */
-.w-who > span { min-width: 0; }
-.w-actions { display: flex; flex-direction: column; gap: var(--w-space-2-5); width: 100%; margin-block-start: var(--w-space-3); }
+/* The time of the visit, large, with its day under it. Tabular figures for the same reason as the line above. */
+.w-stamp { display: flex; flex-direction: column; align-items: center; gap: var(--w-space-0-5); font-variant-numeric: tabular-nums; }
+.w-stamp__time { font-size: calc(var(--w-font-4xl) * 1.5); font-weight: var(--w-weight-bold); line-height: 1.05; color: var(--w-info); }
+.w-stamp__date { font-size: var(--w-font-md); color: var(--w-text-3); }
+/* The point and the person, as chips. */
+.w-chips { display: flex; flex-wrap: wrap; justify-content: center; gap: var(--w-space-2); max-width: 100%; }
+.w-chip { display: inline-flex; align-items: center; gap: var(--w-space-1-5); max-width: 100%; padding: var(--w-space-2-5) var(--w-space-4); border-radius: var(--w-radius-3xl); background: var(--w-surface); box-shadow: var(--w-shadow); color: var(--w-text); font-size: var(--w-font-md); overflow-wrap: anywhere; }
+.w-chip--point { font-size: var(--w-font-base); font-weight: var(--w-weight-semibold); }
+.w-chip svg { flex: none; color: var(--w-primary); }
+/* The text of a chip is an element of its own, so that it can shrink below its longest line: the same WebKit case as .w-result__body (the
+   names are in isolates), and text that sits straight in a flex box is an anonymous item, which a rule cannot reach. */
+.w-chip > span { min-width: 0; }
+.w-verified { display: inline-flex; align-items: center; gap: var(--w-space-1-5); max-width: 100%; padding: var(--w-space-2) var(--w-space-3-5); border-radius: var(--w-radius-3xl); background: var(--w-tint-mint); color: var(--w-tint-mint-ink); font-size: var(--w-font-md); font-weight: var(--w-weight-medium); overflow-wrap: anywhere; }
+.w-verified svg { flex: none; }
+/* "No signal", at the end of the line above the outcome of a visit that was saved on the phone. */
+.w-statuschip { align-self: flex-end; display: inline-flex; align-items: center; gap: var(--w-space-1-5); padding: var(--w-space-1-5) var(--w-space-3); border-radius: var(--w-radius-pill); background: var(--w-tint-peach); color: var(--w-tint-peach-ink); font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); }
+.w-actions { display: flex; flex-direction: column; gap: var(--w-space-2-5); width: 100%; }
 /* The screen that replaces a broken one (src/ui/ErrorBoundary.jsx) is this result screen. The one addition: a long message
    breaks into two even lines instead of leaving one word alone on the second. */
 .w-crash h1 { text-wrap: balance; }
 
 /* ----- working ----- */
-.w-working { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--w-space-5); text-align: center; }
+.w-working { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: var(--w-space-4-5); text-align: center; }
+/* Looking for the position: a violet ring with a lighter disc in it, an arc that turns round it, and the pin at the middle. */
+.w-orbit { position: relative; flex: none; width: 168px; height: 168px; border-radius: 50%; display: grid; place-items: center; background: var(--w-tint-violet); }
+.w-orbit::before { content: ''; position: absolute; inset: var(--w-space-5); border-radius: 50%; background: var(--w-surface); }
+.w-orbit__arc { position: absolute; inset: 0; border-radius: 50%; border: 4px solid transparent; border-block-start-color: var(--w-primary); animation: w-spin 0.9s linear infinite; }
+.w-orbit__core { position: relative; width: 72px; height: 72px; border-radius: 50%; display: grid; place-items: center; background: var(--w-primary); color: var(--w-on-primary); }
+.w-working__title { font-size: var(--w-font-4xl); line-height: 1.2; font-weight: var(--w-weight-bold); text-wrap: balance; overflow-wrap: anywhere; }
+.w-working__hint { color: var(--w-text-3); font-size: var(--w-font-base); line-height: 1.5; max-width: min(18em, 100%); }
 .w-spinner { width: 56px; height: 56px; border-radius: 50%; border: 5px solid var(--w-surface-2); border-top-color: var(--w-focus); animation: w-spin 0.9s linear infinite; }
 @keyframes w-spin { to { transform: rotate(360deg); } }
 
 /* ----- skeleton ----- */
-.w-skel { height: 68px; border-radius: var(--w-radius-2xl); background: linear-gradient(90deg, var(--w-surface) 25%, var(--w-surface-2) 50%, var(--w-surface) 75%); background-size: 200% 100%; animation: w-shimmer 1.4s ease-in-out infinite; }
+.w-skel { height: 68px; border-radius: var(--w-radius-3xl); background: linear-gradient(90deg, var(--w-surface) 25%, var(--w-surface-2) 50%, var(--w-surface) 75%); background-size: 200% 100%; animation: w-shimmer 1.4s ease-in-out infinite; }
 @keyframes w-shimmer { to { background-position: -200% 0; } }
 
 /* ----- enter animation for the result ----- */
