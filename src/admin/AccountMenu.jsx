@@ -105,7 +105,7 @@ export default function AccountMenu({ admin, onSignOut, where }) {
             <span className="a-who">
               <span className="w-sr">החשבון שלי והגדרות: </span>
               <strong>{name}</strong>
-              <span dir="ltr">{admin.email}</span>
+              <span className="a-who__mail" dir="ltr" title={admin.email}>{admin.email}</span>
             </span>
             <IconChevron size={18} />
           </>

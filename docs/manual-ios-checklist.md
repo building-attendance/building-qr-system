@@ -66,7 +66,7 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
     VoiceOver (or an external keyboard) is on the new screen, not lost. On History, Filter ("סינון") opens
     the filters sheet: its two date fields sit side by side without overlapping, the keyboard does not come up by itself,
     Show results ("הצגת תוצאות") is fully visible above the home indicator, and after it the chips above the list say
-    what is filtered. The point tiles show an edit button and a "more" button (QR, switch off and delete are in its menu), and nothing scrolls sideways.
+    what is filtered. The point tiles show one "more" button (edit, QR, switch off and delete are in its menu), and nothing scrolls sideways.
 
 ## Updates
 

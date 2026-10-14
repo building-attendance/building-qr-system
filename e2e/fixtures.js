@@ -334,7 +334,7 @@ export const SCREEN_TITLES = Object.freeze({
 export const SCREEN_NAV = Object.freeze({
   home: 'בית',
   history: 'היסטוריה',
-  points: 'נקודות',
+  points: 'מיקומים',
   providers: 'ספקים',
   agent: 'אייג׳נט',
   settings: 'הגדרות',
@@ -396,9 +396,6 @@ export async function signOut(page) {
 /** The "more" button of a tile (a card or a row): "עוד פעולות ל<name>", so a tile is told from the next one by its own name. */
 export const moreButton = (tile) => tile.getByRole('button', { name: /^עוד פעולות/ })
 
-/** The edit button of a tile: "עריכה: <name>". */
-export const editButton = (tile) => tile.getByRole('button', { name: /^עריכה/ })
-
 /** Opens the menu of a tile (src/admin/ui.jsx Menu) and returns it. */
 export async function openTileMenu(tile) {
   await moreButton(tile).click()
@@ -407,7 +404,7 @@ export async function openTileMenu(tile) {
   return menu
 }
 
-/** Chooses one action of the menu of a tile, by its name (the menu closes, and the action runs). */
+/** Chooses one action of the menu of a tile, by its name (the menu closes, and the action runs). Edit is the first of them: `chooseFromMenu(tile, 'עריכה')`. */
 export async function chooseFromMenu(tile, name) {
   const menu = await openTileMenu(tile)
   await menu.getByRole('menuitem', { name, exact: true }).click()

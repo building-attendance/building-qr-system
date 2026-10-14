@@ -31,13 +31,13 @@ test.beforeEach(async ({ page }) => {
   allowConsoleErrors(page, /status of 401/)
 })
 
-/** The tile of the seeded point "לובי": its actions are icons with names. */
+/** The tile of the seeded point "לובי": its actions are in the menu of its "more" button. */
 const lobbyTile = (page) => page.getByRole('article').filter({ hasText: 'לובי' })
 
 test('the point form shows the map with the marker and the circle at the point, and a click on the map moves them', async ({ page }) => {
   const { tiles, hosts } = await stubMapImages(page)
   await adminSignIn(page, 'points')
-  await lobbyTile(page).getByRole('button', { name: 'עריכה' }).click()
+  await chooseFromMenu(lobbyTile(page), 'עריכה')
   const dialog = page.getByRole('dialog', { name: 'עריכת נקודה: לובי' })
 
   // The map has no accessible markup of its own beyond the label that MapPicker gives it. The class names below are

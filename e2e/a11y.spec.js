@@ -684,7 +684,7 @@ test.describe('committee app with the sample data filled in', () => {
     await openTileMenu(lobby)
     await scanBothThemes(page, 'committee phone: the "more" menu of a point, open')
     await page.keyboard.press('Escape')
-    await lobby.getByRole('button', { name: 'עריכה' }).click()
+    await chooseFromMenu(lobby, 'עריכה')
     const form = dialog('עריכת נקודה: לובי')
     await expect(form.locator('img.leaflet-tile-loaded').first()).toBeAttached() // the map has drawn
     await scanBothThemes(page, 'committee phone: point form with the map')
