@@ -30,11 +30,10 @@ export const IconEyeOff = (p) => (
   <Svg {...p}><path d="M3 3l18 18" /><path d="M10.6 5.7A9.6 9.6 0 0 1 12 5.5c6.4 0 10 6.5 10 6.5a17 17 0 0 1-3.1 3.9M6.6 7.4A17 17 0 0 0 2 12s3.6 6.5 10 6.5a9.7 9.7 0 0 0 4.1-.9M9.9 9.9a3 3 0 0 0 4.2 4.2" /></Svg>
 )
 export const IconChevron = (p) => <Svg {...p}><path d="M9 6l6 6-6 6" /></Svg>
+// A scan frame (four corner brackets) with a line across it: the sign for "scan here". It replaced a drawing of a QR code
+// that read as a grid of apps.
 export const IconQr = (p) => (
-  <Svg {...p}>
-    <rect x="3.5" y="3.5" width="6" height="6" rx="1" /><rect x="14.5" y="3.5" width="6" height="6" rx="1" />
-    <rect x="3.5" y="14.5" width="6" height="6" rx="1" /><path d="M14.5 14.5h2.5v2.5h-2.5zM19 14.5v.01M14.5 19.5v.01M17.5 19.5H20.5V17" />
-  </Svg>
+  <Svg {...p}><path d="M4 8V6a2 2 0 0 1 2-2h2M16 4h2a2 2 0 0 1 2 2v2M20 16v2a2 2 0 0 1-2 2h-2M8 20H6a2 2 0 0 1-2-2v-2M7 12h10" /></Svg>
 )
 export const IconRefresh = (p) => (
   <Svg {...p}><path d="M20 11a8 8 0 0 0-14.5-4M4 4v4h4M4 13a8 8 0 0 0 14.5 4M20 20v-4h-4" /></Svg>

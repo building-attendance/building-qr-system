@@ -34,7 +34,7 @@ test.describe('manifest', () => {
   })
 
   // Android crops a launcher icon to its own shape. An icon that is only `any` is shrunk onto a white disc instead, so the
-  // manifest also has a maskable one: a full square (no see-through pixel for the launcher to paint) in the brand blue.
+  // manifest also has a maskable one: a full square (no see-through pixel for the launcher to paint) in the brand violet.
   test('lists a maskable 512x512 icon next to the "any" ones, and it loads as an opaque image', async ({ page }) => {
     await page.goto('/')
     const href = await page.locator('link[rel="manifest"]').getAttribute('href')
@@ -51,7 +51,7 @@ test.describe('manifest', () => {
     expect(response.ok(), 'the maskable icon loads').toBeTruthy()
     expect(response.headers()['content-type']).toContain('image/png')
 
-    // decode it the way a browser does, and look at the corners: they have to be the solid brand blue
+    // decode it the way a browser does, and look at the corners: they have to be the solid brand violet (#5B4BDB)
     const icon = await page.evaluate(async (src) => {
       const bitmap = await createImageBitmap(await (await fetch(src)).blob())
       const canvas = document.createElement('canvas')
@@ -64,7 +64,7 @@ test.describe('manifest', () => {
       return { width: bitmap.width, height: bitmap.height, corners: [at(0, 0), at(last, 0), at(0, last), at(last, last)] }
     }, url)
     expect([icon.width, icon.height]).toEqual([512, 512])
-    for (const pixel of icon.corners) expect(pixel, 'a corner is the brand blue, fully opaque').toEqual([0, 122, 255, 255])
+    for (const pixel of icon.corners) expect(pixel, 'a corner is the brand violet, fully opaque').toEqual([91, 75, 219, 255])
   })
 
   // iOS shows this file as the Home Screen icon. It ignores an SVG (and then uses a screenshot of the page), wants
@@ -95,8 +95,8 @@ test.describe('manifest', () => {
     expect([icon.width, icon.height]).toEqual([180, 180])
     for (const [red, green, blue, alpha] of icon.corners) {
       expect(alpha, 'a corner is fully opaque').toBe(255)
-      // the brand blue (#007AFF), not black
-      expect([red, green, blue]).toEqual([0, 122, 255])
+      // the brand violet (#5B4BDB), not black
+      expect([red, green, blue]).toEqual([91, 75, 219])
     }
   })
 })

@@ -137,7 +137,12 @@ iOS ignores an SVG as the Home Screen icon, so the PNGs in `public/` (`apple-tou
 background, `pwa-192x192.png`, `pwa-512x512.png`, and `pwa-maskable-512x512.png`, the artwork inside the centre 80 percent
 on a solid background, which Android crops to its own shape and which is not precached) are made from
 `public/pwa-512x512.svg` by `npm run icons`. To change the logo, replace that SVG, run `npm run icons`, commit the PNGs.
-`tests/pwa-icons.test.js` and the icon tests in `e2e/pwa.spec.js` check them.
+The icon is the app's primary violet (`BRAND` in `scripts/make-icons.mjs`) with white drawn straight on it, no tile.
+The script writes each PNG again, smaller, with `scripts/png.mjs` (an indexed PNG when the picture has 256 colours or fewer,
+otherwise truecolor with better filtering and compression) and keeps the new file only when reading it back gives the same
+RGBA values as Chromium's picture, pixel for pixel. It never reduces the colours: `tests/png.test.js` pins that.
+`tests/pwa-icons.test.js` and the icon tests in `e2e/pwa.spec.js` check them: the colour, and that every pixel of the maskable
+icon that is not the background lies inside the centre circle of 80 percent of the width.
 
 ## CI
 

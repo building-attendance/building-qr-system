@@ -18,7 +18,7 @@ import { BuildingNameProvider, useBuildingName, APP_NAME } from '../admin/buildi
 import { useErrorReport, clearLoadCache } from '../admin/hooks.js'
 import { noteClientError, setPlace, currentPlace } from '../ui/errorReport.js'
 import { applyUpdate, isUpdateReady, subscribeUpdate } from '../worker/update.js'
-import { IconHome, IconPin, IconUsers, IconList, IconKey, IconClock, IconInfo, IconSettings, IconMore, IconChevron, IconAlert, IconRefresh } from '../admin/icons.jsx'
+import { IconHome, IconPin, IconUsers, IconList, IconRobot, IconClock, IconInfo, IconSettings, IconMore, IconChevron, IconAlert, IconRefresh } from '../admin/icons.jsx'
 
 // The screens of the committee app, in the order of the side rail (a computer). `label` is the name of the screen as a page: the title of the
 // document and the list under "עוד". `nav` is the name on its button in the side rail and in the tab bar of the phone. Two screens have a
@@ -38,7 +38,7 @@ const TABS = [
   { key: 'history', label: 'היסטוריה', nav: 'היסטוריה', icon: IconList, View: HistoryView, group: GROUP_WORK },
   { key: 'points', label: 'נקודות', nav: 'נקודות', icon: IconPin, View: PointsView, group: GROUP_WORK },
   { key: 'providers', label: 'נותני שירות', nav: 'ספקים', icon: IconUsers, View: ProvidersView, group: GROUP_WORK },
-  { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconKey, View: AgentView, group: GROUP_MANAGE, sub: 'מפתחות לסוכן ה-AI של הוועד', tint: 'violet' },
+  { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconRobot, View: AgentView, group: GROUP_MANAGE, sub: 'מפתחות לסוכן ה-AI של הוועד', tint: 'violet' },
   { key: 'settings', label: 'הגדרות', nav: 'הגדרות', icon: IconSettings, View: SettingsView, group: GROUP_MANAGE, sub: 'חברי הוועד ופרטי הבניין', tint: 'sky' },
   { key: 'audit', label: 'יומן פעולות', nav: 'יומן פעולות', icon: IconClock, View: AuditView, group: GROUP_MANAGE, sub: 'מי שינה מה ומתי', tint: 'peach' },
   { key: 'help', label: 'איך עובדים עם המערכת', nav: 'עזרה', icon: IconInfo, View: HelpView, group: GROUP_MANAGE, sub: 'מדריך קצר', tint: 'mint' },

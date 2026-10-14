@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { adminApi, errorText, copyText, providerDevices } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel, formatDateTime } from '../hooks.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { IconPlus, IconKey, IconDevice, IconBan, IconCheck, IconCopy, IconRefresh, IconUsers, IconAlert, IconTrash } from '../icons.jsx'
+import { IconPlus, IconLockPlus, IconDevice, IconBan, IconCheck, IconCopy, IconRefresh, IconUsers, IconAlert, IconTrash } from '../icons.jsx'
 import { generatePassword } from '../password.js'
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 
@@ -297,7 +297,7 @@ export default function ProvidersView() {
                     label={`עוד פעולות ל${name}`}
                     items={[
                       p.active_devices > 0 && { label: 'מכשירים', icon: IconDevice, onSelect: () => setPhones(p) },
-                      { label: 'סיסמה חדשה', icon: IconKey, onSelect: () => setResetting(p) },
+                      { label: 'סיסמה חדשה', icon: IconLockPlus, onSelect: () => setResetting(p) },
                       { label: p.is_active ? 'השבתה' : 'הפעלה', icon: p.is_active ? IconBan : IconCheck, disabled: busy, onSelect: () => toggleActive(p) },
                       { label: 'מחיקת נותן השירות', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deleteProvider(p) },
                     ]}

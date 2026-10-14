@@ -1,14 +1,7 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
-  <rect width="192" height="192" rx="32" fill="#007AFF"/>
-  <rect x="40" y="40" width="112" height="112" rx="8" fill="white"/>
-  <rect x="56" y="56" width="24" height="24" rx="4" fill="#007AFF"/>
-  <rect x="84" y="56" width="12" height="12" fill="#007AFF"/>
-  <rect x="112" y="56" width="24" height="24" rx="4" fill="#007AFF"/>
-  <rect x="56" y="84" width="12" height="12" fill="#007AFF"/>
-  <rect x="84" y="84" width="24" height="24" fill="#007AFF"/>
-  <rect x="124" y="84" width="12" height="12" fill="#007AFF"/>
-  <rect x="56" y="112" width="24" height="24" rx="4" fill="#007AFF"/>
-  <rect x="84" y="120" width="12" height="12" fill="#007AFF"/>
-  <rect x="112" y="112" width="12" height="12" fill="#007AFF"/>
-  <rect x="124" y="124" width="12" height="12" fill="#007AFF"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="192" height="192">
+  <rect width="512" height="512" rx="80" fill="#5B4BDB"/>
+  <g fill="none" stroke="#fff" stroke-width="30" stroke-linecap="round" stroke-linejoin="round"><path d="M96 172v-36a40 40 0 0 1 40-40h36M340 96h36a40 40 0 0 1 40 40v36M416 340v36a40 40 0 0 1-40 40h-36M172 416h-36a40 40 0 0 1-40-40v-36"/></g>
+  <g fill="#fff"><rect x="160" y="160" width="80" height="80" rx="16"/><rect x="272" y="160" width="80" height="80" rx="16"/><rect x="160" y="272" width="80" height="80" rx="16"/><rect x="272" y="272" width="34" height="34" rx="6"/><rect x="318" y="318" width="34" height="34" rx="6"/></g>
+  <g fill="#5B4BDB"><rect x="180" y="180" width="40" height="40" rx="8"/><rect x="292" y="180" width="40" height="40" rx="8"/><rect x="180" y="292" width="40" height="40" rx="8"/></g>
+  <g fill="#fff"><rect x="190" y="190" width="20" height="20" rx="4"/><rect x="302" y="190" width="20" height="20" rx="4"/><rect x="190" y="302" width="20" height="20" rx="4"/></g>
 </svg>
