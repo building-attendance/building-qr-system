@@ -5,20 +5,21 @@
 //
 // Three readers use the scope: tests/no-em-dash.test.js and tests/english-docs.test.js (through listProjectFiles) and the
 // Claude Code edit hook (scripts/hooks/check-edit.mjs, through isTextFileToCheck). This file proves, on a temporary
-// project folder with an em dash in every file, that all three agree: the skill is checked, the worktree copy and
-// settings.local.json are not. No database and no network.
+// project folder with an em dash and an en dash in every file, that all three agree: the skill is checked, the worktree
+// copy and settings.local.json are not. No database and no network.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { spawnSync } from 'node:child_process'
-import { EM_DASH, findEmDashLines, isSkippedDir, isTextFileToCheck, listProjectFiles } from '../scripts/text-rules.mjs'
+import { EM_DASH, EN_DASH, findDashLines, isSkippedDir, isTextFileToCheck, listProjectFiles } from '../scripts/text-rules.mjs'
 
 const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const HOOK = path.join(root, 'scripts', 'hooks', 'check-edit.mjs')
-const DASHED = `a line ${EM_DASH} with an em dash\n`
+const DASHED = `a line ${EM_DASH} with an em dash\nand a line ${EN_DASH} with an en dash\n`
 
-// Every file below holds an em dash. The rules must catch the skill's three files and the plain document, and no other.
+// Every file below holds an em dash and an en dash. The rules must catch the skill's three files and the plain document,
+// and no other.
 const SKILL = '.claude/skills/demo/SKILL.md'
 const SKILL_REFERENCE = '.claude/skills/demo/references/notes.md'
 const SKILL_SCRIPT = '.claude/skills/demo/scripts/run.sh' // a skill's shell script is text of the project too
@@ -42,7 +43,7 @@ beforeAll(() => {
   ]) {
     const full = path.join(project, ...file.split('/'))
     fs.mkdirSync(path.dirname(full), { recursive: true })
-    fs.writeFileSync(full, file.endsWith('.json') ? `{ "note": "x ${EM_DASH} y" }\n` : DASHED)
+    fs.writeFileSync(full, file.endsWith('.json') ? `{ "note": "x ${EM_DASH} y",\n  "other": "x ${EN_DASH} y" }\n` : DASHED)
   }
 })
 
@@ -117,11 +118,13 @@ describe('the scope of the text rules: the three readers agree', () => {
     }
   })
 
-  it('an em dash is found in the files of the skill and in the plain document, and nowhere else', () => {
-    const offenders = listProjectFiles(project)
+  it('an em dash and an en dash are found in the files of the skill and in the plain document, and nowhere else', () => {
+    const found = listProjectFiles(project)
       .filter(isTextFileToCheck)
-      .filter((file) => findEmDashLines(fs.readFileSync(path.join(project, ...file.split('/')), 'utf8')).length > 0)
-    expect(offenders.sort()).toEqual([SKILL_REFERENCE, SKILL_SCRIPT, DOC, SKILL].sort())
+      .map((file) => ({ file, dashes: findDashLines(fs.readFileSync(path.join(project, ...file.split('/')), 'utf8')).flatMap((d) => d.dashes) }))
+      .filter(({ dashes }) => dashes.length > 0)
+    expect(found.map(({ file }) => file).sort()).toEqual([SKILL_REFERENCE, SKILL_SCRIPT, DOC, SKILL].sort())
+    for (const { file, dashes } of found) expect(dashes, file).toEqual(['em dash', 'en dash'])
   })
 
   it('the edit hook stops on the skill (exit 2) and says nothing about the worktree copy or settings.local.json (exit 0)', () => {
@@ -129,6 +132,7 @@ describe('the scope of the text rules: the three readers agree', () => {
     expect(skill.code).toBe(2)
     expect(skill.stderr).toContain(SKILL)
     expect(skill.stderr).toMatch(/em dash on line 1\b/)
+    expect(skill.stderr).toMatch(/en dash on line 2\b/)
     expect(runHook(SKILL_REFERENCE).code).toBe(2)
     for (const left of [WORKTREE_COPY, WORKTREE_SKILL, LOCAL_SETTINGS, SHARED_SETTINGS, CACHE]) {
       expect(runHook(left), left).toEqual({ code: 0, stderr: '' })

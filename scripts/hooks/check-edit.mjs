@@ -4,7 +4,7 @@
 // every such edit and sends the tool call as JSON on stdin ({ "tool_input": { "file_path": "<absolute path>" }, ... }).
 // The rules are the two text rules of the project (scripts/text-rules.mjs, the same ones tests/no-em-dash.test.js and
 // tests/dates.test.js enforce, so a problem is seen at once and not when the unit tests run):
-//   - an em dash in any text file of the project;
+//   - an em dash or an en dash in any text file of the project;
 //   - for JavaScript under src/, server/ and shared/, another way of writing a date than shared/datetime.js.
 //
 // Exit code 0: nothing to say (the file is fine, outside the project, not a text file, or gone).
@@ -14,7 +14,7 @@
 // A hook must never break a session: empty or unreadable input, a missing file or any unexpected error ends with 0.
 import fs from 'node:fs'
 import path from 'node:path'
-import { findEmDashLines, findDateProblems, isTextFileToCheck } from '../text-rules.mjs'
+import { LONG_DASHES, findDashLines, findDateProblems, isTextFileToCheck } from '../text-rules.mjs'
 
 const MAX_BYTES = 5 * 1024 * 1024 // nobody writes a source file this big by hand: skip it instead of reading it
 
@@ -39,11 +39,12 @@ function checkFile(filePath, projectDir) {
 
   const text = fs.readFileSync(file, 'utf8')
   const problems = []
-  const dashes = findEmDashLines(text)
-  if (dashes.length) {
-    const where = dashes.map((d) => d.line).join(', ')
+  const found = findDashLines(text)
+  for (const { name: dash } of LONG_DASHES) {
+    const lines = found.filter((d) => d.dashes.includes(dash)).map((d) => d.line)
+    if (!lines.length) continue
     problems.push(
-      `an em dash on line${dashes.length === 1 ? '' : 's'} ${where}. Never use it: write a comma, a colon, a full stop, ` +
+      `an ${dash} on line${lines.length === 1 ? '' : 's'} ${lines.join(', ')}. Never use it: write a comma, a colon, a full stop, ` +
         'parentheses or a regular hyphen instead.',
     )
   }
