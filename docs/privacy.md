@@ -16,7 +16,7 @@ removes them. The periods themselves are the constants in `server/config.js`, wh
 
 | Where | What it holds about a person | How long it is kept |
 |---|---|---|
-| Committee members (`admins`) | E-mail address, name, the Google account id, the time of the last sign-in. The members are named by the committee, and they sign in with Google. The e-mail address of the first member of a deployment is also in that deployment's settings (the variable `FIRST_ADMIN_EMAIL` in Vercel) until the deployer removes it after the first sign-in | Until the committee removes the member |
+| Committee members (`admins`) | E-mail address, name, the Google account id, the time of the last sign-in, and the address of the member's Google photo (see "The committee member's photo" below). The members are named by the committee, and they sign in with Google. The e-mail address of the first member of a deployment is also in that deployment's settings (the variable `FIRST_ADMIN_EMAIL` in Vercel) until the deployer removes it after the first sign-in | Until the committee removes the member (the photo's address goes with the row; it is replaced at every Google sign-in, and emptied when Google gives none) |
 | Committee sessions (`admin_sessions`) | A fingerprint (hash) of the sign-in cookie, and when the session started, expires and was ended. No address, no device details | Deleted 30 days after the session expired or was ended |
 | Building settings (`building_settings`) | Nothing about a person, except a reference to the committee member who saved the row last (emptied when that member is removed). The one row holds the building's address and its name, as the committee typed them (the name of a building, not of a person), and when it was last saved. The provider app shows both before anyone signs in, and both also appear in the audit log | Until the committee changes them. Nothing deletes the row |
 | Service providers (`providers`) | Company, contact name, kind of service, language, and a salted hash of the password (never the password) | Until the committee deletes the provider |
@@ -34,6 +34,29 @@ removes them. The periods themselves are the constants in `server/config.js`, wh
 The daily job never deletes or changes a scan, a refused visit, the audit log, an active session or an active phone. A
 session, a phone, a recorded error, an alert day or a minute of the usage of an agent key that is not yet past its period is left as it is. The job's own log line and its audit
 entry hold counts only (a number for each kind of row, nothing else).
+
+## The committee member's photo
+
+The committee app shows each committee member's Google photo in the member's circle (owner decision of 14/10/2026): the
+account button and the account menu of the member who is signed in, and the member's card in Settings. The initial of the
+name is shown instead when there is no photo, or when it does not load.
+
+- **What is stored:** the address of the photo, never the picture itself. Google puts it in the sign-in that it vouches for
+  (the `picture` of the ID token), and the server keeps it in the member's row (`admins.picture_url`) only when it is an
+  `https` address on Google's photo host (`lh3.googleusercontent.com`) of at most 512 characters; anything else is kept as
+  no photo.
+- **When:** at every Google sign-in of the member, so a photo that the member changed or removed at Google follows at the
+  next sign-in. A sign-in that is refused writes nothing. The local development sign-in does not touch it.
+- **Why:** so that a committee member recognises a member at a glance.
+- **Who sees it:** committee members only, in the committee app (`GET /api/admin/me` and `GET /api/admin/admins`). Not the
+  committee's agent (no answer of the agent API carries it), not the service providers' app, not the audit log, not a log or a
+  recorded error.
+- **How long:** until the next sign-in replaces it, and at the latest until the member is deleted: it goes with the member's
+  row. A member who is switched off keeps the address of the last sign-in until then.
+- **Loading it:** the browser of the committee member who looks at the screen fetches the picture from Google, so Google sees
+  that request (the network address of that browser), as the Google sign-in already does. The request carries no address of
+  the app (no referrer). The service worker of the installed app does not cache the picture; the browser may keep it in its
+  own cache for a while, as it does any picture of a page.
 
 ## What the two apps report
 
@@ -60,7 +83,8 @@ The server cuts every report to a fixed list of fields (`shared/contract.js`) an
 ## Who can see it
 
 - **The committee**, in the committee app (`/admin`), after signing in with Google and only if the e-mail is on the committee
-  list: the providers, the scans and their history (also as a CSV file), the points and the agent keys. Each agent key's card
+  list: the providers, the scans and their history (also as a CSV file), the points, the agent keys, and the committee
+  members with the Google photo of each (see "The committee member's photo"). Each agent key's card
   shows how many requests the key made today and in the last 7 days, and how many were refused in the last 30 days because
   the key was over a limit (`GET /api/admin/api-keys`, counts only, from `api_key_usage` in the table above). The visits that the
   server refused are listed in the History tab when its type is set to ("לא נקלטו"), read only and not part of the CSV
@@ -91,7 +115,7 @@ The server cuts every report to a fixed list of fields (`shared/contract.js`) an
   record of its own key (when it was last used, at most every 5 minutes, and how many requests it made and how many were
   refused: a key that makes too many gets a `429`). It never sees a QR code, a password or a
   hash of one, a token, a key or a hash of one, the label of a phone, the sessions, the login attempts, a network (IP)
-  address, the recorded errors or the alert days.
+  address, the recorded errors, the alert days, or a committee member's photo or its address.
 - **Whoever runs the services under the app**: the owner of the project and the services that host it (the database is a
   Neon project, the app runs on Vercel). The committee's sign-in goes through Google, which handles it under its own terms.
   The first installation's owner has a check on healthchecks.io (optional: a copy has it only if it set

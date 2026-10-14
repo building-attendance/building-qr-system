@@ -6,7 +6,7 @@ import {
   ApiError, bad, conflict, forbidden, notFound, requireUuid, isUuid, str, num, toCsv, cookieHeader, getCookie, clientIp,
 } from '../http.js'
 import { requireAdmin, isAdminToken, guardLogin } from '../auth.js'
-import { verifyGoogleCredential } from '../google.js'
+import { verifyGoogleCredential, googlePhotoUrl } from '../google.js'
 import { firstCommitteeMember } from '../firstAdmin.js'
 import { readBuilding, saveBuilding, parseAddress, parseName } from '../building.js'
 import { listScans, listAllScans, scanJson, COMMITTEE_CSV_COLUMNS, committeeCsvRow } from '../scans.js'
@@ -89,13 +89,21 @@ async function createAdminSession(c, member, method) {
   return token
 }
 
+/**
+ * Who is signed in, as the committee app reads it (the answer of a sign-in and of GET /admin/me), written field by field.
+ * `picture_url` is the address of the member's Google photo or null: a field that came after the others, so an app from before it
+ * ignores it, and an app that reads it shows the initial when it is null.
+ * @returns {import('../../shared/types.js').CommitteeMember}
+ */
+const memberJson = (row) => ({ id: row.id, email: row.email, name: row.name, picture_url: row.picture_url ?? null })
+
 /** The answer of a sign-in, once its transaction has committed: the session cookie, and who signed in. */
 function adminSessionAnswer(req, res, token, adminRow) {
   res.setHeader('Set-Cookie', cookieHeader(ADMIN_COOKIE, token, {
     maxAgeSeconds: ADMIN_SESSION_DAYS * 86400,
     secure: isSecure(req),
   }))
-  return { admin: { id: adminRow.id, email: adminRow.email, name: adminRow.name } }
+  return { admin: memberJson(adminRow) }
 }
 
 // What the login screen needs to draw the Google button (the client id is public by design).
@@ -111,10 +119,15 @@ route('POST', '/admin/google', async ({ req, res, body }) => {
   const attempt = await guardLogin({ scope: 'admin', account: ip, ip })
 
   const google = await verifyGoogleCredential(credential)
+  // The member's Google photo, or null. The verifier has checked it already; it is checked again here so that only an address that
+  // passes googlePhotoUrl (server/google.js) is ever stored, whatever verifier is in use. A photo that is missing or refused does not
+  // stop the sign-in: the member signs in with no photo, and the app shows the initial.
+  const picture = googlePhotoUrl(google.picture)
   // One transaction, and the order matters: the member's row is locked first (so that disabling or deleting them at the same
   // moment is seen or waited for), the Google account is compared with the one that is linked BEFORE anything is written (a
-  // refused sign-in writes nothing to `admins`, not even the name), and only then are the link, the name, the session, the time
-  // of the sign-in and the audit row (`session.sign_in`) written, all or none. A refused sign-in (not on the list, switched
+  // refused sign-in writes nothing to `admins`, not even the name or the photo), and only then are the link, the name, the photo
+  // (the one of this sign-in, so that a changed or removed photo follows), the session, the time of the sign-in and the audit row
+  // (`session.sign_in`, which holds the method only, never the photo) written, all or none. A refused sign-in (not on the list, switched
   // off, another Google account) throws before any of that, so it writes no entry: `auth_attempts` already counts it. The
   // throttle (guardLogin above) has a transaction of its own on purpose: a refused attempt must stay counted.
   //
@@ -130,11 +143,12 @@ route('POST', '/admin/google', async ({ req, res, body }) => {
       throw forbidden('google_account_mismatch', 'This e-mail is linked to a different Google account')
     }
     await c.query(
-      `update admins set google_sub = coalesce(google_sub, $2), name = case when name = '' then $3 else name end where id = $1`,
-      [member.id, google.sub, google.name],
+      `update admins set google_sub = coalesce(google_sub, $2), name = case when name = '' then $3 else name end, picture_url = $4
+        where id = $1`,
+      [member.id, google.sub, google.name, picture],
     )
     const who = { id: member.id, email: member.email, name: member.name || google.name }
-    return { row: who, token: await createAdminSession(c, who, 'google') }
+    return { row: { ...who, picture_url: picture }, token: await createAdminSession(c, who, 'google') }
   })
   // The counters of this account are given back only after the sign-in is complete. (It runs on the pool: it must not run inside
   // the transaction above, where it would take a second connection from a pool of three.)
@@ -182,16 +196,22 @@ route('POST', '/admin/logout', async ({ req, res }) => {
   return { ok: true }
 })
 
+// Who is signed in. The guard (requireAdmin in server/auth.js) reads the member with the session and is left as it is; the photo is
+// read here, for this one answer, by the member's id.
 route('GET', '/admin/me', async ({ req }) => {
   const { admin } = await requireAdmin(req)
-  return { admin }
+  const { rows } = await query('select picture_url from admins where id = $1', [admin.id])
+  return { admin: memberJson({ ...admin, picture_url: rows[0]?.picture_url }) }
 })
 
 // ---------- who is on the committee list ----------
 
+// The members, for the cards of Settings. `picture_url` (the address of the member's Google photo, or null) came after the other
+// fields: an app from before it ignores it. The committee's agent never gets it: its answers are built field by field, and all that
+// they take from `admins` is the name or the e-mail that the audit log shows (server/auditRead.js).
 route('GET', '/admin/admins', async ({ req }) => {
   await requireAdmin(req)
-  const { rows } = await query('select id, email, name, is_active, last_login_at, created_at from admins order by created_at')
+  const { rows } = await query('select id, email, name, is_active, last_login_at, created_at, picture_url from admins order by created_at')
   return { admins: rows }
 })
 

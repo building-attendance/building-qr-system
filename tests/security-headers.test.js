@@ -5,6 +5,7 @@
 // headers (vite.config.js, tests/app-build.test.js), so the E2E tests run under this policy and a page that breaks it fails.
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
+import { GOOGLE_PHOTO_HOST } from '../server/config.js'
 
 const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const vercel = JSON.parse(fs.readFileSync(`${root}/vercel.json`, 'utf8'))
@@ -54,9 +55,12 @@ const ALLOWED = {
   // stylesheet of Google's sign-in button.
   'style-src': ["'self'", 'https://accounts.google.com/gsi/style'],
   // The app's icons; data: for the QR codes (src/admin/qr.js makes PNG data URLs), the map's marker pictures (bundled
-  // as data: URLs, src/admin/MapPicker.jsx) and the small pictures inside Leaflet's and the app's CSS; and the map's tiles
-  // from OpenStreetMap's one address.
-  'img-src': ["'self'", 'data:', 'https://tile.openstreetmap.org'],
+  // as data: URLs, src/admin/MapPicker.jsx) and the small pictures inside Leaflet's and the app's CSS; the map's tiles
+  // from OpenStreetMap's one address; and the committee member's Google photo in the account circle and on the member cards
+  // (src/admin/MemberFace.jsx, owner decision of 14/10/2026) from Google's one photo host, the only host that the sign-in
+  // keeps a photo address for (GOOGLE_PHOTO_HOST in server/config.js, tests/admin-photo.test.js). Only pictures: no other
+  // directive names it, so nothing but an <img> can be loaded from there.
+  'img-src': ["'self'", 'data:', 'https://tile.openstreetmap.org', 'https://lh3.googleusercontent.com'],
   // The API (same origin), and what Google's sign-in script asks its own server.
   'connect-src': ["'self'", 'https://accounts.google.com/gsi/'],
   // The frame of Google's sign-in button.
@@ -158,5 +162,16 @@ describe('what the policy relies on in the page', () => {
   it("Google's sign-in script is loaded from the address that the policy allows", () => {
     const login = fs.readFileSync(`${root}/src/admin/LoginScreen.jsx`, 'utf8')
     expect(login).toContain('https://accounts.google.com/gsi/client')
+  })
+
+  it("the member's photo comes from the one host that the sign-in keeps a photo address for, and the policy names it for pictures only", () => {
+    // The sign-in stores a photo address only on GOOGLE_PHOTO_HOST (googlePhotoUrl in server/google.js), so the policy needs that
+    // host and no other: one origin, no wildcard (no *.googleusercontent.com), in img-src and in no other directive.
+    const photo = `https://${GOOGLE_PHOTO_HOST}`
+    expect(policy['img-src']).toContain(photo)
+    for (const [directive, sources] of Object.entries(policy)) {
+      if (directive !== 'img-src') expect(sources, directive).not.toContain(photo)
+    }
+    expect(policyText.match(/googleusercontent/g), 'one mention of the photo host in the whole policy').toHaveLength(1)
   })
 })

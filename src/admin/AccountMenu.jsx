@@ -2,6 +2,7 @@ import { useId, useLayoutEffect, useRef, useState } from 'react'
 import { useTheme } from '../ui/theme.js'
 import { HEBREW_THEME_LABELS as THEME_LABELS } from '../ui/ThemeSwitch.jsx'
 import { IconChevron, IconDevice, IconLogout } from './icons.jsx'
+import MemberFace from './MemberFace.jsx'
 
 const THEME_ORDER = ['light', 'dark', 'system'] // the order of the design canvas; the choice "system" follows the device
 const GAP = 4 // px between the button and its popover
@@ -25,7 +26,10 @@ const EDGE = 8 // px that the popover keeps from the edges of the screen
  * under the button when there is room, over it when not (the rail's button is at the bottom of the screen). `where` is "top" (the end of
  * the popover at the end of the button) or "rail" (its start at the start of the button).
  *
- * @param {{ admin: { name?: string, email?: string }, onSignOut: () => void, where: 'top' | 'rail' }} props
+ * The member's circle (the top bar's button, and the circles of the rail's button and of the popover's head) holds the member's Google
+ * photo when the server gives one, else the initial (MemberFace).
+ *
+ * @param {{ admin: { name?: string, email?: string, picture_url?: string | null }, onSignOut: () => void, where: 'top' | 'rail' }} props
  */
 export default function AccountMenu({ admin, onSignOut, where }) {
   const [open, setOpen] = useState(false)
@@ -36,7 +40,6 @@ export default function AccountMenu({ admin, onSignOut, where }) {
   const { theme, setTheme } = useTheme()
   const rail = where === 'rail'
   const name = admin.name || 'חבר ועד'
-  const initial = [...String(admin.name || admin.email || '?').trim()][0]?.toUpperCase()
 
   /** Closes the popover; `refocus` gives the focus back to the button. */
   const hide = (refocus) => {
@@ -98,7 +101,7 @@ export default function AccountMenu({ admin, onSignOut, where }) {
       >
         {rail ? (
           <>
-            <span className="a-avatar" aria-hidden="true">{initial}</span>
+            <span className="a-avatar" aria-hidden="true"><MemberFace member={admin} /></span>
             <span className="a-who">
               <span className="w-sr">החשבון שלי והגדרות: </span>
               <strong>{name}</strong>
@@ -106,12 +109,12 @@ export default function AccountMenu({ admin, onSignOut, where }) {
             </span>
             <IconChevron size={18} />
           </>
-        ) : initial}
+        ) : <MemberFace member={admin} />}
       </button>
       {open && (
         <div ref={popRef} id={popId} className="a-menu a-account" role="dialog" aria-label="החשבון שלי" tabIndex={-1} onKeyDown={onKeyDown} onBlur={onBlur}>
           <div className="a-account__who">
-            <span className="a-avatar" aria-hidden="true">{initial}</span>
+            <span className="a-avatar" aria-hidden="true"><MemberFace member={admin} /></span>
             <div className="a-who"><strong>{name}</strong><span dir="ltr">{admin.email}</span></div>
           </div>
           <fieldset className="a-account__theme">

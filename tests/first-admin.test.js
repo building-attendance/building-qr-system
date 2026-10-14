@@ -183,7 +183,7 @@ describe('the first sign-in adds the member named in FIRST_ADMIN_EMAIL', () => {
     expect(others).toEqual([])
     expect(member).toMatchObject({ email: FIRST, name: 'Test Admin', google_sub: `sub-${FIRST}`, is_active: true })
     expect(member.last_login_at).not.toBeNull()
-    expect(answer.json).toEqual({ admin: { id: member.id, email: FIRST, name: 'Test Admin' } })
+    expect(answer.json).toEqual({ admin: { id: member.id, email: FIRST, name: 'Test Admin', picture_url: null } }) // the test verifier gives no photo
     expect((await one('select count(*)::int as n from admin_sessions where admin_id = $1', [member.id])).n).toBe(1)
     expect(await meStatus(cookieOf(answer))).toBe(200)
 

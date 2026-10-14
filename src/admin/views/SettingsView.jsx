@@ -5,6 +5,7 @@ import { Modal, Field, Badge, EmptyState, Spinner, AddButton, Menu, useToast, us
 import { IconBan, IconCheck, IconShield, IconAlert, IconTrash } from '../icons.jsx'
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { useBuildingName } from '../buildingName.jsx'
+import MemberFace from '../MemberFace.jsx'
 import BuildLabel from '../../ui/BuildLabel.jsx'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -230,7 +231,8 @@ export default function SettingsView({ admin }) {
               <article key={a.id} className={`a-card${a.is_active ? '' : ' is-off'}`}>
                 <div className="a-card__top">
                   <div className="a-card__id">
-                    <span className="a-card__icon a-card__icon--round" aria-hidden="true">{[...(a.name || a.email)][0].toUpperCase()}</span>
+                    {/* the member's Google photo, or the initial (the same face as the account circle) */}
+                    <span className="a-card__icon a-card__icon--round" aria-hidden="true"><MemberFace member={a} lazy /></span>
                     <div>
                       <h3 className="a-card__title">{name}{me && ' (אתם)'}</h3>
                       {/* an address reads left to right, but it lines up with the title like the other cards' second line */}

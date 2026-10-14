@@ -37,11 +37,10 @@
 // So no pixel may differ by more than the threshold, which is not the same as no pixel may differ. Playwright's default threshold,
 // 0.2, let a solid colour move a long way unnoticed: the amber circle of #226 went from #8A3E05 to #B4530A (0.109 on this scale)
 // and the end-to-end job passed with the old baseline, and the primary colour's move in #223 from #0B63CE to #5B4BDB is 0.171.
-import { deflateSync, crc32 } from 'node:zlib'
 import ar from '../src/i18n/ar.js'
 import {
   test, expect, he, en, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, SCREEN_TITLES, HOME_NOW, allowConsoleErrors, clearScans, pageSettled, signIn,
-  stubHome,
+  stubHome, pngImage, stubMemberPhoto, photoLoaded,
 } from './fixtures.js'
 
 // ---- where and when it runs ----------------------------------------------------------------------------------------------------
@@ -156,42 +155,10 @@ async function shotBothThemes(page, name, options) {
 
 /**
  * One tile of the map, drawn here: a 256 by 256 picture, a pale ground with a grid. The map's real tiles come from the internet
- * (OpenStreetMap), and change whenever someone edits the map; this one never does. Built by hand (a PNG is a signature, then three
- * chunks) so that no binary file has to be committed beside the baselines.
+ * (OpenStreetMap), and change whenever someone edits the map; this one never does. Built by hand (pngImage in e2e/fixtures.js, which
+ * writes the same bytes that this file used to write itself) so that no binary file has to be committed beside the baselines.
  */
-function mapTile() {
-  const size = 256
-  const ground = [233, 229, 220]
-  const line = [214, 208, 194]
-  const rows = Buffer.alloc((1 + size * 3) * size) // each row: a filter byte (0, none), then one RGB triple per pixel
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      const [r, g, b] = x % 64 === 0 || y % 64 === 0 ? line : ground
-      const at = y * (1 + size * 3) + 1 + x * 3
-      rows[at] = r
-      rows[at + 1] = g
-      rows[at + 2] = b
-    }
-  }
-  const chunk = (type, data) => {
-    const body = Buffer.concat([Buffer.from(type, 'ascii'), data])
-    const out = Buffer.alloc(body.length + 8)
-    out.writeUInt32BE(data.length, 0)
-    body.copy(out, 4)
-    out.writeUInt32BE(crc32(body), body.length + 4)
-    return out
-  }
-  const header = Buffer.alloc(13)
-  header.writeUInt32BE(size, 0)
-  header.writeUInt32BE(size, 4)
-  header.set([8, 2, 0, 0, 0], 8) // 8 bits per channel, RGB, the usual compression and filter, no interlacing
-  return Buffer.concat([
-    Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]),
-    chunk('IHDR', header),
-    chunk('IDAT', deflateSync(rows)),
-    chunk('IEND', Buffer.alloc(0)),
-  ])
-}
+const mapTile = () => pngImage(256, 256, (x, y) => (x % 64 === 0 || y % 64 === 0 ? [214, 208, 194] : [233, 229, 220])) // a line, the ground
 
 /** Answers every tile of the map with the one above, and waits (below) until the map has drawn them all. */
 async function stubMapTiles(page) {
@@ -567,6 +534,34 @@ function committeeAccountMenu(width) {
   })
 }
 
+/**
+ * The member's Google photo (owner decision of 14/10/2026): Settings, where it fills the account circle and the mark of the member's card,
+ * and the account menu, open over the help, where it fills the circle of the menu's head too. The photo is a fixed made-up picture of four
+ * coloured squares (`memberPhoto` in e2e/fixtures.js, answered by `stubMemberPhoto`), never a person and never Google. Every other picture
+ * of the committee app shows the member without a photo, the initial.
+ */
+function committeePhoto(width) {
+  test("the member's photo, in Settings and in the account menu", async ({ page }) => {
+    await stopClock(page)
+    await stubMemberPhoto(page)
+    await committeeSignedIn(page, 'settings')
+    await expect(page.getByLabel('שם הבניין', { exact: true })).toHaveValue(BUILDING_NAME)
+    const account = page.getByRole('button', { name: /^החשבון שלי והגדרות/ })
+    await expect.poll(() => photoLoaded(account.locator('img')), { message: 'the photo in the account circle' }).toBe(true)
+    await expect.poll(() => photoLoaded(page.getByRole('article').filter({ hasText: ADMIN_EMAIL }).locator('img')), { message: 'the photo on the card' }).toBe(true)
+    await shotBothThemes(page, `committee-${width}-settings-photo`)
+
+    await page.goto('/admin#help')
+    await expect(page.getByRole('heading', { level: 2, name: 'כשטלפון תקוע' })).toBeVisible()
+    await account.click()
+    const menu = page.getByRole('dialog', { name: 'החשבון שלי', exact: true })
+    await expect(menu).toBeVisible()
+    await expect.poll(() => photoLoaded(menu.locator('img')), { message: 'the photo in the head of the menu' }).toBe(true)
+    await page.mouse.move(0, 0) // the pointer is where the button was clicked: its hover look is not what the picture is for
+    await shotBothThemes(page, `committee-${width}-account-menu-photo`, { whole: false })
+  })
+}
+
 test.describe('committee app', () => {
   let state
   test.beforeAll(async ({ playwright, browserName }, testInfo) => {
@@ -583,12 +578,14 @@ test.describe('committee app', () => {
     committeeFilters('360')
     committeeSheet('360')
     committeeAccountMenu('360')
+    committeePhoto('360')
   })
 
   test.describe('at 1280 px', () => {
     test.use(COMMITTEE_COMPUTER)
     committeeScreens('1280')
     committeeAccountMenu('1280')
+    committeePhoto('1280')
   })
 
   // The widest screen that still has the tab bar (and so the sheet): a tablet held upright.

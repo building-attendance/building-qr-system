@@ -59,6 +59,15 @@ export const LOGIN_WINDOW_MINUTES = 15
 export const ADMIN_SESSION_DAYS = 14
 export const ADMIN_COOKIE = 'qr_admin'
 
+// The committee member's Google photo (the `picture` of the ID token, owner decision of 14/10/2026): a sign-in keeps its
+// address only when it is an https address on Google's photo host, at most this long, with no user, password or port, and
+// written exactly the way a URL parser writes it back (googlePhotoUrl in server/google.js). Anything else is kept as no photo,
+// and the committee app shows the initial. The column refuses a longer value too (db/migrations/015_admin_picture_url.sql),
+// and the Content-Security-Policy lets the browser load pictures from this host and from no other photo host (vercel.json,
+// img-src; tests/admin-photo.test.js ties the two).
+export const GOOGLE_PHOTO_HOST = 'lh3.googleusercontent.com'
+export const ADMIN_PICTURE_URL_MAX_LENGTH = 512
+
 // How long technical personal data is kept (owner decision of 04/10/2026, written for people in docs/privacy.md). A daily
 // job (server/retention.js, GET /api/cron/retention) applies these, and only these: it never touches a scan, the audit
 // log, an active session or an active phone. Changing a number is the owner's decision, and docs/privacy.md changes with it.
