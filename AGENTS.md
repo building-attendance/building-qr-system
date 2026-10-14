@@ -56,7 +56,10 @@ The scripts are the `scripts` of `package.json`, and `CONTRIBUTING.md` says what
   of the committee app in `src/admin/` and `src/pages/AdminApp.jsx`, until it moves to `src/i18n`) and in the tests that
   check that text. `tests/english-docs.test.js` fails on a Hebrew letter in a `.md`, `.yml` or `.yaml` file (the one
   exception is a UI label quoted in parentheses and double quotes, so that a person can find a button).
-- Never use an em dash (the long dash) anywhere: code, comments, UI text, docs. Use a regular hyphen. `tests/no-em-dash.test.js` fails if one appears.
+- Never use an em dash (the long dash) or an en dash (the middle-length dash) anywhere: code, comments, UI text, docs,
+  data the app writes. Use a regular hyphen, a comma or parentheses. `tests/no-em-dash.test.js` fails if either appears
+  (owner decision of 14/10/2026 for the en dash; a stored value written before it is read through code that names the
+  old character by its escape, never as the character).
 - The app is used on a phone and on a computer. Change both layouts together and check both.
 - A change to what a person sees (a screen, a form, a dialog, a style, a text) follows `docs/design.md`: read it first.
   Each rule there has its reason, its source and its check, and `docs/design/sources.md` says which sources are used and
@@ -79,10 +82,11 @@ The scripts are the `scripts` of `package.json`, and `CONTRIBUTING.md` says what
   (Israel, `Asia/Jerusalem`), not a setting of an installation: `scans.local_date` is stored in it and installed phones
   carry it in their JavaScript, so a change would split the stored days from the new ones. Changing it is the owner's
   decision, with a plan for the stored dates.
-- Every tile and row of the committee app shows its edit action (when it has one) and a "more" button; every other
-  action is in the menu of that button (owner decision of 14/10/2026), in one order: the actions of that screen, then
-  switch off / on, then a separator and the red delete, last (red is only for deleting). `e2e/admin.spec.js` measures
-  it on every screen, so a new action goes in its place in that order.
+- Every tile and row of the committee app shows one "more" button, and all its actions are in the menu of that button
+  (owner decisions of 14/10/2026: edit moved into the menu so that the title keeps the whole row), in one order: edit
+  (when it has one), then the actions of that screen, then switch off / on, then a separator and the red delete, last
+  (red is only for deleting). `e2e/admin.spec.js` measures it on every screen, so a new action goes in its place in that
+  order.
 - Do not invent selectors or URLs in tests: read the real component, then use `getByRole` / `getByText` / `getByLabel`.
 - If a test fails because of a real app bug, report it. Do not change the test to hide it and do not fix the app silently.
 - `npm run lint` and `npm run typecheck` must pass with no warnings (CI runs both in the `guards` job). An
@@ -98,7 +102,7 @@ The scripts are the `scripts` of `package.json`, and `CONTRIBUTING.md` says what
   `index.html` (a script that must run before the first paint is a file in `public/`). Styles are set from JavaScript
   (React's `style` prop, the CSSOM), never by writing a `style` attribute or a `<style>` element as HTML text.
 
-The two text rules (the em dash and the dates) live in one file, `scripts/text-rules.mjs`, which the two tests above and
+The two text rules (the long dashes and the dates) live in one file, `scripts/text-rules.mjs`, which the two tests above and
 the Claude Code edit hook all read. Change a rule there, not in a copy.
 
 ## Testing
@@ -401,11 +405,11 @@ reviewing agent should apply it too.
 
 **Report as P2 when you are sure:**
 
-- An em dash.
+- An em dash or an en dash.
 - UI text of the provider app that is not taken from `src/i18n/*.js`, or that is missing in one of the four languages
   (the committee app's Hebrew lives in `src/admin/` and `src/pages/AdminApp.jsx` for now).
-- A committee tile or row whose actions break the rule (edit on the tile; in the "more" menu: screen actions, switch
-  off / on, then the red delete last).
+- A committee tile or row whose actions break the rule (one "more" button on the tile; in its menu: edit, screen
+  actions, switch off / on, then the red delete last).
 - A layout change made for only one of phone and computer.
 - A change to what a person sees that breaks a rule of `docs/design.md`.
 

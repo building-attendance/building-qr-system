@@ -69,7 +69,7 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
     chips above the list say what is filtered. A calendar button opens a second sheet from the bottom with the month
     (MM/YYYY), the seven day initials and the quick ranges, the last of them clear of the home indicator; a tap on a day
     or a quick range closes it and fills the field (or both fields) as DD/MM/YYYY, and VoiceOver reads each day as its
-    full DD/MM/YYYY. The point tiles show an edit button and a "more" button (QR, switch off and delete are in its menu), and nothing scrolls sideways.
+    full DD/MM/YYYY. The point tiles show one "more" button (edit, QR, switch off and delete are in its menu), and nothing scrolls sideways.
 
 ## Updates
 

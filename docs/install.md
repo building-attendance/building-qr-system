@@ -314,7 +314,7 @@ not say `nonprod`.
    says that the details were saved ("פרטי הבניין נשמרו"). The committee app's brand and window title follow at once, and
    the providers' app shows the name within about a minute. The label of the installed app on a phone's Home Screen is
    fixed when the app is built, so it does not follow the name.
-2. Points tab ("נקודות"), ("נקודה חדשה"): a name and a pin on the map. Every point checks the phone's location against
+2. Points tab ("מיקומים"), ("נקודה חדשה"): a name and a pin on the map. Every point checks the phone's location against
    its pin, so a point cannot be saved without one. For a first test, stand where the sign will hang and press the form's
    own location button ("המיקום שלי כעת") to put the pin where you stand, or click the map. Save ("שמירה"): the QR
    dialog opens by itself, and a toast says that the point was created and that its QR can be printed. The address under

@@ -418,7 +418,7 @@ describe('the audit log', () => {
 
 const ADMIN = { id: '00000000-0000-4000-8000-0000000000a1', name: 'Sample Member', email: 'member@example.test' }
 const OTHER_ADMIN = { id: '00000000-0000-4000-8000-0000000000b2', name: 'Other Member', email: 'other@example.test' }
-const NAV = { points: 'נקודות', providers: 'ספקים', history: 'היסטוריה', agent: 'אייג׳נט', settings: 'הגדרות' }
+const NAV = { points: 'מיקומים', providers: 'ספקים', history: 'היסטוריה', agent: 'אייג׳נט', settings: 'הגדרות' }
 
 /** What the server has now. A test changes it. `held` is the next GET of a path that the test keeps waiting. */
 const app = { signedIn: true, who: ADMIN, signInAs: ADMIN, points: [], providers: [], building: { address: '', name: '' }, held: new Map() }

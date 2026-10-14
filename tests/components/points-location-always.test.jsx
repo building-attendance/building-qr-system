@@ -11,7 +11,7 @@ import { ToastProvider, ConfirmProvider } from '../../src/admin/ui.jsx'
 import { api } from '../../src/api/client.js'
 import { GPS_MODE_REQUIRED, GPS_MODE_OPTIONAL, GPS_MODE_NONE, GPS_MODES, POINT_RADIUS_DEFAULT_M } from '../../shared/contract.js'
 import { GPS_MODE_LABELS } from '../../src/admin/auditLabels.js'
-import { menuLabels, shownButtons } from './tile-menu.js'
+import { choose, menuLabels, shownButtons } from './tile-menu.js'
 
 vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
 vi.mock('../../src/admin/MapPicker.jsx', () => ({
@@ -135,7 +135,7 @@ describe('a point that the database holds with its location check set to "requir
     expect(card.getByText('פעילה')).toBeTruthy()
     expect(card.getByText('רדיוס')).toBeTruthy()
 
-    fireEvent.click(card.getByRole('button', { name: /^עריכה/ }))
+    choose(tile('לובי'), 'עריכה')
     expect(within(dialog()).queryByText(OLD_MODE_NOTE)).toBeNull()
     fireEvent.click(within(dialog()).getByRole('button', { name: 'שמירה' }))
     await waitFor(() => expect(writes()).toHaveLength(1), WAIT)
@@ -148,9 +148,9 @@ describe('a point that the database holds with its location check set to "requir
     const card = within(tile('לובי'))
     expect(card.getByText('חסר מיקום במפה')).toBeTruthy()
     expect(card.queryByText(GPS_MODE_LABELS[GPS_MODE_REQUIRED])).toBeNull()
-    // the tile shows its edit action and its "more" button; the rest is in the menu, in the order of the rule
-    expect(shownButtons(tile('לובי'))).toEqual(['עריכה: לובי', 'עוד פעולות ללובי'])
-    expect(menuLabels(tile('לובי'))).toEqual(['QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
+    // the tile shows its "more" button alone; every action is in the menu, in the order of the rule, edit first
+    expect(shownButtons(tile('לובי'))).toEqual(['עוד פעולות ללובי'])
+    expect(menuLabels(tile('לובי'))).toEqual(['עריכה', 'QR והדפסה', 'השבתת הנקודה', 'מחיקת הנקודה'])
   })
 })
 
@@ -163,7 +163,7 @@ describe('a point that an older installation holds with another mode', () => {
 
   it('tells in its form that saving moves it to "required", and then saves it as "required"', async () => {
     await show([point({ gps_mode: GPS_MODE_OPTIONAL })])
-    fireEvent.click(within(tile('לובי')).getByRole('button', { name: /^עריכה/ }))
+    choose(tile('לובי'), 'עריכה')
     expect(within(dialog()).getByText(OLD_MODE_NOTE)).toBeTruthy()
     expect(within(dialog()).queryByLabelText('בדיקת מיקום')).toBeNull()
 
@@ -178,7 +178,7 @@ describe('a point that an older installation holds with another mode', () => {
     expect(card.getByText(GPS_MODE_LABELS[GPS_MODE_NONE])).toBeTruthy()
     expect(card.getByText('חסר מיקום במפה'), 'a pin is missing whatever the old mode was').toBeTruthy()
 
-    fireEvent.click(card.getByRole('button', { name: /^עריכה/ }))
+    choose(tile('לובי'), 'עריכה')
     expect(within(dialog()).getByText(OLD_MODE_NOTE)).toBeTruthy()
     fireEvent.click(within(dialog()).getByRole('button', { name: 'שמירה' }))
     expect(await within(dialog()).findByText(NO_PIN_ERROR)).toBeTruthy()
