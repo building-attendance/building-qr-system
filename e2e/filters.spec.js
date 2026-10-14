@@ -49,7 +49,7 @@ async function stubScans(page) {
   const points = (await (await page.request.get('/api/admin/points')).json()).points
   const lobby = points.find((p) => p.name === 'לובי')
   const basement = points.find((p) => p.name === 'מינוס 1')
-  const visits = [visit(1, lobby, 'ניקיון – פלוני'), visit(2, basement, 'גינון – אלמוני')]
+  const visits = [visit(1, lobby, 'פלוני (ניקיון)'), visit(2, basement, 'אלמוני (גינון)')]
   const asked = []
   await page.route(/\/api\/admin\/scans\?/, (route) => {
     if (route.request().method() !== 'GET') return route.continue()

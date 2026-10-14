@@ -1,3 +1,5 @@
+<!-- Changed from the upstream file (Apache License 2.0, section 4(b)): each en dash was replaced by a hyphen. Nothing else differs. See SOURCE.md in this folder. -->
+
 # Full-Text Search with BM25 Ranking
 
 Use `lakebase_text` for BM25 relevance ranking with PostgreSQL's standard `tsvector` type. The `lakebase_bm25` index adds corpus-aware ranking and top-K pushdown.
@@ -26,9 +28,9 @@ CREATE TABLE documents (
 
 Create the index after the initial corpus has been inserted so build-time corpus statistics are meaningful. BM25 scoring is tuned by two storage parameters set at index-build time:
 
-- `k1` controls term-frequency saturation (default `1.2`, range `1.2`–`2.0`): higher values let repeated terms keep adding relevance.
+- `k1` controls term-frequency saturation (default `1.2`, range `1.2`-`2.0`): higher values let repeated terms keep adding relevance.
 
-- `b` controls document-length normalization (default `0.75`, range `0.0`–`1.0`): higher values penalize longer documents more.
+- `b` controls document-length normalization (default `0.75`, range `0.0`-`1.0`): higher values penalize longer documents more.
 
 Both can only be set in the `WITH` clause, and updating them rebuilds the index:
 

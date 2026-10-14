@@ -11,9 +11,10 @@ This is the version that `neon skills` had installed on the owner's machine on 0
 Two kinds of change:
 
 - The em dash, which this project never allows (AGENTS.md, `tests/no-em-dash.test.js`). The upstream files of this skill have 15, in 3 of its 6 files. Each was replaced by hand with the text that keeps the meaning: 11 by a colon, 4 by parentheses (two pairs).
+- The en dash, which this project never allows since the owner's decision of 14/10/2026 (the same rule and test). The upstream files have 2, both in `references/full-text-search.md`, in the ranges of the BM25 parameters (`1.2`-`2.0` and `0.0`-`1.0`). Each was replaced by a hyphen (14/10/2026).
 - `SKILL.md`, two instructions replaced because the agent would act on them here (found by the Codex review of the pull request that tracked this skill): step 2 of the setup (get the connection string with the CLI or the MCP server, store it in `.env`, read the file first) now says to ask the owner and read only `.env.example`; and "Migrations" (test a migration on a branch of production, against production-like data) now says to test it in a throwaway schema of the non-production database, never against production. Both follow AGENTS.md (Safety; Database and API changes).
 
-The Apache License (section 4(b)) asks that a changed file says so. Each of the 3 changed files (`SKILL.md`, `references/lakebase-search-drizzle.md`, `references/vector-search.md`) therefore starts, after the front matter of `SKILL.md`, with a one-line HTML comment that says what changed. The other 2 files (`references/full-text-search.md`, `references/hybrid-search.md`) are byte for byte the upstream files. Nothing else was changed.
+The Apache License (section 4(b)) asks that a changed file says so. Each of the 4 changed files (`SKILL.md`, `references/lakebase-search-drizzle.md`, `references/vector-search.md`, `references/full-text-search.md`) therefore starts, after the front matter of `SKILL.md`, with a one-line HTML comment that says what changed. The other file (`references/hybrid-search.md`) is byte for byte the upstream file. Nothing else was changed.
 
 ## Where it disagrees with this project
 

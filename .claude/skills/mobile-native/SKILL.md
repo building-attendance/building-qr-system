@@ -141,7 +141,7 @@ button, a, [role="button"], .tappable {
 }
 ```
 
-Keep press feedback at 100–160ms and `ease-out`. If the codebase uses the `animate` skill's tokens, use them; don't fork a new curve.
+Keep press feedback at 100-160ms and `ease-out`. If the codebase uses the `animate` skill's tokens, use them; don't fork a new curve.
 
 ### 6. Pull-to-refresh hijacks scroll
 

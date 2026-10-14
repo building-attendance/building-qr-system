@@ -110,7 +110,9 @@ export const AUDIT_ACTOR_TYPES = Object.freeze([...ACTOR_TYPES])
 // (a number where a text should be) is shown as null, and so is a text that looks like a secret (shared/secretLike.js). The reading
 // is `agentAuditDetail` in server/auditRead.js, and `GET /api/agent/v1/schema` and the OpenAPI document are written from this list.
 //
-// The kinds are: 'text', 'count' (a whole number, 0 or more), 'integer', 'number', 'boolean', 'timestamp' (an ISO 8601 moment),
+// The kinds are: 'text', 'provider_name' (a text that is the name of a provider as a scan recorded it: it goes out in today's form,
+// "contact (company)", also from an entry written before 14/10/2026 that holds the older form; shared/providerName.js), 'count' (a
+// whole number, 0 or more), 'integer', 'number', 'boolean', 'timestamp' (an ISO 8601 moment),
 // 'uuids' (a list of ids), `oneOf(values)`, `changes(fields)` (what an update changed: `{ <field>: { from, to } }` for the fields
 // listed, each value of the kind given) and 'ids_change' (`{ added, removed }`, two lists of ids). 'ids_or_change' is the list of
 // ids of an older entry or the `{ added, removed }` of today's.
@@ -157,7 +159,7 @@ export const AUDIT_DETAIL_ALLOW = Object.freeze({
   'scan.void': Object.freeze({ reason: 'text' }),
   'scan.unvoid': Object.freeze({ previous_reason: 'text' }),
   'scan.delete': Object.freeze({
-    point_name: 'text', provider_name: 'text', checked_in_at: 'timestamp', outcome: oneOf(SCAN_OUTCOMES), voided: 'boolean',
+    point_name: 'text', provider_name: 'provider_name', checked_in_at: 'timestamp', outcome: oneOf(SCAN_OUTCOMES), voided: 'boolean',
   }),
   'api_key.create': Object.freeze({ name: 'text' }),
   'api_key.revoke': Object.freeze({}),
