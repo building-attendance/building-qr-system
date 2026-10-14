@@ -17,3 +17,18 @@ export function looksSecret(value) {
   const text = value.trim()
   return PREFIXED_TOKEN.test(text) || (LONG_RUN.test(text) && /\d/.test(text) && /[A-Za-z]/.test(text))
 }
+
+// What can stand around a word in a sentence, or in a name that the app writes ("contact (company)", shared/providerName.js):
+// brackets, quotes and marks of punctuation.
+const AROUND = /^[()[\]{}<>"'`,;:.!?]+|[()[\]{}<>"'`,;:.!?]+$/g
+
+/**
+ * True when a word of the text (the text split at white space) looks like a secret (looksSecret), as it is or without the
+ * brackets, quotes and punctuation around it: a key inside a sentence, or wrapped in the parentheses of a name, is found all the
+ * same. A word is judged both ways, so taking the marks away can only find more, never less.
+ * @param {unknown} value
+ */
+export function hasSecretWord(value) {
+  if (typeof value !== 'string') return false
+  return value.split(/\s+/).some((word) => looksSecret(word) || looksSecret(word.replace(AROUND, '')))
+}

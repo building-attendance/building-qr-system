@@ -1,7 +1,8 @@
 // The text rules of this project, in one place. Node built-ins only.
 //
 // Two rules are checked on the text of files:
-//   - the em dash (U+2014) is never used, anywhere (see AGENTS.md, "Rules for every change");
+//   - the em dash (U+2014) and the en dash (U+2013) are never used, anywhere (see AGENTS.md, "Rules for every change"; the
+//     en dash since the owner's decision of 14/10/2026);
 //   - a date or time that a person sees is written only by shared/datetime.js (DD/MM/YYYY and HH:MM), so the code in
 //     src/, server/ and shared/ must not use another way of writing one.
 //
@@ -13,8 +14,15 @@
 import fs from 'node:fs'
 import path from 'node:path'
 
-// Built from its code point, so that this file does not contain the character either.
+// Built from their code points, so that this file does not contain the characters either.
 export const EM_DASH = String.fromCharCode(0x2014)
+export const EN_DASH = String.fromCharCode(0x2013)
+
+/** The long dashes that are never used, each with the words that a message names it by. */
+export const LONG_DASHES = Object.freeze([
+  Object.freeze({ char: EM_DASH, name: 'em dash' }),
+  Object.freeze({ char: EN_DASH, name: 'en dash' }),
+])
 
 // ---- which files -------------------------------------------------------------------------------------------------
 
@@ -63,7 +71,7 @@ export function isProjectFile(relativePath) {
 }
 
 /**
- * True when the em dash rule applies to this file: a text file of the project that is not inside a skipped folder.
+ * True when the rule of the long dashes applies to this file: a text file of the project that is not inside a skipped folder.
  * @param relativePath  the path from the project root, with / or \ as the separator
  */
 export function isTextFileToCheck(relativePath) {
@@ -92,13 +100,17 @@ export function listProjectFiles(root) {
   return found
 }
 
-// ---- the em dash -------------------------------------------------------------------------------------------------
+// ---- the long dashes ---------------------------------------------------------------------------------------------
 
-/** The lines of `text` that hold an em dash: [{ line (1-based), text (the trimmed line) }]. */
-export function findEmDashLines(text) {
+/**
+ * The lines of `text` that hold an em dash or an en dash: [{ line (1-based), text (the trimmed line), dashes (the names of
+ * the ones on that line, in the order of LONG_DASHES) }].
+ */
+export function findDashLines(text) {
   const found = []
   String(text).split(/\r?\n/).forEach((line, i) => {
-    if (line.includes(EM_DASH)) found.push({ line: i + 1, text: line.trim() })
+    const dashes = LONG_DASHES.filter((dash) => line.includes(dash.char)).map((dash) => dash.name)
+    if (dashes.length) found.push({ line: i + 1, text: line.trim(), dashes })
   })
   return found
 }

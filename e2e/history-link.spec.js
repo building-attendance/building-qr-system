@@ -49,7 +49,7 @@ async function stubScans(page) {
   const providers = (await (await page.request.get('/api/admin/providers')).json()).providers
   const ploni = providers.find((p) => p.contact_name === SAMPLE_PROVIDER_NAMES.cleaner)
   const almoni = providers.find((p) => p.contact_name === SAMPLE_PROVIDER_NAMES.gardener)
-  const visits = [visit(1, ploni, 'ניקיון – פלוני'), visit(2, almoni, 'גינון – אלמוני')]
+  const visits = [visit(1, ploni, 'פלוני (ניקיון)'), visit(2, almoni, 'אלמוני (גינון)')]
   const asked = []
   await page.route(/\/api\/admin\/scans\?/, (route) => {
     if (route.request().method() !== 'GET') return route.continue()
@@ -71,8 +71,8 @@ test('a link followed on the page opens History with its filters, in the layout 
   await page.goto(`/admin#history?provider=${ploni.id}&from=2026-03-01&to=2026-03-31`)
   await expect(historyHeading(page)).toBeVisible()
   await expect(rows(page)).toHaveCount(1)
-  await expect(rows(page).first()).toContainText('ניקיון – פלוני')
-  await expect(page.getByText('גינון – אלמוני')).toHaveCount(0)
+  await expect(rows(page).first()).toContainText('פלוני (ניקיון)')
+  await expect(page.getByText('אלמוני (גינון)')).toHaveCount(0)
 
   // the first request already carries the link's filters: no request of the defaults came before it, and none comes after it
   await expect(page).toHaveURL(/#history$/)
@@ -140,8 +140,8 @@ test.describe('on a computer', () => {
     await page.goto(`/admin#history?provider=${almoni.id}&from=2026-03-01&to=2026-03-31&outcome=all`)
     await expect(historyHeading(page)).toBeVisible()
     await expect(rows(page)).toHaveCount(1)
-    await expect(rows(page).first()).toContainText('גינון – אלמוני')
-    await expect(page.getByText('ניקיון – פלוני')).toHaveCount(0)
+    await expect(rows(page).first()).toContainText('אלמוני (גינון)')
+    await expect(page.getByText('פלוני (ניקיון)')).toHaveCount(0)
     await expect(page).toHaveURL(/#history$/)
 
     // the inline fields say what the link says, and there is no bar

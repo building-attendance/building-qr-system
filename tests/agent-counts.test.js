@@ -35,7 +35,9 @@ import { COUNT_FILTERS, COUNT_FIELDS, COUNT_GROUPS, countsQuery, parseGroupBy } 
 import { AGENT_KEY_MAX_PER_MINUTE, API_KEY_PREFIX, COUNTS_MAX_DAYS, COUNTS_MAX_ROWS } from '../server/config.js'
 import { SOURCE_OFFLINE_SYNC, QR_TOKEN_PREFIX } from '../shared/contract.js'
 
-const DASH = '–' // the separator of "company - contact" in the name of a provider that a scan keeps
+// A scan stored before 14/10/2026 kept a provider's name as the company, this separator and the contact (a space, an en dash and a
+// space, named by its escape: the character itself is never written). Today a scan keeps "contact (company)" (shared/providerName.js).
+const OLD_SEPARATOR = ' \u2013 '
 const ROW_KEYS = ['day', 'provider_id', 'provider_name', 'point_id', 'point_name', 'service_type', 'count']
 const DAY = /^\d{4}-\d{2}-\d{2}$/
 const IP = '10.44.55.66'
@@ -92,7 +94,7 @@ function useWorld() {
 // What the counts must be, worked out from the rows of GET /scans (never from the database, never from the SQL of the endpoint).
 // ---------------------------------------------------------------------------------------------------------------------------------
 
-/** a < b as the database orders these texts (the names in this file differ at the first letter, all in one case), null last. */
+/** a < b as the database orders these texts (the names in this file differ in their first two letters, all in one case), null last. */
 const cmp = (a, b) => (a === b ? 0 : a === null ? 1 : b === null ? -1 : a < b ? -1 : 1)
 
 /**
@@ -155,8 +157,10 @@ describe('GET /counts: the counts add up to the scans list', () => {
     Object.assign(ids, { A: A.id, B: B.id, C: C.id, D: D.id, atrium: atrium.id, basement: basement.id, courtyard: courtyard.id, door: door.id })
 
     // The visits are written straight into the table: a day, a time of day in the building's time zone, and the snapshot that a scan keeps
-    // of the names. (The day boundaries are proved through the real recording code in a later describe.)
-    const ACME = 'Acme Cleaners ' + DASH + ' Dana'
+    // of the names. (The day boundaries are proved through the real recording code in a later describe.) The visits of A before its 50th
+    // day keep its name in the form of a scan stored before 14/10/2026, the later ones in today's form: the two are one provider and one
+    // name in the answer, "Dana (Acme Cleaners)", which is also the name that the rows are ordered by.
+    const ACME = 'Acme Cleaners' + OLD_SEPARATOR + 'Dana'
     const PAIRS = [
       { p: A, pt: atrium, service: 'cleaning', names: [ACME, 'Atrium'] },
       { p: A, pt: door, service: 'cleaning', names: [ACME, 'Door'] },
@@ -185,7 +189,7 @@ describe('GET /counts: the counts add up to the scans list', () => {
             point_id: pair.pt.id,
             provider_id: pair.p.id,
             // The names the committee changed over the three months: a provider after the 40th day, a point after the 30th.
-            provider_name: pair.p.id === C.id && i >= 40 ? 'Cobalt Painters Ltd' : pair.names[0],
+            provider_name: pair.p.id === C.id && i >= 40 ? 'Cobalt Painters Ltd' : pair.p.id === A.id && i >= 50 ? 'Dana (Acme Cleaners)' : pair.names[0],
             point_name: pair.pt.id === atrium.id && i >= 30 ? 'Atrium North' : pair.names[1],
             service_type: pair.service,
             day,
@@ -230,6 +234,10 @@ describe('GET /counts: the counts add up to the scans list', () => {
     expect(every.some((s) => s.flags.includes('location_unverified'))).toBe(true)
     expect([...seen(every, 'service_type')].sort((a, b) => cmp(a, b))).toEqual(['cleaning', 'gardening', null])
     expect([...seen(every, 'provider_name')].filter((n) => n.startsWith('Cobalt')).sort()).toEqual(['Cobalt Painters', 'Cobalt Painters Ltd'])
+    // A's visits are stored in both forms of its name, and the list gives every one of them in today's form.
+    const stored = (await w.db.pool.query('select distinct provider_name from scans where provider_id = $1 order by 1', [ids.A])).rows.map((r) => r.provider_name)
+    expect(stored).toEqual(['Acme Cleaners' + OLD_SEPARATOR + 'Dana', 'Dana (Acme Cleaners)'])
+    expect([...seen(every.filter((s) => s.provider_id === ids.A), 'provider_name')]).toEqual(['Dana (Acme Cleaners)'])
     expect([...seen(every, 'point_name')].filter((n) => n.startsWith('Atrium')).sort()).toEqual(['Atrium', 'Atrium North'])
     expect(every.some((s) => s.point_id === ids.courtyard)).toBe(true) // the point is deleted
     expect((await w.agent('/points')).json.points.some((p) => p.id === ids.courtyard)).toBe(false)
@@ -340,7 +348,10 @@ describe('GET /counts: the counts add up to the scans list', () => {
     const names = (id, field) => new Set(r.counts.filter((row) => row[field.replace('_name', '_id')] === id).map((row) => row[field]))
     expect(names(ids.C, 'provider_name')).toEqual(new Set(['Cobalt Painters Ltd']))
     expect(names(ids.atrium, 'point_name')).toEqual(new Set(['Atrium North']))
-    expect(names(ids.A, 'provider_name')).toEqual(new Set(['Acme Cleaners ' + DASH + ' Dana']))
+    expect(names(ids.A, 'provider_name')).toEqual(new Set(['Dana (Acme Cleaners)'])) // stored in two forms, one name
+    // Only the visits stored in the older form selected: the name is in today's form all the same.
+    const old = (await w.counts('from=2026-08-03&to=2026-08-31&outcome=all&group_by=provider')).json
+    expect(old.counts.filter((row) => row.provider_id === ids.A).map((row) => row.provider_name)).toEqual(['Dana (Acme Cleaners)'])
     // Only the early visits selected: the newest of THEM has the old name.
     const early = (await w.counts('from=2026-08-03&to=2026-08-31&outcome=all&group_by=day,provider,point')).json
     expect(new Set(early.counts.filter((row) => row.provider_id === ids.C).map((row) => row.provider_name))).toEqual(new Set(['Cobalt Painters']))
@@ -351,8 +362,9 @@ describe('GET /counts: the counts add up to the scans list', () => {
     expect(gone.count).toBeGreaterThan(0)
     // One provider is one group however many names it had: two rows would be two groups.
     const providers = (await w.counts(`${RANGE}&${ALL}&group_by=provider`)).json.counts
-    expect(providers.map((row) => row.provider_name)).toEqual(['Acme Cleaners ' + DASH + ' Dana', 'Bright Gardeners', 'Cobalt Painters Ltd', 'Demo Account'])
-    expect(providers.map((row) => row.provider_id)).toEqual([ids.A, ids.B, ids.C, ids.D])
+    // Ordered by the name in today's form ("Dana (Acme Cleaners)"), not by the stored text (which began with "Acme").
+    expect(providers.map((row) => row.provider_name)).toEqual(['Bright Gardeners', 'Cobalt Painters Ltd', 'Dana (Acme Cleaners)', 'Demo Account'])
+    expect(providers.map((row) => row.provider_id)).toEqual([ids.B, ids.C, ids.A, ids.D])
   })
 
   it('the defaults of /scans hold here: accepted only, voided and demo hidden, and each switch brings them back', async () => {

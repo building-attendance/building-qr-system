@@ -41,7 +41,7 @@ import {
 
 const KEYS = ['id', 'at', 'scan_id', 'source', 'code', 'provider_id', 'provider_name', 'point_id', 'point_name', 'client_time']
 const ISO = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/
-const DASH = '–' // the separator of "company - contact" in a snapshot of a provider's name
+const NAME_A = 'Fake Person (Fake Cleaners)' // the snapshot of the name of provider A, as the server writes it (shared/providerName.js)
 const HOUR = 3600 * 1000
 const IP = '10.77.88.99'
 const LABEL = 'Mozilla/5.0 (Fake; Phone-Marker-9314) FakeBrowser/1.0'
@@ -158,7 +158,7 @@ beforeAll(async () => {
   world.itemDevice = world.phoneA.deviceId
   await addRow({
     scanId: world.itemId, source: SOURCE_OFFLINE_SYNC, code: SCAN_ERROR_INVALID_ITEM, providerId: world.a.id,
-    providerName: `Fake Cleaners ${DASH} Fake Person`, deviceId: world.itemDevice, pointId: world.open.id, pointName: world.open.name, clientTime: T,
+    providerName: NAME_A, deviceId: world.itemDevice, pointId: world.open.id, pointName: world.open.name, clientTime: T,
   })
   note(SCAN_ERROR_INVALID_ITEM, SOURCE_OFFLINE_SYNC, world.itemId, world.open, { client_time: T })
 }, 120_000)
@@ -252,7 +252,7 @@ describe('GET /api/agent/v1/refusals: the answer', () => {
         source: want.source,
         code,
         provider_id: world.a.id,
-        provider_name: `Fake Cleaners ${DASH} Fake Person`,
+        provider_name: NAME_A,
         point_id: want.point ? want.point.id : null,
         point_name: want.point ? want.point.name : null,
         client_time: want.client_time ?? null,
@@ -454,7 +454,7 @@ describe('a refusal is not attendance', () => {
   it('is in no list of scans: adding one changes neither /scans nor /providers, and no refusal is a scan (but the id of a conflict)', async () => {
     const [scansBefore, providersBefore, pointsBefore] = [await agent(`/scans?${FULL}`), await agent('/providers'), await agent('/points')]
     expect(scansBefore.json.scans.length).toBeGreaterThan(0)
-    await addRow({ providerId: world.a.id, providerName: `Fake Cleaners ${DASH} Fake Person`, pointId: world.open.id, pointName: world.open.name, scanId: randomUUID() })
+    await addRow({ providerId: world.a.id, providerName: NAME_A, pointId: world.open.id, pointName: world.open.name, scanId: randomUUID() })
     expect((await agent(`/scans?${FULL}`)).json).toEqual(scansBefore.json)
     expect((await agent('/providers')).json).toEqual(providersBefore.json)
     expect((await agent('/points')).json).toEqual(pointsBefore.json)
