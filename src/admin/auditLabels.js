@@ -8,10 +8,10 @@ import { GPS_MODE_REQUIRED, GPS_MODE_OPTIONAL, GPS_MODE_NONE } from '../../share
 
 /** What was done, as a short phrase. */
 export const ACTION_LABELS = Object.freeze({
-  'admin.add': 'הוספת חבר ועד',
-  'admin.enable': 'הפעלת חבר ועד',
-  'admin.disable': 'השבתת חבר ועד',
-  'admin.delete': 'מחיקת חבר ועד',
+  'admin.add': 'הוספת מנהל מערכת',
+  'admin.enable': 'הפעלת מנהל מערכת',
+  'admin.disable': 'השבתת מנהל מערכת',
+  'admin.delete': 'מחיקת מנהל מערכת',
   'building.update': 'עדכון פרטי הבניין',
   'point.create': 'יצירת נקודה',
   'point.update': 'עדכון נקודה',
@@ -38,7 +38,7 @@ export const ACTION_LABELS = Object.freeze({
  */
 export const GROUP_OPTIONS = Object.freeze([
   { value: '', label: 'הכל' },
-  { value: 'admin', label: 'חברי ועד' },
+  { value: 'admin', label: 'מנהלי מערכת' },
   { value: 'building', label: 'פרטי הבניין' },
   { value: 'point', label: 'נקודות' },
   { value: 'provider', label: 'נותני שירות' },
@@ -91,7 +91,7 @@ export const RETENTION_LABELS = Object.freeze({
 /** Who, when it is not a committee member. */
 export const SYSTEM_ACTOR = 'המערכת'
 export const SCRIPT_ACTOR = 'סקריפט התקנה'
-export const UNKNOWN_ACTOR = 'חבר ועד'
+export const UNKNOWN_ACTOR = 'מנהל מערכת'
 export const DELETED_ACTOR_MARK = '(נמחק)'
 export const EMPTY_VALUE = 'ריק'
 export const YES = 'כן'

@@ -39,7 +39,7 @@ export default function AccountMenu({ admin, onSignOut, where }) {
   const groupName = useId()
   const { theme, setTheme } = useTheme()
   const rail = where === 'rail'
-  const name = admin.name || 'חבר ועד'
+  const name = admin.name || 'מנהל מערכת'
 
   /** Closes the popover; `refocus` gives the focus back to the button. */
   const hide = (refocus) => {

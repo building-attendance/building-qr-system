@@ -672,12 +672,12 @@ describe('the committee member form', () => {
       throw new Error(`the test does not expect ${path}`)
     })
     render(<ToastProvider><ConfirmProvider><SettingsView admin={{ id: 'a1', name: 'Dana', email: 'dana@example.test' }} /></ConfirmProvider></ToastProvider>)
-    fireEvent.click((await screen.findAllByRole('button', { name: 'חבר ועד חדש' }, WAIT))[0])
+    fireEvent.click((await screen.findAllByRole('button', { name: 'מנהל מערכת חדש' }, WAIT))[0])
     esc()
     expect(screen.queryByRole('dialog'), 'untouched: closed at once').toBeNull()
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'חבר ועד חדש' })[0])
-    expectItAsksBeforeLosingWhatWasTyped('חבר ועד חדש', 'כתובת Gmail', 'member@example.test')
+    fireEvent.click(screen.getAllByRole('button', { name: 'מנהל מערכת חדש' })[0])
+    expectItAsksBeforeLosingWhatWasTyped('מנהל מערכת חדש', 'כתובת Gmail', 'member@example.test')
   })
 })
 

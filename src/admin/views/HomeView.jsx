@@ -193,7 +193,7 @@ function Tiles({ days, counts }) {
 function Shortcuts({ counts }) {
   return (
     <ul className="a-links">
-      <li><a className="a-links__row" href="#settings"><span className="a-links__label">חברי הוועד</span><span className="a-links__n">{counts.committee_members.active}</span><IconChevron className="w-flip" size={18} /></a></li>
+      <li><a className="a-links__row" href="#settings"><span className="a-links__label">מנהלי המערכת</span><span className="a-links__n">{counts.committee_members.active}</span><IconChevron className="w-flip" size={18} /></a></li>
       <li><a className="a-links__row" href="#agent"><span className="a-links__label">מפתחות אייג'נט פעילים</span><span className="a-links__n">{counts.agent_keys.active}</span><IconChevron className="w-flip" size={18} /></a></li>
     </ul>
   )

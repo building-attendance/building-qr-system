@@ -50,7 +50,7 @@ describe('the button', () => {
     expect(button().querySelector('[dir="ltr"]')?.textContent).toBe('dana@example.test') // the e-mail keeps its order inside the right-to-left page
   })
 
-  it('takes the first letter of the name, or of the e-mail when there is no name, and says "חבר ועד" for a member with neither name', () => {
+  it('takes the first letter of the name, or of the e-mail when there is no name, and says "מנהל מערכת" for a member with neither name', () => {
     const { unmount } = show({ admin: { name: '', email: 'zoe@example.test' } })
     expect(button().textContent).toBe('Z')
     unmount()
@@ -58,7 +58,7 @@ describe('the button', () => {
     expect(button().textContent).toBe('ד')
     cleanup()
     show({ admin: { name: '', email: 'x@example.test' }, where: 'rail' })
-    expect(button().textContent).toContain('חבר ועד')
+    expect(button().textContent).toContain('מנהל מערכת')
   })
 
   it('opens the popover, which is a dialog that is not modal, and says which one it controls', () => {

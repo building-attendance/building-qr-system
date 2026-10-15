@@ -86,7 +86,7 @@ export default function LoginScreen({ config, onSignedIn }) {
         <h1 className="w-h1">ניהול נוכחות הבניין</h1>
         {/* the building's own name, typed by the committee in any language: no line at all when there is none */}
         {buildingName && <p className="a-login__building" dir="auto">{buildingName}</p>}
-        <p className="w-lead">כניסה לוועד הבית בלבד. היכנסו עם חשבון Google שהוגדר ברשימת הוועד.</p>
+        <p className="w-lead">הכניסה למנהלי המערכת בלבד. היכנסו עם חשבון Google שהוגדר ברשימת מנהלי המערכת.</p>
 
         <div className="a-login__google">
           <div ref={buttonBox} aria-busy={google === 'loading'} />

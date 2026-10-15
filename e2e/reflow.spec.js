@@ -616,8 +616,8 @@ test.describe('F5 input font size on a phone', () => {
 
     await openTab(page, 'settings')
     await checkFields(page, 'committee: settings (the building card)')
-    await page.getByRole('button', { name: 'חבר ועד חדש' }).click()
-    await closeAfter('חבר ועד חדש', 'committee: new member form')
+    await page.getByRole('button', { name: 'מנהל מערכת חדש' }).click()
+    await closeAfter('מנהל מערכת חדש', 'committee: new member form')
     await openTab(page, 'audit')
     await expect(page.getByRole('main').getByRole('listitem').first()).toBeVisible()
     const auditFilters = await openFilters(page)
