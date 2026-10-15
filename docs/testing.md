@@ -94,8 +94,9 @@ writes there is not a baseline, so delete it and never commit it.
 map's tiles are one fixed picture, the committee screens start from a known state (`prepareCommittee`), and everything that
 depends on the real date, the real time or the build is masked (the pink boxes): every date and time, the date fields of
 the History tab, the build label, and the codes of the Agent tab. A new screen with a date or a time on it needs no mask of
-its own (the text pattern finds it); a new kind of changing text does, in `dynamicRegions`. Keep each image under about
-150 KB.
+its own (the text pattern finds it); a new kind of changing text does, in `dynamicRegions`. The one exception is the filters
+sheet at 360 px, whose two date fields in one row are what its picture is for: it is taken with the clock at `HOME_NOW`, so
+its dates cannot change, and with `datesFixed`, which leaves them unmasked. Keep each image under about 150 KB.
 
 **How strict it is.** A pixel counts as different only when its colour moved further than `PIXEL_THRESHOLD` in the spec (a
 YIQ distance, from 0 for any change to about 0.97 for black against white), a pixel that pixelmatch takes for the

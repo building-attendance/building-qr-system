@@ -96,13 +96,13 @@ const PIXEL_THRESHOLD = 0.01
  *     provider's dialog has the same class, and its look is what the picture is for.)
  * `scope` is where to look: the page, or one dialog. A picture of a dialog that has a screen behind it looks inside the dialog only,
  * because a box over something that the dialog covers would be drawn on the picture (the date fields of the filters' sheet are
- * the dates that the History tab behind it also shows).
+ * the dates that the History tab behind it also shows). `datesFixed` leaves the dates and the date fields in the picture: only for a
+ * screen whose clock is fixed at HOME_NOW and whose dates are the fixed list of `stubHistory`, so that no date in it changes from one run
+ * to the next (the date fields of the filters' sheet on a phone, whose look is what that picture is for).
  */
-function dynamicRegions(page, scope = page) {
+function dynamicRegions(page, scope = page, { datesFixed = false } = {}) {
   return [
-    scope.getByText(/\d{2}:\d{2}|\d{2}\/\d{2}\/\d{4}/),
-    scope.getByLabel('מתאריך'),
-    scope.getByLabel('עד תאריך'),
+    ...(datesFixed ? [] : [scope.getByText(/\d{2}:\d{2}|\d{2}\/\d{2}\/\d{4}/), scope.getByLabel('מתאריך'), scope.getByLabel('עד תאריך')]),
     scope.locator('.w-build, .a-build'),
     scope.locator('.a-facts .a-code, p .a-code, pre.a-code'),
   ]
@@ -118,9 +118,9 @@ function dynamicRegions(page, scope = page) {
  * app on a phone) at the bottom of the picture, where Playwright's own full-page picture would put it in the middle. A dialog is
  * taken as it opens (`whole: false`): the screen that a person sees. `within` is a dialog (a locator): only what is inside it is masked, plus
  * what `alsoMask` lists (locators of what the dialog does not cover and that still changes with the date: a box is drawn over what the dialog
- * covers as well, so only what is in view is named).
+ * covers as well, so only what is in view is named). `datesFixed` is for a screen whose dates cannot change (see `dynamicRegions`).
  */
-async function shot(page, name, { whole = true, within = page, alsoMask = [] } = {}) {
+async function shot(page, name, { whole = true, within = page, alsoMask = [], datesFixed = false } = {}) {
   const viewport = page.viewportSize()
   if (whole) {
     const height = await page.evaluate(() => document.documentElement.scrollHeight)
@@ -130,7 +130,7 @@ async function shot(page, name, { whole = true, within = page, alsoMask = [] } =
     await pageSettled(page) // every request of the screen has been answered, and drawn
     await page.evaluate(() => document.fonts.ready)
     await expect.soft(page).toHaveScreenshot(`${name}.png`, {
-      mask: [...dynamicRegions(page, within), ...alsoMask],
+      mask: [...dynamicRegions(page, within, { datesFixed }), ...alsoMask],
       animations: 'disabled',
       caret: 'hide',
       scale: 'css',
@@ -476,7 +476,10 @@ function committeeScreens(width) {
  */
 function committeeFilters(width) {
   test(width === '360' ? 'the filters sheet and the bar with filters on' : 'the filters sheet', async ({ page }) => {
-    await stopClock(page)
+    // At 360 px the clock is HOME_NOW (12/10/2026), so that the two date fields in one row (owner decision of 15/10/2026) are in the
+    // picture with their dates, the default week from 06/10/2026 to 12/10/2026, and not under a mask.
+    if (width === '360') await page.clock.setFixedTime(new Date(HOME_NOW))
+    else await stopClock(page)
     await stubHistory(page)
     await committeeSignedIn(page) // the history
     await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
@@ -485,7 +488,7 @@ function committeeFilters(width) {
     await expect(sheet).toBeVisible()
     // At 768 px the bar of the History tab is in view above the sheet, and its dates (the week up to today) change from one day to the next.
     const range = width === '360' ? [] : [page.getByText(/\d{2}\/\d{2}\/\d{4} עד \d{2}\/\d{2}\/\d{4}/)]
-    await shotBothThemes(page, `committee-${width}-history-filters-sheet`, { whole: false, within: sheet, alsoMask: range })
+    await shotBothThemes(page, `committee-${width}-history-filters-sheet`, { whole: false, within: sheet, alsoMask: range, datesFixed: width === '360' })
     if (width !== '360') return
 
     await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
