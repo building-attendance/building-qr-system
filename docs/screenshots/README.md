@@ -14,16 +14,16 @@ end-to-end tests use.
 
 | Image | What it shows |
 |---|---|
-| `provider-phone-sign-in.png` | The provider app on a phone: a scan link opens the list of accounts to pick from |
+| `provider-phone-sign-in.png` | The provider app on a phone: a scan link opens the list of accounts to pick from ("choose your account"), with the note on what a scan records |
 | `provider-phone-check-in.png` | The same app after signing in: the check-in is recorded |
 | `provider-phone-saved-offline.png` | The same app with no network: the visit is kept on the phone and is sent by itself later |
 | `committee-phone-home.png` | The committee app on a phone: the Home screen, the summary card of the week (the screen that opens first) |
-| `committee-phone-points.png` | The committee app on a phone: the Points tab |
-| `committee-phone-history.png` | The committee app on a phone: the History tab, scrolled to the visits |
+| `committee-phone-points.png` | The committee app on a phone: the Points tab, each card with one button of three dots, the "more" button (the edit action is the first item of its menu) |
+| `committee-phone-history.png` | The committee app on a phone: the History tab, scrolled to the visits (on a phone the filters are behind a filter button, above the first day) |
 | `committee-computer-home.png` | The committee app on a computer (1280 px wide): the Home screen with the side rail |
 | `committee-computer-points.png` | The same, the Points tab |
-| `committee-computer-history.png` | The same, the History tab |
-| `committee-computer-help.png` | The same, the help screen ("How to work with the system") |
+| `committee-computer-history.png` | The same, the History tab, with the date filters (each date has a calendar button) |
+| `committee-computer-help.png` | The same, the help screen ("How to work with the system"), its topics in two flowing columns |
 | `committee-computer-points-dark.png` | The same, the Points tab in the dark theme |
 
 Phone pictures are 390 px wide, drawn at twice the density. Every image is a PNG of at most 300 KB (the script refuses a bigger
