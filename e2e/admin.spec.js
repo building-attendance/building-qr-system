@@ -819,6 +819,37 @@ const near = (values, within, what) => {
   expect(Math.max(...values) - Math.min(...values), `${what}: ${values.map((v) => v.toFixed(1)).join(', ')}`).toBeLessThanOrEqual(within)
 }
 
+// Settings (owner decision of 15/10/2026): the members and the building details stand in two columns from 1200px, the members at the start
+// (the right in Hebrew) with a third of the width and the building at the end with two thirds, both from the same top. Up to 1199px they are
+// stacked as on a phone, the members first. The split does not start at 1024px because a third is 203px there and a member card gets 61px.
+test('Settings: the members and the building details are stacked up to 1199px, and from 1200px they stand in two columns, a third and two thirds', async ({ page }) => {
+  await adminSignIn(page, 'settings')
+  await loaded(page, 'הגדרות')
+  const sections = async () => {
+    const members = await page.getByRole('region', { name: 'חברי הוועד', exact: true }).boundingBox()
+    const building = await page.getByRole('region', { name: 'פרטי הבניין', exact: true }).boundingBox()
+    return { members, building }
+  }
+  for (const width of [1024, 1199]) {
+    await page.setViewportSize({ width, height: 800 })
+    const { members, building } = await sections()
+    const at = `at ${width}px`
+    expect(Math.abs(members.x - building.x), `${at}: the sections start at the same edge`).toBeLessThanOrEqual(1)
+    expect(Math.abs(members.width - building.width), `${at}: and have the same width`).toBeLessThanOrEqual(1)
+    expect(building.y, `${at}: the building is under the members`).toBeGreaterThanOrEqual(members.y + members.height - 1)
+    expect(await noHorizontalScroll(page), `${at}: no sideways scroll`).toBe(true)
+  }
+  for (const width of [1200, 1280]) {
+    await page.setViewportSize({ width, height: 800 })
+    const { members, building } = await sections()
+    const at = `at ${width}px`
+    expect(Math.abs(members.y - building.y), `${at}: both columns start at the same height`).toBeLessThanOrEqual(1)
+    expect(building.x + building.width, `${at}: the building is at the end (the left in Hebrew), beside the members`).toBeLessThanOrEqual(members.x)
+    expect(Math.abs(building.width - 2 * members.width), `${at}: the members have a third and the building two thirds`).toBeLessThanOrEqual(2)
+    expect(await noHorizontalScroll(page), `${at}: no sideways scroll`).toBe(true)
+  }
+})
+
 test('every tile shows one "more" button, and its menu holds every action in the same order on every screen, edit first and the red delete last', async ({ page, playwright }) => {
   await adminSignIn(page)
   const tag = randomUUID().slice(0, 6)
@@ -927,11 +958,18 @@ test('every tile shows one "more" button, and its menu holds every action in the
     expect(historySeen.restore, 'some visits can be restored').toBeGreaterThan(0)
     expect(historySeen.deleteOnly, 'and some rows have the delete alone').toBeGreaterThan(0)
 
-    // committee cards are all the same height, also the one that has no menu
+    // committee cards are all the same height, also the one that has no menu. On a computer the members are one third of the width, so a
+    // long e-mail wraps there by its own length (a card with a longer address is taller, by design): the structure is what is measured,
+    // with the same short words in every card, so that only the menu (or its absence) could make one card taller than another.
     await page.goto('/admin#settings')
     await loaded(page, 'הגדרות')
-    const heights = await Promise.all((await page.getByRole('article').all()).map(async (a) => (await a.boundingBox()).height))
-    expect(heights.length, 'your own card and the other member').toBeGreaterThan(1)
+    const cards = await page.getByRole('article').all()
+    expect(cards.length, 'your own card and the other member').toBeGreaterThan(1)
+    const heights = await Promise.all(cards.map((a) => a.evaluate((card) => {
+      card.querySelector('.a-card__title').textContent = 'x'
+      card.querySelector('.a-card__sub').textContent = 'x@y.z'
+      return card.getBoundingClientRect().height
+    })))
     near(heights, 1, 'settings: every member card is the same height, also the one with no menu')
   } finally {
     await phone.dispose()

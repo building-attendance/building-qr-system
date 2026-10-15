@@ -33,7 +33,8 @@ const fieldsOf = (building) => ({ address: building?.address ?? '', name: buildi
  * The building's name and address: shown at the top of the service providers' app (the name above the address) and, the name, in the
  * committee app too. Both are kept in the database of this committee and either can stay empty (the apps then show nothing for it).
  * One form and one save button for the two, so there are no row actions here (and the card is not an <article>: the committee
- * members' cards are). A save tells the committee app the name that the server now has, so its brand follows with no reload.
+ * members' cards are). The heading of the section, with its line, stands above the card like the members' one, so the card holds
+ * the fields alone. A save tells the committee app the name that the server now has, so its brand follows with no reload.
  */
 function BuildingCard() {
   const titleId = useId()
@@ -98,34 +99,42 @@ function BuildingCard() {
   }
 
   return (
-    <section className="a-card a-card--form" aria-labelledby={titleId}>
-      <h2 className="a-card__title" id={titleId}>פרטי הבניין</h2>
-      {loaded.status === 'loading' && <Spinner />}
-      {loaded.status === 'error' && !loaded.data && (
-        <>
-          <p className="w-error" role="alert"><IconAlert size={18} />לא הצלחנו לטעון את פרטי הבניין.</p>
-          <div className="a-actions"><button type="button" className="w-btn w-btn--small w-btn--quiet" onClick={loaded.reload}>נסו שוב</button></div>
-        </>
-      )}
-      {loaded.data && (
-        <form className="a-form" onSubmit={submit} noValidate>
-          <Field label="שם הבניין" error={errors.name}
-            hint="השם מופיע בראש שתי האפליקציות, מעל הכתובת. בלי שם, הכותרת בוועד היא נוכחות בבניין.">
-            {/* dir="auto": the name is typed in any language, and each one should read the right way round */}
-            <input className="a-input" dir="auto" value={nameText} maxLength={BUILDING_NAME_MAX_LENGTH} autoComplete="off"
-              onChange={(e) => { setNameText(e.target.value); setErrors((r) => ({ ...r, name: '' })) }} />
-          </Field>
-          <Field label="כתובת הבניין" error={errors.address}
-            hint="הכתובת מופיעה בראש האפליקציה של נותני השירות, בדרך כלל תוך דקה מהשמירה. אפשר להשאיר ריק, ואז לא תוצג כתובת.">
-            {/* dir="auto": the address is typed in any language, and each one should read the right way round */}
-            <input className="a-input" dir="auto" value={addressText} maxLength={ADDRESS_MAX_LENGTH} autoComplete="off"
-              onChange={(e) => { setAddressText(e.target.value); setErrors((r) => ({ ...r, address: '' })) }} />
-          </Field>
-          <div className="a-actions">
-            <button type="submit" className="w-btn w-btn--small" disabled={busy || !changed}>{busy ? 'שומר…' : 'שמירה'}</button>
-          </div>
-        </form>
-      )}
+    <section aria-labelledby={titleId}>
+      {/* The heading of the section is the same as the members' (a section heading with its line under it), outside the card. */}
+      <div className="a-head a-head--section">
+        <div>
+          <h2 id={titleId}>פרטי הבניין</h2>
+          <p>השם והכתובת שמופיעים בראש שתי האפליקציות.</p>
+        </div>
+      </div>
+      <div className="a-card a-card--form">
+        {loaded.status === 'loading' && <Spinner />}
+        {loaded.status === 'error' && !loaded.data && (
+          <>
+            <p className="w-error" role="alert"><IconAlert size={18} />לא הצלחנו לטעון את פרטי הבניין.</p>
+            <div className="a-actions"><button type="button" className="w-btn w-btn--small w-btn--quiet" onClick={loaded.reload}>נסו שוב</button></div>
+          </>
+        )}
+        {loaded.data && (
+          <form className="a-form" onSubmit={submit} noValidate>
+            <Field label="שם הבניין" error={errors.name}
+              hint="השם מופיע בראש שתי האפליקציות, מעל הכתובת. בלי שם, הכותרת בוועד היא נוכחות בבניין.">
+              {/* dir="auto": the name is typed in any language, and each one should read the right way round */}
+              <input className="a-input" dir="auto" value={nameText} maxLength={BUILDING_NAME_MAX_LENGTH} autoComplete="off"
+                onChange={(e) => { setNameText(e.target.value); setErrors((r) => ({ ...r, name: '' })) }} />
+            </Field>
+            <Field label="כתובת הבניין" error={errors.address}
+              hint="הכתובת מופיעה בראש האפליקציה של נותני השירות, בדרך כלל תוך דקה מהשמירה. אפשר להשאיר ריק, ואז לא תוצג כתובת.">
+              {/* dir="auto": the address is typed in any language, and each one should read the right way round */}
+              <input className="a-input" dir="auto" value={addressText} maxLength={ADDRESS_MAX_LENGTH} autoComplete="off"
+                onChange={(e) => { setAddressText(e.target.value); setErrors((r) => ({ ...r, address: '' })) }} />
+            </Field>
+            <div className="a-actions">
+              <button type="submit" className="w-btn w-btn--small" disabled={busy || !changed}>{busy ? 'שומר…' : 'שמירה'}</button>
+            </div>
+          </form>
+        )}
+      </div>
     </section>
   )
 }
@@ -208,59 +217,62 @@ export default function SettingsView({ admin }) {
         </div>
       </div>
 
-      <section aria-labelledby={membersId}>
-        <div className="a-head a-head--section a-head--add">
-          <div>
-            <h2 id={membersId}>חברי הוועד</h2>
-            <p>מי רשאי להיכנס לניהול. הכניסה תמיד עם חשבון Google.</p>
+      {/* Two columns from 1024px (the members at the start, the building at the end), one under the other below it, the members first. */}
+      <div className="a-settings">
+        <section aria-labelledby={membersId}>
+          <div className="a-head a-head--section a-head--add">
+            <div>
+              <h2 id={membersId}>חברי הוועד</h2>
+              <p>מי רשאי להיכנס לניהול. הכניסה תמיד עם חשבון Google.</p>
+            </div>
+            <div className="a-actions"><AddButton label="חבר ועד חדש" onClick={() => setAdding(true)} /></div>
           </div>
-          <div className="a-actions"><AddButton label="חבר ועד חדש" onClick={() => setAdding(true)} /></div>
-        </div>
 
-        {admins.status === 'loading' && <Spinner />}
-        {admins.status === 'error' && !admins.data && (
-          <EmptyState icon={IconAlert} title="לא הצלחנו לטעון" action={<button className="w-btn w-btn--small" onClick={admins.reload}>נסו שוב</button>} />
-        )}
-        {admins.status === 'ready' && list.length === 0 && <EmptyState icon={IconShield} title="הרשימה ריקה" />}
+          {admins.status === 'loading' && <Spinner />}
+          {admins.status === 'error' && !admins.data && (
+            <EmptyState icon={IconAlert} title="לא הצלחנו לטעון" action={<button className="w-btn w-btn--small" onClick={admins.reload}>נסו שוב</button>} />
+          )}
+          {admins.status === 'ready' && list.length === 0 && <EmptyState icon={IconShield} title="הרשימה ריקה" />}
 
-        <div className="a-grid">
-          {list.map((a) => {
-            const me = a.id === admin.id
-            const name = a.name || 'חבר ועד'
-            return (
-              <article key={a.id} className={`a-card${a.is_active ? '' : ' is-off'}`}>
-                <div className="a-card__top">
-                  <div className="a-card__id">
-                    {/* the member's Google photo, or the initial (the same face as the account circle) */}
-                    <span className="a-card__icon a-card__icon--round" aria-hidden="true"><MemberFace member={a} lazy /></span>
-                    <div>
-                      <h3 className="a-card__title">{name}{me && ' (אתם)'}</h3>
-                      {/* an address reads left to right, but it lines up with the title like the other cards' second line */}
-                      <p className="a-card__sub"><bdi dir="ltr">{a.email}</bdi></p>
+          <div className="a-grid">
+            {list.map((a) => {
+              const me = a.id === admin.id
+              const name = a.name || 'חבר ועד'
+              return (
+                <article key={a.id} className={`a-card${a.is_active ? '' : ' is-off'}`}>
+                  <div className="a-card__top">
+                    <div className="a-card__id">
+                      {/* the member's Google photo, or the initial (the same face as the account circle) */}
+                      <span className="a-card__icon a-card__icon--round" aria-hidden="true"><MemberFace member={a} lazy /></span>
+                      <div>
+                        <h3 className="a-card__title">{name}{me && ' (אתם)'}</h3>
+                        {/* an address reads left to right, but it lines up with the title like the other cards' second line */}
+                        <p className="a-card__sub"><bdi dir="ltr">{a.email}</bdi></p>
+                      </div>
                     </div>
+                    {/* your own card has no menu: you cannot remove or delete yourself */}
+                    {!me && (
+                      <div className="a-card__tools">
+                        <Menu
+                          label={`עוד פעולות ל${a.name || a.email}`}
+                          items={[
+                            { label: a.is_active ? 'הסרת גישה' : 'החזרת גישה', icon: a.is_active ? IconBan : IconCheck, disabled: busy, onSelect: () => toggle(a) },
+                            { label: 'מחיקה מהוועד', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deleteMember(a) },
+                          ]}
+                        />
+                      </div>
+                    )}
                   </div>
-                  {/* your own card has no menu: you cannot remove or delete yourself */}
-                  {!me && (
-                    <div className="a-card__tools">
-                      <Menu
-                        label={`עוד פעולות ל${a.name || a.email}`}
-                        items={[
-                          { label: a.is_active ? 'הסרת גישה' : 'החזרת גישה', icon: a.is_active ? IconBan : IconCheck, disabled: busy, onSelect: () => toggle(a) },
-                          { label: 'מחיקה מהוועד', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deleteMember(a) },
-                        ]}
-                      />
-                    </div>
-                  )}
-                </div>
-                <div className="a-meta"><Badge tone={a.is_active ? 'ok' : 'neutral'}>{a.is_active ? 'פעיל' : 'הוסר'}</Badge></div>
-                <dl className="a-facts a-facts--tiles"><div><dt>כניסה אחרונה</dt><dd>{a.last_login_at ? formatDateTime(a.last_login_at) : 'עוד לא נכנס'}</dd></div></dl>
-              </article>
-            )
-          })}
-        </div>
-      </section>
+                  <div className="a-meta"><Badge tone={a.is_active ? 'ok' : 'neutral'}>{a.is_active ? 'פעיל' : 'הוסר'}</Badge></div>
+                  <dl className="a-facts a-facts--tiles"><div><dt>כניסה אחרונה</dt><dd>{a.last_login_at ? formatDateTime(a.last_login_at) : 'עוד לא נכנס'}</dd></div></dl>
+                </article>
+              )
+            })}
+          </div>
+        </section>
 
-      <BuildingCard />
+        <BuildingCard />
+      </div>
 
       {/* Which build this computer or phone runs: the end of the settings, the one place that both layouts reach (the tab bar and the side rail). */}
       <BuildLabel label="גרסה" className="a-build" />
