@@ -80,9 +80,9 @@ each in the light and the dark theme:
 - the filters of the History tab below 1024 px: the sheet that its filter button opens (with the defaults), at 360 px and at 768 px, where it
   stays at the bottom of the screen like the sheet under "More", and, at 360 px only, the tab with filters on, which has a chip for each
   (from 1024 px the filters are the block above the list, which the picture of the tab shows);
-- the date picker, open, with the clock fixed at `HOME_NOW` so that the month, today and the default week are always the same: the
-  calendar of the first date field of the History tab, a sheet over the sheet of filters at 360 px and a popover beside its field at
-  1280 px.
+- the date picker, open, with the clock fixed at `HOME_NOW` so that the month, today and the default week are always the same, for the
+  first date field of the History tab: at 360 px the wheels of a phone (the year, the month and the day), a sheet over the sheet of
+  filters, and at 1280 px the calendar, a popover beside its field.
 
 **It runs in CI only.** The baselines are made on the Linux runner, in Chromium (the `android-chrome` project): another
 system draws text a little differently, so a baseline from a laptop would never match. On anything else (WebKit, Windows,
@@ -94,8 +94,9 @@ writes there is not a baseline, so delete it and never commit it.
 map's tiles are one fixed picture, the committee screens start from a known state (`prepareCommittee`), and everything that
 depends on the real date, the real time or the build is masked (the pink boxes): every date and time, the date fields of
 the History tab, the build label, and the codes of the Agent tab. A new screen with a date or a time on it needs no mask of
-its own (the text pattern finds it); a new kind of changing text does, in `dynamicRegions`. Keep each image under about
-150 KB.
+its own (the text pattern finds it); a new kind of changing text does, in `dynamicRegions`. The one exception is the filters
+sheet at 360 px, whose two date fields in one row are what its picture is for: it is taken with the clock at `HOME_NOW`, so
+its dates cannot change, and with `datesFixed`, which leaves them unmasked. Keep each image under about 150 KB.
 
 **How strict it is.** A pixel counts as different only when its colour moved further than `PIXEL_THRESHOLD` in the spec (a
 YIQ distance, from 0 for any change to about 0.97 for black against white), a pixel that pixelmatch takes for the

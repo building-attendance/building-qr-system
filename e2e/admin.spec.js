@@ -3,12 +3,14 @@ import { randomUUID } from 'node:crypto'
 import {
   test, expect, he, PEOPLE, POINTS, FAR, SAMPLE_POINT, SCREEN_TITLES, SCREEN_NAV, BAR_SCREENS, adminSignIn, openScreen, clearScans, allowConsoleErrors,
   changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS, HOME_NOW, ADMIN_EMAIL, accountButton, openAccountMenu, signOut,
-  moreButton, openTileMenu, chooseFromMenu,
+  moreButton, openTileMenu, chooseFromMenu, setDate, expectDate, hasDateWheels,
 } from './fixtures.js'
 import { SCAN_ERROR_POINT_INACTIVE, NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH } from '../shared/contract.js'
 import { formatDateTime, formatDay } from '../shared/datetime.js'
 
 const COMPUTER = { width: 1280, height: 800 }
+// A tablet held upright: the filters are in a sheet (below 1024 px), and its dates take typing (from 640 px; below it, the wheels).
+const TABLET = { width: 768, height: 1024 }
 // Each screen and the heading of its page (every view renders its own h1 above its content), in the order of the side rail
 const TABS = Object.entries(SCREEN_TITLES)
 
@@ -1564,12 +1566,8 @@ test('History lists the visits that were not counted, with no action on them, on
 
     // a stretch of time with none of them: the empty state, and the filter can go back to the scans (and their file)
     await changeFilters(page, async (filters) => {
-      const from = filters.getByLabel('מתאריך')
-      const until = filters.getByLabel('עד תאריך')
-      await from.fill('')
-      await from.pressSequentially('01012020')
-      await until.fill('')
-      await until.pressSequentially('02012020')
+      await setDate(filters, 'מתאריך', '01/01/2020') // on a phone, with the wheels
+      await setDate(filters, 'עד תאריך', '02/01/2020')
     })
     await expect(page.getByRole('heading', { level: 2, name: 'אין ביקורים שלא נקלטו בטווח הזה' })).toBeVisible()
     await changeFilters(page, (filters) => filters.getByLabel('סוג').selectOption({ label: 'נוכחויות שנרשמו' }))
@@ -1730,10 +1728,11 @@ test.describe('dates on the committee screens', () => {
       await expect(keyCard.locator('dd').nth(1)).toHaveText(DAY_TIME) // "created"
       await noOtherFormat('agent keys')
 
-      // history, on a phone and on a computer: the two date fields, the heading of the day, the time of the visit, and the confirmation.
-      // The date fields are above the list on a computer and in the sheet that the filter button opens on a phone, so there the sheet is
-      // opened to look at them and closed again before the rows are touched (it covers them).
-      for (const size of [null, COMPUTER]) {
+      // history, on a phone, a tablet and a computer: the two date fields, the heading of the day, the time of the visit, and the
+      // confirmation. The date fields are above the list on a computer and in the sheet that the filter button opens below 1024 px, so there
+      // the sheet is opened to look at them and closed again before the rows are touched (it covers them). On a phone (below 640 px) each
+      // date is a button that shows it and opens the wheels; from 640 px it is a field that takes typing.
+      for (const size of [null, TABLET, COMPUTER]) {
         if (size) await page.setViewportSize(size)
         const phoneLayout = isPhoneLayout(page)
         await page.goto('/admin#agent') // from another tab, so that History opens with its own filters again
@@ -1743,8 +1742,8 @@ test.describe('dates on the committee screens', () => {
         let sheet = phoneLayout ? await openFilters(page) : null
         let from = (sheet ?? page).getByLabel('מתאריך')
         let to = (sheet ?? page).getByLabel('עד תאריך')
-        await expect(from).toHaveValue(DAY)
-        await expect(to).toHaveValue(DAY)
+        await expectDate(from, DAY)
+        await expectDate(to, DAY)
         await sheet?.getByRole('button', { name: 'סגירה' }).click()
         await expect(page.getByRole('heading', { level: 2 }).filter({ hasText: /\d{2}\/\d{2}\/\d{4}/ }).first()).toHaveText(/^\d{2}\/\d{2}\/\d{4} · \d+$/)
         const row = page.getByRole('listitem').filter({ hasText: 'מינוס 1' }).first()
@@ -1755,9 +1754,10 @@ test.describe('dates on the committee screens', () => {
         await noOtherFormat('history')
 
         // a date that is half typed: the list does not follow it and the export waits (it would use the last good range, and
-        // the file would not match what the field says). Both are back when the date is finished. On a phone nothing follows the field
+        // the file would not match what the field says). Both are back when the date is finished. In the sheet nothing follows the field
         // at all: "show results" is what applies, and with a date that is not finished it applies nothing, says so under the field and
-        // keeps the sheet open on it.
+        // keeps the sheet open on it. A phone has no field to type in: the wheels give whole dates only.
+        if (hasDateWheels(page)) continue
         sheet = phoneLayout ? await openFilters(page) : null
         from = (sheet ?? page).getByLabel('מתאריך')
         to = (sheet ?? page).getByLabel('עד תאריך')
@@ -1901,12 +1901,8 @@ test('the audit log is a screen: it lists what was done and by whom, filters, an
 
       // a stretch of time in which nothing was done: its own empty state
       await changeFilters(page, async (filters) => {
-        const from = filters.getByLabel('מתאריך')
-        const until = filters.getByLabel('עד תאריך')
-        await from.fill('')
-        await from.pressSequentially('01012020')
-        await until.fill('')
-        await until.pressSequentially('02012020')
+        await setDate(filters, 'מתאריך', '01/01/2020') // on a phone, with the wheels
+        await setDate(filters, 'עד תאריך', '02/01/2020')
       }, log)
       await expect(page.getByRole('heading', { level: 2, name: 'אין פעולות בטווח הזה' })).toBeVisible()
       expect(await noHorizontalScroll(page), `the audit log at ${where} width`).toBe(true)

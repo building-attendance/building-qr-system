@@ -581,6 +581,60 @@ export async function changeFilters(page, fill, inline = page) {
 }
 
 /**
+ * Below this width a date field of the committee app is a button that opens three wheels, and from it a field that takes typing with a
+ * calendar beside it (`POPOVER_QUERY` in src/admin/ui.jsx, owner decision of 15/10/2026). Both E2E devices are narrower.
+ */
+export const WHEELS_WIDTH = 640
+export const hasDateWheels = (page) => page.viewportSize().width < WHEELS_WIDTH
+
+/** The sheet of the wheels that is open (a dialog named after the date it chooses), and the wheel `name` ("שנה", "חודש" or "יום") in it. */
+export const dateWheels = (page) => page.getByRole('dialog').filter({ has: page.getByRole('listbox', { name: 'יום', exact: true }) })
+export const wheel = (wheels, name) => wheels.getByRole('listbox', { name, exact: true })
+
+/**
+ * Turns the open wheels to `ddmmyyyy` (a day that is not after today) with a tap on a row of each wheel, as a person does: the year, the
+ * month (its option is named by its name and its number) and the day (named by its full date). `how` is 'tap' (a touch) or 'click'.
+ */
+export async function turnWheels(wheels, ddmmyyyy, how = 'click') {
+  const [, month, year] = ddmmyyyy.split('/') // the day is chosen by its full date
+  await wheel(wheels, 'שנה').getByRole('option', { name: year, exact: true })[how]()
+  await wheel(wheels, 'חודש').getByRole('option', { name: new RegExp(`, חודש ${Number(month)}$`) })[how]()
+  await wheel(wheels, 'יום').getByRole('option', { name: ddmmyyyy, exact: true })[how]()
+  await expect(wheel(wheels, 'יום').getByRole('option', { selected: true })).toHaveAccessibleName(ddmmyyyy)
+}
+
+/**
+ * Sets the date field labelled `label` (in `scope`, the page or the sheet of filters) to `ddmmyyyy`, the way a person does at this width:
+ * on a phone the field opens the wheels, which are turned to the date and closed with "אישור"; from 640 px the date is typed into the field.
+ */
+export async function setDate(scope, label, ddmmyyyy) {
+  const page = typeof scope.page === 'function' ? scope.page() : scope // a locator, or the page itself
+  const field = scope.getByLabel(label, { exact: true })
+  if (!hasDateWheels(page)) {
+    await field.fill('')
+    await field.pressSequentially(ddmmyyyy.replace(/\//g, ''))
+    return
+  }
+  await field.click()
+  const wheels = dateWheels(page)
+  await expect(wheels).toBeVisible()
+  await turnWheels(wheels, ddmmyyyy)
+  await wheels.getByRole('button', { name: 'אישור', exact: true }).click()
+  await expect(wheels).toHaveCount(0)
+  await expect(field).toHaveText(ddmmyyyy)
+}
+
+/**
+ * Expects the date field `field` to show `date` (DD/MM/YYYY, a pattern, or '' for no date): the text of the button of a phone, the value
+ * of the field of a computer. An empty button of a phone shows the placeholder, and a screen reader hears that nothing is chosen.
+ */
+export async function expectDate(field, date) {
+  if (!hasDateWheels(field.page())) return expect(field).toHaveValue(date)
+  if (date === '') return expect(field).toHaveAccessibleName(/ לא נבחר$/)
+  return expect(field).toHaveText(date)
+}
+
+/**
  * The request that an app makes to report its errors (src/ui/errorReport.js): a POST to `path` (`/api/my/errors` for the provider app,
  * `/api/admin/client-errors` for the committee app). Pass it to `page.waitForRequest`, which must be called before the action that
  * makes the app send it.

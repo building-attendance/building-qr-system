@@ -97,6 +97,16 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
   check('--w-primary on the violet tint (the ring of today, in the range)', c('--w-primary'), c('--w-tint-violet'), 3)
   check('--w-text-2 on surface (the initials of the days)', c('--w-text-2'), surfaces.surface, 4.5)
   check('focus ring on the violet tint (a focused day beside the range)', c('--w-focus'), c('--w-tint-violet'), 3)
+  // The wheels of the same picker on a phone (.a-wheel in src/admin/admin.css), on the surface of their sheet. The chosen row is --w-text on
+  // the band of the violet tint, the rows around it are the quieter --w-text-2 on the surface, and a row that cannot be chosen (after today) is
+  // --w-text-3, on the surface or, while a wheel turns, on the band. The focus ring is drawn inside the chosen row, on the band.
+  check('--w-text on the violet tint (the chosen row of a wheel, on the band)', c('--w-text'), c('--w-tint-violet'), 4.5)
+  check('--w-text-2 on surface (a row of a wheel around the band)', c('--w-text-2'), surfaces.surface, 4.5)
+  check('--w-text-3 on surface (a row of a wheel that cannot be chosen)', c('--w-text-3'), surfaces.surface, 4.5)
+  check('--w-text-3 on the violet tint (a row that cannot be chosen, passing the band)', c('--w-text-3'), c('--w-tint-violet'), 4.5)
+  check('focus ring on the violet tint (the chosen row of a wheel, focused)', c('--w-focus'), c('--w-tint-violet'), 3)
+  // The field of a phone that opens the wheels (.a-date__field): its placeholder is --w-text-3 and its calendar --w-text-2, on the surface
+  // of the field (the pairs of the surfaces above).
   for (const kind of ['success', 'warn', 'danger', 'info']) {
     for (const sn of ['surface', 'bg']) {
       check(`--w-${kind} on ${sn}`, c(`--w-${kind}`), surfaces[sn], 4.5)
@@ -140,6 +150,21 @@ describe('the month grid of the date picker is drawn with the pairs that are che
     expect(adminCss).toMatch(/\.a-cal__day\[aria-current='date'\] \{ box-shadow: inset 0 0 0 2px var\(--w-primary\);/)
     expect(adminCss).toMatch(/\.a-cal__day\[aria-disabled='true'\] \{ background: none; color: var\(--w-text-3\);/)
     expect(adminCss).toMatch(/\.a-cal__grid th \{[^}]*color: var\(--w-text-2\);/)
+  })
+})
+
+describe('the wheels of the date picker are drawn with the pairs that are checked above', () => {
+  // So that the pairs cannot drift from what src/admin/admin.css paints: the band, a row, the chosen row, a row that cannot be chosen, and
+  // the placeholder and the calendar of the field that opens them.
+  it('uses the tokens of each pair', () => {
+    expect(adminCss).toMatch(/\.a-wheels::before \{[^}]*background: var\(--w-tint-violet\);/)
+    expect(adminCss).toMatch(/\.a-wheel__row \{[^}]*color: var\(--w-text-2\);/)
+    expect(adminCss).toMatch(/\.a-wheel__row\[aria-selected='true'\] \{ color: var\(--w-text\);/)
+    expect(adminCss).toMatch(/\.a-wheel__row\[aria-disabled='true'\] \{ color: var\(--w-text-3\);/)
+    expect(adminCss).toMatch(/\.a-date__placeholder \{ color: var\(--w-text-3\); \}/)
+    expect(adminCss).toMatch(/\.a-date__field svg \{[^}]*color: var\(--w-text-2\);/)
+    // the sheet of the wheels is a Modal, drawn on --w-surface
+    expect(adminCss).toMatch(/\.a-modal \{[^}]*background: var\(--w-surface\);/)
   })
 })
 

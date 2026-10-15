@@ -96,13 +96,13 @@ const PIXEL_THRESHOLD = 0.01
  *     provider's dialog has the same class, and its look is what the picture is for.)
  * `scope` is where to look: the page, or one dialog. A picture of a dialog that has a screen behind it looks inside the dialog only,
  * because a box over something that the dialog covers would be drawn on the picture (the date fields of the filters' sheet are
- * the dates that the History tab behind it also shows).
+ * the dates that the History tab behind it also shows). `datesFixed` leaves the dates and the date fields in the picture: only for a
+ * screen whose clock is fixed at HOME_NOW and whose dates are the fixed list of `stubHistory`, so that no date in it changes from one run
+ * to the next (the date fields of the filters' sheet on a phone, whose look is what that picture is for).
  */
-function dynamicRegions(page, scope = page) {
+function dynamicRegions(page, scope = page, { datesFixed = false } = {}) {
   return [
-    scope.getByText(/\d{2}:\d{2}|\d{2}\/\d{2}\/\d{4}/),
-    scope.getByLabel('מתאריך'),
-    scope.getByLabel('עד תאריך'),
+    ...(datesFixed ? [] : [scope.getByText(/\d{2}:\d{2}|\d{2}\/\d{2}\/\d{4}/), scope.getByLabel('מתאריך'), scope.getByLabel('עד תאריך')]),
     scope.locator('.w-build, .a-build'),
     scope.locator('.a-facts .a-code, p .a-code, pre.a-code'),
   ]
@@ -118,9 +118,9 @@ function dynamicRegions(page, scope = page) {
  * app on a phone) at the bottom of the picture, where Playwright's own full-page picture would put it in the middle. A dialog is
  * taken as it opens (`whole: false`): the screen that a person sees. `within` is a dialog (a locator): only what is inside it is masked, plus
  * what `alsoMask` lists (locators of what the dialog does not cover and that still changes with the date: a box is drawn over what the dialog
- * covers as well, so only what is in view is named).
+ * covers as well, so only what is in view is named). `datesFixed` is for a screen whose dates cannot change (see `dynamicRegions`).
  */
-async function shot(page, name, { whole = true, within = page, alsoMask = [] } = {}) {
+async function shot(page, name, { whole = true, within = page, alsoMask = [], datesFixed = false } = {}) {
   const viewport = page.viewportSize()
   if (whole) {
     const height = await page.evaluate(() => document.documentElement.scrollHeight)
@@ -130,7 +130,7 @@ async function shot(page, name, { whole = true, within = page, alsoMask = [] } =
     await pageSettled(page) // every request of the screen has been answered, and drawn
     await page.evaluate(() => document.fonts.ready)
     await expect.soft(page).toHaveScreenshot(`${name}.png`, {
-      mask: [...dynamicRegions(page, within), ...alsoMask],
+      mask: [...dynamicRegions(page, within, { datesFixed }), ...alsoMask],
       animations: 'disabled',
       caret: 'hide',
       scale: 'css',
@@ -476,7 +476,10 @@ function committeeScreens(width) {
  */
 function committeeFilters(width) {
   test(width === '360' ? 'the filters sheet and the bar with filters on' : 'the filters sheet', async ({ page }) => {
-    await stopClock(page)
+    // At 360 px the clock is HOME_NOW (12/10/2026), so that the two date fields in one row (owner decision of 15/10/2026) are in the
+    // picture with their dates, the default week from 06/10/2026 to 12/10/2026, and not under a mask.
+    if (width === '360') await page.clock.setFixedTime(new Date(HOME_NOW))
+    else await stopClock(page)
     await stubHistory(page)
     await committeeSignedIn(page) // the history
     await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
@@ -485,7 +488,7 @@ function committeeFilters(width) {
     await expect(sheet).toBeVisible()
     // At 768 px the bar of the History tab is in view above the sheet, and its dates (the week up to today) change from one day to the next.
     const range = width === '360' ? [] : [page.getByText(/\d{2}\/\d{2}\/\d{4} עד \d{2}\/\d{2}\/\d{4}/)]
-    await shotBothThemes(page, `committee-${width}-history-filters-sheet`, { whole: false, within: sheet, alsoMask: range })
+    await shotBothThemes(page, `committee-${width}-history-filters-sheet`, { whole: false, within: sheet, alsoMask: range, datesFixed: width === '360' })
     if (width !== '360') return
 
     await sheet.getByLabel('נקודה').selectOption({ label: 'לובי' })
@@ -500,11 +503,11 @@ function committeeFilters(width) {
 }
 
 /**
- * The date picker, open (owner decision of 14/10/2026): the calendar of "מתאריך" of the History tab, over the sheet of filters at 360 px (a
- * sheet from the bottom, as every dialog on a phone) and beside its field at 1280 px (a popover). The clock is fixed at HOME_NOW (12/10/2026),
- * so the month of the grid, today and the default week (the band from 06/10 to 12/10) are the same in every run, and the visits behind it are
- * the fixed list of `stubHistory`. Nothing in the picture changes with the real date, so only what is inside the picker is looked at for a
- * mask (a box over what it covers would be drawn on the picture): the grid has no text that a mask would take.
+ * The date picker of a computer, open (owner decision of 14/10/2026): the calendar of "מתאריך" of the History tab, beside its field at 1280 px
+ * (a popover). The clock is fixed at HOME_NOW (12/10/2026), so the month of the grid, today and the default week (the band from 06/10 to 12/10)
+ * are the same in every run, and the visits behind it are the fixed list of `stubHistory`. Nothing in the picture changes with the real date,
+ * so only what is inside the picker is looked at for a mask (a box over what it covers would be drawn on the picture): the grid has no text
+ * that a mask would take.
  */
 function committeeDatePicker(width) {
   test('the date picker, open', async ({ page }) => {
@@ -512,18 +515,38 @@ function committeeDatePicker(width) {
     await stubHistory(page)
     await committeeSignedIn(page) // the history
     await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
-    let scope = page
-    if (width === '360') {
-      await page.getByRole('button', { name: /^סינון/ }).click()
-      scope = page.getByRole('dialog', { name: 'סינון', exact: true })
-      await expect(scope).toBeVisible()
-    }
-    await scope.getByRole('button', { name: 'לוח שנה: תאריך התחלה' }).click()
+    await page.getByRole('button', { name: 'לוח שנה: תאריך התחלה' }).click()
     const picker = page.getByRole('dialog', { name: 'תאריך התחלה', exact: true })
     await expect(picker.getByRole('button', { name: '06/10/2026', exact: true })).toBeFocused() // the chosen day, the start of the default week
     await expect(picker.getByRole('heading', { level: 3 })).toHaveText('10/2026')
     await page.mouse.move(0, 0) // the pointer is where the button was clicked: its hover look is not what the picture is for
     await shotBothThemes(page, `committee-${width}-date-picker`, { whole: false, within: picker })
+  })
+}
+
+/**
+ * The date picker of a phone, open (owner decision of 15/10/2026): the wheels of "מתאריך" of the History tab, a sheet over the sheet of filters
+ * at 360 px, on the start of the default week (06/10/2026: the year, October by its name, and the 6th in the band). The clock is fixed at
+ * HOME_NOW (12/10/2026), so the date, and the months and days after it that are drawn but cannot be chosen, are the same in every run. The
+ * wheels have no date or time in their text (a day is its number, its full date is only its name for a screen reader), so no mask lands on
+ * them, and only what is inside the sheet is looked at.
+ */
+function committeeDateWheels(width) {
+  test('the date wheels, open', async ({ page }) => {
+    await page.clock.setFixedTime(new Date(HOME_NOW))
+    await stubHistory(page)
+    await committeeSignedIn(page) // the history
+    await expect(page.getByRole('listitem').filter({ hasText: 'Уборка' })).toBeVisible()
+    await page.getByRole('button', { name: /^סינון/ }).click()
+    const filters = page.getByRole('dialog', { name: 'סינון', exact: true })
+    await expect(filters).toBeVisible()
+    await filters.getByLabel('מתאריך', { exact: true }).click()
+    const wheels = page.getByRole('dialog', { name: 'תאריך התחלה', exact: true })
+    const day = wheels.getByRole('listbox', { name: 'יום', exact: true }).getByRole('option', { selected: true })
+    await expect(day).toBeFocused() // the chosen day, the start of the default week
+    await expect(day).toHaveAccessibleName('06/10/2026')
+    await page.mouse.move(0, 0) // the pointer is where the field was clicked: its hover look is not what the picture is for
+    await shotBothThemes(page, `committee-${width}-date-wheels`, { whole: false, within: wheels })
   })
 }
 
@@ -604,7 +627,7 @@ test.describe('committee app', () => {
     test.use(COMMITTEE_PHONE)
     committeeScreens('360')
     committeeFilters('360')
-    committeeDatePicker('360')
+    committeeDateWheels('360')
     committeeSheet('360')
     committeeAccountMenu('360')
     committeePhoto('360')

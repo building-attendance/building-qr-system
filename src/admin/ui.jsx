@@ -94,7 +94,8 @@ const FOCUSABLE = 'a[href],button:not([disabled]),input:not([disabled]),select:n
 const POPOVER_EDGE = 8 // px that a popover keeps from the edges of the screen, as the menu does (MENU_EDGE)
 const POPOVER_GAP = 4 // px between the field and its popover, as between a button and its menu (MENU_GAP)
 // From this width a dialog is no longer a sheet from the bottom (admin.css, the rules of .a-modal), and a popover stands beside its field.
-const POPOVER_QUERY = '(min-width: 640px)'
+// The date picker changes at the same width: below it a date field opens the wheels of a phone, from it the calendar (src/admin/DatePicker.jsx).
+export const POPOVER_QUERY = '(min-width: 640px)'
 
 /**
  * Puts a popover (`box`, a fixed dialog) beside the element that it belongs to (`anchor`): under it with its start at the start of the
@@ -540,7 +541,7 @@ export function Field({ label, hint, error, className, children }) {
   const id = useId()
   return (
     <div className={className ? `w-field ${className}` : 'w-field'}>
-      <label className="w-label" htmlFor={id}>{label}</label>
+      <label className="w-label" htmlFor={id} id={`${id}-label`}>{label}</label>
       {cloneElement(children, {
         id,
         'aria-invalid': error ? true : undefined,

@@ -9,7 +9,7 @@ import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
 import {
   formatDate, formatTime, formatDateTime, formatDateTimeUtc, formatDay, formatDayShort, buildingHour, isoDay, parseDay, maskDay, editDay,
-  formatMonth, formatDayNumber, dayInitials,
+  formatMonth, formatDayNumber, dayInitials, monthName,
 } from '../shared/datetime.js'
 import { findDateProblems } from '../scripts/text-rules.mjs'
 
@@ -172,6 +172,16 @@ describe('a calendar day', () => {
     for (const bad of ['', '1 Oct 2026', '2026-02-30', '2027-02-29', '2026-13-01', '01/10/2026', null, undefined]) {
       expect(formatMonth(bad), String(bad)).toBe('-')
       expect(formatDayNumber(bad), String(bad)).toBe('-')
+    }
+  })
+
+  it('names the months in Hebrew for the month wheel of the picker on a phone, January first, and "-" for what is not a real day', () => {
+    const names = Array.from({ length: 12 }, (_, i) => monthName(`2026-${String(i + 1).padStart(2, '0')}-14`))
+    expect(names).toEqual(['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר'])
+    expect(monthName('2028-02-29')).toBe('פברואר') // a leap year
+    expect(monthName('2026-10-01')).toBe(monthName('2026-10-31')) // any day of the month
+    for (const bad of ['', '1 Oct 2026', '2026-02-30', '2027-02-29', '2026-13-01', '01/10/2026', null, undefined]) {
+      expect(monthName(bad), String(bad)).toBe('-')
     }
   })
 
@@ -374,7 +384,9 @@ describe('no other way of writing a date in the code', () => {
   it('the writers of the month grid (MM/YYYY, a day as its number, the initials of the days) are used by the date picker only', () => {
     expect(usersOfPickerWriters(files, readSource), 'the files that use formatMonth, formatDayNumber or dayInitials').toEqual([PICKER])
     const picker = readSource(PICKER)
-    for (const name of PICKER_WRITERS) expect(picker.match(new RegExp(`\\b${name}\\(`, 'g')), `${name} is called once`).toHaveLength(1)
+    // each is called once, and the number of a day twice: in the grid, and in the day wheel of a phone (the test of the wheels, below)
+    const calls = { formatMonth: 1, formatDayNumber: 2, dayInitials: 1 }
+    for (const name of PICKER_WRITERS) expect(picker.match(new RegExp(`\\b${name}\\(`, 'g')), `${name} is called ${calls[name]} times`).toHaveLength(calls[name])
     // a day: a button named by its full date (formatDay), showing its number and nothing else
     const shown = picker.indexOf('{formatDayNumber(day)}')
     const button = picker.slice(picker.lastIndexOf('<button', shown), shown)
@@ -400,15 +412,47 @@ describe('no other way of writing a date in the code', () => {
       }
     }
   })
+
+  // The one place for a month name: the month wheel of the same picker on a phone (AGENTS.md, owner decision of 15/10/2026; the header of
+  // shared/datetime.js). Its writer, `monthName`, is used by the picker and by nothing else, there only for the options of the month wheel, and
+  // the picker has the conditions in its source: every option of a wheel has a name that a screen reader reads without guessing (a month by its
+  // name and its number, a day by its full DD/MM/YYYY, a year by its own four digits), and the chosen date shows in its field as DD/MM/YYYY,
+  // on a phone the button of the field (tests/components/date-picker.test.jsx proves them on the screen).
+  it('the month name is written for the month wheel of the date picker on a phone only, and every option of a wheel is named in full', () => {
+    expect(usersOfPickerWriters(files, readSource, MONTH_WRITERS), 'the files that use monthName').toEqual([PICKER])
+    const picker = readSource(PICKER)
+    expect(picker.match(/\bmonthName\(/g), 'monthName is called for the text of a month and for its name, nothing else').toHaveLength(2)
+    // a month: its name, and for a screen reader its name and its number
+    expect(picker).toMatch(/\{ value: i \+ 1, text: monthName\(first\), name: `\$\{monthName\(first\)\}, חודש \$\{i \+ 1\}`, disabled: /)
+    // a day: its number, and for a screen reader its full date; a year: its four digits, which are its name
+    expect(picker).toMatch(/\{ value: i \+ 1, text: formatDayNumber\(date\), name: formatDay\(date\), disabled: date > today \}/)
+    expect(picker).toMatch(/\{ value: n, text: String\(n\) \}/)
+    // every option shows its text and is named by its name when it has one (a year has none: its text is its name)
+    expect(picker).toMatch(/role="option"[^>]*\baria-label=\{option\.name\}[^]*?>\s*\{option\.text\}\s*<\/div>/)
+    // the chosen date: on a phone the field is a button that shows it as DD/MM/YYYY (or the placeholder), named by its label and that date
+    expect(picker).toMatch(/aria-labelledby=\{field\.id \? `\$\{field\.id\}-label \$\{valueId\}` : undefined\}/)
+    expect(picker).toMatch(/<span id=\{valueId\} className="a-date__value">\s*\{isDay\(value\) \? formatDay\(value\) : /)
+  })
+
+  // The check above reads every file, so it is checked by itself first: a call of `monthName` planted in another file is found, in the
+  // browser's code (a screen and the filters), the server's and the shared code.
+  it('the check finds the month name written anywhere but the picker', () => {
+    expect(usersOfPickerWriters(files, readSource, MONTH_WRITERS)).toEqual([PICKER])
+    for (const victim of ['src/admin/views/HistoryView.jsx', 'src/admin/views/AuditView.jsx', 'src/admin/filters.jsx', 'server/scans.js', 'shared/contract.js']) {
+      const planted = (file) => (file === victim ? `${readSource(file)}\nexport const planted = monthName('2026-10-14')\n` : readSource(file))
+      expect(usersOfPickerWriters(files, planted, MONTH_WRITERS), `monthName in ${victim}`).toEqual([PICKER, victim].sort())
+    }
+  })
 })
 
 // ---- the writers of the date picker's month grid, and who uses them -------------------------------------------------------------
 
 const PICKER = 'src/admin/DatePicker.jsx'
 const PICKER_WRITERS = ['formatMonth', 'formatDayNumber', 'dayInitials']
+const MONTH_WRITERS = ['monthName'] // the month wheel of the picker on a phone
 const readSource = (file) => fs.readFileSync(path.join(root, file), 'utf8')
 
-/** The files of `list`, other than shared/datetime.js, whose text names one of the picker's writers (`read(file)` gives the text). */
-function usersOfPickerWriters(list, read) {
-  return list.filter((file) => file !== 'shared/datetime.js' && PICKER_WRITERS.some((name) => new RegExp(`\\b${name}\\b`).test(read(file)))).sort()
+/** The files of `list`, other than shared/datetime.js, whose text names one of `names` (the picker's writers; `read(file)` gives the text). */
+function usersOfPickerWriters(list, read, names = PICKER_WRITERS) {
+  return list.filter((file) => file !== 'shared/datetime.js' && names.some((name) => new RegExp(`\\b${name}\\b`).test(read(file)))).sort()
 }

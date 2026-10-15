@@ -77,9 +77,10 @@ export function sameFilters(a, b) {
 }
 
 /**
- * The two date fields, each with its calendar (`DatePicker`). They are two direct children of whatever holds them (a fragment), so the
- * block of the computer layout, a grid of its own, keeps its cells. `onPending(key)` gives the function that is told when a field holds a
- * date that is not finished (see `DateInput`); `errors` is `{ from, to }`, the messages under the fields.
+ * The two date fields, each with its picker (`DatePicker`: a calendar, or on a phone the wheels). They are two direct children of whatever
+ * holds them (a fragment), so the block of the computer layout, a grid of its own, keeps its cells, and the sheet of a phone puts them in one
+ * row. `onPending(key)` gives the function that is told when a field holds a date that is not finished (see `DateInput`); `errors` is
+ * `{ from, to }`, the messages under the fields.
  *
  * The quick ranges of the calendar ("היום", "7 ימים", "30 יום", "החודש") set both dates at once, through `onFrom` and `onTo`: whatever holds
  * the fields takes them as two typed dates, so the inline block of a computer applies them after its pause, the sheet of a phone keeps

@@ -1,4 +1,5 @@
-// The arithmetic of calendar days, for the app's own date picker (DatePicker.jsx) and the default range of the History tab. A day is
+// The arithmetic of calendar days, for the app's own date picker (DatePicker.jsx: the month grid and the wheels of a phone) and the default
+// range of the History tab. A day is
 // what the API takes, 'YYYY-MM-DD'. A calendar day has no time zone, so the arithmetic is done in UTC, where every day is 24 hours long
 // (a clock change in the building moves no day). "Today" is always the building's day (`isoDay`, in BUILDING_TZ of shared/contract.js),
 // never the device's: a committee member abroad sees the building's calendar. Nothing here writes a date for a person: that is
@@ -34,6 +35,24 @@ export function addMonths(day, n) {
   const month = Number(day.slice(5, 7)) - 1 + n
   const last = new Date(Date.UTC(year, month + 1, 0)).getUTCDate()
   return fromUtc(Date.UTC(year, month, Math.min(Number(day.slice(8, 10)), last)))
+}
+
+/** How many days the month of `day` has: 28 to 31, and 29 in the February of a leap year. */
+export const daysInMonth = (day) => new Date(Date.UTC(Number(day.slice(0, 4)), Number(day.slice(5, 7)), 0)).getUTCDate()
+
+const pad = (n, width) => String(n).padStart(width, '0')
+
+/**
+ * `day` with one of its parts set to `n`, as a wheel of the date picker sets it (`part` is 'year', 'month' or 'day', `n` its number): the
+ * day of the month is kept, or cut to the last day of a shorter month (the 31st of January in February is the 28th, or the 29th in a leap
+ * year), and the day is kept between `first` and `last` (a day after today becomes today), as the keys of the month grid keep it.
+ */
+export function setDatePart(day, part, n, first = FIRST_DAY, last = '') {
+  const year = part === 'year' ? n : Number(day.slice(0, 4))
+  const month = part === 'month' ? n : Number(day.slice(5, 7))
+  const start = `${pad(year, 4)}-${pad(month, 2)}-01`
+  const date = part === 'day' ? n : Number(day.slice(8, 10))
+  return clampDay(`${start.slice(0, 8)}${pad(Math.min(date, daysInMonth(start)), 2)}`, first, last)
 }
 
 /** `day`, kept between `first` and `last` (each a day, or empty for no limit). */

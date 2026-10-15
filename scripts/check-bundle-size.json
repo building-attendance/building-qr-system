@@ -1,10 +1,10 @@
 {
   "entryJs": 86016,
   "entryCss": 5120,
-  "committeeJs": 41984,
-  "committeeCss": 6263,
+  "committeeJs": 43212,
+  "committeeCss": 6547,
   "committeeLazyJs": 47104,
   "committeeLazyCss": 6656,
-  "precacheBytes": 325336,
+  "precacheBytes": 327181,
   "precacheEntries": 21
 }

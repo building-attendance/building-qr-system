@@ -410,6 +410,13 @@ select.a-input {
 .a-input--date { min-width: 0; direction: ltr; text-align: end; }
 .a-date { display: flex; align-items: center; gap: var(--w-space-2); min-width: 0; }
 .a-date .a-input--date { flex: 1; }
+/* On a phone (below 640px) the field is a button that opens the wheels (src/admin/DatePicker.jsx), so that no keyboard comes up: it is drawn as
+   the field that it stands for, the date at its start (DD/MM/YYYY, left to right as in the field, or the placeholder in the quieter colour) and
+   the calendar at its end, inside it. Half of a 320px sheet is 136px and the date needs about 95px of it, so its side room is smaller than a field's. */
+.a-date__field { flex: 1; min-width: 0; display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-1); padding-inline: var(--w-space-1-5); font-size: var(--w-font-base); text-align: start; cursor: pointer; }
+.a-date__value { min-width: 0; direction: ltr; unicode-bidi: isolate; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.a-date__placeholder { color: var(--w-text-3); }
+.a-date__field svg { flex: none; color: var(--w-text-2); }
 /* On a phone (below 1024px) the block above is not drawn: a bar stands in its place and the controls are in a sheet (src/admin/filters.jsx).
    The bar is the button, the dates that are applied, and a chip for every other filter that is on, each a button that removes it. */
 .a-filterbar { display: flex; flex-direction: column; gap: var(--w-space-2-5); margin-block-end: var(--w-space-3); }
@@ -429,9 +436,15 @@ select.a-input {
 .a-chip > span { min-width: 0; overflow-wrap: anywhere; }
 .a-chip svg { flex: none; }
 @media (hover: hover) { .a-chip:hover { box-shadow: inset 0 0 0 2px var(--w-info-line); } }
-/* The sheet: one control under the other, each the whole width (a date field and its calendar button need more than half of a 320px phone). */
+/* The sheet: one control under the other, each the whole width. On a phone (below 640px, where the date fields are buttons that open the
+   wheels) the two dates share a row, half the width each (owner decision of 15/10/2026); from 640px each date is a field with its calendar
+   button beside it, which needs more than half of the sheet. */
 .a-filter-sheet { display: grid; gap: var(--w-space-4); align-items: start; }
 .a-filter-sheet > * { min-width: 0; }
+@media (max-width: 639.98px) {
+  .a-filter-sheet { grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: var(--w-space-2); }
+  .a-filter-sheet > :not(.a-filter-date) { grid-column: 1 / -1; }
+}
 .a-day { font-size: var(--w-font-md); font-weight: var(--w-weight-semibold); color: var(--w-text-2); margin-block: var(--w-space-4-5) var(--w-space-2); padding-inline: var(--w-space-1); font-variant-numeric: tabular-nums; }
 /* The rows of one day (the History and the audit log) sit in one soft card, as the tiles do: a shadow and no edge, the rows inset in it and
    rounded (the card's own radius less its padding). A row of the History: the time in a pill at its start, the text, and the "more" button at
@@ -568,6 +581,34 @@ select.a-input {
 .a-cal__day:focus-visible { z-index: 1; } /* the ring stands over the neighbouring days */
 .a-cal__quick { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--w-space-1-5); padding-block-start: var(--w-space-3); border-block-start: 1px solid var(--w-border); }
 .a-cal__quick .a-cal__range { padding-inline: var(--w-space-1); }
+
+/* ----- the wheels of the date picker on a phone (src/admin/DatePicker.jsx) ----- */
+/* Three wheels side by side, the year, the month (wider: its name) and the day, from the right. Each shows five rows of 44px and scrolls,
+   each row snapping into the middle, where a band of the violet tint marks the chosen row across the three (owner decision of 15/10/2026). The
+   room above the first row and under the last is two rows, so that every row can stand in the band. The chosen row is --w-text on the band, the
+   rows around it the quieter --w-text-2 on the surface, and a row that cannot be chosen (after today) --w-text-3, on the surface or on the band:
+   each pair is held to AA in both themes by tests/contrast.test.js. The wheel has no scroll bar, and does not hand its scroll to the sheet. */
+.a-wheels { position: relative; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--w-space-1); }
+.a-wheels::before {
+  content: ''; position: absolute; inset-inline: 0; top: calc(2 * var(--w-layout-wheel-row)); height: var(--w-layout-wheel-row);
+  border-radius: var(--w-radius-sm); background: var(--w-tint-violet); pointer-events: none;
+}
+.a-wheel {
+  position: relative; height: calc(5 * var(--w-layout-wheel-row)); padding-block: calc(2 * var(--w-layout-wheel-row)); overflow-y: auto;
+  scroll-snap-type: y mandatory; overscroll-behavior: contain; scrollbar-width: none;
+}
+.a-wheel::-webkit-scrollbar { display: none; }
+.a-wheel__row {
+  height: var(--w-layout-wheel-row); display: grid; place-items: center; scroll-snap-align: center; border-radius: var(--w-radius-sm);
+  color: var(--w-text-2); font-size: var(--w-font-xl); font-variant-numeric: tabular-nums; white-space: nowrap; cursor: pointer;
+}
+.a-wheel__row[aria-selected='true'] { color: var(--w-text); font-weight: var(--w-weight-semibold); }
+.a-wheel__row[aria-disabled='true'] { color: var(--w-text-3); cursor: not-allowed; }
+.a-wheel__row:focus-visible { outline-offset: -3px; } /* the ring inside the row, on the band */
+/* The foot of the sheet: "אישור", the whole width, or, when the field holds a date, "ניקוי התאריך" (the quiet button) and "אישור" in two
+   equal halves, the room at their sides smaller so that the words fit half of a 320px sheet. */
+.a-wheels__foot { width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--w-space-2-5); }
+.a-wheels__foot .w-btn { padding-inline: var(--w-space-2); }
 
 /* ----- the "more" menu (src/admin/ui.jsx Menu) ----- */
 /* Its button: a round 44px target with three dots on the background colour, violet while hovered and while its menu is open. The button of a

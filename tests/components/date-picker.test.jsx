@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-// The committee app's own date picker (src/admin/DatePicker.jsx, owner decision of 14/10/2026): a date field that keeps its typing, and a
-// button beside it that opens a month grid in a dialog (the WAI-ARIA "Date Picker Dialog"), with the quick ranges under the grid. Here: the
-// pair of fields of the filters (`DateRangeFields` of src/admin/filters.jsx) on their own, and then inside the History tab, on a computer
-// (the inline block) and on a phone (the sheet). What a real browser decides (where the popover stands, the colours, the keys as the
-// browser sends them, the pictures) is in e2e/date-picker.spec.js, e2e/a11y.spec.js and e2e/visual.spec.js.
+// The committee app's own date picker (src/admin/DatePicker.jsx, owner decision of 14/10/2026) from 640 px: a date field that keeps its typing,
+// and a button beside it that opens a month grid in a dialog (the WAI-ARIA "Date Picker Dialog"), with the quick ranges under the grid. Here:
+// the pair of fields of the filters (`DateRangeFields` of src/admin/filters.jsx) on their own (jsdom has no matchMedia, which the picker reads
+// as a computer), and then inside the History tab, on a computer (the inline block) and on a tablet (the sheet). Below 640 px the field opens
+// the wheels of a phone instead: tests/components/date-wheels.test.jsx. What a real browser decides (where the popover stands, the colours,
+// the keys as the browser sends them, the pictures) is in e2e/date-picker.spec.js, e2e/a11y.spec.js and e2e/visual.spec.js.
 //
 // The clock is fixed: "today" is 14/10/2026 in the building (a Wednesday), so the grid of October 2026 is known: the 1st is a Thursday.
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
@@ -452,9 +453,16 @@ describe('the arithmetic of the calendar', () => {
 
 // ---- inside the screens ----------------------------------------------------------------------------------------------------------
 
-/** Stands in for `window.matchMedia`: every query answers as a computer (1024 px and more) or as a phone. */
-function layout(phone) {
-  window.matchMedia = vi.fn(() => ({ matches: !phone, addEventListener: () => {}, removeEventListener: () => {} }))
+/**
+ * Stands in for `window.matchMedia`: a computer is a window 1280 px wide, and `tablet` one 768 px wide, below 1024 px (the filters are in a
+ * sheet) and from 640 px (the calendar, a popover over the sheet). Below 640 px the field opens the wheels (tests/components/date-wheels.test.jsx).
+ */
+function layout(tablet) {
+  const width = tablet ? 768 : 1280
+  window.matchMedia = vi.fn((media) => {
+    const min = /min-width:\s*(\d+)px/.exec(media)
+    return { matches: min ? width >= Number(min[1]) : false, addEventListener: () => {}, removeEventListener: () => {} }
+  })
 }
 
 const POINT = { id: '11111111-1111-4111-8111-111111111111', name: 'לובי' }
@@ -501,7 +509,7 @@ describe('in the History tab', () => {
     await waitFor(() => expect(lastParams('/admin/scans')).toMatchObject({ from: '2026-10-08', to: '2026-10-12' }), WAIT)
   })
 
-  it('on a phone: the calendar opens over the sheet of filters, Esc closes only the calendar, and "show results" applies its range', async () => {
+  it('on a tablet (the sheet of filters, from 640 px): the calendar opens over the sheet, Esc closes only the calendar, and "show results" applies its range', async () => {
     layout(true)
     server()
     history()
@@ -523,7 +531,7 @@ describe('in the History tab', () => {
     expect(screen.queryByRole('dialog')).toBeNull()
   })
 
-  it('on a phone: a range chosen in the sheet makes its question ask before Esc closes it (the choice is not shown yet)', async () => {
+  it('on a tablet: a range chosen in the sheet makes its question ask before Esc closes it (the choice is not shown yet)', async () => {
     layout(true)
     server()
     history()

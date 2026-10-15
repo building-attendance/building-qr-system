@@ -23,16 +23,22 @@ vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
 
 // ---- the layout ------------------------------------------------------------------------------------------------------------------
 
-/** Stands in for `window.matchMedia` with one query whose answer the test changes (the window crossing 1024 px). */
+/** Stands in for `window.matchMedia` with a window whose width the test changes (the window crossing 1024 px). */
 function layout(startAsPhone) {
   let phone = startAsPhone
   const listeners = new Set()
-  const query = {
-    get matches() { return !phone },
+  // A "phone" here is a window 768 px wide: below 1024 px the filters are the bar and the sheet, and from 640 px the sheet's dates still take
+  // typing (below 640 px they are buttons that open the wheels, tests/components/date-wheels.test.jsx). A computer is 1280 px wide.
+  const width = () => (phone ? 768 : 1280)
+  const query = (media) => ({
+    get matches() {
+      const min = /min-width:\s*(\d+)px/.exec(media)
+      return min ? width() >= Number(min[1]) : false
+    },
     addEventListener: (_type, listener) => listeners.add(listener),
     removeEventListener: (_type, listener) => listeners.delete(listener),
-  }
-  window.matchMedia = vi.fn(() => query)
+  })
+  window.matchMedia = vi.fn(query)
   const change = (toPhone) => act(() => { phone = toPhone; for (const listener of listeners) listener() })
   return { phone: () => change(true), computer: () => change(false) }
 }

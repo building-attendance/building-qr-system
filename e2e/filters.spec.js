@@ -7,11 +7,14 @@
 // The History tab's list is answered here (`stubScans`) by what a real server does with the one filter that these tests change, and every
 // request is kept, so a test can tell what the screen asked for and when. A real visit would be a provider signing in, and the run has a
 // limited number of those (e2e/visual.spec.js says why); the filtering itself is the server's, and tests/read-filters.test.js covers it.
-import { test, expect, adminSignIn, allowConsoleErrors, openFilters } from './fixtures.js'
+import { test, expect, adminSignIn, allowConsoleErrors, openFilters, setDate, expectDate } from './fixtures.js'
 import { OUTCOME_ACCEPTED } from '../shared/contract.js'
 
 const COMPUTER = { width: 1280, height: 800 }
 const PHONE_360 = { width: 360, height: 740 }
+// A tablet held upright: the filters are the bar and the sheet (below 1024 px), and the dates of the sheet still take typing (from 640 px;
+// below it they are buttons that open the wheels, e2e/date-picker.spec.js).
+const TABLET = { width: 768, height: 1024 }
 const DAY = /^\d{2}\/\d{2}\/\d{4}$/
 
 test.beforeEach(({ page }) => {
@@ -127,9 +130,7 @@ test.describe('on a phone', () => {
     sheet = await openFilters(page)
     await sheet.getByLabel('סוג').selectOption({ label: 'הכול' })
     await sheet.getByLabel('כולל חשבון דמו').check()
-    const from = sheet.getByLabel('מתאריך')
-    await from.fill('')
-    await from.pressSequentially('01012026')
+    await setDate(sheet, 'מתאריך', '01/01/2026') // on a phone, with the wheels
     await apply(sheet)
     await expect(sheet).toHaveCount(0)
     await expect(opener(page)).toHaveAccessibleName(/^סינון\s*4\s*פעילים$/)
@@ -151,8 +152,8 @@ test.describe('on a phone', () => {
     await sheet.getByRole('button', { name: 'איפוס' }).click()
     await expect(sheet.getByLabel('נקודה')).toHaveValue('')
     await expect(sheet.getByLabel('סוג')).toHaveValue(OUTCOME_ACCEPTED)
-    await expect(sheet.getByLabel('מתאריך')).toHaveValue(DAY)
-    await expect(sheet.getByLabel('מתאריך')).not.toHaveValue('01/01/2026')
+    await expectDate(sheet.getByLabel('מתאריך'), DAY)
+    await expect(sheet.getByLabel('מתאריך')).not.toHaveText('01/01/2026')
     await expect(chips(page)).toHaveCount(2) // behind the sheet, as it was
     await apply(sheet)
     await expect(sheet).toHaveCount(0)
@@ -226,7 +227,10 @@ test.describe('on a phone', () => {
     await expect(rows).toHaveCount(1)
   })
 
+  // Only a field that takes typing can hold half a date: the sheet of a tablet (on a phone the dates are chosen on the wheels, which give whole
+  // dates only).
   test('a date that is not finished is never applied quietly: the sheet says so, under the field, and keeps the focus there', async ({ page }) => {
+    await page.setViewportSize(TABLET)
     await adminSignIn(page, 'points') // not on the History tab: its list is asked for after the stub is in place
     const { asked } = await stubScans(page)
     await openHistory(page)
@@ -356,9 +360,7 @@ test.describe('on a phone', () => {
 
     // a range: the bar says it, and it counts once; a chip removes its filter at once
     sheet = await openFilters(page)
-    const from = sheet.getByLabel('מתאריך')
-    await from.fill('')
-    await from.pressSequentially('01012026')
+    await setDate(sheet, 'מתאריך', '01/01/2026') // on a phone, with the wheels
     await apply(sheet)
     await expect(log.getByText(/מ-01\/01\/2026/)).toBeVisible()
     await expect(opener(page)).toHaveAccessibleName(/^סינון\s*3\s*פעילים$/)
@@ -369,7 +371,7 @@ test.describe('on a phone', () => {
     // reset, then show results: every filter is off again
     sheet = await openFilters(page)
     await sheet.getByRole('button', { name: 'איפוס' }).click()
-    await expect(sheet.getByLabel('מתאריך')).toHaveValue('')
+    await expectDate(sheet.getByLabel('מתאריך'), '')
     await apply(sheet)
     await expect(chips(page)).toHaveCount(0)
     await expect(log.getByText('כל התאריכים')).toBeVisible()
@@ -414,8 +416,9 @@ test('on a computer the filters stay inline and live, each control is in the pag
   await page.setViewportSize(COMPUTER)
   await expect(page.getByLabel('מתאריך')).toHaveValue(original)
 
-  // narrower than 1024 px, with no reload: the controls go, and the bar says what is applied
-  await page.setViewportSize({ width: 390, height: 800 })
+  // narrower than 1024 px, with no reload: the controls go, and the bar says what is applied (a tablet held upright, whose sheet takes typed
+  // dates: below 640 px the dates of the sheet are the buttons of the wheels, which hold no half-typed date)
+  await page.setViewportSize(TABLET)
   await expect(page.getByLabel('מתאריך')).toHaveCount(0)
   await expect(opener(page)).toBeVisible()
   await expect(page.getByRole('button', { name: 'הסרת סינון: נקודה: לובי' })).toBeVisible()
@@ -434,7 +437,7 @@ test('on a computer the filters stay inline and live, each control is in the pag
   await expect(from).toHaveValue(/^\d{2}$/)
   await expect(opener(page)).toHaveCount(0) // the bar is gone, the inline controls are behind the sheet
   await expect(page.getByLabel('נקודה')).toHaveCount(2)
-  await page.setViewportSize({ width: 390, height: 800 })
+  await page.setViewportSize(TABLET)
   await expect(sheet.getByLabel('נקודה')).toHaveValue(basement.id) // and back: still there
   await page.setViewportSize(COMPUTER)
   await page.keyboard.press('Escape') // it is as unsaved as on a phone: Esc asks first

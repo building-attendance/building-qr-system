@@ -685,7 +685,8 @@ describe('the filters sheet of the History tab on a phone', () => {
   afterEach(() => { delete window.matchMedia })
 
   it('asks before a choice that was not shown is lost, and not when nothing was chosen (the dates that are half typed count as typed)', async () => {
-    window.matchMedia = vi.fn(() => ({ matches: false, addEventListener: () => {}, removeEventListener: () => {} })) // a phone: not a computer
+    // the phone layout of the filters (below 1024 px), 768 px wide: from 640 px the dates of its sheet take typing (below it, the wheels)
+    window.matchMedia = vi.fn((media) => ({ matches: /min-width: 640px/.test(media), addEventListener: () => {}, removeEventListener: () => {} }))
     api.mockImplementation(async (path) => {
       if (path === '/admin/points') return { points: [{ id: 'pt1', name: 'לובי' }] }
       if (path === '/admin/providers') return { providers: [] }
