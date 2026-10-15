@@ -307,8 +307,18 @@
 .a-card { background: var(--w-surface); border-radius: var(--w-radius-3xl); box-shadow: var(--w-shadow); padding: var(--w-space-4); display: flex; flex-direction: column; gap: var(--w-space-3); }
 /* "Off" is shown with muted colours that still pass contrast, not with blanket opacity (which did not). */
 .a-card.is-off .a-card__title { color: var(--w-text-2); }
-/* A card that holds one short form (the building's address), set under a list of cards: it does not stretch across a wide screen. */
-.a-card--form { margin-block-start: var(--w-space-6); max-width: 640px; }
+/* A card that holds one short form (the building's name and address), under the heading of its section: it does not stretch across a wide screen. */
+.a-card--form { max-width: 640px; }
+/* The settings screen: the members and the building details are two sections. On a phone and up to 1199px they stand one under the other,
+   the members first (the order of the page and of the keyboard); from 1200px, two columns, the members at the start (the right in Hebrew)
+   with one third of the width and the building at the end with two thirds (owner decision of 15/10/2026), both from the same top, each with
+   its heading and its line. The split starts at 1200px and not at 1024px because of what was measured at 1024px: a third of the content is
+   203px there, and a member card gets 61px for its name and its e-mail, so a name breaks over 3 or 4 lines and an e-mail over 3 to 5. At
+   1200px a card gets 119px (the e-mail on two lines) and at 1280px 146px. The members' cards stay one under the other in their column
+   without a rule of their own (the column is never wider than 339px, because .a-main stops at 1120px: the auto-fill grid of cards needs
+   654px for a second one), and the building column does not grow with them. */
+.a-settings { display: flex; flex-direction: column; gap: var(--w-space-6); }
+@media (min-width: 1200px) { .a-settings { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr); align-items: start; } }
 /* The head of a tile (the pattern of every tile): who it is (a mark, the title and a second line) at the start, and its one tool at the end:
    the "more" button, whose menu holds every action, edit first (AGENTS.md, "Rules for every change"). They are always one row, on a computer
    and on a phone (owner decision of 14/10/2026): the button never wraps below the title. The tools keep their own width and the title block
@@ -477,7 +487,7 @@ select.a-input {
   .a-audit__who { margin-block-start: 0; }
 }
 
-/* The build id line at the foot of the settings screen (src/ui/BuildLabel.jsx), under the building card and lined up with it. */
+/* The build id line at the foot of the settings screen (src/ui/BuildLabel.jsx), under both columns, at the start edge. */
 .a-build { margin-block-start: var(--w-space-4); }
 
 /* ----- modal ----- */
