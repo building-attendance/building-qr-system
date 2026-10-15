@@ -15,7 +15,7 @@ import ar from '../src/i18n/ar.js'
 import { PROVIDER_TOKEN_PREFIX } from '../shared/contract.js'
 import {
   test, expect, he, en, ru, POINTS, PEOPLE, FAR, ADMIN_EMAIL, BUILDING_NAME, adminSignIn, clearScans, allowConsoleErrors, expectNoA11yViolations,
-  changeFilters, openFilters, SCREEN_TITLES, stubHome, homeSummary, openAccountMenu, openTileMenu, chooseFromMenu,
+  changeFilters, openFilters, SCREEN_TITLES, stubHome, homeSummary, openAccountMenu, openTileMenu, chooseFromMenu, setDate, dateWheels,
 } from './fixtures.js'
 import { openHarness } from './harness.js'
 
@@ -24,6 +24,8 @@ import { openHarness } from './harness.js'
 test.use({ serviceWorkers: 'block' })
 
 const COMPUTER = { width: 1280, height: 800 }
+// A tablet held upright: the filters are in a sheet (below 1024 px) whose dates take typing and open the calendar (from 640 px).
+const TABLET = { width: 768, height: 1024 }
 const scanLink = (code) => `/scan?code=${code}`
 const UNKNOWN_CODE = 'BQR-doesnotexist000000000000' // the shape of a code of ours, that no point has
 
@@ -455,12 +457,8 @@ test.describe('committee app', () => {
     // The visits that the server did not count, for a stretch of time in which there were none: its own empty state.
     await changeFilters(page, async (sheet) => {
       await sheet.getByLabel('סוג').selectOption({ label: 'לא נקלטו' })
-      const from = sheet.getByLabel('מתאריך')
-      const until = sheet.getByLabel('עד תאריך')
-      await from.fill('')
-      await from.pressSequentially('01012020')
-      await until.fill('')
-      await until.pressSequentially('02012020')
+      await setDate(sheet, 'מתאריך', '01/01/2020') // with the wheels
+      await setDate(sheet, 'עד תאריך', '02/01/2020')
     })
     await expect(page.getByRole('heading', { level: 2, name: 'אין ביקורים שלא נקלטו בטווח הזה' })).toBeVisible()
     await scanBothThemes(page, 'committee phone: history, no visits not counted')
@@ -601,25 +599,29 @@ test.describe('committee app with the sample data filled in', () => {
     await openTileMenu(page.getByRole('listitem').filter({ hasText: /מבוטלת: נסרק בטעות/ }).first())
     await scanBothThemes(page, 'committee phone: the "more" menu of a cancelled visit, open')
     await page.keyboard.press('Escape')
-    // a date field that holds a date that does not exist (31 February): flagged with aria-invalid, in red
+    // a date field that holds a date that does not exist (31 February): flagged with aria-invalid, in red. Only a field that takes typing can
+    // hold one: the sheet of a tablet (on a phone the wheels give whole dates only).
+    const phoneSize = page.viewportSize()
+    await page.setViewportSize(TABLET)
     const unfinished = await openFilters(page)
     const until = unfinished.getByLabel('עד תאריך')
     await until.fill('')
     await until.pressSequentially('31022026')
     await expect(until).toHaveAttribute('aria-invalid', 'true')
-    await scanBothThemes(page, 'committee phone: history, a date that does not exist')
+    await scanBothThemes(page, 'committee tablet: history, a date that does not exist')
     // "show results" does not apply it quietly: the message is under the field, which has the focus
     await unfinished.getByRole('button', { name: 'הצגת תוצאות' }).click()
     await expect(unfinished.getByRole('alert')).toContainText('התאריך לא תקין')
     await expect(until).toBeFocused()
-    await scanBothThemes(page, 'committee phone: history, a date that does not exist, with the message')
+    await scanBothThemes(page, 'committee tablet: history, a date that does not exist, with the message')
     // Esc with an unfinished date in the sheet asks before it closes (F4)
     await page.keyboard.press('Escape')
     const question = page.getByRole('dialog', { name: 'לסגור בלי להציג את התוצאות?' })
     await expect(question).toBeVisible()
-    await scanBothThemes(page, 'committee phone: history, the question before the filters sheet is closed')
+    await scanBothThemes(page, 'committee tablet: history, the question before the filters sheet is closed')
     await question.getByRole('button', { name: 'סגירה בלי להציג' }).click()
     await expect(page.getByRole('dialog')).toHaveCount(0)
+    await page.setViewportSize(phoneSize)
 
     // The side rail replaces the top bar and the tab bar. The screens are the same markup at any width, so a few of
     // them are enough to see the rail (its two groups and the line between them) and the wider layout.
@@ -829,21 +831,36 @@ test.describe('committee app with the sample data filled in', () => {
   })
 })
 
-// The committee app's own date picker (src/admin/DatePicker.jsx), open: a sheet from the bottom over the sheet of filters on a phone, and a
-// popover beside its field on a computer. Its grid is a table with the role of a grid, its days are 44 px buttons named by their full date, and
-// its colours (a chosen day, the band of the range, today, a day after today) are held to AA by tests/contrast.test.js as well.
+// The committee app's own date picker (src/admin/DatePicker.jsx), open. On a phone (below 640 px) the field of a date is a button that opens
+// three wheels in a sheet over the sheet of filters: each wheel is a listbox whose options are 44 px rows, each named so that a screen reader
+// reads it without guessing, and the band of the chosen row and the rows around it are held to AA by tests/contrast.test.js as well. From
+// 640 px the field has a calendar beside it: a popover over the sheet of filters of a tablet, and beside its field on a computer. Its grid is
+// a table with the role of a grid, its days are 44 px buttons named by their full date, and its colours (a chosen day, the band of the range,
+// today, a day after today) are held to AA by tests/contrast.test.js.
 test.describe('the date picker', () => {
-  test('open: over the filters sheet on a phone, and beside its field on a computer', async ({ page }) => {
+  test('open: the wheels over the filters sheet on a phone, the calendar over it on a tablet, and beside its field on a computer', async ({ page }) => {
     const login = await page.request.post('/api/admin/dev-login', { data: { email: ADMIN_EMAIL } }) // no sign-in screen, so no 401 to allow
     expect(login.ok(), 'dev admin sign-in').toBeTruthy()
     await page.goto('/admin#history')
     await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
     await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
-    const filters = await openFilters(page)
+    let filters = await openFilters(page)
+    await filters.getByLabel('מתאריך', { exact: true }).click()
+    const wheels = dateWheels(page)
+    await expect(wheels.getByRole('listbox')).toHaveCount(3)
+    await expect(wheels.getByRole('listbox', { name: 'יום', exact: true }).getByRole('option', { selected: true })).toBeFocused()
+    await scanBothThemes(page, 'committee phone: the date wheels, open over the filters sheet')
+    await page.keyboard.press('Escape') // the wheels
+    await expect(wheels).toHaveCount(0)
+    await page.keyboard.press('Escape') // the sheet, which has nothing chosen in it
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    await page.setViewportSize(TABLET)
+    filters = await openFilters(page)
     await filters.getByRole('button', { name: 'לוח שנה: תאריך התחלה' }).click()
     const start = page.getByRole('dialog', { name: 'תאריך התחלה', exact: true })
     await expect(start.getByRole('grid')).toBeVisible()
-    await scanBothThemes(page, 'committee phone: the date picker, open over the filters sheet')
+    await scanBothThemes(page, 'committee tablet: the date picker, open over the filters sheet')
     await page.keyboard.press('Escape') // the picker
     await expect(start).toHaveCount(0)
     await page.keyboard.press('Escape') // the sheet, which has nothing chosen in it
