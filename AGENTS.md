@@ -76,8 +76,11 @@ The scripts are the `scripts` of `package.json`, and `CONTRIBUTING.md` says what
   locale (owner decision of 14/10/2026): the app's own date picker may head the columns of its month grid with the
   one-letter initials of the days of the week, title the month as MM/YYYY and show each day as its number, all written by
   `shared/datetime.js`, only when every day in the grid is a button whose accessible name is its full DD/MM/YYYY and the
-  chosen date shows in its field as DD/MM/YYYY. The browser's own date field stays out. Anywhere else, a day keeps its
-  year and no weekday is written.
+  chosen date shows in its field as DD/MM/YYYY. On a phone the same picker may instead be three wheels, year, month and
+  day (owner decision of 15/10/2026), and only its month wheel may show the month's Hebrew name, written by
+  `shared/datetime.js`, under the same conditions: every option of a wheel has an accessible name that a screen reader
+  reads without guessing, and the chosen date shows in its field as DD/MM/YYYY. The browser's own date field stays out.
+  Anywhere else, a day keeps its year, and no weekday or month name is written.
   The building's time zone is one constant that the phone and the server share, `BUILDING_TZ` in `shared/contract.js`
   (Israel, `Asia/Jerusalem`), not a setting of an installation: `scans.local_date` is stored in it and installed phones
   carry it in their JavaScript, so a change would split the stored days from the new ones. Changing it is the owner's
@@ -327,8 +330,9 @@ reviewing agent should apply it too.
 - Personal data (names, phone numbers, e-mails, attendance rows, coordinates) written to logs or error messages, or real
   personal data in tests or fixtures.
 - A date or time that a person sees and that is not written by `shared/datetime.js` (`toLocale*String`,
-  `Intl.DateTimeFormat` outside it, a native date or time input, a month name, or a weekday anywhere but the day initials
-  of the app's own date picker), or a day without its year anywhere but the column heads of a table of consecutive days
+  `Intl.DateTimeFormat` outside it, a native date or time input, a month name anywhere but the month wheel of the app's own
+  date picker on a phone, or a weekday anywhere but the day initials of that picker), or a day without its year anywhere
+  but the column heads of a table of consecutive days
   that shows its full range and gives each head its full date for a screen reader, or the month grid of that date picker
   under the conditions of Rules for every change.
 - An API or offline-sync change that rejects requests from an older installed app.
