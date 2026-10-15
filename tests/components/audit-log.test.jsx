@@ -61,7 +61,7 @@ afterEach(() => {
 describe('the phrase of every action', () => {
   // Each action of the table at the top of server/audit.js, and the Hebrew that the screen says for it.
   const PHRASES = {
-    'admin.add': 'הוספת חבר ועד', 'admin.enable': 'הפעלת חבר ועד', 'admin.disable': 'השבתת חבר ועד', 'admin.delete': 'מחיקת חבר ועד',
+    'admin.add': 'הוספת מנהל מערכת', 'admin.enable': 'הפעלת מנהל מערכת', 'admin.disable': 'השבתת מנהל מערכת', 'admin.delete': 'מחיקת מנהל מערכת',
     'building.update': 'עדכון פרטי הבניין',
     'point.create': 'יצירת נקודה', 'point.update': 'עדכון נקודה', 'point.delete': 'מחיקת נקודה', 'point.regenerate_qr': 'החלפת קוד QR',
     'provider.create': 'הוספת נותן שירות', 'provider.update': 'עדכון נותן שירות', 'provider.delete': 'מחיקת נותן שירות', 'provider.revoke_devices': 'ניתוק מכשירים',
@@ -92,7 +92,7 @@ describe('the phrase of every action', () => {
   })
 
   it('has the nine choices of the group filter, in the order of the screen', () => {
-    expect(GROUP_OPTIONS.map((g) => g.label)).toEqual(['הכל', 'חברי ועד', 'פרטי הבניין', 'נקודות', 'נותני שירות', 'נוכחות', "מפתחות אייג'נט", 'כניסות ויציאות', 'ניקוי אוטומטי'])
+    expect(GROUP_OPTIONS.map((g) => g.label)).toEqual(['הכל', 'מנהלי מערכת', 'פרטי הבניין', 'נקודות', 'נותני שירות', 'נוכחות', "מפתחות אייג'נט", 'כניסות ויציאות', 'ניקוי אוטומטי'])
     expect(GROUP_OPTIONS.map((g) => g.value)).toEqual(['', 'admin', 'building', 'point', 'provider', 'scan', 'api_key', 'session', 'retention'])
   })
 })
@@ -148,12 +148,12 @@ describe('who did it', () => {
   })
 
   it('is "סקריפט התקנה" for the script of the owner, which has no name', async () => {
-    const row = await rowFor({ action: 'admin.add', entity: 'admin', entity_id: YOSSI.id, entity_name: 'yossi@example.test', actor_type: 'script', actor_id: null, actor_name: null, detail: { email: 'yossi@example.test' } }, 'הוספת חבר ועד')
+    const row = await rowFor({ action: 'admin.add', entity: 'admin', entity_id: YOSSI.id, entity_name: 'yossi@example.test', actor_type: 'script', actor_id: null, actor_name: null, detail: { email: 'yossi@example.test' } }, 'הוספת מנהל מערכת')
     expect(within(row).getByText('סקריפט התקנה')).toBeTruthy()
   })
 
   it('is "המערכת" for the first member of a deployment, added by the first sign-in (admin.add by the system), and names the member', async () => {
-    const row = await rowFor({ action: 'admin.add', entity: 'admin', entity_id: DANA.id, entity_name: 'dana@example.test', actor_type: 'system', actor_id: null, actor_name: null, detail: { email: 'dana@example.test' } }, 'הוספת חבר ועד')
+    const row = await rowFor({ action: 'admin.add', entity: 'admin', entity_id: DANA.id, entity_name: 'dana@example.test', actor_type: 'system', actor_id: null, actor_name: null, detail: { email: 'dana@example.test' } }, 'הוספת מנהל מערכת')
     expect(within(row).getByText('המערכת')).toBeTruthy()
     expect(row.querySelector('.a-audit__who').textContent).toBe('על ידי המערכת')
     expect(row.querySelector('.a-audit__subject').textContent).toBe('dana@example.test')
@@ -161,9 +161,9 @@ describe('who did it', () => {
     expect(row.querySelectorAll('.a-audit__detail > div')).toHaveLength(0) // the e-mail is the subject already, not said twice
   })
 
-  it('is "חבר ועד" when a member has no name at all, and shows an e-mail used as a name as it is', async () => {
+  it('is "מנהל מערכת" when a member has no name at all, and shows an e-mail used as a name as it is', async () => {
     const row = await rowFor({ actor_name: null }, 'עדכון נקודה')
-    expect(within(row).getByText('חבר ועד')).toBeTruthy()
+    expect(within(row).getByText('מנהל מערכת')).toBeTruthy()
     cleanup()
     const row2 = await rowFor({ actor_name: 'someone@example.test' }, 'עדכון נקודה')
     expect(within(row2).getByText('someone@example.test')).toBeTruthy()
@@ -202,7 +202,7 @@ describe('the detail of an update (`changes`)', () => {
     expect(building.querySelector('.a-audit__detail').textContent).toBe('כתובת: ריק ← רחוב הדוגמה 1')
     expect(building.querySelector('.a-audit__subject')).toBeNull() // nothing for the building: it is the only one
     cleanup()
-    const enable = await rowFor({ action: 'admin.enable', entity: 'admin', entity_id: YOSSI.id, entity_name: 'yossi@example.test', detail: { email: 'yossi@example.test', changes: { is_active: { from: false, to: true } } } }, 'הפעלת חבר ועד')
+    const enable = await rowFor({ action: 'admin.enable', entity: 'admin', entity_id: YOSSI.id, entity_name: 'yossi@example.test', detail: { email: 'yossi@example.test', changes: { is_active: { from: false, to: true } } } }, 'הפעלת מנהל מערכת')
     expect(enable.textContent).toContain('פעיל: לא ← כן')
     expect(enable.textContent).not.toContain('אימייל') // the e-mail is the subject already
   })
@@ -282,7 +282,7 @@ describe('the other known keys', () => {
     expect(within(provider).getByText('שרה ברק (גינון ירוק)')).toBeTruthy() // as the history names a provider: "contact (company)"
     expect(provider.querySelectorAll('.a-audit__detail > div')).toHaveLength(1) // the company and the contact are not said twice
     cleanup()
-    const member = await rowFor({ action: 'admin.delete', entity: 'admin', entity_id: YOSSI.id, entity_name: null, detail: { email: 'gone@example.test', name: 'רונית אבני' } }, 'מחיקת חבר ועד')
+    const member = await rowFor({ action: 'admin.delete', entity: 'admin', entity_id: YOSSI.id, entity_name: null, detail: { email: 'gone@example.test', name: 'רונית אבני' } }, 'מחיקת מנהל מערכת')
     expect(within(member).getByText('רונית אבני')).toBeTruthy()
     expect(member.textContent).toContain('אימייל: gone@example.test')
   })
@@ -346,7 +346,7 @@ describe('the older shapes of a detail (before #78)', () => {
     const building = await rowFor({ action: 'building.update', entity: 'building', entity_id: null, entity_name: null, detail: { address: 'רחוב הדוגמה 1' } }, 'עדכון פרטי הבניין')
     expect(building.querySelector('.a-audit__detail').textContent).toBe('כתובת: רחוב הדוגמה 1')
     cleanup()
-    const enable = await rowFor({ action: 'admin.enable', entity: 'admin', entity_id: YOSSI.id, entity_name: 'yossi@example.test', detail: null }, 'הפעלת חבר ועד')
+    const enable = await rowFor({ action: 'admin.enable', entity: 'admin', entity_id: YOSSI.id, entity_name: 'yossi@example.test', detail: null }, 'הפעלת מנהל מערכת')
     expect(enable.querySelector('.a-audit__detail')).toBeNull()
     cleanup()
     const unvoid = await rowFor({ action: 'scan.unvoid', entity: 'scan', entity_id: 's1', entity_name: null, detail: { reason: null } }, 'שחזור נוכחות')
@@ -430,15 +430,15 @@ describe('what is never shown', () => {
     }
   })
 
-  it('does not show the name of the actor when it looks like a token: "חבר ועד" stands in, with the mark of a deleted member', async () => {
+  it('does not show the name of the actor when it looks like a token: "מנהל מערכת" stands in, with the mark of a deleted member', async () => {
     const token = 'qrk_AbCdEfGhIjKlMnOpQrStUvWx'
     const row = await rowFor({ actor_name: token }, 'עדכון נקודה')
     expect(document.body.textContent).not.toContain(token)
-    expect(row.querySelector('.a-audit__who').textContent).toBe('על ידי חבר ועד')
+    expect(row.querySelector('.a-audit__who').textContent).toBe('על ידי מנהל מערכת')
     cleanup()
     const gone = await rowFor({ actor_name: token, actor_deleted: true }, 'עדכון נקודה')
     expect(document.body.textContent).not.toContain(token)
-    expect(gone.querySelector('.a-audit__who').textContent).toBe('על ידי חבר ועד (נמחק)')
+    expect(gone.querySelector('.a-audit__who').textContent).toBe('על ידי מנהל מערכת (נמחק)')
   })
 
   it('still shows an ordinary name, however long: a name is cut, not taken for a secret', async () => {
@@ -453,7 +453,7 @@ describe('what is never shown', () => {
     for (const entity of ['point', 'provider', 'admin', 'api_key', 'scan', 'widget', null]) {
       const described = describeEntry(entry({ entity, entity_name: token, actor_name: token, detail: { name: 'נשמר' } }))
       expect(JSON.stringify(described), String(entity)).not.toContain(token)
-      expect(described.actor.name).toBe('חבר ועד')
+      expect(described.actor.name).toBe('מנהל מערכת')
       expect(described.subject).toBe(entity === 'scan' || entity === 'provider' ? null : 'נשמר') // a visit is named by its point and a provider by its company, not by `name`
     }
   })
@@ -511,7 +511,7 @@ describe('the filters', () => {
     server({ audit: page([entry()]) })
     show()
     await screen.findByRole('option', { name: 'דנה לוי' })
-    expect(within(screen.getByLabelText('חבר ועד')).getAllByRole('option').map((o) => o.textContent)).toEqual(['כל החברים', 'דנה לוי', 'yossi@example.test'])
+    expect(within(screen.getByLabelText('מנהל מערכת')).getAllByRole('option').map((o) => o.textContent)).toEqual(['כל המנהלים', 'דנה לוי', 'yossi@example.test'])
     expect(within(screen.getByLabelText('סוג פעולה')).getAllByRole('option').map((o) => o.textContent)).toEqual(GROUP_OPTIONS.map((g) => g.label))
   })
 
@@ -520,7 +520,7 @@ describe('the filters', () => {
     show()
     await screen.findByRole('option', { name: 'דנה לוי' })
     fireEvent.change(screen.getByLabelText('סוג פעולה'), { target: { value: 'api_key' } })
-    fireEvent.change(screen.getByLabelText('חבר ועד'), { target: { value: DANA.id } })
+    fireEvent.change(screen.getByLabelText('מנהל מערכת'), { target: { value: DANA.id } })
     await waitFor(() => expect(auditCalls()).toHaveLength(2), WAIT)
     expect(Object.fromEntries(lastParams())).toEqual({ group: 'api_key', actor_id: DANA.id, limit: '50' })
     // back to "all": the parameter is gone, not empty

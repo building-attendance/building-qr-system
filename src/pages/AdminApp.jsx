@@ -41,7 +41,7 @@ const TABS = [
   { key: 'points', label: 'נקודות', nav: 'מיקומים', icon: IconPin, View: PointsView, group: GROUP_WORK },
   { key: 'providers', label: 'נותני שירות', nav: 'ספקים', icon: IconUsers, View: ProvidersView, group: GROUP_WORK },
   { key: 'agent', label: 'אייג׳נט', nav: 'אייג׳נט', icon: IconRobot, View: AgentView, group: GROUP_MANAGE, sub: 'מפתחות לסוכן ה-AI של הוועד', tint: 'violet' },
-  { key: 'settings', label: 'הגדרות', nav: 'הגדרות', icon: IconSettings, View: SettingsView, group: GROUP_MANAGE, sub: 'חברי הוועד ופרטי הבניין', tint: 'sky' },
+  { key: 'settings', label: 'הגדרות', nav: 'הגדרות', icon: IconSettings, View: SettingsView, group: GROUP_MANAGE, sub: 'מנהלי המערכת ופרטי הבניין', tint: 'sky' },
   { key: 'audit', label: 'יומן פעולות', nav: 'יומן פעולות', icon: IconClock, View: AuditView, group: GROUP_MANAGE, sub: 'מי שינה מה ומתי', tint: 'peach' },
   { key: 'help', label: 'איך עובדים עם המערכת', nav: 'עזרה', icon: IconInfo, View: HelpView, group: GROUP_MANAGE, sub: 'מדריך קצר', tint: 'mint' },
 ]

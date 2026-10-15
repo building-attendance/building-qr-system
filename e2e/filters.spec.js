@@ -343,16 +343,16 @@ test.describe('on a phone', () => {
     await expect(log.getByText('כל התאריכים')).toBeVisible()
     await expect(opener(page)).toHaveAccessibleName('סינון')
     await expect(page.getByLabel('סוג פעולה')).toHaveCount(0)
-    await expect(page.getByLabel('חבר ועד', { exact: true })).toHaveCount(0) // (not the button "חבר ועד חדש")
+    await expect(page.getByLabel('מנהל מערכת', { exact: true })).toHaveCount(0) // (not the button "מנהל מערכת חדש")
 
     let sheet = await openFilters(page)
     await sheet.getByLabel('סוג פעולה').selectOption({ label: 'נקודות' })
-    await sheet.getByLabel('חבר ועד').selectOption({ label: me.name })
+    await sheet.getByLabel('מנהל מערכת').selectOption({ label: me.name })
     await apply(sheet)
     await expect(sheet).toHaveCount(0)
     await expect(opener(page)).toHaveAccessibleName(/^סינון\s*2\s*פעילים$/)
     await expect(page.getByRole('button', { name: 'הסרת סינון: סוג פעולה: נקודות' })).toBeVisible()
-    await expect(page.getByRole('button', { name: `הסרת סינון: חבר ועד: ${me.name}` })).toBeVisible()
+    await expect(page.getByRole('button', { name: `הסרת סינון: מנהל מערכת: ${me.name}` })).toBeVisible()
 
     // a range: the bar says it, and it counts once; a chip removes its filter at once
     sheet = await openFilters(page)
@@ -457,6 +457,6 @@ test('on a computer the filters stay inline and live, each control is in the pag
   const log = page.getByRole('main')
   await expect(log.getByRole('listitem').first()).toBeVisible()
   await expect(opener(page)).toHaveCount(0)
-  for (const label of ['מתאריך', 'עד תאריך', 'סוג פעולה', 'חבר ועד']) await expect(page.getByLabel(label, { exact: true })).toHaveCount(1)
+  for (const label of ['מתאריך', 'עד תאריך', 'סוג פעולה', 'מנהל מערכת']) await expect(page.getByLabel(label, { exact: true })).toHaveCount(1)
   expect(await noHorizontalScroll(page), 'the audit log on a computer').toBe(true)
 })

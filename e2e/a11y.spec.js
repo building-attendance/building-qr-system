@@ -472,7 +472,7 @@ async function waitForAuditLog(page) {
   const log = page.getByRole('main')
   await expect(log.getByRole('listitem').first()).toBeVisible()
   await expect(log.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
-  await expect(log.getByRole('listitem').filter({ hasText: 'הוספת חבר ועד' }).first()).toBeVisible() // the members that the sample data added
+  await expect(log.getByRole('listitem').filter({ hasText: 'הוספת מנהל מערכת' }).first()).toBeVisible() // the members that the sample data added
 }
 
 /** Waits until the topics of the help screen are drawn (it is text only: nothing opens). */
@@ -486,7 +486,7 @@ async function waitForHelp(page) {
 async function filterAuditLog(page) {
   const log = page.getByRole('main')
   await changeFilters(page, (filters) => filters.getByLabel('סוג פעולה').selectOption({ label: "מפתחות אייג'נט" }), log)
-  await expect(log.getByRole('listitem').filter({ hasText: 'הוספת חבר ועד' })).toHaveCount(0)
+  await expect(log.getByRole('listitem').filter({ hasText: 'הוספת מנהל מערכת' })).toHaveCount(0)
   await expect(log.getByRole('listitem').filter({ hasText: "יצירת מפתח אייג'נט" }).first()).toBeVisible()
 }
 
@@ -808,15 +808,15 @@ test.describe('committee app with the sample data filled in', () => {
 
     // settings: adding a member, and taking an access away
     await openTab(page, 'settings', 'הגדרות')
-    await page.getByRole('button', { name: 'חבר ועד חדש' }).click()
-    const add = dialog('חבר ועד חדש')
+    await page.getByRole('button', { name: 'מנהל מערכת חדש' }).click()
+    const add = dialog('מנהל מערכת חדש')
     await expect(add).toBeVisible()
     await scanBothThemes(page, 'committee phone: new member')
     await add.getByLabel('כתובת Gmail').fill('not-an-address')
     await add.getByRole('button', { name: 'הוספה' }).click()
     await expect(add.getByText('כתובת מייל לא תקינה.')).toBeVisible()
     await scanBothThemes(page, 'committee phone: new member with an error')
-    await discardWithEscape('חבר ועד חדש', () => scanBothThemes(page, 'committee phone: the question before a new member with a typed address is closed'))
+    await discardWithEscape('מנהל מערכת חדש', () => scanBothThemes(page, 'committee phone: the question before a new member with a typed address is closed'))
     const member = page.getByRole('article').filter({ hasText: committee.member.name })
     await openTileMenu(member)
     await scanBothThemes(page, 'committee phone: the "more" menu of a member, open')

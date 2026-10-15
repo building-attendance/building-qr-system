@@ -216,7 +216,7 @@ describe('the tiles and headers of the committee screens', () => {
   })
 
   it('every page that adds something offers it as a pill with the plus and its words, the first action of its heading', () => {
-    const adds = { 'PointsView.jsx': 'נקודה חדשה', 'ProvidersView.jsx': 'נותן שירות חדש', 'SettingsView.jsx': 'חבר ועד חדש', 'AgentView.jsx': 'מפתח חדש' }
+    const adds = { 'PointsView.jsx': 'נקודה חדשה', 'ProvidersView.jsx': 'נותן שירות חדש', 'SettingsView.jsx': 'מנהל מערכת חדש', 'AgentView.jsx': 'מפתח חדש' }
     for (const [f, label] of Object.entries(adds)) {
       // the heading is marked (a-head--add: its actions go under the text), and the pill is the first thing in its actions
       const pill = new RegExp(`<div className="a-head[^"]*a-head--add">[\\s\\S]*?<div className="a-actions">\\s*<AddButton label="${label}" onClick=\\{[^}]*\\} />`)

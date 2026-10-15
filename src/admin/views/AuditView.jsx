@@ -80,7 +80,7 @@ function EntryRow({ entry }) {
 function activeFilters(f, { memberName }) {
   const chips = []
   if (f.group) chips.push({ key: 'group', label: 'סוג פעולה', value: GROUP_OPTIONS.find((g) => g.value === f.group)?.label })
-  if (f.actor_id) chips.push({ key: 'actor_id', label: 'חבר ועד', value: memberName(f.actor_id) })
+  if (f.actor_id) chips.push({ key: 'actor_id', label: 'מנהל מערכת', value: memberName(f.actor_id) })
   return { chips, count: chips.length + (f.from || f.to ? 1 : 0) }
 }
 
@@ -94,9 +94,9 @@ function AuditControls({ values, set, errors, onPending, members }) {
           {GROUP_OPTIONS.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
         </select>
       </Field>
-      <Field label="חבר ועד">
+      <Field label="מנהל מערכת">
         <select className="a-input" value={values.actor_id} onChange={(e) => set('actor_id', e.target.value)}>
-          <option value="">כל החברים</option>
+          <option value="">כל המנהלים</option>
           {(members.data?.admins ?? []).map((a) => <option key={a.id} value={a.id}>{a.name || a.email}</option>)}
         </select>
       </Field>
@@ -185,7 +185,7 @@ export default function AuditView() {
       <div className="a-head">
         <div>
           <h1>יומן פעולות</h1>
-          <p>מי עשה מה ומתי: שינויים של חברי הוועד ופעולות אוטומטיות של המערכת. הרשימה לקריאה בלבד.</p>
+          <p>מי עשה מה ומתי: שינויים של מנהלי המערכת ופעולות אוטומטיות של המערכת. הרשימה לקריאה בלבד.</p>
         </div>
         <div className="a-actions">
           <IconButton icon={IconRefresh} label="רענון היומן" onClick={load} />
@@ -213,7 +213,7 @@ export default function AuditView() {
       )}
       {status === 'ready' && entries.length === 0 && (filtered
         ? <EmptyState icon={IconClock} title="אין פעולות בטווח הזה">נסו להרחיב את טווח התאריכים או לשנות את הסינון.</EmptyState>
-        : <EmptyState icon={IconClock} title="עוד לא נרשמו פעולות">פעולות של חברי הוועד יופיעו כאן.</EmptyState>)}
+        : <EmptyState icon={IconClock} title="עוד לא נרשמו פעולות">פעולות של מנהלי המערכת יופיעו כאן.</EmptyState>)}
 
       {days.map((day) => (
         <section key={day.date} aria-label={formatDay(day.date)}>
