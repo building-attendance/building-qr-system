@@ -149,11 +149,11 @@ function AddDialog({ onClose, onAdded }) {
   const submit = async (e) => {
     e.preventDefault()
     if (!EMAIL_RE.test(email.trim())) return setError('כתובת מייל לא תקינה.')
-    const res = await run(() => adminApi('/admins', { method: 'POST', body: { email: email.trim(), name: name.trim() } }), 'חבר הוועד נוסף')
+    const res = await run(() => adminApi('/admins', { method: 'POST', body: { email: email.trim(), name: name.trim() } }), 'מנהל המערכת נוסף')
     if (res) onAdded()
   }
   return (
-    <Modal title="חבר ועד חדש" onClose={onClose} dirty={dirty} busy={busy} size="sm"
+    <Modal title="מנהל מערכת חדש" onClose={onClose} dirty={dirty} busy={busy} size="sm"
       footer={(
         <>
           <button type="button" className="w-btn w-btn--quiet w-btn--small" onClick={onClose} disabled={busy}>ביטול</button>
@@ -201,11 +201,11 @@ export default function SettingsView({ admin }) {
   // Deleting takes the person off the list for good (you cannot delete yourself); removing access only shuts them out.
   const deleteMember = async (a) => {
     const ok = await confirm({
-      title: `למחוק את ${a.name || a.email} מהוועד?`,
+      title: `למחוק את ${a.name || a.email} מרשימת מנהלי המערכת?`,
       body: 'הכתובת נמחקת מהרשימה והחשבון מתנתק מיד. אפשר להוסיף את אותה כתובת שוב בכל עת. כדי רק לעצור את הכניסה, אפשר להסיר גישה במקום.',
-      confirmLabel: 'מחיקה מהוועד', danger: true,
+      confirmLabel: 'מחיקת מנהל המערכת', danger: true,
     })
-    if (ok && await run(() => adminApi(`/admins/${a.id}`, { method: 'DELETE' }), 'חבר הוועד נמחק')) admins.reload()
+    if (ok && await run(() => adminApi(`/admins/${a.id}`, { method: 'DELETE' }), 'מנהל המערכת נמחק')) admins.reload()
   }
 
   return (
@@ -213,7 +213,7 @@ export default function SettingsView({ admin }) {
       <div className="a-head">
         <div>
           <h1>הגדרות</h1>
-          <p>חברי הוועד ופרטי הבניין.</p>
+          <p>מנהלי המערכת ופרטי הבניין.</p>
         </div>
       </div>
 
@@ -222,10 +222,10 @@ export default function SettingsView({ admin }) {
         <section aria-labelledby={membersId}>
           <div className="a-head a-head--section a-head--add">
             <div>
-              <h2 id={membersId}>חברי הוועד</h2>
+              <h2 id={membersId}>מנהלי המערכת</h2>
               <p>מי רשאי להיכנס לניהול. הכניסה תמיד עם חשבון Google.</p>
             </div>
-            <div className="a-actions"><AddButton label="חבר ועד חדש" onClick={() => setAdding(true)} /></div>
+            <div className="a-actions"><AddButton label="מנהל מערכת חדש" onClick={() => setAdding(true)} /></div>
           </div>
 
           {admins.status === 'loading' && <Spinner />}
@@ -237,7 +237,7 @@ export default function SettingsView({ admin }) {
           <div className="a-grid">
             {list.map((a) => {
               const me = a.id === admin.id
-              const name = a.name || 'חבר ועד'
+              const name = a.name || 'מנהל מערכת'
               return (
                 <article key={a.id} className={`a-card${a.is_active ? '' : ' is-off'}`}>
                   <div className="a-card__top">
@@ -257,7 +257,7 @@ export default function SettingsView({ admin }) {
                           label={`עוד פעולות ל${a.name || a.email}`}
                           items={[
                             { label: a.is_active ? 'הסרת גישה' : 'החזרת גישה', icon: a.is_active ? IconBan : IconCheck, disabled: busy, onSelect: () => toggle(a) },
-                            { label: 'מחיקה מהוועד', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deleteMember(a) },
+                            { label: 'מחיקת מנהל המערכת', icon: IconTrash, danger: true, disabled: busy, onSelect: () => deleteMember(a) },
                           ]}
                         />
                       </div>

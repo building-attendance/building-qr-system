@@ -286,7 +286,7 @@ for (const [where, size] of SIZES) {
       // the invented name of the scratch schema: a line right under the title, before the line that says who may sign in
       await signedOutLogin(page)
       const title = page.getByRole('heading', { level: 1, name: 'ניהול נוכחות הבניין' })
-      const who = page.getByText('כניסה לוועד הבית בלבד')
+      const who = page.getByText('הכניסה למנהלי המערכת בלבד')
       await expect(page.getByText(BUILDING_NAME)).toBeVisible()
       const [t, n, w] = [await title.boundingBox(), await page.getByText(BUILDING_NAME).boundingBox(), await who.boundingBox()]
       expect(t.y + t.height, 'the name is under the title').toBeLessThanOrEqual(n.y + 1)
@@ -297,7 +297,7 @@ for (const [where, size] of SIZES) {
       await signBackIn(page)
       expect((await page.request.put('/api/admin/building', { data: { address: BUILDING_ADDRESS, name: '' } })).ok()).toBe(true)
       await signedOutLogin(page)
-      await expect(title.locator('xpath=following-sibling::*[1]')).toContainText('כניסה לוועד הבית בלבד')
+      await expect(title.locator('xpath=following-sibling::*[1]')).toContainText('הכניסה למנהלי המערכת בלבד')
       await loginFits(page, `the sign-in screen ${where}, no name`)
       await signBackIn(page)
     } finally {

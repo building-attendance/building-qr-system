@@ -43,7 +43,7 @@ test('the point tiles show one "more" button that is named after the point, and 
 // pill that says what it adds (owner decision of 14/10/2026), not an icon: on a phone it used to be a solid violet circle right under the
 // account circle, which was the same solid violet circle, and the two meant different things.
 
-const ADD_BUTTONS = [['points', 'נקודה חדשה'], ['providers', 'נותן שירות חדש'], ['settings', 'חבר ועד חדש'], ['agent', 'מפתח חדש']]
+const ADD_BUTTONS = [['points', 'נקודה חדשה'], ['providers', 'נותן שירות חדש'], ['settings', 'מנהל מערכת חדש'], ['agent', 'מפתח חדש']]
 // 360 is the phone of the committee's pictures, 320 the narrowest one that the app is checked at (the longest label, "נותן שירות חדש", and the print button of Points)
 const HEADING_SIZES = [{ width: 360, height: 740 }, { width: 320, height: 640 }, COMPUTER]
 
@@ -797,7 +797,7 @@ const EDIT = { any: ['עריכה'] }
 const CARD_SCREENS = {
   points: { edit: true, menu: [EDIT, { any: ['QR והדפסה'] }, { any: ['השבתת הנקודה', 'הפעלת הנקודה'] }, { any: ['מחיקת הנקודה'] }] },
   providers: { edit: true, menu: [EDIT, { any: ['מכשירים'], optional: true }, { any: ['סיסמה חדשה'] }, { any: ['השבתה', 'הפעלה'] }, { any: ['מחיקת נותן השירות'] }] },
-  settings: { edit: false, menu: [{ any: ['הסרת גישה', 'החזרת גישה'] }, { any: ['מחיקה מהוועד'] }] },
+  settings: { edit: false, menu: [{ any: ['הסרת גישה', 'החזרת גישה'] }, { any: ['מחיקת מנהל המערכת'] }] },
   agent: { edit: false, menu: [{ any: ['ביטול המפתח'], optional: true }, { any: ['מחיקת המפתח'] }] },
   history: { tile: 'listitem', edit: false, menu: [{ any: ['ביטול הנוכחות', 'שחזור הנוכחות'], optional: true }, { any: ['מחיקת הנוכחות לצמיתות'] }] },
 }
@@ -826,7 +826,7 @@ test('Settings: the members and the building details are stacked up to 1199px, a
   await adminSignIn(page, 'settings')
   await loaded(page, 'הגדרות')
   const sections = async () => {
-    const members = await page.getByRole('region', { name: 'חברי הוועד', exact: true }).boundingBox()
+    const members = await page.getByRole('region', { name: 'מנהלי המערכת', exact: true }).boundingBox()
     const building = await page.getByRole('region', { name: 'פרטי הבניין', exact: true }).boundingBox()
     return { members, building }
   }
@@ -1607,7 +1607,7 @@ test('a provider, a committee member and an agent key can each be deleted from t
   await deleteFrom('providers', 'נותני שירות', page.getByRole('article').filter({ hasText: `עובד ${tag}` }),
     'מחיקת נותן השירות', 'מחיקת נותן השירות', 'בהיסטוריה, תחת השם הזה')
   await deleteFrom('settings', 'הגדרות', page.getByRole('article').filter({ hasText: `חבר ${tag}` }),
-    'מחיקה מהוועד', 'מחיקה מהוועד', 'אפשר להוסיף את אותה כתובת שוב')
+    'מחיקת מנהל המערכת', 'מחיקת מנהל המערכת', 'אפשר להוסיף את אותה כתובת שוב')
   await deleteFrom('agent', 'גישה לאייג\'נט', page.getByRole('article').filter({ hasText: `מפתח ${tag}` }),
     'מחיקת המפתח', 'מחיקת המפתח', 'נמחק מהרשימה לצמיתות')
 
@@ -1895,9 +1895,9 @@ test('the audit log is a screen: it lists what was done and by whom, filters, an
       await changeFilters(page, (filters) => filters.getByLabel('סוג פעולה').selectOption({ label: 'נקודות' }), log)
       await expect(rowsOfPoint).toHaveCount(3)
       // the member: the entries of the signed-in member are these
-      await changeFilters(page, (filters) => filters.getByLabel('חבר ועד').selectOption({ label: me.name }), log)
+      await changeFilters(page, (filters) => filters.getByLabel('מנהל מערכת').selectOption({ label: me.name }), log)
       await expect(rowsOfPoint).toHaveCount(3)
-      await changeFilters(page, (filters) => filters.getByLabel('חבר ועד').selectOption({ label: 'כל החברים' }), log)
+      await changeFilters(page, (filters) => filters.getByLabel('מנהל מערכת').selectOption({ label: 'כל המנהלים' }), log)
 
       // a stretch of time in which nothing was done: its own empty state
       await changeFilters(page, async (filters) => {
@@ -1980,7 +1980,7 @@ test('the "עוד" sheet: opens, lists the four other screens, marks the current
   await expect(more).toHaveAttribute('aria-expanded', 'true')
   await expect(sheet).toHaveAttribute('aria-modal', 'true')
   // each row is named by the screen's name and described by the line under it, so a button is still found by its name
-  const rows = [['אייג׳נט', 'מפתחות לסוכן ה-AI של הוועד'], ['הגדרות', 'חברי הוועד ופרטי הבניין'], ['יומן פעולות', 'מי שינה מה ומתי'], ['איך עובדים עם המערכת', 'מדריך קצר']]
+  const rows = [['אייג׳נט', 'מפתחות לסוכן ה-AI של הוועד'], ['הגדרות', 'מנהלי המערכת ופרטי הבניין'], ['יומן פעולות', 'מי שינה מה ומתי'], ['איך עובדים עם המערכת', 'מדריך קצר']]
   await expect(items).toHaveCount(rows.length)
   for (const [index, [name, line]] of rows.entries()) {
     await expect(items.nth(index)).toHaveAccessibleName(name)
@@ -2179,7 +2179,7 @@ test('the summary card of Home draws its bars from the right (the oldest day) to
       expect((await box(row.getByRole('link'))).height, `${where}: the row of ${p.name}`).toBeGreaterThanOrEqual(44)
     }
     // the four tiles (the stub has phones that wait, so the fourth is there) and the two rows: each is one link, and at least 44 high
-    for (const label of [/נותני שירות פעילים/, /נקודות פעילות/, /ביקורים שלא נקלטו/, /טלפונים עם ביקורים/, /חברי הוועד/, /מפתחות אייג'נט פעילים/]) {
+    for (const label of [/נותני שירות פעילים/, /נקודות פעילות/, /ביקורים שלא נקלטו/, /טלפונים עם ביקורים/, /מנהלי המערכת/, /מפתחות אייג'נט פעילים/]) {
       expect((await box(page.getByRole('main').getByRole('link', { name: label }))).height, `${where}: the link ${label}`).toBeGreaterThanOrEqual(44)
     }
 
@@ -2341,7 +2341,7 @@ test('the tiles and the rows of Home open their screens, and each number is the 
     await expect(page.getByRole('article'), `${where}: every point the tile counts`).toHaveCount(shown.total)
     await expect(page.getByRole('article').getByText('פעילה', { exact: true }), `${where}: the active ones`).toHaveCount(shown.number)
 
-    shown = await openCard(/חברי הוועד/)
+    shown = await openCard(/מנהלי המערכת/)
     await expect(page.getByRole('heading', { level: 1, name: 'הגדרות' })).toBeVisible()
     await expect(page.getByRole('main').getByText('פעיל', { exact: true }), `${where}: the members that are on`).toHaveCount(shown.number)
 

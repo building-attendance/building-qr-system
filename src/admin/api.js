@@ -92,7 +92,7 @@ export function auditLog(params = {}) {
 }
 
 const MESSAGES = {
-  not_an_admin: 'החשבון הזה אינו ברשימת הוועד. בקשו מחבר ועד להוסיף את כתובת ה-Gmail שלכם.',
+  not_an_admin: 'החשבון הזה אינו ברשימת מנהלי המערכת. בקשו ממנהל מערכת להוסיף את כתובת ה-Gmail שלכם.',
   google_account_mismatch: 'כתובת המייל הזאת קשורה לחשבון Google אחר.',
   google_invalid: 'לא הצלחנו לאמת את חשבון Google. נסו שוב.',
   google_email_unverified: 'כתובת המייל בחשבון Google לא מאומתת.',
@@ -110,7 +110,7 @@ const MESSAGES = {
   provider_not_found: 'נותן השירות לא נמצא. ייתכן שמישהו אחר שינה אותו, רעננו.',
   scan_not_found: 'הנוכחות לא נמצאה.',
   api_key_not_found: 'המפתח לא נמצא או שכבר בוטל.',
-  admin_not_found: 'חבר הוועד לא נמצא.',
+  admin_not_found: 'מנהל המערכת לא נמצא.',
   invalid_filter: 'אחד מהמסננים לא תקין.',
   invalid_cursor: 'הרשימה השתנתה. רעננו ונסו שוב.',
   nothing_to_update: 'לא שונה כלום.',
