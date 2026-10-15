@@ -66,21 +66,30 @@ const COMPUTER_LAYOUT = '(min-width: 1024px)'
  * block, so a tablet that is turned across 1024px would take it away. The layout waits for the person's input.
  */
 export function usePhoneLayout({ hold = false } = {}) {
-  const [phone, setPhone] = useState(() => isPhone()) // what the window is
-  const [shown, setShown] = useState(phone) // what was last drawn, while it is held
-  useEffect(() => {
-    const computer = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(COMPUTER_LAYOUT) : null
-    if (!computer) return undefined
-    const follow = () => setPhone(!computer.matches)
-    follow() // it can have changed between the first render and now
-    computer.addEventListener('change', follow)
-    return () => computer.removeEventListener('change', follow)
-  }, [])
-  if (!hold && shown !== phone) setShown(phone) // not held: what is drawn is what the window is
-  return hold ? shown : phone
+  return useNarrowerThan(COMPUTER_LAYOUT, { hold })
 }
-function isPhone() {
-  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? !window.matchMedia(COMPUTER_LAYOUT).matches : false
+
+/**
+ * True while the window is narrower than the width of `query` (a `(min-width: ...)` media query), by the rules of `usePhoneLayout`: read in
+ * the first render, followed when the window changes, false where the browser has no `matchMedia`, and frozen while `hold` is true.
+ * `usePhoneLayout` is this hook at 1024 px; the date picker uses it at 640 px, where its calendar gives way to the wheels of a phone.
+ */
+export function useNarrowerThan(query, { hold = false } = {}) {
+  const [narrow, setNarrow] = useState(() => isNarrower(query)) // what the window is
+  const [shown, setShown] = useState(narrow) // what was last drawn, while it is held
+  useEffect(() => {
+    const wide = typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? window.matchMedia(query) : null
+    if (!wide) return undefined
+    const follow = () => setNarrow(!wide.matches)
+    follow() // it can have changed between the first render and now
+    wide.addEventListener('change', follow)
+    return () => wide.removeEventListener('change', follow)
+  }, [query])
+  if (!hold && shown !== narrow) setShown(narrow) // not held: what is drawn is what the window is
+  return hold ? shown : narrow
+}
+function isNarrower(query) {
+  return typeof window !== 'undefined' && typeof window.matchMedia === 'function' ? !window.matchMedia(query).matches : false
 }
 
 export const SERVICE_TYPES = [

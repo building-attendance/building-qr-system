@@ -1,6 +1,6 @@
 // The one place that writes a date or a time for a person: DD/MM/YYYY and HH:MM (24 hours), in the building's time
-// zone. The same on every phone and every computer: never the device's own region or language, never a month name, and
-// no weekday but the initials of the date picker (below). Anything shown on a screen or written into a file for people goes through here, in the browser and on
+// zone. The same on every phone and every computer: never the device's own region or language, no month name but the month wheel of the
+// date picker on a phone, and no weekday but the initials of the date picker (below). Anything shown on a screen or written into a file for people goes through here, in the browser and on
 // the server (the committee's CSV). tests/dates.test.js fails if another way of writing a date turns up in the code.
 //
 // What is NOT for people keeps its machine format on purpose: the API and the agent read ISO dates (2026-10-01,
@@ -15,6 +15,10 @@
 // month grid with the one-letter initials of the days of the week, titles the month as MM/YYYY and shows each day as its number. The three
 // functions that write them are below `formatDayShort`, and tests/dates.test.js pins that the picker is the one file that uses them, where
 // every day of the grid is a button named by its full DD/MM/YYYY and the chosen date shows in its field as DD/MM/YYYY.
+//
+// A third (AGENTS.md, owner decision of 15/10/2026): on a phone the same picker is three wheels, year, month and day, and only its month wheel
+// shows the month's Hebrew name (`monthName`, below `dayInitials`). tests/dates.test.js pins that the picker is the one file that uses it, where
+// every option of a wheel has a name that a screen reader reads without guessing and the chosen date shows in its field as DD/MM/YYYY.
 
 // The building's time zone is written once, in shared/contract.js (the server stores `scans.local_date` in the same zone).
 // It is re-exported here so that the code that imports it from this file keeps working.
@@ -133,6 +137,31 @@ const DAY_INITIALS = Object.freeze([0x05d0, 0x05d1, 0x05d2, 0x05d3, 0x05d4, 0x05
 /** The one-letter initials of the days of the week, Sunday first: the column heads of the month grid. */
 export function dayInitials() {
   return [...DAY_INITIALS]
+}
+
+// The Hebrew names of the twelve months, January first, for the month wheel of the same picker on a phone (the third exception in the header
+// of this file): ONLY for that wheel, whose every option is named for a screen reader by the month's name and its number, and whose chosen
+// date shows in its field as DD/MM/YYYY. tests/dates.test.js fails when another file uses `monthName`. Built from their code points, as the
+// initials above are, because the code of shared/ holds no Hebrew letter.
+const MONTH_NAMES = Object.freeze([
+  [0x05d9, 0x05e0, 0x05d5, 0x05d0, 0x05e8],
+  [0x05e4, 0x05d1, 0x05e8, 0x05d5, 0x05d0, 0x05e8],
+  [0x05de, 0x05e8, 0x05e5],
+  [0x05d0, 0x05e4, 0x05e8, 0x05d9, 0x05dc],
+  [0x05de, 0x05d0, 0x05d9],
+  [0x05d9, 0x05d5, 0x05e0, 0x05d9],
+  [0x05d9, 0x05d5, 0x05dc, 0x05d9],
+  [0x05d0, 0x05d5, 0x05d2, 0x05d5, 0x05e1, 0x05d8],
+  [0x05e1, 0x05e4, 0x05d8, 0x05de, 0x05d1, 0x05e8],
+  [0x05d0, 0x05d5, 0x05e7, 0x05d8, 0x05d5, 0x05d1, 0x05e8],
+  [0x05e0, 0x05d5, 0x05d1, 0x05de, 0x05d1, 0x05e8],
+  [0x05d3, 0x05e6, 0x05de, 0x05d1, 0x05e8],
+].map((codes) => String.fromCharCode(...codes)))
+
+/** '2026-10-14' (any day of the month) as the month's Hebrew name, an option of the month wheel; '-' when it is not a real day. */
+export function monthName(ymd) {
+  const full = formatDay(ymd)
+  return full === '-' ? full : MONTH_NAMES[Number(full.slice(3, 5)) - 1]
 }
 
 /**

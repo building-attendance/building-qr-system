@@ -27,6 +27,7 @@
   --w-layout-toast-clearance: 76px; /* the toasts stand above the floating tab bar (its top is 72px above the edge) with a gap, plus the home-indicator inset where it is used */
   --w-layout-eye-width: 56px; /* the show/hide button of the password field, and the room the field keeps at its end so that text never runs under it */
   --w-layout-optical-nudge: 1px; /* lowers a toast's icon to the middle of the first line of its text */
+  --w-layout-wheel-row: 44px; /* a row of a wheel of the date picker on a phone (.a-wheel in admin.css): a 44px target (T1), and the step that a wheel scrolls and snaps by; its band and the room above its first row and under its last are counted in rows */
 }
 html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
 html, body { margin: 0; padding: 0; background: #15121f; }
