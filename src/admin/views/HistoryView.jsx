@@ -6,6 +6,7 @@ import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, Menu, use
 import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useFilterState, useUnfinishedDates } from '../filters.jsx'
 import { IconList, IconDownload, IconRefresh, IconBan, IconUndo, IconAlert, IconTrash, IconPin } from '../icons.jsx'
 import { goToTab, hashName, hashQuery } from '../tab.js'
+import { lastDays } from '../calendar.js'
 import { formatDay, formatDateTime, formatTime, isoDay, parseDay } from '../../../shared/datetime.js'
 import {
   OUTCOME_ACCEPTED, OUTCOME_REJECTED_FAR, OUTCOME_REJECTED_NO_LOCATION, VOID_REASON_MAX_LENGTH,
@@ -13,7 +14,6 @@ import {
   SCAN_ERROR_INVALID_SCAN_ID, SCAN_ERROR_SCAN_ID_CONFLICT, SCAN_ERROR_INVALID_ITEM, SOURCE_ONLINE, SOURCE_OFFLINE_SYNC, UUID_RE,
 } from '../../../shared/contract.js'
 
-const daysAgo = (n) => isoDay(new Date(Date.now() - n * 86_400_000))
 const dayLabel = formatDay // the heading of a day: DD/MM/YYYY
 
 // What the agent-facing flags mean, in words a committee member understands.
@@ -52,7 +52,8 @@ const REFUSAL_SOURCES = new Map([
 ])
 const NO_POINT = 'קוד לא מוכר' // a refusal that named no point: the code that was scanned is not one of ours
 
-const DEFAULTS = () => ({ from: daysAgo(6), to: isoDay(new Date()), point_id: '', provider_id: '', outcome: OUTCOME_ACCEPTED, include_voided: false, include_demo: false })
+// The list opens on the last 7 days up to today, the building's day: the quick range "7 ימים" of the date picker (src/admin/calendar.js).
+const DEFAULTS = () => ({ ...lastDays(7), point_id: '', provider_id: '', outcome: OUTCOME_ACCEPTED, include_voided: false, include_demo: false })
 const PAGE = 100
 
 // The choices of the "type" filter, in the order of the select. The label is also what a chip says on a phone.

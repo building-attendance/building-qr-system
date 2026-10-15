@@ -26,8 +26,8 @@ The ones that matter most:
 - **No em dash** (the long dash) anywhere: code, comments, UI text, docs. Use a comma, a colon, a full stop,
   parentheses or a plain hyphen. A test fails if one appears.
 - **Dates and times that a person sees** are written only by `shared/datetime.js`: DD/MM/YYYY and HH:MM (24 hours, the
-  building's time). Never a month name, a weekday or the browser's own date field. The API and the agent keep ISO
-  dates on purpose.
+  building's time). Never a month name, a weekday (the day initials of the app's own date picker are the one
+  exception, `AGENTS.md`) or the browser's own date field. The API and the agent keep ISO dates on purpose.
 - **Phone and computer:** the app is used on both. Change both layouts together and check both.
 - **UI text** of the service providers' app comes from `src/i18n/*.js`, in all four languages: Hebrew, English, Russian
   and Arabic. The committee app is in Hebrew only for now: its text is in `src/admin/` and `src/pages/AdminApp.jsx`
