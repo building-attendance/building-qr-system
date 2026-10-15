@@ -927,11 +927,18 @@ test('every tile shows one "more" button, and its menu holds every action in the
     expect(historySeen.restore, 'some visits can be restored').toBeGreaterThan(0)
     expect(historySeen.deleteOnly, 'and some rows have the delete alone').toBeGreaterThan(0)
 
-    // committee cards are all the same height, also the one that has no menu
+    // committee cards are all the same height, also the one that has no menu. On a computer the members are one third of the width, so a
+    // long e-mail wraps there by its own length (a card with a longer address is taller, by design): the structure is what is measured,
+    // with the same short words in every card, so that only the menu (or its absence) could make one card taller than another.
     await page.goto('/admin#settings')
     await loaded(page, 'הגדרות')
-    const heights = await Promise.all((await page.getByRole('article').all()).map(async (a) => (await a.boundingBox()).height))
-    expect(heights.length, 'your own card and the other member').toBeGreaterThan(1)
+    const cards = await page.getByRole('article').all()
+    expect(cards.length, 'your own card and the other member').toBeGreaterThan(1)
+    const heights = await Promise.all(cards.map((a) => a.evaluate((card) => {
+      card.querySelector('.a-card__title').textContent = 'x'
+      card.querySelector('.a-card__sub').textContent = 'x@y.z'
+      return card.getBoundingClientRect().height
+    })))
     near(heights, 1, 'settings: every member card is the same height, also the one with no menu')
   } finally {
     await phone.dispose()
