@@ -35,6 +35,24 @@ describe('LoginView', () => {
     expect(screen.getByText(/נקודת סריקה/).textContent).toContain('לובי')
   })
 
+  it("starts the privacy note with the account's name in every language: a scan keeps the name of the account, not the person's own (owner decision of 15/10/2026)", () => {
+    // The sentences are written out here and not read from the dictionaries, which are what this test checks.
+    const firstSentence = {
+      he: 'בכל סריקה נרשמים שם החשבון, הנקודה והשעה.',
+      en: "Each scan records the account's name, the point and the time.",
+      ru: 'При каждом сканировании записываются название аккаунта, точка и время.',
+      ar: 'عند كل مسح يُسجَّل اسم الحساب والنقطة والوقت.',
+    }
+    expect(Object.keys(firstSentence).sort()).toEqual(LANGS.map((l) => l.code).sort())
+    for (const { code } of LANGS) {
+      window.localStorage.setItem('qr.lang', code)
+      withI18n(view())
+      const note = document.querySelector('.w-note > span').textContent
+      expect(note.slice(0, firstSentence[code].length), code).toBe(firstSentence[code])
+      cleanup()
+    }
+  })
+
   it('shows a friendly message, not an empty list, when no providers are set up yet', () => {
     withI18n(view({ providers: { status: 'ready', providers: [], reload: () => {} } }))
     expect(screen.getByText(he['login.noProviders'])).toBeTruthy()
