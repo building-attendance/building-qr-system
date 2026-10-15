@@ -116,28 +116,9 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
     }
   }
 
-  // The four steps of the count cells of the Home table (--w-count-1 to 4; no screen draws them since Home became the summary card, and
-  // they stay, with this check, until a change of their own removes both): a tint of violet
-  // over the surface of the table. The number in a cell is --w-text (4.5:1), and the focus ring, which is drawn inside the cell, has to
-  // stand out from the step it is on (3:1). So does the hover ring, which is --w-info: it used to be the focus colour in both themes, and
-  // with the violet palette it is a deeper violet (light) or a paler one (dark), so it is checked on every step by itself.
-  const step = (n) => over(c(`--w-count-${n}`), surfaces.surface)
-  for (const n of [1, 2, 3, 4]) {
-    check(`--w-text on count step ${n} over surface`, c('--w-text'), step(n), 4.5)
-    check(`focus ring on count step ${n} over surface`, c('--w-focus'), step(n), 3)
-    check(`hover ring (--w-info) on count step ${n} over surface`, c('--w-info'), step(n), 3)
-  }
-
   it.each(pairs)(`${name}: %s`, (label, fg, bg, min) => {
     expect(ratio(fg, bg), `${label}: ${ratio(fg, bg).toFixed(2)}:1, needs ${min}:1`).toBeGreaterThanOrEqual(min)
   })
-
-  it('the count steps get deeper: each is further from the surface than the one before, and the first can be seen', () => {
-    const away = [1, 2, 3, 4].map((n) => ratio(step(n), surfaces.surface))
-    for (let i = 1; i < away.length; i++) expect(away[i], `step ${i + 1} against step ${i}`).toBeGreaterThan(away[i - 1])
-    expect(away[0], 'step 1 against the surface').toBeGreaterThan(1.05)
-  })
-
 })
 
 describe('the month grid of the date picker is drawn with the pairs that are checked above', () => {

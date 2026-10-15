@@ -251,8 +251,9 @@ has no question about them yet.
 - On a Windows checkout with `core.autocrlf=true`, `npm run size` measures 323,015 bytes for the precache, 25 over the
   budget, because the working tree has CRLF in `index.html`, the theme script and the SVG icons. CI builds with LF and
   measures 322,990. The numbers above are from the LF export.
-- Kept only because a test pins them, with no screen using them: the count-cell tokens `--w-count-1` to `4` and their
-  contrast checks (#228), and the `.a-icon-btn--danger` rules and `tone="primary"` of `IconButton` (#234, #236).
+- Kept only because a test pinned them, with no screen using them: the count-cell tokens `--w-count-1` to `4` and their
+  contrast checks (#228), and the `.a-icon-btn--danger` rules and `tone="primary"` of `IconButton` (#234, #236). Removed
+  on 15/10/2026, with the assertions that pinned them: see the last section.
 - The new things are not checked on a real iPhone yet: the account circle with and without a photo, the fade behind the
   tab bar and the new icon (`docs/manual-ios-checklist.md`, items 1 and 12, before the next release).
 - `docs/design.md` is at its limit of 250 lines (it was 251 after #223). This pull request adds the rules T3, V5 and V6
@@ -263,3 +264,43 @@ has no question about them yet.
 - `.claude/skills/ui-review/SKILL.md` still lists Heebo among the fixed tokens (a skill changes only in its own pull
   request). The `frontend-design` row of `docs/design/sources.md` said that the owner kept the current identity; this
   pull request corrects it.
+
+## 15/10/2026, the code that no screen used is removed (master 286f89c)
+
+Owner decision of 15/10/2026: what stayed only because a test pinned it, with no screen using it, goes together with the
+assertions that pinned it. The section above listed it under "Known and not fixed". No picture changes: nothing on a
+screen used it (the greps are in the description of the pull request). This pull request changes no behaviour.
+
+### What changed
+
+| What | Before | After |
+|---|---|---|
+| The `tone` prop of `IconButton` (`src/admin/ui.jsx`), with `.a-icon-btn--danger` and `.a-icon-btn--primary` in `src/admin/admin.css` | three looks: grey, red and a filled round button; no `IconButton` in `src/` passed a tone | one look, the grey icon. Red is only the delete item of a "more" menu, and the add button is the pill |
+| The count-cell tokens `--w-count-1` to `4` in `src/ui/ui.css` (both themes) | tokens, with 12 contrast pairs in each theme, of cells that Home stopped drawing in #228 | gone |
+
+### Automated
+
+| What | Value | Command or file |
+|---|---|---|
+| Colour pairs, light and dark (rule V2) | 80 pairs in each theme, 160 in all (58 at 4.5:1 and 22 at 3:1 in each), all pass; 167 tests in the file. Before this pull request the file had 193 tests: the 12 count pairs and the test that the count steps get deeper went from each theme. The 79 pairs and 165 tests of the section above were counted on 14/10/2026, before the calendar (#247) and the wheels (#253) added theirs | `npx vitest run tests/contrast.test.js` |
+
+The thinnest pair of the dark theme was the focus ring on the darkest count step (3.20:1, in the section above). With the
+count cells gone it is the field border on the second surface, 4.28:1 (it needs 3:1), and the thinnest text pair is
+`--w-text-3` on the violet tint, 6.23:1. The light theme's thinnest pairs did not change: the field border on the second
+surface at 3.07:1 and the success green on its own tint at 4.67:1. They were read with a temporary copy of
+`tests/contrast.test.js` that logged each ratio; the copy was taken out again.
+
+### Size
+
+`npm run size` on a Windows checkout (CRLF), on master at 286f89c and with this pull request, brotli, the same machine and the
+same command. Only the difference is meaningful here, because CRLF adds bytes (see "Known and not fixed" above).
+
+| Measurement | Before | After | Saved |
+|---|---|---|---|
+| Provider app, entry JS | 79,772 B | 79,646 B | 126 B |
+| Provider app, entry CSS | 4,711 B | 4,686 B | 25 B |
+| Committee app, chunk JS | 43,212 B | 43,090 B | 122 B |
+| Committee app, chunk CSS | 6,547 B | 6,472 B | 75 B |
+| Committee app, lazy chunks JS | 42,801 B | 42,787 B | 14 B |
+| Committee app, lazy chunks CSS | 5,668 B | 5,668 B | 0 B |
+| Precache, total | 327,190 B | 326,810 B | 380 B |
