@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react'
-import { Modal, Field, DateInput, useDirty } from './ui.jsx'
+import { Modal, Field, useDirty } from './ui.jsx'
+import { DatePicker } from './DatePicker.jsx'
 import { IconFilter, IconX } from './icons.jsx'
 import { formatDay } from '../../shared/datetime.js'
 
@@ -76,18 +77,30 @@ export function sameFilters(a, b) {
 }
 
 /**
- * The two date fields. They are two direct children of whatever holds them (a fragment), so the block of the computer layout, a grid of
- * its own, keeps its cells. `onPending(key)` gives the function that is told when a field holds a date that is not finished (see
- * `DateInput`); `errors` is `{ from, to }`, the messages under the fields.
+ * The two date fields, each with its calendar (`DatePicker`). They are two direct children of whatever holds them (a fragment), so the
+ * block of the computer layout, a grid of its own, keeps its cells. `onPending(key)` gives the function that is told when a field holds a
+ * date that is not finished (see `DateInput`); `errors` is `{ from, to }`, the messages under the fields.
+ *
+ * The quick ranges of the calendar ("היום", "7 ימים", "30 יום", "החודש") set both dates at once, through `onFrom` and `onTo`: whatever holds
+ * the fields takes them as two typed dates, so the inline block of a computer applies them after its pause, the sheet of a phone keeps
+ * them in its draft until "show results", and a link to the History tab still sets the two fields. Both fields are drawn again from
+ * their new dates, so that a date half typed in either goes.
  */
 export function DateRangeFields({ from, to, onFrom, onTo, onPending, errors = {} }) {
+  const [ranges, setRanges] = useState(0) // how many quick ranges were chosen: each one draws both fields again
+  const range = { from, to }
+  const onRange = (start, end) => {
+    setRanges((n) => n + 1)
+    onFrom(start)
+    onTo(end)
+  }
   return (
     <>
       <Field label="מתאריך" className="a-filter-date" error={errors.from}>
-        <DateInput value={from} onChange={onFrom} onPendingChange={onPending?.('from')} />
+        <DatePicker label="תאריך התחלה" value={from} onChange={onFrom} onPendingChange={onPending?.('from')} range={range} onRange={onRange} revision={ranges} />
       </Field>
       <Field label="עד תאריך" className="a-filter-date" error={errors.to}>
-        <DateInput value={to} onChange={onTo} onPendingChange={onPending?.('to')} />
+        <DatePicker label="תאריך סיום" value={to} onChange={onTo} onPendingChange={onPending?.('to')} range={range} onRange={onRange} revision={ranges} />
       </Field>
     </>
   )

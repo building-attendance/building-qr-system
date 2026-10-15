@@ -829,6 +829,34 @@ test.describe('committee app with the sample data filled in', () => {
   })
 })
 
+// The committee app's own date picker (src/admin/DatePicker.jsx), open: a sheet from the bottom over the sheet of filters on a phone, and a
+// popover beside its field on a computer. Its grid is a table with the role of a grid, its days are 44 px buttons named by their full date, and
+// its colours (a chosen day, the band of the range, today, a day after today) are held to AA by tests/contrast.test.js as well.
+test.describe('the date picker', () => {
+  test('open: over the filters sheet on a phone, and beside its field on a computer', async ({ page }) => {
+    const login = await page.request.post('/api/admin/dev-login', { data: { email: ADMIN_EMAIL } }) // no sign-in screen, so no 401 to allow
+    expect(login.ok(), 'dev admin sign-in').toBeTruthy()
+    await page.goto('/admin#history')
+    await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
+    await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
+    const filters = await openFilters(page)
+    await filters.getByRole('button', { name: 'לוח שנה: תאריך התחלה' }).click()
+    const start = page.getByRole('dialog', { name: 'תאריך התחלה', exact: true })
+    await expect(start.getByRole('grid')).toBeVisible()
+    await scanBothThemes(page, 'committee phone: the date picker, open over the filters sheet')
+    await page.keyboard.press('Escape') // the picker
+    await expect(start).toHaveCount(0)
+    await page.keyboard.press('Escape') // the sheet, which has nothing chosen in it
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+
+    await page.setViewportSize(COMPUTER)
+    await page.getByRole('button', { name: 'לוח שנה: תאריך סיום' }).click()
+    const end = page.getByRole('dialog', { name: 'תאריך סיום', exact: true })
+    await expect(end.getByRole('grid')).toBeVisible()
+    await scanBothThemes(page, 'committee computer: the date picker, open beside its field')
+  })
+})
+
 // The shared components on their own page (e2e/harness.js), before any screen uses them: the "more" menu of a tile (Menu in
 // src/admin/ui.jsx) open, with an item that is off, and inside a dialog, on a phone and on a computer. The screens scan it again where
 // they use it.

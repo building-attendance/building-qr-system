@@ -2,9 +2,9 @@
   "entryJs": 86016,
   "entryCss": 5120,
   "committeeJs": 41984,
-  "committeeCss": 5832,
+  "committeeCss": 6230,
   "committeeLazyJs": 47104,
   "committeeLazyCss": 6656,
-  "precacheBytes": 323245,
+  "precacheBytes": 325249,
   "precacheEntries": 21
 }

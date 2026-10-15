@@ -85,6 +85,18 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
   // The "more" menu of a tile (.a-menu in src/admin/admin.css): its items are --w-text on the surface, and the item under the pointer or
   // the focus is filled with --w-surface-2 (the pairs above), the red delete included. The focus ring is drawn inside that fill.
   check('--w-danger on surface-2 (the delete of a menu, focused)', c('--w-danger'), surfaces['surface-2'], 4.5)
+  // The month grid of the date picker (.a-cal in src/admin/admin.css), on the surface of its dialog. A chosen day is --w-on-primary on the
+  // primary colour; a day in the chosen range is --w-text on a band of the violet tint; a day that cannot be chosen (after today) is --w-text-3,
+  // on the surface or on that band; today has a ring of the primary colour inside its circle, on the surface or on the band; the initials over
+  // the columns are --w-text-2. The focus ring stands outside the circle (offset), on the surface or the band.
+  check('--w-on-primary on primary (a chosen day of the date picker)', c('--w-on-primary'), c('--w-primary'), 4.5)
+  check('--w-text on the violet tint (a day in the chosen range)', c('--w-text'), c('--w-tint-violet'), 4.5)
+  check('--w-text-3 on surface (a day that cannot be chosen)', c('--w-text-3'), surfaces.surface, 4.5)
+  check('--w-text-3 on the violet tint (a day that cannot be chosen, in the range)', c('--w-text-3'), c('--w-tint-violet'), 4.5)
+  check('--w-primary on surface (the ring of today)', c('--w-primary'), surfaces.surface, 3)
+  check('--w-primary on the violet tint (the ring of today, in the range)', c('--w-primary'), c('--w-tint-violet'), 3)
+  check('--w-text-2 on surface (the initials of the days)', c('--w-text-2'), surfaces.surface, 4.5)
+  check('focus ring on the violet tint (a focused day beside the range)', c('--w-focus'), c('--w-tint-violet'), 3)
   for (const kind of ['success', 'warn', 'danger', 'info']) {
     for (const sn of ['surface', 'bg']) {
       check(`--w-${kind} on ${sn}`, c(`--w-${kind}`), surfaces[sn], 4.5)
@@ -116,6 +128,19 @@ describe.each(Object.entries(themes))('%s theme meets WCAG AA', (name, t) => {
     expect(away[0], 'step 1 against the surface').toBeGreaterThan(1.05)
   })
 
+})
+
+describe('the month grid of the date picker is drawn with the pairs that are checked above', () => {
+  // So that the pairs cannot drift from what src/admin/admin.css paints: a day, a chosen day, the band of the range, today, a day that
+  // cannot be chosen, and the initials over the columns.
+  it('uses the tokens of each pair', () => {
+    expect(adminCss).toMatch(/\.a-cal__day \{[^}]*background: none; color: var\(--w-text\);/)
+    expect(adminCss).toMatch(/\.a-cal__day\.is-chosen \{ background: var\(--w-primary\); color: var\(--w-on-primary\);/)
+    expect(adminCss).toMatch(/\.a-cal__grid td\.is-in::before \{[^}]*background: var\(--w-tint-violet\); \}/)
+    expect(adminCss).toMatch(/\.a-cal__day\[aria-current='date'\] \{ box-shadow: inset 0 0 0 2px var\(--w-primary\);/)
+    expect(adminCss).toMatch(/\.a-cal__day\[aria-disabled='true'\] \{ background: none; color: var\(--w-text-3\);/)
+    expect(adminCss).toMatch(/\.a-cal__grid th \{[^}]*color: var\(--w-text-2\);/)
+  })
 })
 
 describe('controls do not lose their own type and colour to the reset', () => {
