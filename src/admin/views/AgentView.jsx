@@ -66,6 +66,8 @@ export default function AgentView() {
   const [creating, setCreating] = useState(false)
   const [busy, run] = useAction(toast, errorText)
   const list = keys.data?.api_keys ?? []
+  // A list that has loaded and is empty shows its empty state, whose own button is the one next step (S1): the heading has no add button then.
+  const empty = keys.status === 'ready' && list.length === 0
   const limits = keys.data?.limits
   const base = `${window.location.origin}/api/agent/v1`
 
@@ -102,14 +104,14 @@ export default function AgentView() {
           <p>נתוני הנוכחות זמינים לקריאה בלבד לכל אייג'נט שמחזיק במפתח. האפליקציה עצמה לא מנתחת כלום.</p>
           {limits && <p>{limitsNote(limits)}</p>}
         </div>
-        <div className="a-actions"><AddButton label="מפתח חדש" onClick={() => setCreating(true)} /></div>
+        {!empty && <div className="a-actions"><AddButton label="מפתח חדש" onClick={() => setCreating(true)} /></div>}
       </div>
 
       {keys.status === 'loading' && <Spinner />}
       {keys.status === 'error' && !keys.data && (
         <EmptyState icon={IconAlert} title="לא הצלחנו לטעון את המפתחות" action={<button className="w-btn w-btn--small" onClick={keys.reload}>נסו שוב</button>} />
       )}
-      {keys.status === 'ready' && list.length === 0 && (
+      {empty && (
         <EmptyState icon={IconKey} title="עוד אין מפתחות" action={<button className="w-btn w-btn--small" onClick={() => setCreating(true)}><IconPlus size={20} />יצירת מפתח</button>}>
           צרו מפתח ותנו אותו לאייג'נט שיקרא את הנתונים.
         </EmptyState>

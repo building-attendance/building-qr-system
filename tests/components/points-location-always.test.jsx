@@ -24,6 +24,7 @@ vi.mock('../../src/admin/MapPicker.jsx', () => ({
 }))
 
 const WAIT = { timeout: 4000 }
+const FIRST_POINT = 'הוסיפו את הנקודה הראשונה'
 const NO_PIN_ERROR = 'נקודה צריכה מיקום במפה.'
 const OLD_MODE_NOTE = 'בשמירה הנקודה תעבור לבדיקת מיקום חובה.'
 
@@ -46,7 +47,10 @@ async function show(points) {
   render(<ToastProvider><ConfirmProvider><PointsView /></ConfirmProvider></ToastProvider>)
   await screen.findByRole('heading', { name: 'נקודות סריקה' })
   if (points.length) await screen.findByText(points[0].name, {}, WAIT)
+  else await screen.findByRole('button', { name: FIRST_POINT }, WAIT) // an empty list has no add button in the heading: its empty state has the one
 }
+/** Opens the form of a new point on an empty list, with the empty state's own button (the heading has no add button then). */
+const openFirstPoint = () => fireEvent.click(screen.getByRole('button', { name: FIRST_POINT }))
 const tile = (name) => screen.getByRole('heading', { name, level: 2 }).closest('article')
 const dialog = () => screen.getByRole('dialog')
 
@@ -58,7 +62,7 @@ afterEach(() => {
 describe('the form of a new point', () => {
   it('has no field for the location check: the map and the coordinates are always there', async () => {
     await show([])
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     const form = within(dialog())
 
     expect(form.queryByLabelText('בדיקת מיקום')).toBeNull()
@@ -73,7 +77,7 @@ describe('the form of a new point', () => {
 
   it('refuses to save without a pin on the map, says so, and sends nothing', async () => {
     await show([])
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     fireEvent.change(within(dialog()).getByLabelText('שם הנקודה'), { target: { value: 'חדר מדרגות' } })
     fireEvent.click(within(dialog()).getByRole('button', { name: 'שמירה' }))
 
@@ -84,7 +88,7 @@ describe('the form of a new point', () => {
 
   it('still refuses half a pin, with the message for the pair', async () => {
     await show([])
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     fireEvent.change(within(dialog()).getByLabelText('שם הנקודה'), { target: { value: 'חדר מדרגות' } })
     fireEvent.change(within(dialog()).getByLabelText('קו רוחב'), { target: { value: '32.08' } })
     fireEvent.click(within(dialog()).getByRole('button', { name: 'שמירה' }))
@@ -95,7 +99,7 @@ describe('the form of a new point', () => {
 
   it('still checks the range of the coordinates and of the radius', async () => {
     await show([])
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     const form = within(dialog())
     fireEvent.change(form.getByLabelText('שם הנקודה'), { target: { value: 'חדר מדרגות' } })
     fireEvent.change(form.getByLabelText('קו רוחב'), { target: { value: '95' } })
@@ -110,7 +114,7 @@ describe('the form of a new point', () => {
 
   it('saves with the pin and always sends the mode "required"', async () => {
     await show([])
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     fireEvent.change(within(dialog()).getByLabelText('שם הנקודה'), { target: { value: 'חדר מדרגות' } })
     fireEvent.click(await within(dialog()).findByRole('button', { name: 'סימון במפה' }))
     expect(within(dialog()).getByLabelText('קו רוחב').value).toBe('32.0853')
