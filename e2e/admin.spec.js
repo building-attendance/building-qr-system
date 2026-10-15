@@ -1905,6 +1905,29 @@ test('the help is a screen of its own with every topic on it, nothing to press, 
     await expect(main.locator('p')).toHaveCount(HELP_TOPICS.length)
     for (const paragraph of await main.locator('p').all()) await expect(paragraph).not.toBeEmpty()
 
+    // the cards: one column on a phone; on a computer two equal columns that each flow on their own (owner decision of 15/10/2026), in the order of
+    // the page (the first half in the right column, then the second half in the left one, top to bottom), each card right under the one above it
+    // with the gap of its column and no empty space under a short one, and the two columns start on the same line
+    const cards = await topics.locator('xpath=..').evaluateAll((els) => els.map((el) => {
+      const box = el.getBoundingClientRect()
+      const stack = getComputedStyle(el.parentElement).display === 'contents' ? el.parentElement.parentElement : el.parentElement // the one whose gap it is
+      return { left: box.left, top: box.top, bottom: box.bottom, width: box.width, gap: parseFloat(getComputedStyle(stack).rowGap), shadow: getComputedStyle(el).boxShadow !== 'none' }
+    }))
+    expect(cards, `${where}: a card for every topic`).toHaveLength(HELP_TOPICS.length)
+    expect(cards.every((card) => card.shadow), `${where}: every topic is a card`).toBe(true)
+    const lefts = [...new Set(cards.map((card) => Math.round(card.left)))]
+    expect(lefts, `${where}: the columns`).toHaveLength(size ? 2 : 1)
+    for (const card of cards) expect(card.width, `${where}: the columns are equal`).toBeCloseTo(cards[0].width, 0)
+    const reading = lefts.sort((a, b) => b - a).flatMap((left) => cards.filter((card) => Math.round(card.left) === left)) // right to left, each from the top
+    expect(reading.map((card) => cards.indexOf(card)), `${where}: the reading order is the order of the page`).toEqual(cards.map((_, i) => i))
+    for (const [i, card] of cards.entries()) {
+      expect(card.gap, `${where}: a gap between the cards of a column`).toBeGreaterThan(0)
+      const above = cards[i - 1]
+      if (above && Math.round(above.left) === Math.round(card.left)) expect(card.top - above.bottom, `${where}: the gap under "${HELP_TOPICS[i - 1]}"`).toBeCloseTo(card.gap, 0)
+    }
+    const other = cards.find((card) => Math.round(card.left) !== Math.round(cards[0].left)) // the first card of the second column
+    if (other) expect(Math.abs(cards[0].top - other.top), `${where}: the columns start on the same line`).toBeLessThan(1)
+
     // read only: nothing to press in it, and nothing that opens or closes
     await expect(main.getByRole('button')).toHaveCount(0)
     await expect(main.getByRole('link')).toHaveCount(0)
