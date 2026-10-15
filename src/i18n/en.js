@@ -7,7 +7,7 @@ export default {
   'common.retry': 'Try again',
 
   'login.pointBanner': 'Scan point: {name}',
-  'login.title': 'Choose your name',
+  'login.title': 'Choose your account',
   'login.subtitle': 'Only the first time on this phone',
   'login.passwordTitle': 'Hi {name}',
   'login.passwordLabel': 'Password',
@@ -16,7 +16,7 @@ export default {
   'login.remember': 'Keep me signed in on this phone',
   'login.rememberHint': 'Good for your own phone. Turn it off on a shared phone.',
   'login.submit': 'Sign in',
-  'login.changeName': 'Not me, choose another name',
+  'login.changeName': 'Not me, choose another account',
   'login.wrong': 'Wrong password. Try again.',
   'login.locked': 'Too many attempts. Try again in a few minutes.',
   'login.network': 'No connection. Try again when you have signal.',

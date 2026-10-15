@@ -138,7 +138,11 @@
 /* The two roots are in the list as well as everything inside them: .w-app has padding, and in the default box model its
    `min-height: 100dvh` came out as 100dvh plus that padding, so every screen of the provider app was taller than the phone. */
 .w-app, .a-app, .w-app *, .w-app *::before, .w-app *::after, .a-app *, .a-app *::before, .a-app *::after { box-sizing: border-box; }
-.w-app h1, .w-app h2, .w-app h3, .w-app p, .a-app h1, .a-app h2, .a-app h3, .a-app p { margin: 0; padding: 0; border: 0; }
+/* Headings and paragraphs start with no margin, padding or edge. :where() gives this reset no specificity, so a class's own margin, padding
+   or border (the note under the list of names, the heads of the days, the title of a section) is never cancelled by it. With the plain
+   selectors (`.w-app p`, 0,1,1) it outranked any single class (0,1,0), and the privacy note of the sign-in screen came out with no padding
+   at all, its shield touching the edge of the box. tests/design-css.test.js fails on a reset that has any specificity. */
+:where(.w-app, .a-app) :where(h1, h2, h3, p) { margin: 0; padding: 0; border: 0; }
 /* Controls start from the surrounding type and colour. :where() gives this reset no specificity, so every class rule
    below (a button's weight, size and colour, a nav item's, a field's) applies as written. With the plain selectors it
    outranked them, and buttons came out at weight 400 and the colour of whatever surrounded them: green text on the

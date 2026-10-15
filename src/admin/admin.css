@@ -185,9 +185,8 @@
 .a-hero a:focus-visible { outline-color: var(--w-on-hero); }
 .a-hero h2 { font-size: var(--w-font-base); font-weight: var(--w-weight-medium); }
 /* The range stands right above the bars (the #202 exception for the DD/MM heads asks for it, and tests/dates.test.js holds the order): it is
-   the element before the table, with only 6px of the card's 14px gap under it, so that it reads as the line of the bars (the two classes:
-   `.a-app p` resets the margin of a paragraph with more weight than one class). */
-.a-hero .a-hero__range { font-size: var(--w-font-xs); margin-block-end: calc(-1 * var(--w-space-2)); }
+   the element before the table, with only 6px of the card's 14px gap under it, so that it reads as the line of the bars. */
+.a-hero__range { font-size: var(--w-font-xs); margin-block-end: calc(-1 * var(--w-space-2)); }
 .a-hero__total { display: flex; align-items: baseline; gap: var(--w-space-2); font-size: var(--w-font-xl); }
 .a-hero__num { font-size: calc(var(--w-font-4xl) * 1.7); font-weight: var(--w-weight-bold); line-height: 1; font-variant-numeric: tabular-nums; }
 

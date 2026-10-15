@@ -1,5 +1,5 @@
-// Two design rules, checked on the stylesheets (src/**/*.css) and on the inline styles of the components (`style={{ ... }}` in
-// src/**/*.jsx). The rule ids are the ones of docs/design.md.
+// Two design rules and one guard on the cascade, checked on the stylesheets (src/**/*.css) and on the inline styles of the components
+// (`style={{ ... }}` in src/**/*.jsx). The rule ids are the ones of docs/design.md.
 //
 // R1  Logical properties. The provider app is written in two directions (Hebrew and Arabic run right to left, English and Russian left
 //     to right), so a box is placed by the start and the end of the line, never by left and right: margin-inline-start, padding-inline,
@@ -24,6 +24,14 @@
 //     a budget of 0. What is counted: a px or rem literal in a spacing, radius or font-size declaration, outside a custom property
 //     (`--x: 8px` is the definition of a token), and in a component the numbers that React reads as px (`padding: 8`) and the px and rem
 //     strings (`'6px 12px'`); a 0 is not a literal. A literal inside calc(), max() or var(--x, 8px) counts.
+//
+// Reset  A reset has no specificity. `.w-app p { margin: 0; padding: 0; border: 0 }` (0,1,1) outranks any rule of one class (0,1,0), so
+//     a class that gave its paragraph or heading a margin, a padding or a border was cancelled, with no sign of it: the privacy note of the
+//     provider's sign-in screen came out with no padding at all (the shield touched the edge of its box), and so did four other rules (the
+//     title of a section, the heads of the days, the building's name on the committee's sign-in, the build label). A rule that sets the
+//     margin, padding or border of elements by their TYPE, scoped by nothing but the roots of the apps (.w-app, .a-app), is a reset, and its
+//     specificity must stay under that of one class: the roots go in `:where()`, as `:where(.w-app, .a-app) :where(h1, h2, h3, p)` does.
+//     A rule that is scoped by a class of a component (`.a-head p`) is that component's own and is not a reset.
 //
 // The scanner is checked by itself first (the cases at the end), because a scanner that finds nothing would pass every day.
 import { describe, it, expect } from 'vitest'
@@ -287,6 +295,132 @@ function checkTokens(declarations, tokens) {
   return problems
 }
 
+// ---- Reset: a reset has no specificity ----------------------------------------------------------------------------------
+
+/** The classes that mark the root of an app: a selector scoped by these alone is global to the app. */
+const APP_ROOTS = new Set(['w-app', 'a-app'])
+
+/** The properties that a reset zeroes and a class sets again: margin, padding and the edge (not border-radius, which a reset leaves alone). */
+const RESET_PROPERTY = /^(margin|padding)(-|$)|^border(-(top|right|bottom|left|block|inline)(-(start|end))?)?(-(width|style|color))?$/
+
+/** The end of the identifier (a class, a type, a pseudo-class) that starts at `from`. */
+function identEnd(text, from) {
+  let i = from
+  while (i < text.length && (/[\w-]/.test(text[i]) || text.charCodeAt(i) > 127 || text[i] === '\\')) i += text[i] === '\\' ? 2 : 1
+  return i
+}
+
+const compareSpecificity = (a, b) => a[0] - b[0] || a[1] - b[1] || a[2] - b[2]
+
+/**
+ * What one selector is made of, by the rules of Selectors Level 4: its specificity [ids, classes, types], the names of its classes, how
+ * many ids, attributes and pseudo-classes it has (`others`), its types and whether it has a `*`. `:where()` counts nothing in the
+ * specificity (what is in it is still listed, so that a reset written in it is still seen as one); `:is()`, `:not()` and `:has()` count the
+ * most specific of their arguments; a pseudo-element counts as a type.
+ * @returns {{ specificity: [number, number, number], classes: string[], others: number, types: number, universal: boolean }}
+ */
+function readSelector(selector) {
+  const read = { specificity: [0, 0, 0], classes: [], others: 0, types: 0, universal: false }
+  const walkSelector = (text, counts) => {
+    const count = (kind, n = 1) => {
+      if (counts) read.specificity[kind] += n
+    }
+    let i = 0
+    while (i < text.length) {
+      const ch = text[i]
+      if (ch === '#') {
+        i = identEnd(text, i + 1)
+        read.others++
+        count(0)
+      } else if (ch === '.') {
+        const end = identEnd(text, i + 1)
+        read.classes.push(text.slice(i + 1, end))
+        i = end
+        count(1)
+      } else if (ch === '[') {
+        i = text.indexOf(']', i) + 1 || text.length
+        read.others++
+        count(1)
+      } else if (ch === ':') {
+        const element = text[i + 1] === ':'
+        const nameStart = i + (element ? 2 : 1)
+        const nameEnd = identEnd(text, nameStart)
+        const name = text.slice(nameStart, nameEnd).toLowerCase()
+        let argument = ''
+        i = nameEnd
+        if (text[i] === '(') {
+          let depth = 0
+          let close = i
+          for (; close < text.length; close++) {
+            if (text[close] === '(') depth++
+            else if (text[close] === ')' && --depth === 0) break
+          }
+          argument = text.slice(i + 1, close)
+          i = close + 1
+        }
+        if (element || ['before', 'after', 'first-line', 'first-letter'].includes(name)) {
+          read.types++
+          count(2)
+        } else if (name === 'where') {
+          for (const part of splitTop(argument, /,/)) walkSelector(part.text, false)
+        } else if (['is', 'not', 'has', 'matches'].includes(name)) {
+          let widest = [0, 0, 0]
+          for (const part of splitTop(argument, /,/)) {
+            const inner = readSelector(part.text)
+            read.classes.push(...inner.classes)
+            read.types += inner.types
+            if (compareSpecificity(inner.specificity, widest) > 0) widest = inner.specificity
+          }
+          read.others++
+          for (let kind = 0; kind < 3; kind++) count(kind, widest[kind])
+        } else {
+          read.others++
+          count(1)
+        }
+      } else if (ch === '*') {
+        read.universal = true
+        i++
+      } else if (/[a-zA-Z_]/.test(ch) || ch.charCodeAt(0) > 127) {
+        i = identEnd(text, i)
+        read.types++
+        count(2)
+      } else i++ // a combinator, a space or the bar of a namespace
+    }
+  }
+  walkSelector(selector, true)
+  return read
+}
+
+const showSpecificity = (specificity) => `(${specificity.join(',')})`
+
+/** True when this selector is a reset: the roots of the apps and types (or `*`), and no other class, id, attribute or pseudo-class. */
+function isReset(selector) {
+  const { classes, others, types, universal } = readSelector(selector)
+  return others === 0 && classes.length > 0 && classes.every((name) => APP_ROOTS.has(name)) && (types > 0 || universal)
+}
+
+/**
+ * The resets that outrank a class: a rule that sets the margin, padding or border of elements by their type under the roots of the apps,
+ * with a selector whose specificity is that of one class or more. One entry per selector of a rule, with the properties it sets.
+ * @returns {{ file: string, line: number, selector: string, properties: string[], specificity: number[] }[]}
+ */
+function checkResets(declarations) {
+  const found = new Map()
+  for (const d of declarations) {
+    if (d.inComponent || !RESET_PROPERTY.test(d.property)) continue
+    for (const part of splitTop(d.where, /,/)) {
+      if (!isReset(part.text)) continue
+      const { specificity } = readSelector(part.text)
+      if (compareSpecificity(specificity, [0, 1, 0]) < 0) continue
+      const key = JSON.stringify([d.file, d.where, part.text])
+      const entry = found.get(key) ?? { file: d.file, line: d.line, selector: part.text, properties: [], specificity }
+      entry.properties.push(d.property)
+      found.set(key, entry)
+    }
+  }
+  return [...found.values()]
+}
+
 // ---- the findings, and the budget file ----------------------------------------------------------------------------------
 
 /** All declarations of the project, with the file they are in and whether they are in a component. */
@@ -419,6 +553,28 @@ describe('V1: a size that has a token is written as the token', () => {
   })
 })
 
+describe('Reset: a reset of the margin, padding or border has no specificity', () => {
+  const declarations = projectDeclarations()
+
+  it('the scan finds the reset of the headings and paragraphs, and it has no specificity', () => {
+    const selectors = declarations
+      .filter((d) => !d.inComponent && d.property === 'margin')
+      .flatMap((d) => splitTop(d.where, /,/).map((part) => part.text))
+      .filter(isReset)
+    expect(selectors.length, 'a rule that resets the margin under the roots of the apps').toBeGreaterThan(0)
+    for (const selector of selectors) expect(readSelector(selector).specificity, selector).toEqual([0, 0, 0])
+  })
+
+  it('no rule that sets the margin, padding or border of a type of element under the roots of the apps outranks a class', () => {
+    const lines = checkResets(declarations).map(
+      (r) =>
+        `${r.file}:${r.line} ${r.selector} { ${r.properties.join(', ')} }\n    its specificity is ${showSpecificity(r.specificity)}, so it beats a rule of one class (0,1,0) and cancels the margin, padding or border that a class gives to the same element: ` +
+        'write the roots in :where(), as :where(.w-app, .a-app) :where(h1, h2, h3, p) does (src/ui/ui.css)',
+    )
+    expect(lines, `\n${lines.join('\n')}`).toEqual([])
+  })
+})
+
 // ---- the scanner, on small cases ----------------------------------------------------------------------------------------
 
 describe('the scanner itself', () => {
@@ -547,5 +703,58 @@ const b = <i
     expect(checkPhysical(declarations, [exception({ property: 'margin-right' })]).gone).toHaveLength(1)
     expect(checkPhysical(declarations, [exception({ file: 'src/other.css' })]).fresh).toHaveLength(2)
     expect(checkPhysical([], [exception()]).gone).toHaveLength(1)
+  })
+
+  it('computes the specificity of a selector, with :where() counting nothing', () => {
+    const of = (selector) => readSelector(selector).specificity
+    expect(of('p')).toEqual([0, 0, 1])
+    expect(of('.w-app p')).toEqual([0, 1, 1])
+    expect(of('.a-hero .a-hero__range')).toEqual([0, 2, 0])
+    expect(of('.a-hero__range')).toEqual([0, 1, 0])
+    expect(of('#root .x a:hover')).toEqual([1, 2, 1])
+    expect(of('input[type="text"]::placeholder')).toEqual([0, 1, 2])
+    expect(of('.x::before')).toEqual([0, 1, 1])
+    expect(of('.a:not(.b, #c) > li')).toEqual([1, 1, 1])
+    expect(of(':is(.a, p) span')).toEqual([0, 1, 1])
+    expect(of('.w-app *')).toEqual([0, 1, 0])
+    expect(of(':where(.w-app, .a-app) :where(h1, h2, h3, p)')).toEqual([0, 0, 0])
+    expect(of(':where(.w-app, .a-app) :where(button, select)')).toEqual([0, 0, 0])
+    expect(of(':where(.w-app) p')).toEqual([0, 0, 1])
+    expect(of('.w-app :where(p)')).toEqual([0, 1, 0])
+  })
+
+  it('tells a reset (the roots of the apps and types) from a rule of a component or of a class', () => {
+    expect(isReset('.w-app h1')).toBe(true)
+    expect(isReset('.a-app p')).toBe(true)
+    expect(isReset('.w-app > ul')).toBe(true)
+    expect(isReset('.w-app *')).toBe(true)
+    expect(isReset(':where(.w-app, .a-app) :where(h1, h2, h3, p)')).toBe(true)
+    expect(isReset('.a-head p')).toBe(false) // a class of a component
+    expect(isReset('.a-app .a-head p')).toBe(false)
+    expect(isReset('.w-app')).toBe(false) // the root itself is a class rule, not a reset of a type
+    expect(isReset('.w-app p:first-child')).toBe(false) // a pseudo-class makes it a rule of its own
+    expect(isReset('.w-app a[href]')).toBe(false)
+    expect(isReset('.w-note')).toBe(false)
+    expect(isReset('p')).toBe(false) // no root: not scoped to an app
+  })
+
+  it('flags a reset that has the specificity of a class, and passes one that has none', () => {
+    const resets = (source) => checkResets(css(source).map((d) => ({ ...d, file: 'src/x.css', inComponent: false })))
+    // the reset as it was: three selectors, each reported once with the three properties it sets
+    const old = resets('.w-app h1, .w-app h2, .a-app p { margin: 0; padding: 0; border: 0 }')
+    expect(old.map((r) => r.selector)).toEqual(['.w-app h1', '.w-app h2', '.a-app p'])
+    expect(old[0]).toMatchObject({ file: 'src/x.css', line: 1, properties: ['margin', 'padding', 'border'], specificity: [0, 1, 1] })
+    // the same reset in :where(), or with a type only: less than a class
+    expect(resets(':where(.w-app, .a-app) :where(h1, h2, h3, p) { margin: 0; padding: 0; border: 0 }')).toEqual([])
+    expect(resets(':where(.w-app, .a-app) h1 { margin: 0 }')).toEqual([])
+    // a root outside :where(), a rule in @media, the universal selector and a longhand of the edge are all caught
+    expect(resets('.w-app :where(h1, p) { margin-block-start: 0 }')).toHaveLength(1)
+    expect(resets('@media (min-width: 640px) { .a-app ul { padding-inline: 0 } }')).toHaveLength(1)
+    expect(resets('.a-app * { border-block-end-width: 0 }')).toHaveLength(1)
+    // not a reset, or not a property that a reset zeroes
+    expect(resets('.a-head p { margin-block-start: 4px }')).toEqual([])
+    expect(resets('.w-app { padding-left: 4px }')).toEqual([])
+    expect(resets('.w-app p { color: red; border-radius: 4px; font: inherit; border-collapse: collapse }')).toEqual([])
+    expect(resets('.w-app p:first-child { margin: 0 }')).toEqual([])
   })
 })

@@ -9,7 +9,7 @@ records facts and analyses nothing.
 
 It is free and open source (MIT). Any building committee can install its own copy: **[install guide](docs/install.md)**.
 
-| Provider app: pick your name (first time on a phone) | Provider app: the check-in is recorded | Committee app on a phone: the points |
+| Provider app: pick your account (first time on a phone) | Provider app: the check-in is recorded | Committee app on a phone: the points |
 |:---:|:---:|:---:|
 | <img src="docs/screenshots/provider-phone-sign-in.png" width="220" alt="The provider app on a phone, opened by a scan. A list of five names to choose from, in Hebrew."> | <img src="docs/screenshots/provider-phone-check-in.png" width="220" alt="The provider app after signing in. A green check mark and a message that the attendance was recorded, with the point, the time and the provider."> | <img src="docs/screenshots/committee-phone-points.png" width="220" alt="The committee app on a phone, the Points tab. A list of scan points under a button that adds one, each with its edit button and a "more" button."> |
 
@@ -25,7 +25,7 @@ The committee app is in Hebrew. Every screen above shows invented sample data. M
 ## How it works
 
 1. **The committee** adds points in the building (the lobby, the garage) and prints a QR sign for each one.
-2. **The service provider** scans the sign with the phone camera. The first time on a phone they choose their name and
+2. **The service provider** scans the sign with the phone camera. The first time on a phone they choose their account and
    enter a personal password. After that every scan is one tap.
 3. **The visit is stored** as one row in the database: who, where and when. The committee reads it in the committee app,
    and the committee's AI agent reads it through a read-only API.
