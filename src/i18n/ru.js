@@ -7,7 +7,7 @@ export default {
   'common.retry': 'Попробовать снова',
 
   'login.pointBanner': 'Точка сканирования: {name}',
-  'login.title': 'Выберите своё имя',
+  'login.title': 'Выберите свой аккаунт',
   'login.subtitle': 'Только в первый раз на этом телефоне',
   'login.passwordTitle': 'Здравствуйте, {name}',
   'login.passwordLabel': 'Пароль',
@@ -16,7 +16,7 @@ export default {
   'login.remember': 'Оставаться в системе на этом телефоне',
   'login.rememberHint': 'Подходит для личного телефона. На общем телефоне отключите.',
   'login.submit': 'Войти',
-  'login.changeName': 'Это не я, выбрать другое имя',
+  'login.changeName': 'Это не я, выбрать другой аккаунт',
   'login.wrong': 'Неверный пароль. Попробуйте ещё раз.',
   'login.locked': 'Слишком много попыток. Попробуйте через несколько минут.',
   'login.network': 'Нет соединения. Попробуйте, когда появится связь.',

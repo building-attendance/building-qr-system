@@ -9,7 +9,7 @@ export default {
   'common.retry': 'נסו שוב',
 
   'login.pointBanner': 'נקודת סריקה: {name}',
-  'login.title': 'בחרו את השם שלכם',
+  'login.title': 'בחרו את החשבון שלכם',
   'login.subtitle': 'רק בפעם הראשונה בטלפון הזה',
   'login.passwordTitle': 'שלום {name}',
   'login.passwordLabel': 'סיסמה',
@@ -18,7 +18,7 @@ export default {
   'login.remember': 'להישאר מחוברים בטלפון הזה',
   'login.rememberHint': 'מתאים לטלפון אישי. בטלפון משותף כבו את האפשרות.',
   'login.submit': 'כניסה',
-  'login.changeName': 'לא אני, בחירת שם אחר',
+  'login.changeName': 'לא אני, בחירת חשבון אחר',
   'login.wrong': 'הסיסמה שגויה. נסו שוב.',
   'login.locked': 'יותר מדי ניסיונות. נסו שוב בעוד כמה דקות.',
   'login.network': 'אין חיבור לרשת. נסו שוב כשיש קליטה.',
