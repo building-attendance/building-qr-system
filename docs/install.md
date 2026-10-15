@@ -310,7 +310,7 @@ not say `nonprod`.
 
 ### 3.7 In the app: the building, a point, a provider, a test scan
 
-1. Settings screen ("הגדרות"), the card ("פרטי הבניין"): fill ("שם הבניין") and ("כתובת הבניין"), and save ("שמירה"). The toast
+1. Settings screen ("הגדרות"), the section ("פרטי הבניין"): fill ("שם הבניין") and ("כתובת הבניין"), and save ("שמירה"). The toast
    says that the details were saved ("פרטי הבניין נשמרו"). The committee app's brand and window title follow at once, and
    the providers' app shows the name within about a minute. The label of the installed app on a phone's Home Screen is
    fixed when the app is built, so it does not follow the name.
