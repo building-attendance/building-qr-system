@@ -475,12 +475,19 @@ select.a-input {
 
 /* ----- the audit log (its own screen) and its read only rows (no menu) ----- */
 /* The help's text (src/admin/views/HelpView.jsx): each topic is a card of its own (the card of the other screens, with the gap of their grid), a heading
-   over its sentences. One column on a phone; from 1024px two equal columns that fill the width of the screen (owner decision of 15/10/2026), so a line is
-   half the width, short enough to read on a computer. The topics keep their reading order, row by row, so in a right-to-left page the first is at the right.
-   A card is as tall as its text (start), not stretched to the tallest of its row. */
-.a-help { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--w-space-3-5); }
+   over its sentences. One column on a phone (the two stacks of cards add nothing there: display: contents); from 1024px two equal columns that fill the
+   width of the screen (owner decision of 15/10/2026), so a line is half the width, short enough to read on a computer. Each column flows on its own (owner
+   decision of 15/10/2026, from a sketch): its cards stand right under each other with the gap between them, no empty space under a short card, and the two
+   columns may end at different heights. The order of the page is the first column from top to bottom, then the second (the right one first, then the left
+   one, in this right-to-left page). Two stacks and not CSS columns, because WebKit cuts the shadow of the last card of the first column at the bottom of
+   the column (14px under the card, where the shadow reaches 32px), and a gap under a card cannot make room for it. Both are .a-stack (a column of cards with the
+   gap of their grid) that these rules turn into a row of two stacks from 1024px. */
+.a-help__col { display: contents; }
 .a-help__topic { gap: var(--w-space-1); }
-@media (min-width: 1024px) { .a-help { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 1024px) {
+  .a-help { flex-direction: row; align-items: flex-start; }
+  .a-help__col { display: flex; flex: 1; min-width: 0; }
+}
 /* Phone: the time (a pill, the same as the History's) and the action on the first line, then who, then the detail, all in the column of the action. */
 .a-audit {
   display: grid; gap: 0 var(--w-space-3); grid-template-columns: auto minmax(0, 1fr); align-items: center; padding: var(--w-space-3) var(--w-space-4); border-radius: var(--w-radius-2xl);
