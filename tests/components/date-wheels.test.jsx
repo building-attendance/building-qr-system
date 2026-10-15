@@ -441,6 +441,31 @@ describe('choosing and cancelling', () => {
     expect(focused()).toBe(fromField())
   })
 
+  it('"ניקוי התאריך" empties this field alone, as erasing the computer\'s field does: the placeholder is back, the other date stays', () => {
+    const seen = []
+    render(<Pair seen={seen} />)
+    open()
+    const foot = within(sheet()).getAllByRole('button').slice(-2)
+    expect(foot.map((b) => b.textContent), 'beside "אישור", before it').toEqual(['ניקוי התאריך', 'אישור'])
+    fireEvent.click(option('יום', '01/10/2026')) // a date that the wheels were turned to is not chosen by clearing
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'ניקוי התאריך' }))
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(seen).toEqual([['from', '']])
+    expect(fromField()).toBe(screen.getByRole('button', { name: 'מתאריך לא נבחר' }))
+    expect(fromField().querySelector('[aria-hidden="true"]').textContent).toBe('DD/MM/YYYY')
+    expect(toField().textContent, 'the other date stays').toBe('10/10/2026')
+    expect(focused()).toBe(fromField())
+    open()
+    expect(shown(), 'an empty field opens on today').toBe('14/10/2026')
+  })
+
+  it('an empty field has nothing to clear: its foot is "אישור" alone', () => {
+    render(<Pair from="" />)
+    open()
+    expect(within(sheet()).queryByRole('button', { name: 'ניקוי התאריך' })).toBeNull()
+    expect(within(sheet()).getByRole('button', { name: 'אישור' })).toBeTruthy()
+  })
+
   it('a field outside a pair has the wheels and no quick ranges', () => {
     const seen = []
     render(<div className="a-app"><Field label="מתאריך"><DatePicker label="תאריך התחלה" value="2026-10-05" onChange={(v) => seen.push(v)} /></Field></div>)
@@ -569,5 +594,33 @@ describe('in the audit log on a phone', () => {
     expect([within(filters).getByLabelText('מתאריך').textContent, within(filters).getByLabelText('עד תאריך').textContent]).toEqual(['08/10/2026', '14/10/2026'])
     fireEvent.click(within(filters).getByRole('button', { name: 'הצגת תוצאות' }))
     await waitFor(() => expect(lastParams('/admin/audit')).toMatchObject({ from: '2026-10-08', to: '2026-10-14' }), WAIT)
+  })
+
+  it('one date can be cleared, and the other date and the type of action stay; "show results" asks without it', async () => {
+    server()
+    render(<div className="a-app"><ToastProvider><AuditView /></ToastProvider></div>)
+    await screen.findByText('עוד לא נרשמו פעולות', {}, WAIT)
+    // the filters that are on: a type of action, and a range
+    fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
+    let filters = screen.getByRole('dialog', { name: 'סינון' })
+    fireEvent.change(within(filters).getByLabelText('סוג פעולה'), { target: { value: 'point' } })
+    fireEvent.click(within(filters).getByLabelText('מתאריך'))
+    fireEvent.click(within(sheet()).getByRole('button', { name: '30 יום' }))
+    fireEvent.click(within(filters).getByRole('button', { name: 'הצגת תוצאות' }))
+    await waitFor(() => expect(lastParams('/admin/audit')).toMatchObject({ from: '2026-09-15', to: '2026-10-14', group: 'point' }), WAIT)
+
+    // the start of the range is cleared: only that field is empty in the sheet
+    fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
+    filters = screen.getByRole('dialog', { name: 'סינון' })
+    fireEvent.click(within(filters).getByLabelText('מתאריך'))
+    fireEvent.click(within(sheet()).getByRole('button', { name: 'ניקוי התאריך' }))
+    expect(within(filters).getByRole('button', { name: 'מתאריך לא נבחר' })).toBeTruthy()
+    expect(within(filters).getByLabelText('עד תאריך').textContent).toBe('14/10/2026')
+    expect(within(filters).getByLabelText('סוג פעולה').value).toBe('point')
+    fireEvent.click(within(filters).getByRole('button', { name: 'הצגת תוצאות' }))
+    await waitFor(() => expect(lastParams('/admin/audit')).not.toHaveProperty('from'), WAIT)
+    expect(lastParams('/admin/audit')).toMatchObject({ to: '2026-10-14', group: 'point' })
+    expect(screen.getByRole('button', { name: 'הסרת סינון: סוג פעולה: נקודות' }), 'the chip of the type of action').toBeTruthy()
+    expect(screen.getByText('טווח התאריכים:').parentElement.textContent, 'the bar says the one date that is left').toBe('טווח התאריכים: עד 14/10/2026')
   })
 })

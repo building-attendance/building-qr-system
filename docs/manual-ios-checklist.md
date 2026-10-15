@@ -70,7 +70,8 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
     year, the month by its Hebrew name and the day, from the right), the chosen row on a band, and the quick ranges and
     OK ("אישור") under them, the last clear of the home indicator. A drag or a flick turns a wheel, which stops with a row in the
     band (a month or a day after today is paler and the wheel comes back from it), a tap on a row chooses it, OK fills
-    the field as DD/MM/YYYY, a quick range fills both fields, and the close button leaves the field as it was. VoiceOver
+    the field as DD/MM/YYYY, a quick range fills both fields, Clear the date ("ניקוי התאריך"), beside OK when the field
+    has a date, empties that field alone, and the close button leaves the field as it was. VoiceOver
     reads a day as its full DD/MM/YYYY and a month as its name and its number, and a double tap chooses it. The point tiles show one "more" button (edit, QR, switch off and delete are in its menu), and nothing scrolls sideways.
 
 ## Updates

@@ -352,7 +352,7 @@ for (const size of PHONES) {
         const r = el.getBoundingClientRect()
         return { name: el.getAttribute('aria-label') || el.textContent, left: r.left, right: r.right, width: r.width, height: r.height }
       }))
-      expect(targets.length).toBe(3 + 1 + 4 + 1) // the chosen rows, the close button, the quick ranges, "אישור"
+      expect(targets.length).toBe(3 + 1 + 4 + 2) // the chosen rows, the close button, the quick ranges, "ניקוי התאריך" and "אישור"
       for (const target of targets) {
         expect(target.width, `${target.name} is wide enough`).toBeGreaterThanOrEqual(44)
         expect(target.height, `${target.name} is tall enough`).toBeGreaterThanOrEqual(44)
@@ -513,6 +513,44 @@ for (const size of PHONES) {
       const chosen = await chosenDay(wheels).getAttribute('aria-label')
       await wheels.getByRole('button', { name: 'אישור', exact: true }).click()
       await expect(fromField(filters)).toHaveText(chosen)
+    })
+
+    test('the audit log: a date is chosen, then cleared alone, and the log widens back with the other filters kept', async ({ page }) => {
+      const asked = await stubAudit(page)
+      await open(page, 'audit', 'יומן פעולות')
+      await expect(dayHeads(page)).toHaveText(shown(DAYS)) // no date: every entry
+      // an empty field has nothing to clear
+      let filters = await openSheet(page)
+      await fromField(filters).tap()
+      let wheels = dateWheels(page)
+      await expect(wheels.getByRole('button', { name: 'ניקוי התאריך', exact: true })).toHaveCount(0)
+      await turnWheels(wheels, '09/10/2026', 'tap')
+      await wheels.getByRole('button', { name: 'אישור', exact: true }).tap()
+      await filters.getByLabel('מנהל מערכת', { exact: true }).selectOption({ index: 1 }) // another filter, which clearing the date must keep
+      const member = await filters.getByLabel('מנהל מערכת', { exact: true }).inputValue()
+      await filters.getByRole('button', { name: 'הצגת תוצאות' }).click()
+      await expect(dayHeads(page)).toHaveText(shown(between('2026-10-09', '')))
+      expect(asked.at(-1)).toMatchObject({ from: '2026-10-09', actor_id: member })
+
+      // the date is cleared: the field shows its placeholder again, the member stays, and the log has every day again
+      filters = await openSheet(page)
+      await fromField(filters).tap()
+      wheels = dateWheels(page)
+      const clear = wheels.getByRole('button', { name: 'ניקוי התאריך', exact: true })
+      const ok = wheels.getByRole('button', { name: 'אישור', exact: true })
+      const [a, b] = [await clear.boundingBox(), await ok.boundingBox()]
+      expect(Math.abs(a.y - b.y), 'beside "אישור", in one row').toBeLessThanOrEqual(0.5)
+      expect(a.x, 'before it, at the right').toBeGreaterThan(b.x)
+      await clear.tap()
+      await expect(wheels).toHaveCount(0)
+      await expect(fromField(filters)).toHaveAccessibleName('מתאריך לא נבחר')
+      await expect(fromField(filters)).toBeFocused()
+      await expect(filters.getByLabel('מנהל מערכת', { exact: true })).toHaveValue(member)
+      await filters.getByRole('button', { name: 'הצגת תוצאות' }).click()
+      await expect(dayHeads(page)).toHaveText(shown(DAYS))
+      expect(asked.at(-1)).toMatchObject({ actor_id: member })
+      expect(asked.at(-1)).not.toHaveProperty('from')
+      await expect(page.getByText('כל התאריכים')).toBeVisible()
     })
 
     test('a link to the History tab still sets the two dates, and the wheels open on them', async ({ page }) => {

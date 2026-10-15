@@ -605,6 +605,10 @@ select.a-input {
 .a-wheel__row[aria-selected='true'] { color: var(--w-text); font-weight: var(--w-weight-semibold); }
 .a-wheel__row[aria-disabled='true'] { color: var(--w-text-3); cursor: not-allowed; }
 .a-wheel__row:focus-visible { outline-offset: -3px; } /* the ring inside the row, on the band */
+/* The foot of the sheet: "אישור", the whole width, or, when the field holds a date, "ניקוי התאריך" (the quiet button) and "אישור" in two
+   equal halves, the room at their sides smaller so that the words fit half of a 320px sheet. */
+.a-wheels__foot { width: 100%; display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: var(--w-space-2-5); }
+.a-wheels__foot .w-btn { padding-inline: var(--w-space-2); }
 
 /* ----- the "more" menu (src/admin/ui.jsx Menu) ----- */
 /* Its button: a round 44px target with three dots on the background colour, violet while hovered and while its menu is open. The button of a

@@ -14,7 +14,8 @@ import { FIRST_DAY, QUICK_RANGES, addDays, addMonths, clampDay, daysInMonth, end
 //   mask and its check of a half-typed date) and a button beside it that opens a dialog with a month grid, a popover beside the field.
 // - Below 640 px (a phone) the field is a button that shows the date as DD/MM/YYYY (or the placeholder) with the calendar at its end, so no
 //   keyboard comes up, and it opens three wheels in a sheet from the bottom: the year, the month by its Hebrew name and the day, from the right
-//   (the owner's picture of an iPhone's wheels). "אישור" chooses the date of the wheels; the close button and Esc leave the field as it was.
+//   (the owner's picture of an iPhone's wheels). "אישור" chooses the date of the wheels; "ניקוי התאריך" empties the field, as erasing the
+//   computer's field does; the close button and Esc leave the field as it was.
 //
 // Both are the app's `Modal` (its focus trap, Esc, the focus that goes back to the button, the stack of dialogs), and both have the quick
 // ranges under them when the field belongs to a pair of dates. The layout that is drawn is held while the picker is open and while the field
@@ -291,6 +292,10 @@ function Wheels({ day, today, onChange, onEnter }) {
 /**
  * The sheet of the wheels. It keeps its own date (`draft`, the field's date or today, kept from 2000 to today) until "אישור" hands it to
  * `onChoose(day)`; the close button and Esc (`onClose`) leave the field as it was. The focus starts on the chosen day.
+ *
+ * A field that holds a date can be emptied, as the computer's field can by erasing its text (every date filter may be empty: the list then
+ * has no limit on that side): "ניקוי התאריך", beside "אישור", hands `onChoose` an empty date. It empties this field only, so the other date
+ * and the other filters stay. It is a button of the sheet's foot and not of the field, which is a button itself.
  */
 function WheelsSheet({ label, value, today, onChoose, onRange, onClose, returnFocus }) {
   const [draft, setDraft] = useState(() => clampDay(isDay(value) ? value : today, FIRST_DAY, today))
@@ -298,7 +303,12 @@ function WheelsSheet({ label, value, today, onChoose, onRange, onClose, returnFo
     <Modal
       title={label} size="sheet" onClose={onClose} returnFocus={returnFocus}
       initialFocus={(dialog) => dialog.querySelector('[data-wheel="day"] [aria-selected="true"]')}
-      footer={<button type="button" className="w-btn" onClick={() => onChoose(draft)}>אישור</button>}
+      footer={(
+        <div className="a-wheels__foot">
+          {isDay(value) && <button type="button" className="w-btn w-btn--quiet" onClick={() => onChoose('')}>ניקוי התאריך</button>}
+          <button type="button" className="w-btn" onClick={() => onChoose(draft)}>אישור</button>
+        </div>
+      )}
     >
       <Wheels day={draft} today={today} onChange={setDraft} onEnter={() => onChoose(draft)} />
       {onRange && <QuickRanges today={today} onRange={onRange} />}

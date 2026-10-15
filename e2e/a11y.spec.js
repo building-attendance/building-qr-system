@@ -849,6 +849,7 @@ test.describe('the date picker', () => {
     const wheels = dateWheels(page)
     await expect(wheels.getByRole('listbox')).toHaveCount(3)
     await expect(wheels.getByRole('listbox', { name: 'יום', exact: true }).getByRole('option', { selected: true })).toBeFocused()
+    await expect(wheels.getByRole('button', { name: 'ניקוי התאריך', exact: true }), 'the field holds a date, so the sheet can clear it').toBeVisible()
     await scanBothThemes(page, 'committee phone: the date wheels, open over the filters sheet')
     await page.keyboard.press('Escape') // the wheels
     await expect(wheels).toHaveCount(0)
