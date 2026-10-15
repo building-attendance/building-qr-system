@@ -406,7 +406,7 @@ describe('the sign-in screen of the committee app', () => {
     expect(await screen.findByText(NAME)).toBeTruthy()
     expect(title.nextElementSibling.textContent).toBe(NAME) // right under the title, before the line that says who may sign in
     expect(title.nextElementSibling.getAttribute('dir')).toBe('auto')
-    expect(title.nextElementSibling.nextElementSibling.textContent).toContain('כניסה לוועד הבית בלבד')
+    expect(title.nextElementSibling.nextElementSibling.textContent).toContain('הכניסה למנהלי המערכת בלבד')
   })
 
   it('shows the whole of a name of 80 characters, and no name line at all when there is none', async () => {
@@ -422,7 +422,7 @@ describe('the sign-in screen of the committee app', () => {
     const title = await heading()
     await waitFor(() => expect(calls('/public/building', 'GET')).toHaveLength(2)) // the second answer has come
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(title.nextElementSibling.textContent).toContain('כניסה לוועד הבית בלבד') // nothing between the title and the line under it
+    expect(title.nextElementSibling.textContent).toContain('הכניסה למנהלי המערכת בלבד') // nothing between the title and the line under it
   })
 
   it('looks the same as before when the public route fails: no name line, the sign-in still works', async () => {
@@ -433,7 +433,7 @@ describe('the sign-in screen of the committee app', () => {
     const title = await heading()
     await waitFor(() => expect(calls('/public/building', 'GET')).toHaveLength(1))
     await new Promise((resolve) => setTimeout(resolve, 20))
-    expect(title.nextElementSibling.textContent).toContain('כניסה לוועד הבית בלבד')
+    expect(title.nextElementSibling.textContent).toContain('הכניסה למנהלי המערכת בלבד')
   })
 
   it('does not ask the committee\'s own route before anybody is signed in', async () => {

@@ -146,7 +146,7 @@ Three screens answer most questions without any query. They need only a working 
   and are not in the Excel file. Use it when a provider says "I scanned, and it is not there".
 - **Who changed what.** The ("יומן פעולות") screen (on a phone, the button ("עוד") opens it): every change that a
   member made, and the system's own daily cleanup, with the time and the member. The filters are the dates, the kind of action
-  ("סוג פעולה") and the member ("חבר ועד"). Use it when something changed that nobody expected (a point switched off, a
+  ("סוג פעולה") and the member ("מנהל מערכת"). Use it when something changed that nobody expected (a point switched off, a
   provider disabled, phones signed out, a scan cancelled), and to see that the daily cleanup ran (the kind ("ניקוי אוטומטי")).
 
 ### c. Two read-only queries in the Neon SQL editor of the production project

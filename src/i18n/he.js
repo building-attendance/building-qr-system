@@ -4,7 +4,7 @@ export default {
   'app.name': 'נוכחות בבניין',
   'app.version': 'גרסה',
   'lang.label': 'שפה',
-  'footer.admin': 'כניסת ועד',
+  'footer.admin': 'כניסת מנהלים',
   'common.loading': 'טוען…',
   'common.retry': 'נסו שוב',
 

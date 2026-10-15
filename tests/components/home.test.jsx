@@ -678,12 +678,12 @@ describe('the tiles and the short list', () => {
     await showed()
     const rows = [...document.querySelectorAll('.a-links a')]
     expect(rows.map((r) => [r.textContent, hrefOf(r)])).toEqual([
-      ['חברי הוועד2', '#settings'],
+      ['מנהלי המערכת2', '#settings'],
       ["מפתחות אייג'נט פעילים1", '#agent'],
     ])
     expect(rows[0].querySelector('svg').getAttribute('aria-hidden')).toBe('true') // the chevron is decoration
     expect(rows[0].querySelector('svg').classList.contains('w-flip')).toBe(true) // and it points forward in a right-to-left page
-    expect(screen.getByRole('link', { name: /חברי הוועד/ })).toBe(rows[0])
+    expect(screen.getByRole('link', { name: /מנהלי המערכת/ })).toBe(rows[0])
   })
 
   it('links the tile of the visits that were not counted to the History of the seven days, with the type "not counted"', async () => {
@@ -911,7 +911,7 @@ describe('in the app', () => {
     ['providers', '#providers', 'נותני שירות פעילים', 'נותני שירות'],
     ['points', '#points', 'נקודות פעילות', 'נקודות סריקה'],
     ['the waiting phones', '#providers', 'טלפונים עם ביקורים', 'נותני שירות'],
-    ['the members', '#settings', 'חברי הוועד', 'הגדרות'],
+    ['the members', '#settings', 'מנהלי המערכת', 'הגדרות'],
     ['the keys', '#agent', "מפתחות אייג'נט", "גישה לאייג'נט"],
   ])('opens the screen of the tile or the row of %s', async (_what, hash, label, title) => {
     api.mockImplementation(async (path) => {
