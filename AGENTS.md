@@ -200,7 +200,8 @@ parses the JSON before any route runs).
 - One workflow may merge too (owner decision of 16/10/2026): `.github/workflows/auto-merge.yml`, run from `master`,
   merges through its own GitHub App a pull request of one narrow class, and only when everything about it is clean.
   The class: a `test` or `docs` title (never `docs(rules):`), opened with the owner's login from a branch of this
-  repository that is not a `claude/` branch, whose every file is added or modified (none deleted or renamed) under
+  repository that is neither a `claude/` branch (the agent loop) nor a `codex/` branch (Codex's own work, which the
+  Codex review alone must never pass, see below), whose every file is added or modified (none deleted or renamed) under
   `tests/`, `e2e/` or `docs/`, or is `README.md` or `CONTRIBUTING.md`, apart from the files that
   `scripts/check-auto-merge.mjs` keeps out (among them the rules, `docs/privacy.md`, `docs/adr/`, `docs/runbooks/`, the
   design rules, the visual baselines and the test files that every test depends on). Clean means no `allow-test-removal`
