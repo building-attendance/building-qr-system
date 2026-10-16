@@ -21,6 +21,8 @@ record: a copy writes its own dates and keeps its own log, or removes these line
 | `GOOGLE_CLIENT_ID` | Vercel (Production) and `.env.local`. It is public by nature: it is in the code that every browser loads | Nobody needs to rotate it: it identifies the app, it does not protect anything | Never | Not applicable |
 | Agent keys of the committee's own AI agent | The secrets vault of the agent platform that the committee uses, never in a chat (`docs/agent-prompt.md`) | The committee, in the Agent tab of `/admin` | Never, until revoked | Each key shows its own date in the Agent tab |
 | The Neon CLI and Vercel CLI logins | The owner's computer, in the profile folder of each CLI | The owner | Until the owner signs out or revokes them | Not tracked: sign out when a computer is lost or lent |
+| `AUTO_MERGE_APP_KEY` | The environment `auto-merge` of the repository (deployment branches: the default branch only), never a repository secret. Read by one step of `auto-merge.yml` only, which is skipped while `LIVE` is false. The private key of the GitHub App `building-qr-auto-merge` | The owner, in the App's settings (Credentials, Key pairs) and with `gh secret set` (see below) | Never, until the key is deleted in the App's settings | 16/10/2026 |
+| `AUTO_MERGE_APP_CLIENT_ID` | The same environment. Not a secret (it names the App, it does not prove anything), kept next to the key so that one place holds both | Nobody needs to rotate it | Never | 16/10/2026 |
 
 Not stored anywhere, nothing to rotate: the `GITHUB_TOKEN` of each workflow run (it ends with the run) and the token of the
 Claude GitHub App that the action gets for each agent run (it is short-lived and the action revokes it at the end).
@@ -39,6 +41,25 @@ action use the owner's Claude subscription, so there is no API key to pay for.
   leak in the Actions tab.
 - Only the owner starts an agent, so the token is read only by runs that the owner started. It is still the one secret that
   the agent's process holds, which is why `show_full_output` stays off and why the tool lists are short.
+
+## `AUTO_MERGE_APP_KEY`
+
+The private key of the GitHub App that merges the narrow class of AGENTS.md ("Git and pull requests", "One workflow may
+merge too"), through `.github/workflows/auto-merge.yml`. `.github/rulesets/README.md`, "The auto-merge App", says what
+the App may do and how to switch it off.
+
+- **Create or rotate.** In the App's settings (the organization's Settings, Developer settings, GitHub Apps,
+  `building-qr-auto-merge`, Credentials, Key pairs) make a new key; a `.pem` file downloads. Put it into the environment
+  from the file, never by pasting it: in bash `gh secret set AUTO_MERGE_APP_KEY --env auto-merge < <file>.pem`, in
+  PowerShell `Get-Content -Raw <file>.pem | gh secret set AUTO_MERGE_APP_KEY --env auto-merge`. Then delete the old key in
+  the same Key pairs list, and delete the `.pem` file from the computer.
+- **If it leaked:** delete the key in Key pairs at once (that revokes it), and take the App out of the `bypass_actors` of
+  `master-approval` (`.github/rulesets/README.md`). Then make a new key as above, and look at the merges of the App since
+  the leak (the closed pull requests that the App merged, and the Actions runs of `auto-merge.yml`).
+- **What a leaked key can do.** Mint a token of the App, which has Contents: Read and write on this repository only. With
+  the bypass it can merge a pull request that passes `master-gates` (the four checks, up to date, every conversation
+  resolved), and it can push to a branch other than the default one. It cannot push to the default branch, change the
+  rulesets or read the other secrets.
 
 ## `SMOKE_AGENT_KEY`
 
@@ -135,3 +156,4 @@ its own log here, or removes them.
 - `04/10/2026`: `CLAUDE_CODE_OAUTH_TOKEN` was created with `claude setup-token` and set as a GitHub Actions secret.
 - `05/10/2026`: `CRON_SECRET` was set by the owner in the Production environment of Vercel (sensitive), for the daily retention job.
 - `05/10/2026`: `HEALTH_HEARTBEAT_URL` was set by the owner in the Production environment of Vercel (sensitive): the ping address of the check "building-qr server" on healthchecks.io, for the first-error alert and the daily summary.
+- `16/10/2026`: the GitHub App `building-qr-auto-merge` was created by the owner, with one key. `AUTO_MERGE_APP_KEY` (set by the owner, from the file) and `AUTO_MERGE_APP_CLIENT_ID` went into the environment `auto-merge`, which allows `master` only.
