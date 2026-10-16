@@ -51,7 +51,7 @@ gh api --method POST repos/{owner}/{repo}/rulesets --input .github/rulesets/mast
 To change one later, send the edited file with `gh api --method PUT repos/{owner}/{repo}/rulesets/<id> --input <file>`
 (the ids are listed by `gh api repos/{owner}/{repo}/rulesets`).
 
-## The auto-merge App (coming: not in `master-approval.json` yet)
+## The auto-merge App
 
 `.github/workflows/auto-merge.yml` may merge one narrow class of pull requests without the owner's click: a `test` or
 `docs` pull request that the owner opened, whose files are only component tests, E2E tests and documents and whose commits
@@ -94,15 +94,25 @@ do.
 3. Put the App's client id and its key into that environment, from files, never on the command line:
    `gh secret set AUTO_MERGE_APP_CLIENT_ID --env auto-merge < client-id.txt` and
    `gh secret set AUTO_MERGE_APP_KEY --env auto-merge < app-key.pem`. Note both in `docs/runbooks/secrets.md`.
-4. Add the App to `master-approval`. Its id is `gh api apps/<app-slug> --jq .id`. Add this entry to `bypass_actors` in
-   `master-approval.json`, next to the repository admin role, and send the file with the `PUT` command above:
+4. Add the App to the live `master-approval` ruleset, with the pull request that turns `LIVE` on (until then the bypass
+   would only be a power that nothing uses). The entry goes to GitHub, not into `master-approval.json`: an App id belongs
+   to one installation, and a copy without that App must still be able to apply the file as it is. From a clone, with
+   the App's slug (`building-qr-auto-merge` here) and the id of the ruleset (`gh api repos/{owner}/{repo}/rulesets`):
 
    ```
-   { "actor_id": <the App's id>, "actor_type": "Integration", "bypass_mode": "pull_request" }
+   app_id=$(gh api apps/<app-slug> --jq .id)
+   gh api repos/{owner}/{repo}/rulesets/<id> --jq "{name, target, enforcement, conditions, rules, bypass_actors: (.bypass_actors + [{actor_id: $app_id, actor_type: \"Integration\", bypass_mode: \"pull_request\"}])}" > master-approval-live.json
+   gh api --method PUT repos/{owner}/{repo}/rulesets/<id> --input master-approval-live.json
    ```
 
-   The file in this folder does not have the entry yet, on purpose: a placeholder id would break whoever applies the file.
-   The pull request that adds the real id is the owner's.
+   Then `gh api repos/{owner}/{repo}/rulesets/<id> --jq .bypass_actors` lists the repository admin role and the App, each
+   with `bypass_mode` `pull_request`. Sending `master-approval.json` again (to change the ruleset later) drops the App, so
+   add it again the same way.
+
+This installation (16/10/2026): the App is `building-qr-auto-merge` (id 5343219), installed on this repository only, with
+Contents: Read and write; the environment `auto-merge` allows `master` only and holds `AUTO_MERGE_APP_CLIENT_ID` and
+`AUTO_MERGE_APP_KEY` (`docs/runbooks/secrets.md`). The bypass is not added yet: it comes with the pull request that turns
+`LIVE` on, after the dry week.
 
 ### Switch it off
 
