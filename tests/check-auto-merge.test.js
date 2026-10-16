@@ -256,7 +256,7 @@ describe('refuses: the files', () => {
 
 describe('refuses: the labels', () => {
   it(`the label ${OVERRIDE_LABEL}`, () =>
-    refusedOnlyFor((c) => c.labels.push({ name: OVERRIDE_LABEL }), new RegExp(OVERRIDE_LABEL)))
+    refusedOnlyFor((c) => c.labels.push({ name: OVERRIDE_LABEL }), `the label ${OVERRIDE_LABEL} is on it`))
   it('labels that cannot be read', () => refusedOnlyFor((c) => (c.labels = undefined), /labels cannot be read/))
   it('a label that cannot be read', () => refusedOnlyFor((c) => c.labels.push({ id: 7 }), /label cannot be read/))
 })
@@ -266,7 +266,7 @@ describe('refuses: the four checks', () => {
     refusedOnlyFor((c) => {
       c.checks.check_runs = c.checks.check_runs.filter((r) => r.name !== name)
       c.checks.total_count = c.checks.check_runs.length
-    }, new RegExp(`${name.replace(/[()]/g, '\\$&')} has not run`)))
+    }, `${name} has not run`))
 
   it.each(REQUIRED_CHECKS)('%s failed', (name) =>
     refusedOnlyFor((c) => (c.checks.check_runs.find((r) => r.name === name).conclusion = 'failure'), /did not pass \(failure\)/))
@@ -682,7 +682,7 @@ describe('the workflow file', () => {
       expect(line).toMatch(/uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/)
     }
     for (const action of ['actions/checkout', 'actions/setup-node']) {
-      const pin = (text) => text.match(new RegExp(`uses: ${action}@([0-9a-f]{40})`))?.[1]
+      const pin = (text) => text.split('\n').find((line) => line.includes(`uses: ${action}@`))?.split('@')[1].slice(0, 40)
       expect(pin(WORKFLOW), action).toBe(pin(CI))
     }
     expect(WORKFLOW).toContain('uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0')
