@@ -9,7 +9,7 @@ icons, CI or the smoke test.
 Contents: [Setup](#one-time-setup-on-a-new-machine) | [How an E2E run is set up](#how-an-e2e-run-is-set-up) |
 [Running one spec, and reading a failure](#running-one-spec-or-one-project-and-reading-a-failure) |
 [Offline tests](#offline-tests) | [Accessibility](#accessibility) |
-[The page of the shared components](#the-page-of-the-shared-components) | [Visual regression](#visual-regression) |
+[The page of the shared components](#the-page-of-the-shared-components) | [Visual regression](#visual-regression) | [The pictures of the UI review](#the-pictures-of-the-ui-review) |
 [Two E2E runs on one machine](#two-e2e-runs-on-one-machine) |
 [The icons](#the-icons) | [CI](#ci) | [The smoke test](#the-smoke-test) | [Timing a scan](#timing-a-scan) |
 [Timing the committee and agent API](#timing-the-committee-and-agent-api) |
@@ -124,6 +124,41 @@ keeps what it took:
    and as a swipe). So the description says which screens changed and why: a baseline that is added, changed or deleted
    without that is a P1 finding in the code review (`AGENTS.md`, Code Review Rules). Check that each new image shows the
    whole screen (no spinner, nothing half loaded) before you commit it.
+
+## The pictures of the UI review
+
+`npm run ui-review:pictures` takes the pictures that step 3 of the `ui-review` skill asks for: every screen of both apps on
+worst-case fake data, in the languages, themes and widths that the apps run in. It is a helper and not a test. CI never
+runs it, it checks nothing, and its pictures are never committed: they are not baselines, and the README pictures and the
+visual baselines above change only on purpose, with the owner looking at each one. It needs the same `.env.local` as the
+unit tests (a local PostgreSQL is the fastest) and `npx playwright install chromium`.
+
+- **The data** is in its own schema, `ui_review`, and changes nothing that the other tools read. `scripts/ui-review/seed.mjs`
+  runs the dev seed in that schema, then renames some of its rows to the worst case of `scripts/ui-review/worst-case.mjs`
+  and adds a few: the building's name and address at the longest the server accepts (80 and 200 characters), providers
+  with long names in Hebrew and in Russian and one with a single long word, a point with a long name, the longest
+  description and a long service name, a committee member with a long name and a long e-mail, one agent key alone in its
+  list, a day with one visit and a provider with exactly one. The other rows stay as the dev seed made them, so every list also
+  has ordinary rows. `tests/ui-review.test.js` checks the values against the limits of `shared/contract.js`. The shared
+  sample data (`scripts/sample-data.mjs`, `scripts/dev-seed.mjs`) is not changed.
+- **What it takes:** the provider app at 390 px in Hebrew, English, Russian and Arabic, light and dark (the sign-in list, the
+  password screen, the check-in recorded, the home with a visit, and the visit saved on the phone), then the committee app
+  at 360 px and at 1280 px, light and dark (the eight screens, the account menu, and the "more" menu of the card with the
+  longest name), and then an empty building (the seed with `--empty`, which makes the schema again): the sign-in list with no
+  provider, and Home, History, Points, Providers, Agent, the audit log and Settings. A run also prints a note for a
+  picture whose page scrolls sideways, and for a console error of the app (neither fails the run).
+- **Where the pictures go:** `UI_REVIEW_OUT`, or the folder `ui-review-pictures/` that `.gitignore` covers. A folder inside the
+  project is refused unless it is under `ui-review-pictures/` or `node_modules/`, so that a picture can never land among the
+  tracked files. The run does not empty the folder: a picture is written again, and one from an earlier run stays. The end of the
+  run says where the pictures went and how many this run wrote.
+- **A narrow run:** `npm run ui-review:pictures -- --grep providers` takes the pictures of the tests whose title has the words (the
+  title is made of "provider app", "committee app, 360 px" or "committee app, 1280 px", "empty building", and the name of the
+  screen). The build and the seed run anyway.
+- **Ports and schema:** 3400 and 3401, and the schema `ui_review`, which the run drops before and after it (as the E2E run does, in
+  `e2e/global-teardown.js`; a run that was killed leaves one that the next run clears). A second run on the same machine takes its
+  own `UI_REVIEW_APP_PORT`, `UI_REVIEW_API_PORT` and `UI_REVIEW_SCHEMA`, all three different (the schema is never one of another
+  tool's: `scripts/ui-review/settings.mjs`). It refuses to run against anything but `http://localhost` or `http://127.0.0.1`.
+- **A break that it shows is a finding,** reported with the name of its picture. The helper does not fix the app.
 
 ## Two E2E runs on one machine
 
