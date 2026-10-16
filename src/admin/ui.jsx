@@ -12,15 +12,12 @@ const appRoot = () => document.querySelector('.a-app') ?? document.body // porta
 /**
  * An action shown as just its icon: the app's way of offering the secondary actions on a tile and in a page header.
  * `label` is both the accessible name and the tooltip. The icon is grey and turns violet on hover, while pressed and on
- * focus; there is no frame or fill.
- *   tone "default": grey.      tone "danger": red, used only for removing something.
- *   tone "primary": a filled violet round button. No screen uses it now: the add button of a heading is a pill with its words
- *   (`w-btn w-btn--small`, see `.a-head--add` in admin.css), because a solid round "+" under the solid round account button looked like
- *   a second account button.
+ * focus; there is no frame or fill. It has one look: red is only for deleting, which is an item of the "more" menu (`Menu`), and the add
+ * button of a heading is a pill with its words (`w-btn w-btn--small`, see `.a-head--add` in admin.css), so no icon button is red or filled.
  * With `href` it is a link (a download), otherwise a button.
  */
-export function IconButton({ icon: Icon, label, onClick, tone = 'default', size = 24, href, download, disabled, ...rest }) {
-  const className = `a-icon-btn${tone === 'default' ? '' : ` a-icon-btn--${tone}`}`
+export function IconButton({ icon: Icon, label, onClick, size = 24, href, download, disabled, ...rest }) {
+  const className = 'a-icon-btn'
   const icon = <Icon size={size} />
   if (href && !disabled) {
     return <a className={className} href={href} download={download} aria-label={label} title={label} {...rest}>{icon}</a>

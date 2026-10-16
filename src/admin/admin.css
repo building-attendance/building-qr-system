@@ -292,14 +292,6 @@
 @media (hover: hover) { .a-icon-btn:hover:not(:disabled) { color: var(--w-info); } }
 .a-icon-btn:active:not(:disabled), .a-icon-btn:focus-visible { color: var(--w-info); outline: none; }
 .a-icon-btn:disabled { opacity: 0.45; cursor: not-allowed; }
-/* Red, and only for removing something. */
-.a-icon-btn--danger, .a-icon-btn--danger:focus-visible { color: var(--w-danger); }
-@media (hover: hover) { .a-icon-btn--danger:hover:not(:disabled) { color: var(--w-danger); opacity: 0.7; } }
-.a-icon-btn--danger:active:not(:disabled) { color: var(--w-danger); opacity: 0.7; }
-/* The one main action of a page (adding something): a filled round button. */
-.a-icon-btn--primary, .a-icon-btn--primary:focus-visible { background: var(--w-primary); color: var(--w-on-primary); border-radius: 50%; }
-@media (hover: hover) { .a-icon-btn--primary:hover:not(:disabled) { background: var(--w-primary-hover); color: var(--w-on-primary); } }
-.a-icon-btn--primary:active:not(:disabled) { background: var(--w-primary-hover); color: var(--w-on-primary); }
 
 /* ----- cards ----- */
 /* A soft card (the design canvas): 24px corners and a shadow, no edge (D4: a card rests on its shadow, so it has no 3:1 edge to keep). In

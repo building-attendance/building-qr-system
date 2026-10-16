@@ -111,7 +111,8 @@ test.describe('the committee app, on a phone', () => {
     await page.goto('/admin#history')
     await expect(page.getByRole('heading', { level: 1, name: 'היסטוריית נוכחות' })).toBeVisible()
     await expect(page.getByRole('status').filter({ hasText: 'טוען' })).toHaveCount(0)
-    // The filters take most of a phone's screen: scroll to the visits, which are what this picture is for (the top bar stays: 78 px, and a little air).
+    // On a phone the heading, its text and the filter bar (one short row: the filters button and the dates) come first, so the first day starts
+    // a third of the way down the screen: scroll to the visits, which are what this picture is for (the top bar stays: 78 px, and a little air).
     await scrollTo(page.getByRole('heading', { level: 2, name: DAY_HEADING }).first(), 88)
     await shot(page, 'committee-phone-history.png')
   })
