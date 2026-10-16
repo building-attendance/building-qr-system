@@ -189,6 +189,24 @@ The retry only tells the two cases apart in the report: a test that failed twice
 retry is flaky. A flaky test is fixed, not rerun until it is green: a check that is allowed to fail now and then teaches
 everyone to ignore it.
 
+## Auto-merge of tests and docs
+
+`.github/workflows/auto-merge.yml` decides, after every CI run and after every comment of the Codex review bot, whether a
+pull request may merge without the owner's click. The class is narrow: a `test` or `docs` title, opened by the owner from
+a branch of this repository that is not `claude/` or `codex/`, with only added or modified tests and documents, and clean
+in every way: the four checks green on the head, a Codex review of exactly that head with no finding, every conversation
+resolved, no `allow-test-removal` label, and the branch up to date (AGENTS.md, "Git and pull requests"). The conditions,
+and the files that the class keeps out even under `tests/`, `e2e/` and `docs/` (the visual baselines, the files that every
+test runs with, the rules, the privacy record, the decision records, the runbooks, the design rules), are
+`scripts/check-auto-merge.mjs`, with a test for each in `tests/check-auto-merge.test.js`.
+
+For now it is a dry run: on an open, ready pull request with a test or docs title it writes one comment per head commit,
+"would merge" or "would not merge" with the reasons, and edits that comment when the decision for the same commit
+changes; every other pull request gets the decision in the summary of the run only. It decides again only on those two
+events, so a conversation resolved after the last of them is seen at the next CI run or Codex comment. To keep a pull
+request from merging once it is live, keep it a draft or leave a conversation open. The App that will merge, its key, and
+how to switch it off are in [`.github/rulesets/README.md`](../.github/rulesets/README.md), "The auto-merge App".
+
 ## The smoke test
 
 `.github/workflows/smoke.yml` is not a merge check: it runs after each production deployment (`scripts/smoke-check.mjs`

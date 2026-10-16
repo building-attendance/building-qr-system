@@ -51,6 +51,66 @@ gh api --method POST repos/{owner}/{repo}/rulesets --input .github/rulesets/mast
 To change one later, send the edited file with `gh api --method PUT repos/{owner}/{repo}/rulesets/<id> --input <file>`
 (the ids are listed by `gh api repos/{owner}/{repo}/rulesets`).
 
+## The auto-merge App (coming: not in `master-approval.json` yet)
+
+`.github/workflows/auto-merge.yml` may merge one narrow class of pull requests without the owner's click: a `test` or
+`docs` pull request that the owner opened, whose files are only tests and documents, and that is clean in every way
+(AGENTS.md, "Git and pull requests", the paragraph "One workflow may merge too"; the exact conditions are in
+`scripts/check-auto-merge.mjs`). It starts in a dry run that only comments (`LIVE: false` in the workflow), and nothing in
+this folder changes for it until the owner sets up its GitHub App. That App is the only new actor, and this is what it may
+do.
+
+- **What it can do.** Merge a pull request through the API, nothing else. The workflow mints its token for this repository
+  only, with `contents: write` only (GitHub lists the merge endpoint under "Contents"), for one job, and the token is
+  revoked when the job ends. The merge call carries the head commit that was decided on (`sha`), so GitHub refuses it when
+  anything was pushed after the decision.
+- **Why it cannot touch `master-gates`.** It is added to the `bypass_actors` of `master-approval` only, with
+  `bypass_mode: pull_request`: it skips the code-owner approval of a pull request, and nothing more. `master-gates` keeps an
+  empty `bypass_actors`, so a merge by the App still needs the four checks green and up to date, every conversation
+  resolved and the squash method, and the App can never push to the default branch or delete it.
+- **Where its key lives.** In the environment `auto-merge`, never among the repository secrets. Its deployment branch
+  policy allows the default branch only, so a workflow that runs for a pull request (whose ref is never the default
+  branch) cannot read the key. The workflow reads it in one step of one job, which is skipped while `LIVE` is false.
+
+### Set it up (the owner, once, before the pull request that turns `LIVE` on)
+
+1. Create a GitHub App owned by the account that owns the repository (the organization `building-attendance` here: its
+   Settings, Developer settings, GitHub Apps), installable only on that account: no webhook, the repository permission
+   **Contents: Read and write** and nothing else (GitHub adds Metadata: Read-only by itself). Install it on this repository
+   only. Generate a private key, and keep the `.pem` file out of the repository.
+2. Create the environment and limit it to the default branch, before any secret goes into it. A run of a workflow that names
+   an environment creates it, with no rules, so if `auto-merge` is already listed (`gh api repos/{owner}/{repo}/environments`),
+   set the rule on that one:
+
+   ```
+   gh api --method PUT repos/{owner}/{repo}/environments/auto-merge \
+     -F "deployment_branch_policy[protected_branches]=false" -F "deployment_branch_policy[custom_branch_policies]=true"
+   gh api --method POST repos/{owner}/{repo}/environments/auto-merge/deployment-branch-policies -f name=master -f type=branch
+   ```
+
+   (`master` is the default branch here; a copy writes its own.)
+3. Put the App's client id and its key into that environment, from files, never on the command line:
+   `gh secret set AUTO_MERGE_APP_CLIENT_ID --env auto-merge < client-id.txt` and
+   `gh secret set AUTO_MERGE_APP_KEY --env auto-merge < app-key.pem`. Note both in `docs/runbooks/secrets.md`.
+4. Add the App to `master-approval`. Its id is `gh api apps/<app-slug> --jq .id`. Add this entry to `bypass_actors` in
+   `master-approval.json`, next to the repository admin role, and send the file with the `PUT` command above:
+
+   ```
+   { "actor_id": <the App's id>, "actor_type": "Integration", "bypass_mode": "pull_request" }
+   ```
+
+   The file in this folder does not have the entry yet, on purpose: a placeholder id would break whoever applies the file.
+   The pull request that adds the real id is the owner's.
+
+### Switch it off
+
+- At once, for every pull request: disable the workflow (`gh workflow disable auto-merge.yml`, or the Actions tab), or take
+  the App out of `bypass_actors` (send `master-approval.json` without its entry). Without the bypass, the approval rule
+  refuses a merge by the App, so nothing merges even while the workflow runs.
+- For one pull request: keep it a draft, or leave a conversation open. Either one is a reason, and the workflow does not
+  merge it.
+- For good: a pull request that sets `LIVE` back to `false`; then uninstall the App and delete the environment.
+
 ## The merge queue (an organization's repository, without a bypassed approval)
 
 `master-merge-queue.json` makes every pull request merge through GitHub's merge queue. A pull request is added with
