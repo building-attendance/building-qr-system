@@ -167,8 +167,9 @@ test.afterAll(async () => {
  * What is left out, and why:
  *   - `ignoreSelector`: text that is not drawn as text (a `select`'s options and a `textarea`'s value are the browser's own, the
  *     visually hidden `.w-sr` is clipped to 1 px on purpose) and the map's attribution (Leaflet's, not ours);
- *   - `designedSelector`: the one box whose clipping is the design (the building's name in the top bar of the committee app, which
- *     stops at two lines with an ellipsis, src/admin/admin.css). It is reported as `designed`, not as a finding.
+ *   - `designedSelector`: the boxes whose clipping is the design (the building's name in the top bar of the committee app, which
+ *     stops at two lines with an ellipsis, src/admin/admin.css, and the building's address in the header of the provider app, which
+ *     stops at two lines as well, src/ui/ui.css). They are reported as `designed`, not as a finding.
  * The ellipsis of a tab label (`.a-nav-label`) is NOT left out: admin.css says it "should never show".
  *
  * The width of the screen is given, not read from `window.innerWidth`: Chromium's mobile emulation widens the layout viewport to the
@@ -335,7 +336,7 @@ function smallFields() {
 // ---- the checks ---------------------------------------------------------------------------------------------------------
 
 const IGNORE = '.w-sr, option, select, textarea, script, style, noscript, .leaflet-container'
-const DESIGNED = '.a-brand__text'
+const DESIGNED = '.a-brand__text, .w-brand--address'
 const MAX_LISTED = 8
 const slug = (text) => text.replace(/[^\p{L}\p{N}]+/gu, '-').replace(/^-|-$/g, '').toLowerCase()
 
@@ -752,6 +753,13 @@ test.describe('the reflow measurement finds what it should', () => {
     expect(before.designed.map((d) => d.where).join()).toContain('a-brand__text') // the name of the building, clamped at two lines
     await breakWith(page, '.a-nav-label { font-size: 22px; }')
     expect((await measure()).findings.map((f) => f.kind)).toContain('clipped')
+  })
+
+  test('the clamped address of the building in the header of the provider app is reported as by design, and is not a finding', async ({ page }) => {
+    await page.setContent(`${FRAME}<div class="box"><p class="w-brand--address" style="overflow:hidden;height:1.3em">a design that stops at one line<br>and hides the second one</p></div>`)
+    const result = await measure(page)
+    expect(result.findings).toEqual([])
+    expect(result.designed).toHaveLength(2) // its two lines of text, both cut by the one clamp
   })
 
   test('the clamped name of the building in the top bar is reported as by design, and is not a finding', async ({ page }) => {

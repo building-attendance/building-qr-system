@@ -39,7 +39,8 @@ export function AdminLink() {
 /**
  * `name` and `address` are the building's name and address as the committee typed them (any language: dir="auto" lays out Hebrew and
  * Latin alike). The name is a line of its own above the address. With neither there is no line at all: the two icons stay at the
- * end of the bar by themselves.
+ * end of the bar by themselves. The address stops at two lines with an ellipsis (`.w-brand--address`, ui.css); the whole of it stays in
+ * the page.
  */
 export function TopBar({ name = '', address = '' }) {
   const { t, lang, setLang, langs } = useI18n()
@@ -49,7 +50,7 @@ export function TopBar({ name = '', address = '' }) {
       {(name || address) && (
         <div className="w-brandbox">
           {name && <p className="w-brand" dir="auto">{name}</p>}
-          {address && <p className={name ? 'w-brand w-brand--sub' : 'w-brand'} dir="auto">{address}</p>}
+          {address && <p className={`${name ? 'w-brand w-brand--sub' : 'w-brand'} w-brand--address`} dir="auto">{address}</p>}
         </div>
       )}
       <div className="w-topbar__tools">

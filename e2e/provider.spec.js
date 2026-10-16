@@ -38,6 +38,50 @@ test('the privacy note under the list gets the padding that its class declares',
   expect(computed, `the padding that the note gets is the one its class declares (${declared})`).toEqual(expected)
 })
 
+// A name that wraps onto many lines (owner decision of 16/10/2026): the letter circle sits level with the FIRST line of the name, at the top of
+// the block, and not in the middle of the whole of it (it was centred: beside a name of nine lines the circle floated far below the first one).
+// Measured in the browser, on the boxes that the engine laid out: the circle starts within the first line of the name (between the top of the
+// name and one line below it), and the name takes at least three lines, so that a circle that is centred fails this. The name itself is not cut.
+test('beside a name that wraps onto many lines the letter circle sits level with its first line, in the sign-in list and on the password screen', async ({ page, request }) => {
+  const person = {
+    company: 'Placeholder Cleaning And Maintenance Ltd',
+    contact_name: 'Example Placeholder Longname-Testington, supervisor of the northern stairwells and of all the lifts',
+    password: 'dev-pass-circle', // exists only inside the scratch schema
+  }
+  const created = await request.post('/api/admin/providers', { data: person }) // the request of the test is signed in as the dev admin (beforeEach)
+  expect(created.ok(), 'the long-named provider is created').toBeTruthy()
+  const { provider } = await created.json()
+  /** The box of the name as the engine laid it out: where it starts, its height and the height of one of its lines. */
+  const boxOf = (name) => name.evaluate((el) => ({ top: el.getBoundingClientRect().top, height: el.getBoundingClientRect().height, lineHeight: parseFloat(getComputedStyle(el).lineHeight) }))
+  /** `circle` is the one element with the person's initial. */
+  const expectLevelWithFirstLine = async (circle, name, where) => {
+    const text = await boxOf(name)
+    const box = await circle.boundingBox()
+    expect(text.lineHeight, `${where}: the height of a line is known`).toBeGreaterThan(0)
+    expect(text.height, `${where}: the name wraps onto at least three lines`).toBeGreaterThan(text.lineHeight * 2.5)
+    expect(box.y, `${where}: the circle starts no higher than the name`).toBeGreaterThanOrEqual(text.top - 1)
+    expect(box.y, `${where}: the circle starts within the first line of the name (centred, it would start far below it)`).toBeLessThanOrEqual(text.top + text.lineHeight)
+  }
+  try {
+    await page.setViewportSize({ width: 320, height: 640 }) // the narrowest phone: the name wraps the most
+    await page.goto('/')
+    const tile = page.getByRole('button', { name: new RegExp(person.contact_name.slice(0, 20)) })
+    await expect(tile).toBeVisible()
+    await expectLevelWithFirstLine(tile.getByText('E', { exact: true }), tile.getByText(person.contact_name, { exact: true }), 'the tile of the sign-in list')
+
+    await tile.click()
+    const greeting = page.getByRole('heading', { level: 1 })
+    await expect(greeting).toContainText(person.contact_name)
+    const circle = page.getByText('E', { exact: true })
+    await expectLevelWithFirstLine(circle, greeting, 'the password screen')
+    // on the password screen nothing is between the top of the block and the circle: the circle starts where the name starts
+    expect(Math.abs((await circle.boundingBox()).y - (await greeting.boundingBox()).y), 'the circle and the name start at the same height').toBeLessThan(1)
+    await expect(greeting, 'the name is not cut: all of it is in the page').toContainText(person.contact_name)
+  } finally {
+    await request.delete(`/api/admin/providers/${provider.id}`, { data: {} })
+  }
+})
+
 test('a wrong password is refused with a clear message and a clear field', async ({ page }) => {
   allowConsoleErrors(page, /status of 401/) // the browser notes the 401 this test provokes
   await page.goto(scanLink(POINTS.lobby))
