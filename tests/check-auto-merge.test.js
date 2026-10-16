@@ -36,8 +36,11 @@ import {
 
 const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const SCRIPT = path.join(root, 'scripts', 'check-auto-merge.mjs')
-const WORKFLOW = fs.readFileSync(path.join(root, '.github', 'workflows', 'auto-merge.yml'), 'utf8')
-const CI = fs.readFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), 'utf8')
+// LF, whatever the checkout wrote: a Windows checkout with core.autocrlf has CRLF, and a line that ends in "\r" fails an
+// anchored match ($) that passes on Linux.
+const readLf = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8').replace(/\r\n/g, '\n')
+const WORKFLOW = readLf('.github', 'workflows', 'auto-merge.yml')
+const CI = readLf('.github', 'workflows', 'ci.yml')
 
 const REPO = 'fake-owner/fake-repo'
 const HEAD = '0123456789abcdef0123456789abcdef01234567'
