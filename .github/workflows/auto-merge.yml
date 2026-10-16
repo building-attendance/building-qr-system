@@ -1,7 +1,7 @@
 # Auto-merge of one narrow class of pull requests: tests and docs that the owner opened, when everything about them is
 # clean. The rule is AGENTS.md, "Git and pull requests" (the paragraph "One workflow may merge too", owner decision of
-# 16/10/2026). The decision is scripts/check-auto-merge.mjs, with a test for each condition (tests/check-auto-merge.test.js);
-# this file only fetches what the decision reads, through GitHub's API, and acts on its answer.
+# 16/10/2026). The decision is scripts/check-auto-merge.mjs, with a test for each condition (tests/check-auto-merge.test.js):
+# it reads the pull request through GitHub's API and decides, and this file acts on its answer.
 #
 # A DRY RUN for now: LIVE below is false, so the workflow only writes its decision. It writes one comment per head commit
 # of an open, ready pull request whose title is a test or docs title (edited when the decision for that commit changes,
@@ -17,15 +17,16 @@
 # hands the base's secrets to a run that any pull request starts.
 #
 # What it reads: the pull request, its files, the check runs of its head commit, how far the head is behind the default
-# branch, and the pull request's comments and review conversations, all with `gh api` and the job's own token. Nothing of
-# the pull request is checked out or run (no `npm ci` either): the only checkout is this commit of the default branch, for
-# the decision script and .nvmrc, without credentials. Text that anyone can write (a title, a branch name, a file name, a
-# comment) never reaches a `run:` script: the API answers go to files, the script reads them as JSON, and only its answer
-# is used, through env.
+# branch, and the pull request's comments and review conversations, through the API with the job's own token
+# (`node scripts/check-auto-merge.mjs --read`). Nothing of the pull request is checked out or run (no `npm ci` either): the
+# only checkout is this commit of the default branch, for the decision script and .nvmrc, without credentials. Text that
+# anyone can write (a title, a branch name, a file name, a comment) never reaches a `run:` script: the script reads it as
+# JSON, and only its answer is used, through files and env.
 #
 # Fail closed: an API error stops the job, so nothing is merged, and the script refuses anything that it cannot read in
-# full. The merge itself is pinned to the head commit that was decided on (`sha`), so GitHub refuses it when anything was
-# pushed in between.
+# full. The merge job reads everything again and decides again just before the merge, so that a change without a new
+# commit (a label, the title, a new Codex finding) still stops it, and the merge is pinned to the head commit that was
+# decided on (`sha`), so GitHub refuses it when anything was pushed in between.
 #
 # The merge, once LIVE is true, is a job of its own in the environment `auto-merge`. That environment holds the two
 # secrets of the auto-merge GitHub App (its client id and its private key), and its deployment branch policy lets only
@@ -80,8 +81,6 @@ jobs:
       merge: ${{ steps.decide.outputs.merge }}
       number: ${{ steps.decide.outputs.number }}
       head_sha: ${{ steps.decide.outputs.head_sha }}
-      merge_request: ${{ steps.decide.outputs.merge_request }}
-      merged_body: ${{ steps.decide.outputs.merged_body }}
       comment_id: ${{ steps.comment.outputs.comment_id }}
     steps:
       # The commit of the default branch that this run's workflow file comes from (github.sha, for both events), so the
@@ -104,76 +103,21 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          REPO_OWNER: ${{ github.repository_owner }}
-          REPO_NAME: ${{ github.event.repository.name }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           PR_NUMBER: ${{ github.event.issue.number || github.event.workflow_run.pull_requests[0].number }}
-          # Who wrote and who last edited each comment is only in GraphQL. At most 100 of each are read: the script refuses
-          # a pull request that has more, because what was not read could hold the review or an open conversation.
-          QUERY: >-
-            query($owner: String!, $name: String!, $number: Int!) {
-              repository(owner: $owner, name: $name) {
-                pullRequest(number: $number) {
-                  reviewThreads(first: 100) { totalCount nodes { isResolved } }
-                  comments(last: 100) {
-                    totalCount
-                    nodes { databaseId body author { login __typename } editor { login __typename } }
-                  }
-                }
-              }
-            }
         run: |
           set -euo pipefail
-          if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]] || ! [[ "$DEFAULT_BRANCH" =~ ^[A-Za-z0-9._/-]+$ ]]; then
-            echo "::error::The event names no pull request, or the default branch has an unexpected name."
-            exit 1
-          fi
           dir="$RUNNER_TEMP/auto-merge"
           mkdir -p "$dir"
-          gh api "repos/$REPO/pulls/$PR_NUMBER" > "$dir/pr.json"
-          head=$(jq -r '.head.sha' "$dir/pr.json")
-          if ! [[ "$head" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::The head commit of the pull request is not a SHA."
-            exit 1
-          fi
-          # One page of files: the script compares it with changed_files and refuses more than 100.
-          gh api "repos/$REPO/pulls/$PR_NUMBER/files?per_page=100" > "$dir/files.json"
-          gh api "repos/$REPO/commits/$head/check-runs?per_page=100" > "$dir/checks.json"
-          gh api "repos/$REPO/compare/$DEFAULT_BRANCH...$head" --jq '{behind_by: .behind_by}' > "$dir/compare.json"
-          gh api graphql -f query="$QUERY" -f owner="$REPO_OWNER" -f name="$REPO_NAME" -F number="$PR_NUMBER" > "$dir/conversation.json"
-          jq -n \
-            --arg repository "$REPO" \
-            --arg default_branch "$DEFAULT_BRANCH" \
-            --arg live "$LIVE" \
-            --slurpfile pr "$dir/pr.json" \
-            --slurpfile files "$dir/files.json" \
-            --slurpfile checks "$dir/checks.json" \
-            --slurpfile compare "$dir/compare.json" \
-            --slurpfile conversation "$dir/conversation.json" \
-            '{
-              repository: $repository,
-              default_branch: $default_branch,
-              live: ($live == "true"),
-              pr: $pr[0],
-              files: $files[0],
-              checks: $checks[0],
-              compare: $compare[0],
-              comments: $conversation[0].data.repository.pullRequest.comments,
-              threads: $conversation[0].data.repository.pullRequest.reviewThreads
-            }' > "$dir/input.json"
-          node scripts/check-auto-merge.mjs < "$dir/input.json" > "$dir/decision.json"
-
+          node scripts/check-auto-merge.mjs --read > "$dir/decision.json"
           # The reasons are the script's own sentences; any text of the pull request in them is reduced to plain characters.
           jq -r '"Decision for #\(.number) at \(.head_sha): " + (if .merge == true then "merge" else "no merge" end), (.reasons[] | "  - " + .)' "$dir/decision.json"
           jq -r '.summary' "$dir/decision.json" >> "$GITHUB_STEP_SUMMARY"
           {
             echo "merge=$(jq -r 'if .merge == true then "true" else "false" end' "$dir/decision.json")"
-            echo "number=$PR_NUMBER"
-            echo "head_sha=$head"
+            echo "number=$(jq -r '.number' "$dir/decision.json")"
+            echo "head_sha=$(jq -r '.head_sha' "$dir/decision.json")"
             echo "post=$(jq -r 'if .comment.post == true then "true" else "false" end' "$dir/decision.json")"
-            # One line each: jq -c writes the JSON of the merge call and of the comment text with every newline escaped.
-            echo "merge_request=$(jq -c '.merge_request' "$dir/decision.json")"
-            echo "merged_body=$(jq -c '.merged_body' "$dir/decision.json")"
           } >> "$GITHUB_OUTPUT"
 
       # The comment of this head commit: edited when it exists (the script found it among the comments of the workflow's
@@ -209,11 +153,26 @@ jobs:
       name: auto-merge
       deployment: false
     permissions:
-      pull-requests: write # the comment after the merge (the merge itself uses the App's token)
+      contents: read # the checkout of the decision script, and the files and the comparison that it reads again
+      pull-requests: write # read the pull request again; the comment after the merge (the merge itself uses the App's token)
+      checks: read # the check runs of the head commit, read again
     concurrency:
       group: auto-merge-merge-${{ needs.decide.outputs.number }}
       cancel-in-progress: false
     steps:
+      # The same checkout as in decide: the decision script of the default branch, without credentials.
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+          sparse-checkout: |
+            /scripts/check-auto-merge.mjs
+            /.nvmrc
+          sparse-checkout-cone-mode: false
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version-file: .nvmrc
+
       # A token of the auto-merge App for this repository only, with contents: write only (what a merge needs), revoked by
       # the action when the job ends. The secrets are read here and nowhere else, and never printed.
       - name: Mint a token of the auto-merge App
@@ -224,25 +183,36 @@ jobs:
           private-key: ${{ secrets.AUTO_MERGE_APP_KEY }}
           permission-contents: write
 
+      # The decision of the decide job may be minutes old. Everything is read again, with the job's own token, and the merge
+      # goes ahead only when the decision is still to merge, and for the same head commit.
+      - name: Decide again, just before the merge
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          PR_NUMBER: ${{ needs.decide.outputs.number }}
+          HEAD_SHA: ${{ needs.decide.outputs.head_sha }}
+        run: |
+          set -euo pipefail
+          node scripts/check-auto-merge.mjs --read > "$RUNNER_TEMP/again.json"
+          if ! jq -e --arg sha "$HEAD_SHA" '.merge == true and .head_sha == $sha and .merge_request.sha == $sha and .merge_request.merge_method == "squash"' "$RUNNER_TEMP/again.json" > /dev/null; then
+            echo "::error::The decision changed since the decide job, or the head moved: no merge."
+            jq -r '.reasons[] | "  - " + .' "$RUNNER_TEMP/again.json"
+            exit 1
+          fi
+          jq '.merge_request' "$RUNNER_TEMP/again.json" > "$RUNNER_TEMP/merge.json"
+          jq '{body: .merged_body}' "$RUNNER_TEMP/again.json" > "$RUNNER_TEMP/merged.json"
+
       # The body is the script's mergeRequest: sha (the head that was decided on), squash, and the decided title and message.
-      # The step checks the sha again before it sends anything. GitHub answers 409 when the head moved, 405 when a ruleset
-      # refuses, and the job fails.
+      # GitHub answers 409 when the head moved, 405 when a ruleset refuses, and the job fails.
       - name: Merge the head commit that was decided on
         id: merge
         env:
           GH_TOKEN: ${{ steps.app.outputs.token }}
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.decide.outputs.number }}
-          HEAD_SHA: ${{ needs.decide.outputs.head_sha }}
-          MERGE_REQUEST: ${{ needs.decide.outputs.merge_request }}
         run: |
           set -euo pipefail
-          if ! [[ "$PR_NUMBER" =~ ^[1-9][0-9]{0,9}$ ]] || ! [[ "$HEAD_SHA" =~ ^[0-9a-f]{40}$ ]]; then
-            echo "::error::No pull request number or head commit from the decision."
-            exit 1
-          fi
-          printf '%s' "$MERGE_REQUEST" > "$RUNNER_TEMP/merge.json"
-          jq -e --arg sha "$HEAD_SHA" '.sha == $sha and .merge_method == "squash"' "$RUNNER_TEMP/merge.json" > /dev/null
           merged=$(gh api -X PUT "repos/$REPO/pulls/$PR_NUMBER/merge" --input "$RUNNER_TEMP/merge.json" --jq '.merged')
           if [ "$merged" != "true" ]; then
             echo "::error::GitHub did not merge the pull request."
@@ -255,18 +225,17 @@ jobs:
           REPO: ${{ github.repository }}
           PR_NUMBER: ${{ needs.decide.outputs.number }}
           COMMENT_ID: ${{ needs.decide.outputs.comment_id }}
-          MERGED_BODY: ${{ needs.decide.outputs.merged_body }}
         run: |
           set -euo pipefail
-          printf '%s' "$MERGED_BODY" | jq '{body: .}' > "$RUNNER_TEMP/comment.json"
           if [[ "$COMMENT_ID" =~ ^[1-9][0-9]*$ ]]; then
-            gh api -X PATCH "repos/$REPO/issues/comments/$COMMENT_ID" --input "$RUNNER_TEMP/comment.json" > /dev/null
+            gh api -X PATCH "repos/$REPO/issues/comments/$COMMENT_ID" --input "$RUNNER_TEMP/merged.json" > /dev/null
           else
-            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" --input "$RUNNER_TEMP/comment.json" > /dev/null
+            gh api -X POST "repos/$REPO/issues/$PR_NUMBER/comments" --input "$RUNNER_TEMP/merged.json" > /dev/null
           fi
 
-      # The comment of the decision said "merging": when the merge did not go through (it failed, or the token step before
-      # it did), the comment says so. A failure of the comment after a merge that went through changes nothing.
+      # The comment of the decision said "merging": when the merge did not go through (the decision changed, the merge
+      # failed, or a step before it did), the comment says so. A failure of the comment after a merge that went through
+      # changes nothing.
       - name: Say that the merge did not go through
         if: failure() && steps.merge.outcome != 'success'
         env:

@@ -62,8 +62,9 @@ do.
 
 - **What it can do.** Merge a pull request through the API, nothing else. The workflow mints its token for this repository
   only, with `contents: write` only (GitHub lists the merge endpoint under "Contents"), for one job, and the token is
-  revoked when the job ends. The merge call carries the head commit that was decided on (`sha`), so GitHub refuses it when
-  anything was pushed after the decision.
+  revoked when the job ends. Just before the merge the workflow reads the pull request again and decides again, so a
+  change since the first decision (a label, the title, a new Codex finding) stops it, and the merge call carries the head
+  commit that was decided on (`sha`), so GitHub refuses it when anything was pushed after the decision.
 - **Why it cannot touch `master-gates`.** It is added to the `bypass_actors` of `master-approval` only, with
   `bypass_mode: pull_request`: it skips the code-owner approval of a pull request, and nothing more. `master-gates` keeps an
   empty `bypass_actors`, so a merge by the App still needs the four checks green and up to date, every conversation

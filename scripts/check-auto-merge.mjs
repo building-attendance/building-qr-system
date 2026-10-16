@@ -2,10 +2,13 @@
 // owner's click? The rule is AGENTS.md, "Git and pull requests" (the paragraph "One workflow may merge too", owner decision
 // of 16/10/2026); this file is that rule as code, and tests/check-auto-merge.test.js has a test for each condition.
 //
-// Usage: node scripts/check-auto-merge.mjs < input.json      (prints the decision as one JSON document)
+// Usage: node scripts/check-auto-merge.mjs --read      (the workflow: reads the pull request from GitHub's API, then decides)
+//        node scripts/check-auto-merge.mjs < input.json  (decides on a document read before, for example a saved one)
+// Both print the decision as one JSON document. With --read the environment gives GH_TOKEN (read access is enough), REPO
+// ("owner/name"), PR_NUMBER, DEFAULT_BRANCH and LIVE; any answer of the API that is not a success stops it with an error.
 //
-// The input is one JSON document that the workflow builds from GitHub's API alone, never from a checkout of the pull
-// request: { repository, default_branch, live, pr, files, checks, compare, comments, threads }.
+// The document is read from GitHub's API alone, never from a checkout of the pull request (readInput):
+// { repository, default_branch, live, pr, files, checks, compare, comments, threads }.
 //   repository, default_branch   this repository ("owner/name") and its default branch, from the event
 //   live                         false in the dry run (only a comment), true when the workflow merges for real
 //   pr                           GET /repos/{repo}/pulls/{n}
@@ -14,6 +17,8 @@
 //   compare                      { behind_by } of GET /repos/{repo}/compare/{default_branch}...{head}
 //   comments, threads            the pull request's `comments(last: 100)` and `reviewThreads(first: 100)` from GraphQL,
 //                                which says who wrote a comment (`author`) and who edited it last (`editor`); REST does not
+// The workflow reads and decides twice when it is live: once to decide and comment, and again in the merge job just before
+// the merge, so that a label, a title or a Codex review that changed in between (with the same head commit) still stops it.
 // Node built-ins only: the workflow checks out this one file from the default branch and runs it with no `npm ci`. Its name
 // (scripts/check-*) keeps it out of the agent loop's reach (AGENTS.md, "The agent loop").
 //
@@ -389,7 +394,97 @@ export function run(input) {
   }
 }
 
+/**
+ * The GraphQL query of the comments and the review conversations. At most 100 of each: decide() refuses a pull request
+ * that has more, because what was not read could hold the review or an open conversation.
+ */
+export const CONVERSATION_QUERY = `query($owner: String!, $name: String!, $number: Int!) {
+  repository(owner: $owner, name: $name) {
+    pullRequest(number: $number) {
+      reviewThreads(first: 100) { totalCount nodes { isResolved } }
+      comments(last: 100) {
+        totalCount
+        nodes { databaseId body author { login __typename } editor { login __typename } }
+      }
+    }
+  }
+}`
+
+const REPOSITORY = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
+const NUMBER = /^[1-9][0-9]{0,9}$/
+const BRANCH = /^[A-Za-z0-9._/-]+$/
+const API_URL = /^https:\/\/[A-Za-z0-9.-]+(?::[0-9]+)?(?:\/[A-Za-z0-9._/-]*)?$/
+
+/**
+ * Reads the document of run() from GitHub's API, with the token in env.GH_TOKEN, for the pull request env.PR_NUMBER of
+ * env.REPO. Throws on anything unexpected (a value of the environment that does not look right, an answer that is not a
+ * success, a GraphQL error, a head commit that is not a SHA): the job then stops, and nothing is merged. The messages name
+ * the call and the status, never the token.
+ */
+export async function readInput(env, fetchImpl = fetch) {
+  const { REPO: repository, PR_NUMBER: number, DEFAULT_BRANCH: branch, GH_TOKEN: token } = env
+  if (!REPOSITORY.test(repository ?? '')) throw new Error('REPO is not owner/name')
+  if (!NUMBER.test(number ?? '')) throw new Error('PR_NUMBER is not the number of a pull request')
+  if (!BRANCH.test(branch ?? '') || branch.startsWith('-')) throw new Error('DEFAULT_BRANCH is not a branch name')
+  if (typeof token !== 'string' || token === '') throw new Error('GH_TOKEN is not set')
+  const api = env.GITHUB_API_URL || 'https://api.github.com'
+  if (!API_URL.test(api)) throw new Error('GITHUB_API_URL is not an https address')
+
+  const call = async (method, route, body) => {
+    const response = await fetchImpl(`${api}${route}`, {
+      method,
+      headers: {
+        accept: 'application/vnd.github+json',
+        authorization: `Bearer ${token}`,
+        'user-agent': 'auto-merge-workflow',
+        'x-github-api-version': '2022-11-28',
+        ...(body ? { 'content-type': 'application/json' } : {}),
+      },
+      body: body ? JSON.stringify(body) : undefined,
+      redirect: 'error',
+      signal: AbortSignal.timeout(30000),
+    })
+    if (!response.ok) throw new Error(`${method} ${route.split('?')[0]}: HTTP ${response.status}`)
+    return response.json()
+  }
+
+  const pr = await call('GET', `/repos/${repository}/pulls/${number}`)
+  const head = isObject(pr) && isObject(pr.head) ? pr.head.sha : undefined
+  if (!SHA.test(head ?? '')) throw new Error('the head commit of the pull request is not a SHA')
+  const files = await call('GET', `/repos/${repository}/pulls/${number}/files?per_page=${MAX_FILES}`)
+  const checks = await call('GET', `/repos/${repository}/commits/${head}/check-runs?per_page=100`)
+  const compare = await call('GET', `/repos/${repository}/compare/${branch}...${head}`)
+  const [owner, name] = repository.split('/')
+  const graph = await call('POST', '/graphql', { query: CONVERSATION_QUERY, variables: { owner, name, number: Number(number) } })
+  if (!isObject(graph) || graph.errors !== undefined) throw new Error('POST /graphql: the answer has errors')
+  const pull = graph.data?.repository?.pullRequest
+  return {
+    repository,
+    default_branch: branch,
+    live: env.LIVE === 'true',
+    pr,
+    files,
+    checks,
+    compare: { behind_by: isObject(compare) ? compare.behind_by : undefined },
+    comments: pull?.comments,
+    threads: pull?.reviewThreads,
+  }
+}
+
 async function main() {
+  if (process.argv.includes('--read')) {
+    let input
+    try {
+      input = await readInput(process.env)
+    } catch (error) {
+      // exitCode and not exit(): the timer of a refused request may still be open, and the output stays empty.
+      console.error(`check-auto-merge: could not read the pull request: ${error.message}`)
+      process.exitCode = 1
+      return
+    }
+    process.stdout.write(`${JSON.stringify(run(input))}\n`)
+    return
+  }
   let raw = ''
   process.stdin.setEncoding('utf8')
   for await (const chunk of process.stdin) raw += chunk

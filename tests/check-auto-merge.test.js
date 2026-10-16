@@ -13,6 +13,7 @@ import {
   CODEX_STATE_MARKER,
   COMMENT_MARKER,
   CONDITIONS,
+  CONVERSATION_QUERY,
   GITHUB_ACTIONS_APP_ID,
   MAX_FILES,
   OVERRIDE_LABEL,
@@ -25,6 +26,7 @@ import {
   fileProblem,
   isCandidate,
   mergeRequest,
+  readInput,
   run,
 } from '../scripts/check-auto-merge.mjs'
 
@@ -579,7 +581,125 @@ describe('the comment', () => {
   })
 })
 
+describe('reading the pull request from the API', () => {
+  const API = 'https://api.example.test'
+  const ENV = { REPO, PR_NUMBER: '42', DEFAULT_BRANCH: 'master', GH_TOKEN: 'made-up-token', LIVE: 'false', GITHUB_API_URL: API }
+
+  /** A fake GitHub that answers the calls of readInput with the clean case, and records them. */
+  function fakeGitHub(c, change = {}) {
+    const answers = {
+      [`GET /repos/${REPO}/pulls/42`]: c.pr,
+      [`GET /repos/${REPO}/pulls/42/files?per_page=${MAX_FILES}`]: c.files,
+      [`GET /repos/${REPO}/commits/${HEAD}/check-runs?per_page=100`]: c.checks,
+      [`GET /repos/${REPO}/compare/master...${HEAD}`]: { behind_by: 0, ahead_by: 2, files: [] },
+      'POST /graphql': { data: { repository: { pullRequest: { comments: c.comments, reviewThreads: c.threads } } } },
+      ...change,
+    }
+    const calls = []
+    const fetchImpl = async (url, init) => {
+      const key = `${init.method} ${url.slice(API.length)}`
+      calls.push({ key, init })
+      const answer = key in answers ? answers[key] : 404
+      if (typeof answer === 'number') return { ok: false, status: answer, json: async () => ({ message: 'made up' }) }
+      return { ok: true, status: 200, json: async () => answer }
+    }
+    return { fetchImpl, calls }
+  }
+
+  it('reads the five answers, with the token, and builds the document that decides', async () => {
+    const c = cleanCase()
+    const { fetchImpl, calls } = fakeGitHub(c)
+    const doc = await readInput(ENV, fetchImpl)
+    expect(calls.map((call) => call.key)).toEqual([
+      `GET /repos/${REPO}/pulls/42`,
+      `GET /repos/${REPO}/pulls/42/files?per_page=100`,
+      `GET /repos/${REPO}/commits/${HEAD}/check-runs?per_page=100`,
+      `GET /repos/${REPO}/compare/master...${HEAD}`,
+      'POST /graphql',
+    ])
+    for (const { init } of calls) {
+      expect(init.headers.authorization).toBe('Bearer made-up-token')
+      expect(init.redirect).toBe('error')
+    }
+    const graph = JSON.parse(calls[4].init.body)
+    expect(graph.query).toBe(CONVERSATION_QUERY)
+    expect(graph.query).toContain('editor { login __typename }')
+    expect(graph.variables).toEqual({ owner: 'fake-owner', name: 'fake-repo', number: 42 })
+    expect(doc).toEqual({
+      repository: REPO,
+      default_branch: 'master',
+      live: false,
+      pr: c.pr,
+      files: c.files,
+      checks: c.checks,
+      compare: { behind_by: 0 },
+      comments: c.comments,
+      threads: c.threads,
+    })
+    expect(run(doc).merge).toBe(true)
+  })
+
+  it('is live only when LIVE is exactly true', async () => {
+    for (const [LIVE, live] of [['true', true], ['false', false], ['TRUE', false], [undefined, false], ['1', false]]) {
+      const { fetchImpl } = fakeGitHub(cleanCase())
+      expect((await readInput({ ...ENV, LIVE }, fetchImpl)).live).toBe(live)
+    }
+  })
+
+  it.each([
+    ['REPO', 'not-a-repo'],
+    ['REPO', 'owner/name/more'],
+    ['PR_NUMBER', '0'],
+    ['PR_NUMBER', '42;x'],
+    ['PR_NUMBER', undefined],
+    ['DEFAULT_BRANCH', '-x'],
+    ['DEFAULT_BRANCH', 'a b'],
+    ['GH_TOKEN', ''],
+    ['GITHUB_API_URL', 'http://api.example.test'],
+    ['GITHUB_API_URL', 'https://api.example.test/?x=1'],
+  ])('refuses %s = %s before it calls anything', async (name, value) => {
+    const { fetchImpl, calls } = fakeGitHub(cleanCase())
+    await expect(readInput({ ...ENV, [name]: value }, fetchImpl)).rejects.toThrow()
+    expect(calls).toEqual([])
+  })
+
+  it('stops on an answer that is not a success, and names the call but never the token', async () => {
+    const { fetchImpl } = fakeGitHub(cleanCase(), { [`GET /repos/${REPO}/pulls/42/files?per_page=100`]: 502 })
+    const error = await readInput(ENV, fetchImpl).catch((e) => e)
+    expect(error.message).toBe(`GET /repos/${REPO}/pulls/42/files: HTTP 502`)
+    expect(error.message).not.toContain('made-up-token')
+  })
+
+  it('stops on a GraphQL error', async () => {
+    const { fetchImpl } = fakeGitHub(cleanCase(), { 'POST /graphql': { errors: [{ message: 'made up' }], data: null } })
+    await expect(readInput(ENV, fetchImpl)).rejects.toThrow(/graphql: the answer has errors/)
+  })
+
+  it('stops when the head of the pull request is not a commit, before it reads anything else', async () => {
+    const c = cleanCase()
+    c.pr.head.sha = 'main'
+    const { fetchImpl, calls } = fakeGitHub(c)
+    await expect(readInput(ENV, fetchImpl)).rejects.toThrow(/not a SHA/)
+    expect(calls).toHaveLength(1)
+  })
+
+  it('leaves a missing part to decide, which refuses it', async () => {
+    const { fetchImpl } = fakeGitHub(cleanCase(), { 'POST /graphql': { data: { repository: null } } })
+    const out = run(await readInput(ENV, fetchImpl))
+    expect(out.merge).toBe(false)
+    expect(out.reasons).toEqual(['the comments cannot be read', 'the review conversations cannot be read'])
+  })
+})
+
 describe('the command line', () => {
+  it('with --read and an environment that is not right, fails and prints no decision', () => {
+    const env = { PATH: process.env.PATH, SYSTEMROOT: process.env.SYSTEMROOT, REPO: 'not-a-repo', PR_NUMBER: '42' }
+    const result = spawnSync(process.execPath, [SCRIPT, '--read'], { env, encoding: 'utf8' })
+    expect(result.status).toBe(1)
+    expect(result.stdout).toBe('')
+    expect(result.stderr).toContain('REPO is not owner/name')
+  })
+
   it('reads one JSON document on stdin and prints the decision', () => {
     const c = cleanCase()
     const input = {
@@ -665,25 +785,19 @@ describe('the workflow file', () => {
 
   it('has no permission at the top, and each job only what it needs', () => {
     expect(code).toMatch(/^permissions: \{\}$/m)
-    expect(block(decideJob, /^ {4}permissions:$/).split('\n').slice(1).map((l) => l.trim().replace(/ #.*/, ''))).toEqual([
-      'contents: read',
-      'pull-requests: write',
-      'checks: read',
-    ])
-    expect(block(mergeJob, /^ {4}permissions:$/).split('\n').slice(1).map((l) => l.trim().replace(/ #.*/, ''))).toEqual([
-      'pull-requests: write',
-    ])
+    const permissions = (job) => block(job, /^ {4}permissions:$/).split('\n').slice(1).map((l) => l.trim().replace(/ #.*/, ''))
+    expect(permissions(decideJob)).toEqual(['contents: read', 'pull-requests: write', 'checks: read'])
+    expect(permissions(mergeJob)).toEqual(['contents: read', 'pull-requests: write', 'checks: read'])
   })
 
   it('pins every action to a full commit SHA, with the pins of ci.yml where it uses the same action', () => {
-    const uses = [...code.matchAll(/uses: (\S+)/g)].map((m) => m[1])
-    expect(uses.length).toBe(3)
-    for (const line of WORKFLOW.split('\n').filter((l) => /uses: /.test(l))) {
-      expect(line).toMatch(/uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/)
-    }
+    const uses = WORKFLOW.split('\n').filter((l) => /uses: /.test(l))
+    expect(uses).toHaveLength(5)
+    for (const line of uses) expect(line).toMatch(/uses: [\w.-]+\/[\w.-]+@[0-9a-f]{40} # v\d+\.\d+\.\d+$/)
     for (const action of ['actions/checkout', 'actions/setup-node']) {
-      const pin = (text) => text.split('\n').find((line) => line.includes(`uses: ${action}@`))?.split('@')[1].slice(0, 40)
-      expect(pin(WORKFLOW), action).toBe(pin(CI))
+      const pins = (text) => text.split('\n').filter((line) => line.includes(`uses: ${action}@`)).map((line) => line.split('@')[1].slice(0, 40))
+      const [ciPin] = pins(CI)
+      expect(pins(WORKFLOW), action).toEqual([ciPin, ciPin])
     }
     expect(WORKFLOW).toContain('uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0')
   })
@@ -695,25 +809,30 @@ describe('the workflow file', () => {
   })
 
   it('checks out only the decision script of the default branch, without credentials, and never the pull request', () => {
-    expect(code.match(/uses: actions\/checkout@/g)).toHaveLength(1)
-    const checkout = block(decideJob, /uses: actions\/checkout@/)
-    expect(checkout).toContain('ref: ${{ github.sha }}')
-    expect(checkout).toContain('persist-credentials: false')
-    expect(checkout).toMatch(/sparse-checkout: \|\n\s+\/scripts\/check-auto-merge\.mjs\n\s+\/\.nvmrc\n/)
-    expect(code.match(/ref: .*/g)).toEqual(['ref: ${{ github.sha }}'])
+    expect(code.match(/uses: actions\/checkout@/g)).toHaveLength(2)
+    for (const job of [decideJob, mergeJob]) {
+      const checkout = block(job, /uses: actions\/checkout@/)
+      expect(checkout).toContain('ref: ${{ github.sha }}')
+      expect(checkout).toContain('persist-credentials: false')
+      expect(checkout).toMatch(/sparse-checkout: \|\n\s+\/scripts\/check-auto-merge\.mjs\n\s+\/\.nvmrc\n/)
+      expect(checkout).toContain('sparse-checkout-cone-mode: false')
+    }
+    expect(code.match(/ref: .*/g)).toEqual(['ref: ${{ github.sha }}', 'ref: ${{ github.sha }}'])
     expect(code).not.toMatch(/github\.event\.(?:workflow_run\.head_(?:sha|branch|commit)|pull_request\b)|refs\/pull|allow-unsafe-pr-checkout/)
-    expect(mergeJob).not.toMatch(/actions\/checkout/)
   })
 
   it('runs no code of the pull request: no install, and node only for the decision script', () => {
     const scripts = runScripts(code)
-    expect(scripts.length).toBeGreaterThanOrEqual(4)
+    expect(scripts.length).toBeGreaterThanOrEqual(5)
+    const nodeLines = []
     for (const script of scripts) {
       expect(script).not.toMatch(/\bnpm\b|\bnpx\b|\byarn\b|\bgit\b|\bcurl\b|\bwget\b|\beval\b/)
-      for (const line of script.split('\n').filter((l) => /\bnode\b/.test(l))) {
-        expect(line.trim()).toBe('node scripts/check-auto-merge.mjs < "$dir/input.json" > "$dir/decision.json"')
-      }
+      nodeLines.push(...script.split('\n').filter((l) => /\bnode\b/.test(l)).map((l) => l.trim()))
     }
+    expect(nodeLines).toEqual([
+      'node scripts/check-auto-merge.mjs --read > "$dir/decision.json"',
+      'node scripts/check-auto-merge.mjs --read > "$RUNNER_TEMP/again.json"',
+    ])
   })
 
   it('puts no expression into a script: every value goes in through env', () => {
@@ -734,18 +853,32 @@ describe('the workflow file', () => {
     expect(mergeJob).toMatch(/environment:\n {6}name: auto-merge\n {6}deployment: false/)
     expect(decideJob).not.toContain('environment')
     expect(code.match(/steps\.app\.outputs\.token/g)).toHaveLength(1)
-    expect(code).toContain('GH_TOKEN: ${{ steps.app.outputs.token }}')
+    expect(block(mergeJob, /- name: Merge the head commit that was decided on/)).toContain('GH_TOKEN: ${{ steps.app.outputs.token }}')
     for (const script of runScripts(code)) {
       expect(script).not.toMatch(/GH_TOKEN|secret|::add-mask::|set -x/i)
       expect(script).not.toMatch(/\b(?:echo|printf|cat)\b[^\n]*\$\{?(?:GH_TOKEN|AUTO_MERGE)/)
     }
   })
 
-  it('merges with the sha that was decided on, by the squash method', () => {
-    const merge = block(mergeJob, /- name: Merge the head commit that was decided on/)
-    expect(merge).toContain('HEAD_SHA: ${{ needs.decide.outputs.head_sha }}')
-    expect(merge).toContain(`jq -e --arg sha "$HEAD_SHA" '.sha == $sha and .merge_method == "squash"'`)
-    expect(merge).toContain('gh api -X PUT "repos/$REPO/pulls/$PR_NUMBER/merge" --input "$RUNNER_TEMP/merge.json"')
+  it('decides again just before the merge, and merges only the same head, by the squash method', () => {
+    const steps = mergeJob.split('\n').filter((l) => /^ {6}- (?:name|uses): /.test(l)).map((l) => l.trim())
+    const mint = steps.indexOf('- name: Mint a token of the auto-merge App')
+    const again = steps.indexOf('- name: Decide again, just before the merge')
+    const merge = steps.indexOf('- name: Merge the head commit that was decided on')
+    expect(mint).toBeGreaterThan(-1)
+    expect(again).toBe(mint + 1)
+    expect(merge).toBe(again + 1)
+
+    const recheck = block(mergeJob, /- name: Decide again, just before the merge/)
+    expect(recheck).toContain('HEAD_SHA: ${{ needs.decide.outputs.head_sha }}')
+    expect(recheck).toContain('GH_TOKEN: ${{ github.token }}')
+    expect(recheck).toContain(
+      `jq -e --arg sha "$HEAD_SHA" '.merge == true and .head_sha == $sha and .merge_request.sha == $sha and .merge_request.merge_method == "squash"' "$RUNNER_TEMP/again.json"`,
+    )
+    expect(recheck).toContain(`jq '.merge_request' "$RUNNER_TEMP/again.json" > "$RUNNER_TEMP/merge.json"`)
+
+    const put = block(mergeJob, /- name: Merge the head commit that was decided on/)
+    expect(put).toContain('gh api -X PUT "repos/$REPO/pulls/$PR_NUMBER/merge" --input "$RUNNER_TEMP/merge.json"')
     expect(code.match(/\/merge"/g)).toHaveLength(1)
   })
 
