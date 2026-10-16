@@ -13,7 +13,7 @@ request.
   the add buttons as labelled pills and the quiet account circle with the Google photo (V5), and the scan sign of four
   corner brackets (V6). Step 4 applies the three rules that #239 added (T3, V5, V6). The other steps and the boundaries
   did not change.
-- 16/10/2026 (owner decision "small edges", an owner-directed change to `.claude/skills/`): step 3 runs the committed helper
+- 16/10/2026 (#265, owner decision "small edges", an owner-directed change to `.claude/skills/`): step 3 runs the committed helper
   `npm run ui-review:pictures` (worst-case fake data in a schema of its own, the pictures in a folder that git ignores,
   `--grep` for a narrow change) in place of a scratch script and the dev seed, and says where the pictures land; they are still
   never committed. The line of the opening list about a tile now says what AGENTS.md says since #242 and #246: one "more"
