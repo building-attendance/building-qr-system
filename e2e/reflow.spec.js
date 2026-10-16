@@ -169,7 +169,8 @@ test.afterAll(async () => {
  *     visually hidden `.w-sr` is clipped to 1 px on purpose) and the map's attribution (Leaflet's, not ours);
  *   - `designedSelector`: the boxes whose clipping is the design (the building's name in the top bar of the committee app, which
  *     stops at two lines with an ellipsis, src/admin/admin.css, and the building's address in the header of the provider app, which
- *     stops at two lines as well, src/ui/ui.css). They are reported as `designed`, not as a finding.
+ *     stops at two lines as well, src/ui/ui.css). They are reported as `designed`, not as a finding, but only for a line that is cut
+ *     at the bottom (the clamp): a cut at the side of such a box is not the design, and is a finding like any other.
  * The ellipsis of a tab label (`.a-nav-label`) is NOT left out: admin.css says it "should never show".
  *
  * The width of the screen is given, not read from `window.innerWidth`: Chromium's mobile emulation widens the layout viewport to the
@@ -267,7 +268,7 @@ function measureLayout({ rootSelector, ignoreSelector, designedSelector, viewpor
         if (!cutX && !cutY) continue
         clipped = true
         const by = describe(a)
-        if (a.matches(designedSelector) || el.closest(designedSelector)) designed.push({ where: describe(el), text: text.replace(/\s+/g, ' ').trim().slice(0, 40), detail: `cut by ${by} (by design)` })
+        if (!cutX && (a.matches(designedSelector) || el.closest(designedSelector))) designed.push({ where: describe(el), text: text.replace(/\s+/g, ' ').trim().slice(0, 40), detail: `cut by ${by} (by design)` })
         else flag('clipped', el, text, `cut off by ${by}${cutX ? ' (sideways)' : ' (a line is hidden)'}`)
         break
       }
@@ -753,6 +754,15 @@ test.describe('the reflow measurement finds what it should', () => {
     expect(before.designed.map((d) => d.where).join()).toContain('a-brand__text') // the name of the building, clamped at two lines
     await breakWith(page, '.a-nav-label { font-size: 22px; }')
     expect((await measure()).findings.map((f) => f.kind)).toContain('clipped')
+  })
+
+  test('a box that is clamped by design is still a finding when it is cut at the side', async ({ page }) => {
+    for (const selector of ['w-brand--address', 'a-brand__text']) {
+      await page.setContent(`${FRAME}<div class="box"><p class="${selector}" style="overflow:hidden;white-space:nowrap">${LONG}</p></div>`)
+      const result = await measure(page)
+      expect(result.designed, selector).toEqual([])
+      expect([...new Set(result.findings.map((f) => f.kind))], selector).toEqual(['clipped'])
+    }
   })
 
   test('the clamped address of the building in the header of the provider app is reported as by design, and is not a finding', async ({ page }) => {
