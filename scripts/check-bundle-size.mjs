@@ -28,18 +28,21 @@
 // check without anybody noticing. A measurement more than 20 percent under its budget only prints a note that the budget
 // can be lowered. Exit 2: the guard could not run at all (a bad argument, an unreadable budget file).
 //
-// How the budgets were set: on 08/10/2026, on master after #138, from `npm run build`. Each budget is the measured size
-// plus about 10 percent, rounded up to a whole KiB (half a KiB for the provider app's CSS: a whole KiB would leave it more
-// than 20 percent under its budget, and the note below would print on every run); the budget for the number of files is the
-// measured number plus 2. On 14/10/2026 the map (Leaflet, with its stylesheet) left the committee chunk for a lazy chunk of
-// its own: the committee chunk's two budgets went down to its new size by the same rule (half a KiB for its CSS, for the
-// reason above), the lazy chunks got budgets by the same rule (half a KiB for their CSS too), and the number of files in the
-// precache went up by the map's two files (its JavaScript and its CSS), every file of the app being in the precache. The
-// provider app loads the same files as before. The precache's total went up by what the split costs (about 1 KB: the two
-// files are compressed on their own), to the measured total rounded up to a whole KiB, the rule of its raise in #223. JSON
-// has no comments, so that is written here. A budget is raised only in a pull request that says why, and the owner decides
-// (AGENTS.md, "Testing" and the P1 review rules); it is lowered when the app gets smaller. The script and the budgets sit
-// under scripts/check-*, so the agent loop cannot change them (AGENTS.md, "The agent loop").
+// How a budget is raised or lowered (the owner's rule of 15/10/2026): to the measurement of CI (the table of the guards
+// job, which builds with LF line ends; a Windows checkout measures a few bytes more) rounded up to a whole KiB, 1,024 bytes.
+// A budget then leaves between 0 and 1,023 bytes of headroom, so a small change to a screen does not need a raise of its
+// own, and growth still shows within a KiB. A CSS budget is rounded up to half a KiB instead when a whole KiB would leave
+// it more than 20 percent under its budget (the note below would then print on every run), and the budget for the number
+// of files in the precache is the measured number plus 2. Before this rule the redesign (#226 to #253) raised three
+// budgets to the exact measured byte, which left no headroom at all: on 15/10/2026 those three went up to the next whole
+// KiB (committee JS 43,212 to 44,032, committee CSS 6,547 to 7,168, precache 327,181 to 327,680 bytes).
+// History: the first budgets (08/10/2026, on master after #138) were the measured size plus about 10 percent, rounded up to
+// a whole KiB (half a KiB for the provider app's CSS, for the reason above). On 14/10/2026 the map (Leaflet, with its
+// stylesheet) left the committee chunk for a lazy chunk of its own (#223): the committee chunk's budgets went down, the
+// lazy chunks got budgets of their own (half a KiB for their CSS), and the precache got the map's two files.
+// JSON has no comments, so that is written here. A budget is raised only in a pull request that says why, and the owner
+// decides (AGENTS.md, "Testing" and the P1 review rules); it is lowered when the app gets smaller. The script and the
+// budgets sit under scripts/check-*, so the agent loop cannot change them (AGENTS.md, "The agent loop").
 //
 // Node built-ins only: it runs in the guards job after `npm ci`, and the scripts that CI trusts do not import packages.
 import fs from 'node:fs'
