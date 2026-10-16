@@ -131,7 +131,9 @@ test('an empty list offers to add its first item once: the empty state has the b
   }
   await adminSignIn(page, 'points')
   for (const { screen, title, own, pill } of EMPTY_LISTS) {
-    await page.goto(`/admin#${screen}`)
+    // (the first screen is the one the sign-in opened: going to the address that the page is at would load it again, and once the service
+    // worker controls the page the browser may ask for the lists without the test's answers)
+    if (!page.url().endsWith(`#${screen}`)) await page.goto(`/admin#${screen}`)
     await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2, name: title }), `${screen}: the empty state`).toBeVisible()
     for (const size of HEADING_SIZES) {
