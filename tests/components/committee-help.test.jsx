@@ -115,6 +115,17 @@ describe('the topics', () => {
     expect(text).toContain('בטלפון: "עוד" ואז "יומן פעולות"')
     expect(text).not.toContain('"ועד"') // the screen of that name is gone
   })
+
+  // A list with nothing in it has no add button in its heading: the empty state has its own button (owner decision of 15/10/2026), so a
+  // new installation, which starts from empty lists, must find in the guide the name that it sees. Each topic names both buttons.
+  it.each([
+    ['נקודות ושלטי QR', '"נקודה חדשה" (כשעוד אין נקודות: "הוסיפו את הנקודה הראשונה")'],
+    ['נותני שירות והטלפונים שלהם', '"נותן שירות חדש" (כשעוד אין נותני שירות: "הוסיפו נותן שירות")'],
+    ["האייג'נט", '"מפתח חדש" (כשעוד אין מפתחות: "יצירת מפתח")'],
+  ])('names both add buttons in "%s": the one of the heading and the one of an empty list', (title, both) => {
+    const { text } = HELP_TOPICS.find((topic) => topic.title === title)
+    expect(text).toContain(both)
+  })
 })
 
 describe('the names that the guide quotes', () => {

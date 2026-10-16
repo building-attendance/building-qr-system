@@ -28,6 +28,9 @@ const WAIT = { timeout: 4000 }
 const QUESTION = 'לסגור בלי לשמור?'
 const KEEP = 'חזרה לעריכה'
 const DISCARD = 'סגירה בלי לשמור'
+// The buttons of the empty states of the Points and Agent screens: on an empty list they are the only way to add (the heading has none).
+const FIRST_POINT = 'הוסיפו את הנקודה הראשונה'
+const FIRST_KEY = 'יצירת מפתח'
 
 const esc = () => fireEvent.keyDown(document, { key: 'Escape' })
 /** A tap outside: the dialog sits inside its overlay, which is what covers the page. */
@@ -448,11 +451,14 @@ describe('the point form', () => {
     render(<ToastProvider><ConfirmProvider><PointsView /></ConfirmProvider></ToastProvider>)
     await screen.findByRole('heading', { name: 'נקודות סריקה' })
     if (points.length) await screen.findByText(points[0].name, {}, WAIT)
+    else await screen.findByRole('button', { name: FIRST_POINT }, WAIT) // an empty list has no add button in the heading: its empty state has the one
   }
+  /** The button that opens the form of a new point on an empty list: the empty state's own (the heading has no add button then). */
+  const openFirstPoint = () => fireEvent.click(screen.getByRole('button', { name: FIRST_POINT }))
 
   it('asks before a new point that was started is lost', async () => {
     await show()
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     expectItAsksBeforeLosingWhatWasTyped('נקודה חדשה', 'שם הנקודה', 'חדר אשפה')
   })
 
@@ -505,7 +511,7 @@ describe('the point form', () => {
   it('does nothing on Esc or a tap outside while the save is on its way, and closes by itself, without a question, when it is saved', async () => {
     const save = deferred()
     await show([], { post: () => save.promise })
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     const form = () => dialogNamed('נקודה חדשה')
     type(form(), 'שם הנקודה', 'חדר אשפה')
     fireEvent.click(await within(form()).findByRole('button', { name: 'סימון במפה' }))
@@ -526,7 +532,7 @@ describe('the point form', () => {
   it('keeps the form, as typed, when the save that was on its way fails, and then asks again as before', async () => {
     const save = deferred()
     await show([], { post: () => save.promise })
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     const form = () => dialogNamed('נקודה חדשה')
     type(form(), 'שם הנקודה', 'חדר אשפה')
     fireEvent.click(await within(form()).findByRole('button', { name: 'סימון במפה' }))
@@ -544,7 +550,7 @@ describe('the point form', () => {
 
   it('counts a pin put on the map and the providers chosen as typed too', async () => {
     await show()
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     fireEvent.click(await within(dialogNamed('נקודה חדשה')).findByRole('button', { name: 'סימון במפה' }))
     esc()
     expect(dialogNamed(QUESTION)).toBeTruthy()
@@ -552,7 +558,7 @@ describe('the point form', () => {
 
   it('keeps everything as it was typed when the save fails, and closes without asking when it succeeds', async () => {
     await show([], { failSave: true })
-    fireEvent.click(screen.getAllByRole('button', { name: 'נקודה חדשה' })[0])
+    openFirstPoint()
     const form = () => dialogNamed('נקודה חדשה')
     type(form(), 'שם הנקודה', 'חדר אשפה')
     fireEvent.click(await within(form()).findByRole('button', { name: 'סימון במפה' }))
@@ -626,11 +632,11 @@ describe('the agent key form', () => {
       throw new Error(`the test does not expect ${path}`)
     })
     render(<ToastProvider><ConfirmProvider><AgentView /></ConfirmProvider></ToastProvider>)
-    fireEvent.click((await screen.findAllByRole('button', { name: 'מפתח חדש' }, WAIT))[0])
+    fireEvent.click(await screen.findByRole('button', { name: FIRST_KEY }, WAIT)) // the empty state's button: the heading has no add button on an empty list
     esc()
     expect(screen.queryByRole('dialog'), 'untouched: closed at once').toBeNull()
 
-    fireEvent.click(screen.getAllByRole('button', { name: 'מפתח חדש' })[0])
+    fireEvent.click(screen.getByRole('button', { name: FIRST_KEY }))
     expectItAsksBeforeLosingWhatWasTyped('מפתח גישה חדש', 'שם המפתח', 'הסוכן של הוועד')
   })
 })
@@ -644,7 +650,7 @@ describe('the agent key form while the key is made', () => {
       throw new Error(`the test does not expect ${options.method ?? 'GET'} ${path}`)
     })
     render(<ToastProvider><ConfirmProvider><AgentView /></ConfirmProvider></ToastProvider>)
-    fireEvent.click((await screen.findAllByRole('button', { name: 'מפתח חדש' }, WAIT))[0])
+    fireEvent.click(await screen.findByRole('button', { name: FIRST_KEY }, WAIT)) // the empty state's button: the heading has no add button on an empty list
     type(dialogNamed('מפתח גישה חדש'), 'שם המפתח', 'הסוכן של הוועד')
     fireEvent.click(within(dialogNamed('מפתח גישה חדש')).getByRole('button', { name: 'יצירה' }))
     await waitFor(() => expect(writes()).toHaveLength(1), WAIT)

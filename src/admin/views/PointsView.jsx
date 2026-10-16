@@ -330,6 +330,9 @@ export default function PointsView() {
 
   const list = points.data?.points ?? []
   const names = Object.fromEntries((providers.data?.providers ?? []).map((p) => [p.id, p.contact_name || p.company]))
+  // A list that has loaded and is empty shows its empty state, whose own button is the one next step (S1): the heading has no actions then,
+  // not a second add button (nor a print button with nothing to print). They come back with the first point.
+  const empty = points.status !== 'loading' && list.length === 0 && !points.error
 
   return (
     <>
@@ -338,17 +341,19 @@ export default function PointsView() {
           <h1>נקודות סריקה</h1>
           <p>המקומות בבניין שבהם נותני השירות סורקים QR. כל נקודה מקבלת שלט מודפס.</p>
         </div>
-        <div className="a-actions">
-          <AddButton label="נקודה חדשה" onClick={() => setEditing('new')} />
-          <IconButton icon={IconPrinter} label="הדפסת כל השלטים" onClick={() => startPrint(list.filter((p) => p.is_active), 'pair')} disabled={!list.length} />
-        </div>
+        {!empty && (
+          <div className="a-actions">
+            <AddButton label="נקודה חדשה" onClick={() => setEditing('new')} />
+            <IconButton icon={IconPrinter} label="הדפסת כל השלטים" onClick={() => startPrint(list.filter((p) => p.is_active), 'pair')} disabled={!list.length} />
+          </div>
+        )}
       </div>
 
       {points.status === 'loading' && <Spinner />}
       {points.status === 'error' && !points.data && (
         <EmptyState icon={IconAlert} title="לא הצלחנו לטעון את הנקודות" action={<button className="w-btn w-btn--small" onClick={points.reload}>נסו שוב</button>} />
       )}
-      {points.status !== 'loading' && list.length === 0 && !points.error && (
+      {empty && (
         <EmptyState icon={IconPin} title="עוד אין נקודות"
           action={<button className="w-btn w-btn--small" onClick={() => setEditing('new')}><IconPlus size={20} />הוסיפו את הנקודה הראשונה</button>}>
           לכל מקום שצריך לבדוק בו נוכחות (לובי, חדר מדרגות, גינה) מגדירים נקודה ומדפיסים לה שלט QR.

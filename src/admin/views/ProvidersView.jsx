@@ -218,6 +218,8 @@ export default function ProvidersView() {
   const [phones, setPhones] = useState(null)
   const [busy, run] = useAction(toast, errorText)
   const list = providers.data?.providers ?? []
+  // A list that has loaded and is empty shows its empty state, whose own button is the one next step (S1): the heading has no add button then.
+  const empty = providers.status !== 'loading' && list.length === 0 && !providers.error
 
   const toggleActive = async (p) => {
     if (p.is_active) {
@@ -264,14 +266,14 @@ export default function ProvidersView() {
           <h1>נותני שירות</h1>
           <p>מי רשאי לרשום נוכחות. כל אחד נכנס בטלפון עם שם וסיסמה אישית.</p>
         </div>
-        <div className="a-actions"><AddButton label="נותן שירות חדש" onClick={() => setEditing('new')} /></div>
+        {!empty && <div className="a-actions"><AddButton label="נותן שירות חדש" onClick={() => setEditing('new')} /></div>}
       </div>
 
       {providers.status === 'loading' && <Spinner />}
       {providers.status === 'error' && !providers.data && (
         <EmptyState icon={IconAlert} title="לא הצלחנו לטעון" action={<button className="w-btn w-btn--small" onClick={providers.reload}>נסו שוב</button>} />
       )}
-      {providers.status !== 'loading' && list.length === 0 && !providers.error && (
+      {empty && (
         <EmptyState icon={IconUsers} title="עוד אין נותני שירות"
           action={<button className="w-btn w-btn--small" onClick={() => setEditing('new')}><IconPlus size={20} />הוסיפו נותן שירות</button>}>
           הוסיפו את חברת הניקיון והגנן, והגדירו לכל אחד סיסמה אישית.

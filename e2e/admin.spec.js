@@ -62,47 +62,95 @@ const backgroundOf = (locator) => locator.evaluate((element) => getComputedStyle
 
 test('the add button of a heading is a pill with its words, the first action of its heading, and not the same solid violet as the account circle', async ({ page }) => {
   await adminSignIn(page, 'points')
-  const primary = await paintOf(page, '--w-primary')
-  const tint = await paintOf(page, '--w-tint-violet')
-  for (const [screen, label] of ADD_BUTTONS) {
-    await page.goto(`/admin#${screen}`)
+  // a list with nothing in it has no pill in its heading (its empty state has the button, see below): the Agent screen needs a key
+  const key = (await (await page.request.post('/api/admin/api-keys', { data: { name: `מפתח ${randomUUID().slice(0, 6)}` } })).json()).api_key
+  try {
+    const primary = await paintOf(page, '--w-primary')
+    const tint = await paintOf(page, '--w-tint-violet')
+    for (const [screen, label] of ADD_BUTTONS) {
+      await page.goto(`/admin#${screen}`)
+      await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
+      for (const size of HEADING_SIZES) {
+        await page.setViewportSize(size)
+        const where = `${screen} at ${size.width}`
+        const phone = size.width < 1024
+        const pill = page.getByRole('button', { name: label, exact: true })
+        const head = page.locator('.a-head', { has: pill })
+        const text = head.locator(':scope > div').first()
+        await expect(pill, `${where}: the words are on the button, not only in its name`).toHaveText(label)
+        await expect(pill.locator('svg'), `${where}: the plus is still there`).toHaveCount(1)
+        const box = await pill.boundingBox()
+        const headBox = await head.boundingBox()
+        const textBox = await text.boundingBox()
+        expect(box.height, `${where}: the pill is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+        expect(box.x, `${where}: the pill is inside the screen`).toBeGreaterThanOrEqual(0)
+        expect(box.x + box.width, `${where}: the pill is inside the screen`).toBeLessThanOrEqual(size.width)
+        expect(await noHorizontalScroll(page), `${where}: no sideways scroll`).toBe(true)
+        // the same on a phone and on a computer: the title and the description, then the actions on a row of their own under them, at the start
+        // (the right edge, in Hebrew), the title row being the title alone
+        expect(box.y, `${where}: the pill is under the description`).toBeGreaterThanOrEqual(textBox.y + textBox.height - 1)
+        expect(box.x + box.width, `${where}: the pill is at the start of the heading`).toBeGreaterThanOrEqual(headBox.x + headBox.width - 1)
+        expect(textBox.x + textBox.width, `${where}: the text starts where the pill starts`).toBeGreaterThanOrEqual(headBox.x + headBox.width - 1)
+        expect(await head.locator('h1, h2').boundingBox().then((h) => h.y + h.height), `${where}: nothing but the title is on the title row`).toBeLessThanOrEqual(box.y)
+        // it is the one solid violet near the top of the screen: the account circle is the quiet tint, on a phone and on a computer
+        expect(await backgroundOf(pill), `${where}: the pill is the primary colour`).toBe(primary)
+        const circle = phone ? accountButton(page) : accountButton(page).locator('.a-avatar')
+        expect(await backgroundOf(circle), `${where}: the account circle is not the solid primary`).not.toBe(primary)
+        expect(await backgroundOf(circle), `${where}: the account circle is the violet tint`).toBe(tint)
+        if (screen !== 'points') continue
+        // the print button comes after the pill, in the page and on the screen (it is on its left, in Hebrew), and both fit at this width
+        const print = page.getByRole('button', { name: 'הדפסת כל השלטים' })
+        const after = await pill.evaluate((element, other) => !!(element.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING), await print.elementHandle())
+        expect(after, `${where}: the pill is first in the page`).toBe(true)
+        const printBox = await print.boundingBox()
+        expect(printBox.x + printBox.width, `${where}: the print button is on the left of the pill`).toBeLessThanOrEqual(box.x + 1)
+        expect(printBox.x, `${where}: the print button is inside the screen`).toBeGreaterThanOrEqual(0)
+        expect(printBox.width, `${where}: the print button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+      }
+    }
+  } finally {
+    await page.request.delete(`/api/admin/api-keys/${key.id}`, { data: {} })
+  }
+})
+
+// A list with nothing in it shows its empty state, and the button of that state is the one next step (S1 of docs/design.md; owner decision of
+// 15/10/2026): the heading has no add pill then (and on Points no print button, there is nothing to print), so that the same action is not offered
+// twice. The three lists are answered empty here, and the layout is checked where the heading test above checks it.
+const EMPTY_LISTS = [
+  { screen: 'points', url: '**/api/admin/points', answer: { points: [] }, title: 'עוד אין נקודות', own: 'הוסיפו את הנקודה הראשונה', pill: 'נקודה חדשה' },
+  { screen: 'providers', url: '**/api/admin/providers', answer: { providers: [] }, title: 'עוד אין נותני שירות', own: 'הוסיפו נותן שירות', pill: 'נותן שירות חדש' },
+  {
+    screen: 'agent', url: '**/api/admin/api-keys', answer: { api_keys: [], limits: { per_minute: 60, per_day: 2000 } },
+    title: 'עוד אין מפתחות', own: 'יצירת מפתח', pill: 'מפתח חדש',
+  },
+]
+
+test('an empty list offers to add its first item once: the empty state has the button and the heading has none, on a phone and on a computer', async ({ page }) => {
+  for (const { url, answer } of EMPTY_LISTS) {
+    await page.route(url, (route) => (route.request().method() === 'GET' ? route.fulfill({ json: answer }) : route.continue()))
+  }
+  await adminSignIn(page, 'points')
+  for (const { screen, title, own, pill } of EMPTY_LISTS) {
+    // (the first screen is the one the sign-in opened: going to the address that the page is at would load it again, and once the service
+    // worker controls the page the browser may ask for the lists without the test's answers)
+    if (!page.url().endsWith(`#${screen}`)) await page.goto(`/admin#${screen}`)
     await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 2, name: title }), `${screen}: the empty state`).toBeVisible()
     for (const size of HEADING_SIZES) {
       await page.setViewportSize(size)
       const where = `${screen} at ${size.width}`
-      const phone = size.width < 1024
-      const pill = page.getByRole('button', { name: label, exact: true })
-      const head = page.locator('.a-head', { has: pill })
-      const text = head.locator(':scope > div').first()
-      await expect(pill, `${where}: the words are on the button, not only in its name`).toHaveText(label)
-      await expect(pill.locator('svg'), `${where}: the plus is still there`).toHaveCount(1)
-      const box = await pill.boundingBox()
-      const headBox = await head.boundingBox()
-      const textBox = await text.boundingBox()
-      expect(box.height, `${where}: the pill is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
-      expect(box.x, `${where}: the pill is inside the screen`).toBeGreaterThanOrEqual(0)
-      expect(box.x + box.width, `${where}: the pill is inside the screen`).toBeLessThanOrEqual(size.width)
+      const first = page.getByRole('main').getByRole('button', { name: own, exact: true })
+      await expect(page.locator('.a-head').getByRole('button'), `${where}: the heading holds only its title`).toHaveCount(0)
+      await expect(page.getByRole('button', { name: pill, exact: true }), `${where}: no add pill`).toHaveCount(0)
+      if (screen === 'points') await expect(page.getByRole('button', { name: 'הדפסת כל השלטים' }), `${where}: nothing to print`).toHaveCount(0)
+      // the buttons of the screen: the one of the empty state (the agent's screen also has the button that copies the prompt, further down)
+      await expect(page.getByRole('main').getByRole('button'), `${where}: one button for the first item`).toHaveCount(screen === 'agent' ? 2 : 1)
+      await expect(first, `${where}: the words are on the button`).toHaveText(own)
+      const box = await first.boundingBox()
+      expect(box.height, `${where}: the button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+      expect(box.x, `${where}: the button is inside the screen`).toBeGreaterThanOrEqual(0)
+      expect(box.x + box.width, `${where}: the button is inside the screen`).toBeLessThanOrEqual(size.width)
       expect(await noHorizontalScroll(page), `${where}: no sideways scroll`).toBe(true)
-      // the same on a phone and on a computer: the title and the description, then the actions on a row of their own under them, at the start
-      // (the right edge, in Hebrew), the title row being the title alone
-      expect(box.y, `${where}: the pill is under the description`).toBeGreaterThanOrEqual(textBox.y + textBox.height - 1)
-      expect(box.x + box.width, `${where}: the pill is at the start of the heading`).toBeGreaterThanOrEqual(headBox.x + headBox.width - 1)
-      expect(textBox.x + textBox.width, `${where}: the text starts where the pill starts`).toBeGreaterThanOrEqual(headBox.x + headBox.width - 1)
-      expect(await head.locator('h1, h2').boundingBox().then((h) => h.y + h.height), `${where}: nothing but the title is on the title row`).toBeLessThanOrEqual(box.y)
-      // it is the one solid violet near the top of the screen: the account circle is the quiet tint, on a phone and on a computer
-      expect(await backgroundOf(pill), `${where}: the pill is the primary colour`).toBe(primary)
-      const circle = phone ? accountButton(page) : accountButton(page).locator('.a-avatar')
-      expect(await backgroundOf(circle), `${where}: the account circle is not the solid primary`).not.toBe(primary)
-      expect(await backgroundOf(circle), `${where}: the account circle is the violet tint`).toBe(tint)
-      if (screen !== 'points') continue
-      // the print button comes after the pill, in the page and on the screen (it is on its left, in Hebrew), and both fit at this width
-      const print = page.getByRole('button', { name: 'הדפסת כל השלטים' })
-      const after = await pill.evaluate((element, other) => !!(element.compareDocumentPosition(other) & Node.DOCUMENT_POSITION_FOLLOWING), await print.elementHandle())
-      expect(after, `${where}: the pill is first in the page`).toBe(true)
-      const printBox = await print.boundingBox()
-      expect(printBox.x + printBox.width, `${where}: the print button is on the left of the pill`).toBeLessThanOrEqual(box.x + 1)
-      expect(printBox.x, `${where}: the print button is inside the screen`).toBeGreaterThanOrEqual(0)
-      expect(printBox.width, `${where}: the print button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
     }
   }
 })
