@@ -34,20 +34,17 @@ A finding is fixed inside this identity: no new colour, size, font or library co
      screens of step 1 and nowhere else: a picture that changed elsewhere is a finding.
    Done when each command exits 0, or each failure is written down as a finding.
 
-3. **Look.** Take a picture of every screen and state of step 1 with the helper, `npm run ui-review:pictures`
-   (`docs/testing.md`, "The pictures of the UI review"). It builds the app, seeds the worst case of the `break-ui` skill (long
-   names, one long word, a name of one letter, a count of exactly 1, an empty building) in a schema of its own, and takes the
-   provider app at 390 px in all four languages (Russian runs longest, English is left to right, Arabic right to left in another
-   script) and the committee app at 360 px and at 1280 px in Hebrew, each in the light and the dark theme. For a narrow change add
-   `--grep` with the words of the screens: `npm run ui-review:pictures -- --grep providers` (the titles are "provider app",
-   "committee app, 360 px", "committee app, 1280 px", "empty building" and the name of the screen). The pictures go to
-   `UI_REVIEW_OUT`, or to `ui-review-pictures/`, which git ignores, and the end of the run says where and how many. They are not
-   baselines and are never committed. The data is the helper's own (`scripts/ui-review/worst-case.mjs`), never a toggle in the app
-   and never real people or attendance. A run next to another one takes its own `UI_REVIEW_APP_PORT`, `UI_REVIEW_API_PORT` and
-   `UI_REVIEW_SCHEMA`, as the E2E run of step 2 does. A state that the helper does not reach (a dialog, a form with an error) is
-   taken with a scratch Playwright script outside the repository, or with the browser pane when the session has one, on the same
-   fake data.
-   Done when you have opened every picture in scope.
+3. **Look.** Run `npm run ui-review:pictures` (`docs/testing.md`, "The pictures of the UI review"). It takes every screen of
+   both apps at the widths, in the languages and in the themes that they run in (the provider app at 390 px in all four
+   languages: Russian runs longest, English is left to right, Arabic right to left in another script; the committee app at
+   360 px and at 1280 px), on the worst-case fake data of the `break-ui` skill in a schema of its own: long names, one long
+   word, a count of exactly 1, an empty building. For a narrow change add the screens' words, for example
+   `npm run ui-review:pictures -- --grep providers`. The pictures go to `UI_REVIEW_OUT`, or to `ui-review-pictures/`, which
+   git ignores: they are not baselines and are never committed. A state that the helper does not reach (a dialog, a form with
+   an error) is taken with a scratch Playwright script outside the repository, or with the browser pane when the session has
+   one, on the same fake data, never on real people or attendance.
+   Done when every note that the run printed is a finding or is rejected with its reason, and you have opened every picture
+   in scope.
 
 4. **Judge.** Apply every rule of `docs/design.md` that the scope touches (a form: F1 to F7; a delete: D1; a list or a
    status: S1 to S3; anything tapped, or a floating bar: T1 to T3; layout or icons: R1 to R3; colour, size, focus,
