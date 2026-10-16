@@ -197,6 +197,18 @@ parses the JSON before any route runs).
   up to date ("update branch") before it can merge.
 - Agents never merge a pull request, never approve one, never push to `master`, never force-push, never rewrite history
   and never delete a branch they did not create. The owner merges.
+- One workflow may merge too (owner decision of 16/10/2026): `.github/workflows/auto-merge.yml`, run from `master`,
+  merges through its own GitHub App a pull request of one narrow class, and only when everything about it is clean.
+  The class: a `test` or `docs` title (never `docs(rules):`), opened with the owner's login from a branch of this
+  repository that is not a `claude/` branch, whose every file is added or modified (none deleted or renamed) under
+  `tests/`, `e2e/` or `docs/`, or is `README.md` or `CONTRIBUTING.md`, apart from the files that
+  `scripts/check-auto-merge.mjs` keeps out (among them the rules, `docs/privacy.md`, `docs/adr/`, `docs/runbooks/`, the
+  design rules, the visual baselines and the test files that every test depends on). Clean means no `allow-test-removal`
+  label, the four checks green on the head, every conversation resolved, and a Codex review of that exact head with no
+  finding. None of these files reaches a deployment (`scripts/vercel-ignore.mjs`). The App bypasses only the approval
+  (`master-approval`), never `master-gates`. The workflow starts in a dry run that only comments, and merges only after
+  the owner turns it on in a pull request of its own. Agents still never merge, approve or turn on auto-merge
+  themselves, and never shape a pull request to fit the class: a change that belongs together goes in one pull request.
 - The reviewer is always from the other vendor: Codex reviews what Claude wrote and Claude reviews what Codex wrote
   (ADR 0003). A review is advice. Check every finding against the code before changing anything. A finding that is
   wrong gets a short reply that says why, not a change.
@@ -393,6 +405,12 @@ reviewing agent should apply it too.
   or any change that lets an agent run the workflow, create a release or create or push a tag.
 - A change to `.github/workflows/smoke.yml` that reads `SMOKE_BASE_URL` from anywhere but the environment `smoke` (a
   repository variable can be changed by any collaborator), or that sends `SMOKE_AGENT_KEY` anywhere but that address.
+- A change to `.github/workflows/auto-merge.yml` or `scripts/check-auto-merge.mjs` that widens the class or drops a
+  condition of the rule in "Git and pull requests", that checks out or runs any code of a pull request, that adds a
+  trigger other than `workflow_run` and `issue_comment` (both run the workflow of the default branch), that merges
+  without the head commit it decided on, that reads its App key from anywhere but the environment `auto-merge`, or
+  that turns the live merge on without the owner's decision written in that pull request; or a change that gives the
+  App any bypass but the pull-request bypass of `master-approval`.
 
 - A change that weakens the Content-Security-Policy in `vercel.json`: `'unsafe-eval'`, or `'unsafe-inline'` in
   `script-src`, a wildcard or a scheme-only source, a directive removed or widened, an enforced policy turned back into
