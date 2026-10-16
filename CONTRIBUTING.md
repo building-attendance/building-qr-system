@@ -83,6 +83,7 @@ npm run test:unit     # Vitest: logic, the API against Postgres, i18n, contrast,
 npm run test:e2e      # Playwright: Chromium as a Pixel 7 and WebKit as an iPhone 14
 npm test              # both
 npm run screenshots   # takes the README pictures again (not a test, and CI never runs it)
+npm run ui-review:pictures   # takes pictures of every screen on worst-case fake data in a schema of its own, for the ui-review skill (not a test, CI never runs it, the pictures are never committed; docs/testing.md)
 npm run perf:scan     # times the provider's scan on a throttled phone and compares it with the baseline (not a test, and CI never runs it; docs/testing.md)
 npm run perf:api      # times every committee and agent API route on a year of invented data and compares it with the baseline (not a test, and CI never runs it; docs/testing.md)
 npm run perf:screens  # times each committee screen on a year of invented data, on a throttled phone and on a computer, and compares it with the baseline (not a test, and CI never runs it; docs/testing.md)
@@ -109,7 +110,7 @@ api/index.js           the Vercel entry point (every /api/* is routed to it in v
 server/                the API: routes/, access (who may call what, enforced by the router), auth, scans (the rules), google (verification), db, migrate
 shared/                code that runs in both the browser and the server: shared/datetime.js writes every date and time a person sees, always DD/MM/YYYY and HH:MM; shared/contract.js holds the values that the phone and the server must agree on (the offline sync limits, the GPS limits, the words of a scan, the form limits, the QR token)
 db/migrations/         the DB schema
-scripts/               migration, creating an admin, the development seed, the CI guards, the text rules and the edit hook, and the screenshots
+scripts/               migration, creating an admin, the development seed, the CI guards, the text rules and the edit hook, the screenshots, and the pictures of the UI review
 src/worker, src/i18n   the service provider app (src/pages/WorkerApp.jsx)
 src/admin              the committee app (src/pages/AdminApp.jsx)
 src/ui                 what both apps share: the colour tokens, light and dark, and the screen that replaces a broken one (ErrorBoundary: a message with "Try again" and "Reload the app" instead of a blank page; it logs the error's name only)
