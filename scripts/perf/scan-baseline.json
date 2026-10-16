@@ -1,6 +1,6 @@
 {
-  "commit": "160065a",
-  "measuredAt": "2026-10-13T15:08:26.422Z",
+  "commit": "a7460bc",
+  "measuredAt": "2026-10-16T04:45:06.564Z",
   "runs": 10,
   "point": "location required (POINTS.gym of the sample data)",
   "machine": {
@@ -16,82 +16,82 @@
     "slow-4g": {
       "daily": {
         "n": 10,
-        "median": 726,
-        "p95": 931,
-        "min": 493,
-        "max": 931,
+        "median": 496,
+        "p95": 537,
+        "min": 452,
+        "max": 537,
         "requests": 16,
         "api": 8,
-        "bytes": 3451
+        "bytes": 3445
       },
       "first_list": {
         "n": 10,
-        "median": 2814,
-        "p95": 3413,
-        "min": 2525,
-        "max": 3413,
-        "requests": 10,
+        "median": 2532,
+        "p95": 2598,
+        "min": 2475,
+        "max": 2598,
+        "requests": 9,
         "api": 3,
-        "bytes": 369483
+        "bytes": 345218
       },
       "first_checkin": {
         "n": 10,
-        "median": 694,
-        "p95": 904,
-        "min": 459,
-        "max": 904,
-        "requests": 6,
+        "median": 468,
+        "p95": 483,
+        "min": 433,
+        "max": 483,
+        "requests": 8,
         "api": 5,
-        "bytes": 45755
+        "bytes": 65172
       },
       "offline": {
         "n": 10,
-        "median": 1003,
-        "p95": 2030,
-        "min": 434,
-        "max": 2030,
-        "requests": 8,
-        "api": 0,
-        "bytes": 0
+        "median": 681,
+        "p95": 778,
+        "min": 288,
+        "max": 778,
+        "requests": 9,
+        "api": 1,
+        "bytes": 671
       }
     },
     "unthrottled": {
       "daily": {
         "n": 10,
-        "median": 98,
-        "p95": 115,
-        "min": 64,
-        "max": 115,
+        "median": 56,
+        "p95": 60,
+        "min": 52,
+        "max": 60,
         "requests": 15,
         "api": 8,
-        "bytes": 2971
+        "bytes": 3445
       },
       "first_list": {
         "n": 10,
-        "median": 277,
-        "p95": 333,
-        "min": 229,
-        "max": 333,
-        "requests": 10,
+        "median": 147,
+        "p95": 158,
+        "min": 133,
+        "max": 158,
+        "requests": 11,
         "api": 3,
-        "bytes": 369476
+        "bytes": 397730
       },
       "first_checkin": {
         "n": 10,
-        "median": 102,
-        "p95": 118,
-        "min": 71,
-        "max": 118,
+        "median": 61,
+        "p95": 64,
+        "min": 55,
+        "max": 64,
         "requests": 5,
         "api": 5,
-        "bytes": 2292
+        "bytes": 2288
       },
       "offline": {
         "n": 10,
-        "median": 188,
-        "p95": 255,
-        "min": 59,
-        "max": 255,
+        "median": 141,
+        "p95": 155,
+        "min": 45,
+        "max": 155,
         "requests": 7,
         "api": 0,
         "bytes": 0
