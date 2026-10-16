@@ -3,6 +3,7 @@ import { useTheme } from '../ui/theme.js'
 import { HEBREW_THEME_LABELS as THEME_LABELS } from '../ui/ThemeSwitch.jsx'
 import { IconChevron, IconDevice, IconLogout } from './icons.jsx'
 import MemberFace from './MemberFace.jsx'
+import Email from './Email.jsx'
 
 const THEME_ORDER = ['light', 'dark', 'system'] // the order of the design canvas; the choice "system" follows the device
 const GAP = 4 // px between the button and its popover
@@ -105,7 +106,7 @@ export default function AccountMenu({ admin, onSignOut, where }) {
             <span className="a-who">
               <span className="w-sr">החשבון שלי והגדרות: </span>
               <strong>{name}</strong>
-              <span className="a-who__mail" dir="ltr" title={admin.email}>{admin.email}</span>
+              <Email className="a-who__mail" title={admin.email} address={admin.email} oneLine />
             </span>
             <IconChevron size={18} />
           </>
@@ -115,7 +116,7 @@ export default function AccountMenu({ admin, onSignOut, where }) {
         <div ref={popRef} id={popId} className="a-menu a-account" role="dialog" aria-label="החשבון שלי" tabIndex={-1} onKeyDown={onKeyDown} onBlur={onBlur}>
           <div className="a-account__who">
             <span className="a-avatar" aria-hidden="true"><MemberFace member={admin} /></span>
-            <div className="a-who"><strong>{name}</strong><span dir="ltr">{admin.email}</span></div>
+            <div className="a-who"><strong>{name}</strong><Email address={admin.email} /></div>
           </div>
           <fieldset className="a-account__theme">
             <legend>{THEME_LABELS.label}</legend>

@@ -1,4 +1,4 @@
-import { lazy, Suspense, useCallback, useState } from 'react'
+import { Fragment, lazy, Suspense, useCallback, useState } from 'react'
 import { reloadApp } from '../../ui/crash.js'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel } from '../hooks.js'
@@ -280,6 +280,35 @@ function QrDialog({ point, onClose, onPrint, onChanged }) {
   )
 }
 
+/* ------------------------------------------------------------ the tile "מי סורק" */
+
+// The tile of a point names at most this many of the providers who may scan there, then "ועוד N" (owner decision of 16/10/2026): a point
+// that a whole company's staff may scan would otherwise make a tile as tall as the screen. The edit form holds the whole list.
+const SCANNERS_SHOWN = 2
+
+/**
+ * The names on the "מי סורק" tile: every provider when none is chosen, else the first two names and "ועוד N" for the N that are left.
+ * Text is cut here and not by CSS (a count has to be said), so the names that are not drawn are still in the page for a screen reader,
+ * in a visually hidden run after the drawn text, and the drawn "ועוד N" is hidden from it, so that it hears every name once and no
+ * "and 3 more". Each name is isolated (R3), so a Latin or Russian name keeps its order inside the Hebrew line.
+ * @param {{ names: string[] }} props
+ */
+function Scanners({ names }) {
+  if (names.length === 0) return 'כל נותני השירות'
+  const rest = names.slice(SCANNERS_SHOWN)
+  return (
+    <>
+      {names.slice(0, SCANNERS_SHOWN).map((name, i) => <Fragment key={i}>{i > 0 && ', '}<bdi>{name}</bdi></Fragment>)}
+      {rest.length > 0 && (
+        <>
+          {' '}<span aria-hidden="true">ועוד {rest.length}</span>
+          <span className="w-sr">, {rest.join(', ')}</span>
+        </>
+      )}
+    </>
+  )
+}
+
 /* ------------------------------------------------------------------ view */
 
 export default function PointsView() {
@@ -370,7 +399,7 @@ export default function PointsView() {
                   <span className="a-card__icon" aria-hidden="true"><IconPin size={22} /></span>
                   <div>
                     <h2 className="a-card__title">{p.name}</h2>
-                    {p.description && <p className="a-card__sub">{p.description}</p>}
+                    {p.description && <p className="a-card__sub a-clamp-2">{p.description}</p>}
                   </div>
                 </div>
                 <div className="a-card__tools">
@@ -392,7 +421,7 @@ export default function PointsView() {
                 {missingCoords && <Badge tone="warn">חסר מיקום במפה</Badge>}
               </div>
               <dl className="a-facts a-facts--tiles">
-                <div><dt>מי סורק</dt><dd>{p.provider_ids.length ? p.provider_ids.map((id) => names[id] ?? '…').join(', ') : 'כל נותני השירות'}</dd></div>
+                <div><dt>מי סורק</dt><dd><Scanners names={p.provider_ids.map((id) => names[id] ?? '…')} /></dd></div>
                 <div><dt>רדיוס</dt><dd>{p.radius_m} מ׳</dd></div>
               </dl>
             </article>

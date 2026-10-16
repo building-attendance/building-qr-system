@@ -5,7 +5,7 @@ import {
   changeFilters, isPhoneLayout, openFilters, stubHome, HOME_DAYS, HOME_PROVIDERS, HOME_NOW, ADMIN_EMAIL, accountButton, openAccountMenu, signOut,
   moreButton, openTileMenu, chooseFromMenu, setDate, expectDate, hasDateWheels,
 } from './fixtures.js'
-import { SCAN_ERROR_POINT_INACTIVE, NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH } from '../shared/contract.js'
+import { SCAN_ERROR_POINT_INACTIVE, NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, SERVICE_TYPE_MAX_LENGTH } from '../shared/contract.js'
 import { formatDateTime, formatDay } from '../shared/datetime.js'
 
 const COMPUTER = { width: 1280, height: 800 }
@@ -1436,6 +1436,208 @@ test('the "more" button of a card stays on the row of its title, however long th
     }
   } finally {
     for (const path of created.reverse()) await page.request.delete(path, { data: {} })
+  }
+})
+
+// ---- a long service name, a long description, many scanners and long names in a card or a button ----------------------------------
+
+// Owner decisions of 16/10/2026, found by `npm run ui-review:pictures` (worst-case data at the limits of the server):
+//   - the service-type chip of a Points or Providers card wraps inside the card (it did not wrap: at 360 px it pushed the page sideways by 28 to 42 px,
+//     cut the title and left the "more" button hard to hit);
+//   - the description of a point stops at two lines with an ellipsis, and the tile "מי סורק" names two providers and then "ועוד N" (the
+//     ellipsis is the browser's, so the whole text stays in the page; the names that the tile does not draw are in a run for screen readers);
+//   - an e-mail breaks only after an "@" or a dot, so no piece of it is cut across lines (a piece longer than the room is the last resort);
+//   - the account button of the side rail keeps the name and the address to one line each, and the account menu keeps them whole.
+// The data is this run's own (the API, deleted at the end), at 320, 360 and 1280 px. The lines themselves cannot be counted in jsdom.
+/** The height of one line of `locator`'s text, from its own font: a line-height of `normal` is taken as 1.4 times the size. */
+const lineHeightOf = (locator) => locator.evaluate((el) => {
+  const style = getComputedStyle(el)
+  const px = parseFloat(style.lineHeight)
+  return Number.isNaN(px) ? parseFloat(style.fontSize) * 1.4 : px
+})
+/** The pieces of an address that a line break cuts across two lines (a piece is the text up to an "@" or a dot: `.a-email__piece`). */
+const cutPieces = (bdi) => bdi.evaluate((el) => {
+  const cut = []
+  for (const piece of el.querySelectorAll('.a-email__piece')) {
+    const range = document.createRange()
+    range.selectNodeContents(piece)
+    if (new Set([...range.getClientRects()].map((r) => Math.round(r.top))).size > 1) cut.push(piece.textContent)
+  }
+  return cut
+})
+
+test('a long service name, a long description and many scanners fit the cards of Points and Providers at 320, 360 and 1280 px: the chip wraps inside its card, the description stops at two lines, the tile names two providers and "ועוד N", and nothing makes the page scroll sideways', async ({ page }) => {
+  await adminSignIn(page, 'points')
+  const tag = randomUUID().slice(0, 6)
+  const created = []
+  const make = async (url, data, pick) => {
+    const response = await page.request.post(url, { data })
+    expect(response.ok(), `POST ${url} ${response.status()}`).toBeTruthy()
+    const item = pick(await response.json())
+    created.push(`${url}/${item.id}`)
+    return item
+  }
+  const words = wordsUpTo(SERVICE_TYPE_MAX_LENGTH) // the longest service name of words (60 characters)
+  const oneWord = withLongWord(SERVICE_TYPE_MAX_LENGTH) // and one that has a very long word in it
+  const description = wordsUpTo(DESCRIPTION_MAX_LENGTH)
+  try {
+    // three providers, the first two with the long service names (the cards of the Providers screen), and two points
+    const providers = []
+    for (const [i, service] of [words, oneWord, 'cleaning'].entries()) {
+      providers.push(await make('/api/admin/providers', {
+        contact_name: `Scanner ${tag} ${'ABC'[i]}`, company: `Co ${tag}`, service_type: service, password: 'dev-pass-card-row',
+      }, (r) => r.provider))
+    }
+    const ids = providers.map((p) => p.id)
+    const points = [
+      { name: `Chip words ${tag}`, service: words, description, provider_ids: ids }, // three scanners: "ועוד 1"
+      { name: `Chip word ${tag}`, service: oneWord, description: 'Wxyz'.repeat(DESCRIPTION_MAX_LENGTH / 4), provider_ids: ids.slice(0, 2) }, // two: no "ועוד"
+    ]
+    for (const p of points) {
+      await make('/api/admin/points', {
+        name: p.name, description: p.description, service_type: p.service, provider_ids: p.provider_ids, lat: SAMPLE_POINT.lat, lng: SAMPLE_POINT.lng, gps_mode: 'none',
+      }, (r) => r.point)
+    }
+    await page.reload() // the lists were loaded before the data existed
+    const cardOf = (title) => page.getByRole('article').filter({ has: page.getByRole('heading', { name: title, exact: true }) })
+
+    /** What a card shows of its chip and its button, measured in the page. */
+    const measure = (article, service) => article.evaluate((a, text) => {
+      const box = (el) => { const b = el.getBoundingClientRect(); return { left: b.left, right: b.right, top: b.top, bottom: b.bottom, height: b.height } }
+      const chip = [...a.querySelectorAll('.a-badge')].find((el) => el.textContent === text)
+      const first = a.querySelector('.a-badge')
+      const more = a.querySelector('button[aria-haspopup="menu"]')
+      more.scrollIntoView({ block: 'center', inline: 'center' }) // a person scrolls to it; a card can be taller than the screen
+      const mid = more.getBoundingClientRect()
+      const hit = document.elementFromPoint(mid.left + mid.width / 2, mid.top + mid.height / 2)
+      return {
+        article: box(a), chip: chip ? box(chip) : null, first: box(first), more: box(more), reached: more.contains(hit),
+        chipClipped: chip ? chip.scrollWidth > chip.clientWidth || chip.scrollHeight > chip.clientHeight : null, articleOverflow: a.scrollWidth - a.clientWidth,
+      }
+    }, service)
+
+    for (const width of [320, 360, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      for (const [screen, cards] of [
+        ['points', points.map((p) => ({ title: p.name, service: p.service }))],
+        ['providers', providers.slice(0, 2).map((p) => ({ title: p.contact_name, service: p.service_type }))],
+      ]) {
+        await page.goto(`/admin#${screen}`)
+        await loaded(page, SCREEN_TITLES[screen])
+        for (const { title, service } of cards) {
+          const where = `${width} px, ${screen}, "${title}"`
+          const article = cardOf(title)
+          await expect(article, `${where}: the card is there`).toBeVisible()
+          await expect(article.locator('.a-badge', { hasText: service }), `${where}: the whole service name is in the chip`).toHaveText(service)
+          const m = await measure(article, service)
+          expect(m.chip, `${where}: the chip is there`).toBeTruthy()
+          expect(m.chip.left, `${where}: the chip is inside the card`).toBeGreaterThanOrEqual(m.article.left - 0.5)
+          expect(m.chip.right, `${where}: the chip is inside the card`).toBeLessThanOrEqual(m.article.right + 0.5)
+          expect(m.chipClipped, `${where}: no text of the chip is clipped`).toBe(false)
+          // at a phone's width the sixty characters do not fit one line: the chip is taller than a one-line chip, so it did wrap
+          if (width <= 360) expect(m.chip.height, `${where}: the chip wraps onto more lines`).toBeGreaterThan(m.first.height * 1.5)
+          expect(m.more.left, `${where}: the "more" button is inside the card`).toBeGreaterThanOrEqual(m.article.left - 0.5)
+          expect(m.more.right, `${where}: the "more" button is inside the screen`).toBeLessThanOrEqual(width)
+          expect(m.reached, `${where}: a finger at the middle of the "more" button reaches it`).toBe(true)
+          expect(m.more.height, `${where}: the "more" button is a target of 44 px or more`).toBeGreaterThanOrEqual(44)
+          expect(m.articleOverflow, `${where}: the card does not overflow sideways`).toBeLessThanOrEqual(0)
+        }
+        expect(await noHorizontalScroll(page), `${width} px, ${screen}: the page does not scroll sideways`).toBe(true)
+      }
+
+      // the point with a long description and three scanners
+      await page.goto('/admin#points')
+      await loaded(page, SCREEN_TITLES.points)
+      const card = cardOf(points[0].name)
+      const text = card.locator('.a-card__sub')
+      await expect(text, `${width} px: the whole description is in the page`).toHaveText(description)
+      const [lineHeight, shape] = await Promise.all([lineHeightOf(text), text.evaluate((el) => ({ shown: el.clientHeight, whole: el.scrollHeight, clamp: getComputedStyle(el).webkitLineClamp }))])
+      expect(shape.clamp, `${width} px: the description is clamped to two lines`).toBe('2')
+      expect(shape.shown, `${width} px: it shows two lines or fewer`).toBeLessThanOrEqual(lineHeight * 2 + 1)
+      expect(shape.whole, `${width} px: it holds more than it shows, so the clamp cut it`).toBeGreaterThan(shape.shown + 1)
+      const long = cardOf(points[1].name).locator('.a-card__sub')
+      expect(await long.evaluate((el) => el.clientHeight), `${width} px: a description that is one long word is cut at two lines too`).toBeLessThanOrEqual(lineHeight * 2 + 1)
+
+      // "מי סורק": two names and "ועוד 1" for the third, every name still in the page; two names alone say no "ועוד"
+      const who = card.locator('.a-facts dd').first()
+      await expect(who.locator('bdi'), `${width} px: two names are drawn`).toHaveCount(2)
+      await expect(who.getByText('ועוד 1', { exact: true }), `${width} px: the third is "ועוד 1"`).toBeVisible()
+      for (const p of providers) await expect(who, `${width} px: ${p.contact_name} is in the page`).toContainText(p.contact_name)
+      const two = cardOf(points[1].name).locator('.a-facts dd').first()
+      await expect(two.locator('bdi'), `${width} px: two names`).toHaveCount(2)
+      await expect(two, `${width} px: two names say no "ועוד"`).not.toContainText('ועוד')
+    }
+
+    // the edit dialog holds all of it: the whole description, and every provider who may scan
+    await chooseFromMenu(cardOf(points[0].name), 'עריכה')
+    const dialog = page.getByRole('dialog')
+    await expect(dialog.getByLabel('תיאור (לא חובה)'), 'the form has the whole description').toHaveValue(description)
+    for (const p of providers) await expect(dialog.getByText(`${p.contact_name} · ${p.company}`), `the form lists ${p.contact_name}`).toBeVisible()
+    await page.keyboard.press('Escape')
+  } finally {
+    for (const path of created.reverse()) await page.request.delete(path, { data: {} })
+  }
+})
+
+test('an e-mail address breaks only after "@" or a dot, in a member card of Settings and in the account menu, and the account button of the side rail keeps the name and the address to one line each', async ({ page }) => {
+  await adminSignIn(page, 'settings')
+  const tag = randomUUID().slice(0, 6)
+  // pieces of 13 characters or fewer, each of which fits the narrowest place that an address is drawn in (a member's card at 1280 px has about 146 px)
+  const email = `committee.chair.${tag}@management.north-region.example.test`
+  const name = `גילה ${tag} יושבת ראש הוועד ואחראית על מערכות הבניין, החניון והגגות המשותפים של הבית` // a long one: it also heads the member's card
+  const created = await page.request.post('/api/admin/admins', { data: { name, email } })
+  expect(created.ok(), 'the member was created').toBeTruthy()
+  const member = (await created.json()).admin
+  try {
+    await page.reload() // the list was loaded before the member existed
+    for (const width of [320, 360, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto('/admin#settings')
+      await loaded(page, SCREEN_TITLES.settings)
+      const card = page.getByRole('article').filter({ has: page.getByRole('heading', { name: new RegExp(`^גילה ${tag}`), level: 3 }) })
+      const address = card.locator('bdi')
+      await expect(address, `${width} px: the whole address is in the card`).toHaveText(email)
+      expect(await cutPieces(address), `${width} px: pieces of the address that a line break cuts in two`).toEqual([])
+      expect(await address.locator('.a-email__piece').count(), `${width} px: a piece for each stretch up to an "@" or a dot`).toBe(email.match(/[@.]/g).length + 1)
+      expect(await noHorizontalScroll(page), `${width} px: Settings does not scroll sideways`).toBe(true)
+    }
+
+    // the account button and its menu, for that member, who has a long name and an address that does not fit: the page signs in as the member
+    // (the dev sign-in takes any active member's address; the cookie is shared with the page's requests, and the finally below signs back in)
+    const login = await page.request.post('/api/admin/dev-login', { data: { email } })
+    expect(login.ok(), 'the member signed in').toBeTruthy()
+    await page.reload() // the app asks who is signed in when it starts
+    for (const width of [360, 1280]) {
+      await page.setViewportSize({ width, height: 800 })
+      await page.goto('/admin#points')
+      await loaded(page, SCREEN_TITLES.points)
+      if (width >= 1024) {
+        const button = accountButton(page)
+        const oneLine = async (locator, what) => {
+          const lineHeight = await lineHeightOf(locator)
+          const shape = await locator.evaluate((el) => ({ shown: el.getBoundingClientRect().height, wide: el.scrollWidth > el.clientWidth, text: el.textContent }))
+          expect(shape.shown, `${width} px: the ${what} of the button is one line`).toBeLessThanOrEqual(lineHeight + 1)
+          expect(shape.wide, `${width} px: the ${what} is longer than its room, and the CSS cut it`).toBe(true)
+          return shape.text
+        }
+        expect(await oneLine(button.locator('strong'), 'name'), `${width} px: the whole name is in the page`).toBe(name)
+        expect(await oneLine(button.locator('.a-who__mail'), 'address'), `${width} px: the whole address is in the page`).toBe(email)
+        expect((await button.boundingBox()).height, `${width} px: the button is not taller than a name and an address`).toBeLessThan(100)
+      }
+      await openAccountMenu(page)
+      const menu = page.getByRole('dialog', { name: 'החשבון שלי', exact: true })
+      const shown = menu.locator('.a-who strong')
+      await expect(shown, `${width} px: the menu has the whole name`).toHaveText(name)
+      expect(await shown.evaluate((el) => el.scrollWidth <= el.clientWidth && el.scrollHeight <= el.clientHeight), `${width} px: the whole name is drawn, nothing is cut`).toBe(true)
+      const address = menu.locator('.a-who bdi')
+      await expect(address, `${width} px: the menu has the whole address`).toHaveText(email)
+      expect(await cutPieces(address), `${width} px: pieces of the address in the menu that a line break cuts in two`).toEqual([])
+      expect(await noHorizontalScroll(page), `${width} px: the open menu does not scroll the page sideways`).toBe(true)
+      await page.keyboard.press('Escape')
+    }
+  } finally {
+    await page.request.post('/api/admin/dev-login', { data: { email: ADMIN_EMAIL } }) // a member cannot delete themselves
+    await page.request.delete(`/api/admin/admins/${member.id}`, { data: {} })
   }
 })
 
