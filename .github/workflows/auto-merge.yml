@@ -16,8 +16,8 @@
 # pull_request and pull_request_review run the workflow file of the pull request's merge ref, and pull_request_target
 # hands the base's secrets to a run that any pull request starts.
 #
-# What it reads: the pull request, its files, the check runs of its head commit, how far the head is behind the default
-# branch, and the pull request's comments and review conversations, through the API with the job's own token
+# What it reads: the pull request, its files and its commits, the check runs of its head commit, how far the head is behind
+# the default branch, and the pull request's comments and review conversations, through the API with the job's own token
 # (`node scripts/check-auto-merge.mjs --read`). Nothing of the pull request is checked out or run (no `npm ci` either): the
 # only checkout is this commit of the default branch, for the decision script and .nvmrc, without credentials. Text that
 # anyone can write (a title, a branch name, a file name, a comment) never reaches a `run:` script: the script reads it as

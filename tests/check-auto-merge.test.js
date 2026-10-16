@@ -15,12 +15,16 @@ import {
   CONDITIONS,
   CONVERSATION_QUERY,
   GITHUB_ACTIONS_APP_ID,
+  MAX_COMMITS,
   MAX_FILES,
   OVERRIDE_LABEL,
   OWNER_LOGIN,
   REQUIRED_CHECKS,
+  WEB_FLOW_LOGIN,
   clean,
+  coAuthors,
   codexState,
+  commitProblem,
   decide,
   existingComment,
   fileProblem,
@@ -59,6 +63,26 @@ const checkRun = (name, over = {}) => ({
   ...over,
 })
 
+const ownerAccount = { login: OWNER_LOGIN, type: 'User' }
+/** A commit that the owner made on his machine, with the trailer that Claude Code adds. */
+const ownerCommit = (over = {}) => ({
+  sha: '1111111111111111111111111111111111111111',
+  author: ownerAccount,
+  committer: ownerAccount,
+  commit: { message: 'test(scan): a made-up change\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>' },
+  parents: [{ sha: OLDER }],
+  ...over,
+})
+/** The merge commit of GitHub's "update branch" button: the owner's, committed by web-flow. */
+const updateBranchCommit = (over = {}) => ({
+  sha: HEAD,
+  author: ownerAccount,
+  committer: { login: WEB_FLOW_LOGIN, type: 'User' },
+  commit: { message: "Merge branch 'master' into test/made-up-branch" },
+  parents: [{ sha: '1111111111111111111111111111111111111111' }, { sha: OLDER }],
+  ...over,
+})
+
 /** A pull request that is in the class and clean, with every argument of decide. */
 function cleanCase() {
   const pr = {
@@ -71,15 +95,17 @@ function cleanCase() {
     base: { ref: 'master', repo: { full_name: REPO } },
     head: { ref: 'test/made-up-branch', sha: HEAD, repo: { full_name: REPO } },
     changed_files: 2,
+    commits: 2,
     labels: [{ name: 'documentation' }],
   }
   return {
     pr,
     files: [
-      { filename: 'tests/made-up.test.js', status: 'modified' },
+      { filename: 'tests/components/MadeUp.test.jsx', status: 'modified' },
       { filename: 'docs/testing.md', status: 'added' },
     ],
     labels: pr.labels,
+    commits: [ownerCommit(), updateBranchCommit()],
     checks: {
       total_count: 6,
       check_runs: [
@@ -101,7 +127,7 @@ function cleanCase() {
   }
 }
 
-const decideCase = (c) => decide(c.pr, c.files, c.labels, c.checks, c.comments, c.threads, c.target)
+const decideCase = (c) => decide(c.pr, c.files, c.labels, c.checks, c.comments, c.threads, c.target, c.commits)
 
 /** The decision of the clean case after `change`; the change must be the one and only reason. */
 function refusedOnlyFor(change, reason) {
@@ -160,14 +186,14 @@ describe('refuses: the title', () => {
 })
 
 describe('refuses: the files', () => {
-  it('a removed file', () => refusedOnlyFor(withFile({ filename: 'tests/made-up.test.js', status: 'removed' }), /removed/))
+  it('a removed file', () => refusedOnlyFor(withFile({ filename: 'tests/components/MadeUp.test.jsx', status: 'removed' }), /removed/))
   it('a renamed file', () =>
     refusedOnlyFor(
-      withFile({ filename: 'tests/made-up-2.test.js', previous_filename: 'tests/made-up.test.js', status: 'renamed' }),
-      /renamed from tests\/made-up\.test\.js/,
+      withFile({ filename: 'tests/components/MadeUp2.test.jsx', previous_filename: 'tests/components/MadeUp.test.jsx', status: 'renamed' }),
+      /renamed from tests\/components\/MadeUp\.test\.jsx/,
     ))
   it.each(['copied', 'changed', 'unchanged', undefined])('a file whose status is %s', (status) =>
-    refusedOnlyFor(withFile({ filename: 'tests/made-up.test.js', status }), /not added or modified/))
+    refusedOnlyFor(withFile({ filename: 'tests/components/MadeUp.test.jsx', status }), /not added or modified/))
 
   it.each([
     'src/worker/scanQueue.js',
@@ -185,6 +211,12 @@ describe('refuses: the files', () => {
     'docs/screenshots/nested/made-up.png',
     'readme.md',
     'tests',
+    'tests/made-up.test.js',
+    'tests/security-headers.test.js',
+    'tests/route-auth.test.js',
+    'tests/helpers/made-up.js',
+    'tests/fixtures/made-up.json',
+    'tests/components',
   ])('%s, which is outside the class', (filename) =>
     refusedOnlyFor(withFile({ filename, status: 'modified' }), /not in the class/))
 
@@ -236,7 +268,7 @@ describe('refuses: the files', () => {
   it(`more than ${MAX_FILES} files`, () =>
     refusedOnlyFor((c) => {
       c.pr.changed_files = MAX_FILES + 1
-      c.files = Array.from({ length: MAX_FILES }, (_, i) => ({ filename: `tests/made-up-${i}.test.js`, status: 'added' }))
+      c.files = Array.from({ length: MAX_FILES }, (_, i) => ({ filename: `tests/components/MadeUp${i}.test.jsx`, status: 'added' }))
     }, /more than 100/))
   it('a number of files that cannot be read', () => refusedOnlyFor((c) => delete c.pr.changed_files, /number of changed files/))
   it('a list of files that is not a list', () => refusedOnlyFor((c) => (c.files = { filename: 'x' }), /list of files cannot be read/))
@@ -253,6 +285,89 @@ describe('refuses: the files', () => {
     const { reasons } = decideCase(c)
     expect(reasons).toHaveLength(21)
     expect(reasons[20]).toBe('and 5 more files')
+  })
+})
+
+describe('refuses: the commits', () => {
+  const agentLoop = { login: 'github-actions[bot]', type: 'Bot' }
+  const codexBotAccount = { login: 'chatgpt-codex-connector[bot]', type: 'Bot' }
+  const withCommit = (commit) => (c) => {
+    c.commits = [ownerCommit(), commit]
+  }
+
+  it('a commit of the agent loop (author and committer are the Actions bot)', () =>
+    refusedOnlyFor(
+      withCommit(ownerCommit({ author: agentLoop, committer: agentLoop })),
+      /its author is not a person's GitHub account \(Bot\); .*its committer is not a person's GitHub account \(Bot\)/,
+    ))
+  it('a commit whose author is the Codex bot', () =>
+    refusedOnlyFor(withCommit(ownerCommit({ author: codexBotAccount })), /its author is not a person's GitHub account \(Bot\)/))
+  it('a commit of the owner that a bot committed', () =>
+    refusedOnlyFor(withCommit(ownerCommit({ committer: codexBotAccount })), /its committer is not a person's GitHub account \(Bot\)/))
+  it('a commit whose author has no linked GitHub account', () =>
+    refusedOnlyFor(withCommit(ownerCommit({ author: null })), /its author has no linked GitHub account/))
+  it('a commit whose committer has no linked GitHub account', () =>
+    refusedOnlyFor(withCommit(ownerCommit({ committer: null })), /its committer has no linked GitHub account/))
+  it('a commit that web-flow committed for a bot', () =>
+    refusedOnlyFor(withCommit(updateBranchCommit({ author: agentLoop })), /its author is not a person's GitHub account/))
+
+  it.each([
+    'Co-authored-by: Codex <codex@openai.com>',
+    'Co-authored-by: chatgpt-codex-connector[bot] <199175422+chatgpt-codex-connector[bot]@users.noreply.github.com>',
+    'co-authored-by: codex',
+    'CO-AUTHORED-BY:   OpenAI Codex <noreply@openai.com>',
+    'Co-authored-by: made-up <199175422+someone@users.noreply.github.com>',
+  ])('a commit with the co-author "%s"', (trailer) =>
+    refusedOnlyFor(
+      withCommit(ownerCommit({ commit: { message: `docs: a made-up page\n\nCo-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>\n${trailer}` } })),
+      /Codex is a co-author/,
+    ))
+
+  it(`more than ${MAX_COMMITS} commits`, () =>
+    refusedOnlyFor((c) => {
+      c.pr.commits = MAX_COMMITS + 1
+      c.commits = Array.from({ length: MAX_COMMITS }, () => ownerCommit())
+    }, /251 commits: GitHub lists at most 250/))
+  it('a list of commits that is cut off', () => refusedOnlyFor((c) => (c.pr.commits = 3), /list of commits is incomplete \(2 of 3\)/))
+  it('a number of commits that cannot be read', () => refusedOnlyFor((c) => delete c.pr.commits, /number of commits cannot be read/))
+  it('commits that cannot be read', () => refusedOnlyFor((c) => (c.commits = { message: 'Not Found' }), /commits cannot be read/))
+  it('no commit at all', () =>
+    refusedOnlyFor((c) => {
+      c.commits = []
+      c.pr.commits = 0
+    }, /no commit/))
+  it('a commit that cannot be read', () => {
+    expect(commitProblem(null)).toBe('a commit that cannot be read')
+    expect(commitProblem({ sha: HEAD })).toBe('a commit that cannot be read')
+    refusedOnlyFor(withCommit({ sha: HEAD, author: ownerAccount, committer: ownerAccount }), /a commit that cannot be read/)
+  })
+
+  it('lists at most 20 commits and counts the rest', () => {
+    const c = cleanCase()
+    c.commits = Array.from({ length: 25 }, () => ownerCommit({ author: null }))
+    c.pr.commits = 25
+    const { reasons } = decideCase(c)
+    expect(reasons).toHaveLength(21)
+    expect(reasons[20]).toBe('and 5 more commits')
+  })
+
+  it("passes the merge of GitHub's update branch button, a web edit, and the owner's commits with Claude as a co-author", () => {
+    const c = cleanCase()
+    c.commits = [
+      ownerCommit(),
+      updateBranchCommit(),
+      ownerCommit({ committer: { login: WEB_FLOW_LOGIN, type: 'User' }, commit: { message: 'Update made-up.md' } }),
+      ownerCommit({ commit: { message: 'docs: a made-up page\n\nCo-authored-by: Claude Sonnet 5.5 <noreply@anthropic.com>' } }),
+    ]
+    c.pr.commits = 4
+    expect(decideCase(c)).toEqual({ merge: true, reasons: [] })
+    expect(commitProblem(updateBranchCommit())).toBeNull()
+  })
+
+  it('reads every Co-authored-by trailer of a message, and nothing else', () => {
+    expect(coAuthors('x\n\nCo-Authored-By: A <a@x>\nco-authored-by:B\n  Co-authored-by:   C  \nSigned-off-by: D')).toEqual(['A <a@x>', 'B', 'C'])
+    expect(coAuthors('Mentions Codex in the text, not as a co-author')).toEqual([])
+    expect(coAuthors(undefined)).toEqual([])
   })
 })
 
@@ -413,9 +528,8 @@ describe('the clean case', () => {
   it('takes every kind of file of the class', () => {
     const c = cleanCase()
     c.files = [
-      'tests/made-up.test.js',
       'tests/components/MadeUp.test.jsx',
-      'tests/fixtures/made-up.json',
+      'tests/components/made-up-helpers.js',
       'e2e/made-up.spec.js',
       'docs/made-up.md',
       'docs/made-up/deeper/page.md',
@@ -429,7 +543,7 @@ describe('the clean case', () => {
 
   it(`takes exactly ${MAX_FILES} files`, () => {
     const c = cleanCase()
-    c.files = Array.from({ length: MAX_FILES }, (_, i) => ({ filename: `tests/made-up-${i}.test.js`, status: 'added' }))
+    c.files = Array.from({ length: MAX_FILES }, (_, i) => ({ filename: `tests/components/MadeUp${i}.test.jsx`, status: 'added' }))
     c.pr.changed_files = MAX_FILES
     expect(decideCase(c).merge).toBe(true)
   })
@@ -453,7 +567,7 @@ describe('the clean case', () => {
   })
 
   it('names every condition when it merges', () => {
-    expect(CONDITIONS).toHaveLength(9)
+    expect(CONDITIONS).toHaveLength(10)
     expect(CONDITIONS.join(' ')).toContain(REQUIRED_CHECKS.join(', '))
   })
 })
@@ -489,6 +603,7 @@ describe('the merge call', () => {
       live: false,
       pr: c.pr,
       files: c.files,
+      commits: c.commits,
       checks: c.checks,
       compare: { behind_by: 0 },
       comments: c.comments,
@@ -514,6 +629,7 @@ describe('the comment', () => {
     live: false,
     pr: c.pr,
     files: c.files,
+    commits: c.commits,
     checks: c.checks,
     compare: { behind_by: c.target.behindBy },
     comments: c.comments,
@@ -590,6 +706,7 @@ describe('reading the pull request from the API', () => {
     const answers = {
       [`GET /repos/${REPO}/pulls/42`]: c.pr,
       [`GET /repos/${REPO}/pulls/42/files?per_page=${MAX_FILES}`]: c.files,
+      [`GET /repos/${REPO}/pulls/42/commits?per_page=100&page=1`]: c.commits,
       [`GET /repos/${REPO}/commits/${HEAD}/check-runs?per_page=100`]: c.checks,
       [`GET /repos/${REPO}/compare/master...${HEAD}`]: { behind_by: 0, ahead_by: 2, files: [] },
       'POST /graphql': { data: { repository: { pullRequest: { comments: c.comments, reviewThreads: c.threads } } } },
@@ -606,13 +723,14 @@ describe('reading the pull request from the API', () => {
     return { fetchImpl, calls }
   }
 
-  it('reads the five answers, with the token, and builds the document that decides', async () => {
+  it('reads the six answers, with the token, and builds the document that decides', async () => {
     const c = cleanCase()
     const { fetchImpl, calls } = fakeGitHub(c)
     const doc = await readInput(ENV, fetchImpl)
     expect(calls.map((call) => call.key)).toEqual([
       `GET /repos/${REPO}/pulls/42`,
       `GET /repos/${REPO}/pulls/42/files?per_page=100`,
+      `GET /repos/${REPO}/pulls/42/commits?per_page=100&page=1`,
       `GET /repos/${REPO}/commits/${HEAD}/check-runs?per_page=100`,
       `GET /repos/${REPO}/compare/master...${HEAD}`,
       'POST /graphql',
@@ -621,7 +739,7 @@ describe('reading the pull request from the API', () => {
       expect(init.headers.authorization).toBe('Bearer made-up-token')
       expect(init.redirect).toBe('error')
     }
-    const graph = JSON.parse(calls[4].init.body)
+    const graph = JSON.parse(calls[5].init.body)
     expect(graph.query).toBe(CONVERSATION_QUERY)
     expect(graph.query).toContain('editor { login __typename }')
     expect(graph.variables).toEqual({ owner: 'fake-owner', name: 'fake-repo', number: 42 })
@@ -631,12 +749,32 @@ describe('reading the pull request from the API', () => {
       live: false,
       pr: c.pr,
       files: c.files,
+      commits: c.commits,
       checks: c.checks,
       compare: { behind_by: 0 },
       comments: c.comments,
       threads: c.threads,
     })
     expect(run(doc).merge).toBe(true)
+  })
+
+  it('reads the commits page by page while a page is full, at most three pages', async () => {
+    const c = cleanCase()
+    const many = Array.from({ length: 150 }, () => ownerCommit())
+    const page = (n) => `GET /repos/${REPO}/pulls/42/commits?per_page=100&page=${n}`
+    const two = fakeGitHub(c, { [page(1)]: many.slice(0, 100), [page(2)]: many.slice(100) })
+    expect((await readInput(ENV, two.fetchImpl)).commits).toHaveLength(150)
+    expect(two.calls.map((call) => call.key).filter((key) => key.includes('/commits?'))).toEqual([page(1), page(2)])
+
+    const full = Array.from({ length: 100 }, () => ownerCommit())
+    const three = fakeGitHub(c, { [page(1)]: full, [page(2)]: full, [page(3)]: full, [page(4)]: full })
+    const doc = await readInput(ENV, three.fetchImpl)
+    expect(doc.commits).toHaveLength(300)
+    expect(three.calls.map((call) => call.key)).not.toContain(page(4))
+    expect(run({ ...doc, pr: { ...doc.pr, commits: 300 } }).reasons).toContain('300 commits: GitHub lists at most 250, so they cannot all be read')
+
+    const odd = fakeGitHub(c, { [page(1)]: { message: 'made up' } })
+    expect(run(await readInput(ENV, odd.fetchImpl)).reasons).toEqual(['the commits cannot be read'])
   })
 
   it('is live only when LIVE is exactly true', async () => {
@@ -708,6 +846,7 @@ describe('the command line', () => {
       live: false,
       pr: c.pr,
       files: c.files,
+      commits: c.commits,
       checks: c.checks,
       compare: { behind_by: 0 },
       comments: c.comments,

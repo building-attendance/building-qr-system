@@ -8,11 +8,12 @@
 // ("owner/name"), PR_NUMBER, DEFAULT_BRANCH and LIVE; any answer of the API that is not a success stops it with an error.
 //
 // The document is read from GitHub's API alone, never from a checkout of the pull request (readInput):
-// { repository, default_branch, live, pr, files, checks, compare, comments, threads }.
+// { repository, default_branch, live, pr, files, commits, checks, compare, comments, threads }.
 //   repository, default_branch   this repository ("owner/name") and its default branch, from the event
 //   live                         false in the dry run (only a comment), true when the workflow merges for real
 //   pr                           GET /repos/{repo}/pulls/{n}
 //   files                        GET /repos/{repo}/pulls/{n}/files?per_page=100 (one page: more than 100 files refuses)
+//   commits                      GET /repos/{repo}/pulls/{n}/commits, up to 3 pages of 100 (GitHub lists at most 250)
 //   checks                       GET /repos/{repo}/commits/{head}/check-runs?per_page=100
 //   compare                      { behind_by } of GET /repos/{repo}/compare/{default_branch}...{head}
 //   comments, threads            the pull request's `comments(last: 100)` and `reviewThreads(first: 100)` from GraphQL,
@@ -44,6 +45,13 @@ export const GITHUB_ACTIONS_APP_ID = 15368
 export const REQUIRED_CHECKS = Object.freeze(['guards', 'unit', 'e2e (android-chrome)', 'e2e (iphone-webkit)'])
 /** One page of the files API. A pull request with more files is refused rather than read in parts. */
 export const MAX_FILES = 100
+/** GitHub lists at most 250 commits of a pull request. A pull request with more is refused: the rest cannot be read. */
+export const MAX_COMMITS = 250
+/**
+ * The account that GitHub itself commits with when a person merges or edits in the browser (the "update branch" merge, an
+ * edit on the web). It is the one committer allowed besides a person's own account, and its author must still be a person.
+ */
+export const WEB_FLOW_LOGIN = 'web-flow'
 /** The label that lets a pull request remove or switch off a test (scripts/check-tests.mjs): never merged without the owner. */
 export const OVERRIDE_LABEL = 'allow-test-removal'
 /** The hidden JSON that the Codex review bot keeps in its summary comment. */
@@ -57,9 +65,14 @@ const TITLE = /^(test|docs)(?:\(([a-z0-9-]+)\))?(!)?: \S/
 /** The branches of the agents: the agent loop pushes claude/..., Codex pushes codex/... (D6 of the plan). */
 const AGENT_BRANCH = /^(?:claude|codex)\//i
 
-/** What the class allows, matched on the path exactly as GitHub lists it (case-sensitive). */
+/**
+ * What the class allows, matched on the path exactly as GitHub lists it (case-sensitive). Of tests/, only the component
+ * tests: the other files there are the server, security, privacy and repository-guard tests (the security headers, the
+ * route guards, the agent's secrets, retention, the audit log, dates, the text rules, the contract, the CI guards), which
+ * the owner reads himself.
+ */
 const ALLOWED = Object.freeze([
-  /^tests\/./,
+  /^tests\/components\/./,
   /^e2e\/./,
   /^docs\/(?:[^/]+\/)*[^/]+\.md$/,
   /^docs\/screenshots\/[^/]+\.png$/,
@@ -96,6 +109,7 @@ export const CONDITIONS = Object.freeze([
   'opened by the owner, from a branch that is neither claude/ nor codex/',
   'a test or docs title, with no ! and not the scope rules',
   `every file added or modified, at most ${MAX_FILES}, all inside the class`,
+  "every commit by a person's GitHub account (committed by that person or by GitHub's web-flow), with no Codex co-author",
   `no ${OVERRIDE_LABEL} label`,
   `${REQUIRED_CHECKS.join(', ')}: green on the head, from GitHub Actions`,
   'a Codex review of exactly the head, completed, with no finding',
@@ -124,7 +138,7 @@ export function fileProblem(file) {
   const denied = DENIED.find((entry) => entry.match(name.toLowerCase()))
   if (denied) return `${clean(name)}: kept out of the class (${denied.why})`
   if (!ALLOWED.some((pattern) => pattern.test(name))) {
-    return `${clean(name)}: not in the class (tests/, e2e/, docs/**/*.md, docs/screenshots/*.png, README.md, CONTRIBUTING.md)`
+    return `${clean(name)}: not in the class (tests/components/, e2e/, docs/**/*.md, docs/screenshots/*.png, README.md, CONTRIBUTING.md)`
   }
   return null
 }
@@ -167,6 +181,44 @@ function fileReasons(pr, files) {
   const problems = files.map(fileProblem).filter(Boolean)
   const shown = problems.slice(0, 20)
   if (problems.length > shown.length) shown.push(`and ${problems.length - shown.length} more files`)
+  return shown
+}
+
+/** The values of the Co-authored-by trailers of a commit message, in any case. */
+export function coAuthors(message) {
+  if (typeof message !== 'string') return []
+  return [...message.matchAll(/^[ \t]*co-authored-by:[ \t]*(.*)$/gim)].map((match) => match[1].trim())
+}
+
+/** A co-author that names Codex: by name, by the login of its bot, or by that bot's account id in a noreply address. */
+const CODEX_CO_AUTHOR = /codex|199175422/i
+
+/** Why a commit keeps the pull request out of the class, or null. */
+export function commitProblem(entry) {
+  if (!isObject(entry) || !isObject(entry.commit)) return 'a commit that cannot be read'
+  const id = `commit ${short(entry.sha)}`
+  const problems = []
+  const { author, committer } = entry
+  if (!isObject(author)) problems.push(`${id}: its author has no linked GitHub account`)
+  else if (author.type !== 'User') problems.push(`${id}: its author is not a person's GitHub account (${clean(author.type ?? 'no type')})`)
+  if (!isObject(committer)) problems.push(`${id}: its committer has no linked GitHub account`)
+  else if (committer.login !== WEB_FLOW_LOGIN && committer.type !== 'User') {
+    problems.push(`${id}: its committer is not a person's GitHub account (${clean(committer.type ?? 'no type')})`)
+  }
+  if (coAuthors(entry.commit.message).some((name) => CODEX_CO_AUTHOR.test(name))) problems.push(`${id}: Codex is a co-author`)
+  return problems.length > 0 ? problems.join('; ') : null
+}
+
+function commitReasons(pr, commits) {
+  if (!Array.isArray(commits)) return ['the commits cannot be read']
+  const count = pr.commits
+  if (!Number.isInteger(count)) return ['the number of commits cannot be read']
+  if (count > MAX_COMMITS) return [`${count} commits: GitHub lists at most ${MAX_COMMITS}, so they cannot all be read`]
+  if (commits.length !== count) return [`the list of commits is incomplete (${commits.length} of ${count})`]
+  if (count === 0) return ['no commit']
+  const problems = commits.map(commitProblem).filter(Boolean)
+  const shown = problems.slice(0, 20)
+  if (problems.length > shown.length) shown.push(`and ${problems.length - shown.length} more commits`)
   return shown
 }
 
@@ -248,7 +300,7 @@ function threadReasons(threads) {
  * { repository, branch, behindBy }: this repository, its default branch, and how many commits the head is behind it.
  * Returns { merge, reasons }: merge is true only when there is no reason.
  */
-export function decide(pr, files, labels, checks, codexComments, threads, target) {
+export function decide(pr, files, labels, checks, codexComments, threads, target, commits) {
   if (!isObject(pr)) return { merge: false, reasons: ['the pull request cannot be read'] }
   if (!isObject(target) || typeof target.repository !== 'string' || typeof target.branch !== 'string') {
     return { merge: false, reasons: ['the repository and its default branch are not known'] }
@@ -275,6 +327,7 @@ export function decide(pr, files, labels, checks, codexComments, threads, target
 
   reasons.push(...titleReasons(pr.title))
   reasons.push(...fileReasons(pr, files))
+  reasons.push(...commitReasons(pr, commits))
   reasons.push(...labelReasons(labels))
   reasons.push(...(head ? checkReasons(checks, head) : []))
   reasons.push(...(head ? codexReasons(codexComments, head) : []))
@@ -376,7 +429,7 @@ export function run(input) {
     branch: doc.default_branch,
     behindBy: isObject(doc.compare) ? doc.compare.behind_by : undefined,
   }
-  const decision = decide(pr, doc.files, pr?.labels, doc.checks, doc.comments, doc.threads, target)
+  const decision = decide(pr, doc.files, pr?.labels, doc.checks, doc.comments, doc.threads, target, doc.commits)
   const text = decisionText(decision, head, live)
   return {
     merge: decision.merge,
@@ -452,6 +505,17 @@ export async function readInput(env, fetchImpl = fetch) {
   const head = isObject(pr) && isObject(pr.head) ? pr.head.sha : undefined
   if (!SHA.test(head ?? '')) throw new Error('the head commit of the pull request is not a SHA')
   const files = await call('GET', `/repos/${repository}/pulls/${number}/files?per_page=${MAX_FILES}`)
+  // Pages of 100 until a short one, at most 3 (GitHub's limit is 250): decide() compares the count with the pull request's.
+  let commits = []
+  for (let page = 1; page <= 3; page++) {
+    const batch = await call('GET', `/repos/${repository}/pulls/${number}/commits?per_page=100&page=${page}`)
+    if (!Array.isArray(batch)) {
+      commits = batch
+      break
+    }
+    commits.push(...batch)
+    if (batch.length < 100) break
+  }
   const checks = await call('GET', `/repos/${repository}/commits/${head}/check-runs?per_page=100`)
   const compare = await call('GET', `/repos/${repository}/compare/${branch}...${head}`)
   const [owner, name] = repository.split('/')
@@ -464,6 +528,7 @@ export async function readInput(env, fetchImpl = fetch) {
     live: env.LIVE === 'true',
     pr,
     files,
+    commits,
     checks,
     compare: { behind_by: isObject(compare) ? compare.behind_by : undefined },
     comments: pull?.comments,

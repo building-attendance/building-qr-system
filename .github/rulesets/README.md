@@ -54,7 +54,8 @@ To change one later, send the edited file with `gh api --method PUT repos/{owner
 ## The auto-merge App (coming: not in `master-approval.json` yet)
 
 `.github/workflows/auto-merge.yml` may merge one narrow class of pull requests without the owner's click: a `test` or
-`docs` pull request that the owner opened, whose files are only tests and documents, and that is clean in every way
+`docs` pull request that the owner opened, whose files are only component tests, E2E tests and documents and whose commits
+are all by a person's GitHub account with no Codex co-author, and that is clean in every way
 (AGENTS.md, "Git and pull requests", the paragraph "One workflow may merge too"; the exact conditions are in
 `scripts/check-auto-merge.mjs`). It starts in a dry run that only comments (`LIVE: false` in the workflow), and nothing in
 this folder changes for it until the owner sets up its GitHub App. That App is the only new actor, and this is what it may

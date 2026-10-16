@@ -193,12 +193,14 @@ everyone to ignore it.
 
 `.github/workflows/auto-merge.yml` decides, after every CI run and after every comment of the Codex review bot, whether a
 pull request may merge without the owner's click. The class is narrow: a `test` or `docs` title, opened by the owner from
-a branch of this repository that is not `claude/` or `codex/`, with only added or modified tests and documents, and clean
-in every way: the four checks green on the head, a Codex review of exactly that head with no finding, every conversation
-resolved, no `allow-test-removal` label, and the branch up to date (AGENTS.md, "Git and pull requests"). The conditions,
-and the files that the class keeps out even under `tests/`, `e2e/` and `docs/` (the visual baselines, the files that every
-test runs with, the rules, the privacy record, the decision records, the runbooks, the design rules), are
-`scripts/check-auto-merge.mjs`, with a test for each in `tests/check-auto-merge.test.js`.
+a branch of this repository that is not `claude/` or `codex/`, with only added or modified component tests
+(`tests/components/`), E2E tests and documents, every commit by a person's GitHub account (committed by that person, or by
+GitHub's `web-flow` for the "update branch" merge) with no Codex co-author, and clean in every way: the four checks green
+on the head, a Codex review of exactly that head with no finding, every conversation resolved, no `allow-test-removal`
+label, and the branch up to date (AGENTS.md, "Git and pull requests"). The other tests under `tests/` (the server,
+security, privacy and repository-guard tests) stay out, and so do some files under `e2e/` and `docs/` (the visual
+baselines, the files that every test runs with, the rules, the privacy record, the decision records, the runbooks, the
+design rules). The conditions are `scripts/check-auto-merge.mjs`, with a test for each in `tests/check-auto-merge.test.js`.
 
 For now it is a dry run: on an open, ready pull request with a test or docs title it writes one comment per head commit,
 "would merge" or "would not merge" with the reasons, and edits that comment when the decision for the same commit
