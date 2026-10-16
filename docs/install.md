@@ -314,18 +314,19 @@ not say `nonprod`.
    says that the details were saved ("פרטי הבניין נשמרו"). The committee app's brand and window title follow at once, and
    the providers' app shows the name within about a minute. The label of the installed app on a phone's Home Screen is
    fixed when the app is built, so it does not follow the name.
-2. Points tab ("מיקומים"), ("נקודה חדשה"): a name and a pin on the map. Every point checks the phone's location against
-   its pin, so a point cannot be saved without one. For a first test, stand where the sign will hang and press the form's
-   own location button ("המיקום שלי כעת") to put the pin where you stand, or click the map. Save ("שמירה"): the QR
-   dialog opens by itself, and a toast says that the point was created and that its QR can be printed. The address under
-   the code must be your production address, `https://<your-domain>/scan?code=BQR-...`. A banner about a local address
-   means `APP_BASE_URL` is missing. The dialog has ("הדפסת שלט") (prints the sign), ("הורדה") (downloads it),
-   ("העתקת קישור") (copies the link) and a button that replaces the point's code. You can open the dialog again later
-   with the QR icon on the point's tile.
-3. Providers tab (("ספקים") in the navigation, ("נותני שירות") as the page title), ("נותן שירות חדש"): a company and a worker
-   name. **The form fills in a password by itself**: ("יצירה") makes another one, and a copy button sits next to it. Copy
-   the password with that button before you save, and give it to the worker once. **Do not click outside the dialog while
-   you fill it in**: it closes, and what you typed is lost.
+2. Points tab ("מיקומים"), on an empty list ("הוסיפו את הנקודה הראשונה"), later ("נקודה חדשה"): a name and a pin on the
+   map. Every point checks the phone's location against its pin, so a point cannot be saved without one. For a first
+   test, stand where the sign will hang and press the form's own location button ("המיקום שלי כעת") to put the pin where
+   you stand, or click the map. Save ("שמירה"): the QR dialog opens by itself, and a toast says that the point was
+   created and that its QR can be printed. The address under the code must be your production address,
+   `https://<your-domain>/scan?code=BQR-...`. A banner about a local address means `APP_BASE_URL` is missing. The dialog
+   has ("הדפסת שלט") (prints the sign), ("הורדה") (downloads it), ("העתקת קישור") (copies the link) and a button that
+   replaces the point's code. You can open the dialog again later with the QR icon on the point's tile.
+3. Providers tab (("ספקים") in the navigation, ("נותני שירות") as the page title), on an empty list
+   ("הוסיפו נותן שירות"), later ("נותן שירות חדש"): a company and a worker name. **The form fills in a password by
+   itself**: ("יצירה") makes another one, and a copy button sits next to it. Copy the password with that button before
+   you save, and give it to the worker once. **Do not click outside the dialog while you fill it in**: it closes, and
+   what you typed is lost.
 
    You do not need the demo account for a first scan: **a point with no providers assigned accepts every provider.** Once
    you assign providers to a point, only they may scan it. The switch ("חשבון דמו") makes a demo account, which may scan
@@ -348,10 +349,10 @@ Do these in order. After step 5 every change to the default branch needs a pull 
    review, Release, Smoke test and Scorecard. Scorecard shows "Disabled" in a fork, because the scheduled workflows of a
    fork stay off: leave it, enable it, or delete the file (step 3).
 2. **The smoke test** (`.github/workflows/smoke.yml`) checks every production deployment from the outside, and opens an
-   issue when it fails. Make a key in the committee app: Agent tab ("אייג׳נט"), ("מפתח חדש"), named "smoke test"
-   (it is shown once). Then run these three commands, in this order, with your own owner and repository name. Name the
-   repository in every `gh` command of this guide (`--repo <owner>/<repo>`), so that no command can go to another
-   repository, such as the one that your fork came from.
+   issue when it fails. Make a key in the committee app: Agent tab ("אייג׳נט"), on an empty list ("יצירת מפתח"), later
+   ("מפתח חדש"), named "smoke test" (it is shown once). Then run these three commands, in this order, with your own
+   owner and repository name. Name the repository in every `gh` command of this guide (`--repo <owner>/<repo>`), so that
+   no command can go to another repository, such as the one that your fork came from.
 
    ```bash
    gh api --method PUT repos/<owner>/<repo>/environments/smoke

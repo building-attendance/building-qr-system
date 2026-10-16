@@ -34,8 +34,9 @@ placeholders, and you replace both before you hand a text to anyone:
 
 ## Connecting, in four steps
 
-1. In the admin screen, open the **Agent** tab ("אייג׳נט") and choose **New key** ("מפתח חדש"). Give it a name (for
-   example "The committee's agent") and copy the key (`qrk_…`). It is shown **only once**.
+1. In the admin screen, open the **Agent** tab ("אייג׳נט") and choose **Create key** ("יצירת מפתח") on an empty list, or
+   **New key** ("מפתח חדש") later. Give it a name (for example "The committee's agent") and copy the key (`qrk_…`). It
+   is shown **only once**.
 2. Store the key **in the secrets vault of the agent platform**, not in the text of the instructions and not in a chat.
 3. Give the chief of staff the text in section 1, or give the agent itself, as one instruction, the analyst prompt (copy it
    from the Agent tab) with the text of section 2 (the daily run) or section 3 (questions on request) below it. You must
