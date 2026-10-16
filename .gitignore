@@ -45,6 +45,9 @@ playwright-report/
 test-results/
 blob-report/
 
+# The pictures of the UI review (npm run ui-review:pictures): never committed, they are not baselines (docs/testing.md)
+ui-review-pictures/
+
 # The timing reports of a CI part: playwright.config.js and the unit job of ci.yml write them at the root when CI is set,
 # CI keeps them as artifacts, and e2e/parts.js and tests/time-sequencer.js make the weights of the parts from them
 playwright-timings.json
