@@ -2016,10 +2016,10 @@ test('the help is a screen of its own with every topic on it, nothing to press, 
     await expect(main.locator('[aria-expanded]')).toHaveCount(0)
 
     // it fits: nothing of it is outside the screen, and the page does not scroll sideways
-    const outside = await main.evaluate((root) => [...root.querySelectorAll('*')].filter((el) => {
+    const outside = await main.evaluate((root, width) => [...root.querySelectorAll('*')].filter((el) => {
       const r = el.getBoundingClientRect()
-      return r.width > 0 && (r.left < -0.5 || r.right > window.innerWidth + 0.5)
-    }).map((el) => el.tagName))
+      return r.width > 0 && (r.left < -0.5 || r.right > width + 0.5)
+    }).map((el) => el.tagName), page.viewportSize().width) // the width that was set, not innerWidth (as noHorizontalScroll)
     expect(outside, `${where}: elements of the help outside the screen`).toEqual([])
     expect(await noHorizontalScroll(page), `the help at ${where} width`).toBe(true)
     await page.goto('/admin#points') // the next round opens it again from another screen

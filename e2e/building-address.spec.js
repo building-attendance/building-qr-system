@@ -21,7 +21,9 @@ const loaded = async (page) => {
 const field = (page) => page.getByLabel('כתובת הבניין', { exact: true })
 const nameField = (page) => page.getByLabel('שם הבניין', { exact: true })
 const saveButton = (page) => page.getByRole('button', { name: 'שמירה', exact: true })
-const noHorizontalScroll = (page) => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)
+// Compared with the width of the viewport that was set, not with window.innerWidth: Chromium's mobile emulation widens the layout
+// viewport to the width of the content, so a page that scrolls sideways still has scrollWidth <= innerWidth there (e2e/reflow.spec.js).
+const noHorizontalScroll = (page) => page.evaluate((width) => document.documentElement.scrollWidth <= width, page.viewportSize().width)
 
 /** Types an address in the settings screen and saves it. */
 async function setAddress(page, address) {
