@@ -54,12 +54,6 @@
   --w-tint-mint-ink: #8fe3bc;
   --w-tint-sky: #10304d;
   --w-tint-sky-ink: #b5dbff;
-  /* The four steps of the count cells of the committee's Home table: the violet of the light theme's primary, deeper with the number
-     of visits. --w-text is read on every step at 4.5:1, and the focus ring and the hover ring (--w-info) at 3:1 (tests/contrast.test.js). */
-  --w-count-1: rgba(91, 75, 219, 0.22);
-  --w-count-2: rgba(91, 75, 219, 0.4);
-  --w-count-3: rgba(91, 75, 219, 0.58);
-  --w-count-4: rgba(91, 75, 219, 0.78);
 
   font-family: 'Rubik Variable', system-ui, -apple-system, 'Segoe UI', sans-serif;
   font-size: var(--w-font-lg);
@@ -115,11 +109,6 @@
   --w-tint-mint-ink: #0b5c3a;
   --w-tint-sky: #e6f1ff;
   --w-tint-sky-ink: #0b3d6b;
-  /* Lighter than in the dark theme: the focus ring is the same violet, and it must stay 3:1 against the deepest step. */
-  --w-count-1: rgba(91, 75, 219, 0.1);
-  --w-count-2: rgba(91, 75, 219, 0.19);
-  --w-count-3: rgba(91, 75, 219, 0.28);
-  --w-count-4: rgba(91, 75, 219, 0.37);
   color-scheme: light;
 }
 

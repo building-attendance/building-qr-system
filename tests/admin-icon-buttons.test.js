@@ -5,7 +5,7 @@ import path from 'node:path'
 import React from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { IconButton, AddButton } from '../src/admin/ui.jsx'
-import { IconTrash, IconEdit, IconPlus } from '../src/admin/icons.jsx'
+import { IconEdit } from '../src/admin/icons.jsx'
 
 const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace(/^\/([A-Za-z]:)/, '$1')
 const views = fs.readdirSync(path.join(root, 'src', 'admin', 'views')).filter((f) => f.endsWith('.jsx'))
@@ -23,9 +23,7 @@ describe('IconButton', () => {
     expect(out.replace(/<svg[\s\S]*?<\/svg>/, '').replace(/<[^>]+>/g, '')).toBe('') // nothing but the icon
   })
 
-  it('has a danger and a primary look, and a link form for downloads', () => {
-    expect(html(React.createElement(IconButton, { icon: IconTrash, label: 'x', tone: 'danger' }))).toContain('a-icon-btn a-icon-btn--danger')
-    expect(html(React.createElement(IconButton, { icon: IconPlus, label: 'x', tone: 'primary' }))).toContain('a-icon-btn a-icon-btn--primary')
+  it('has a link form for downloads', () => {
     const link = html(React.createElement(IconButton, { icon: IconEdit, label: 'ייצוא', href: '/x.csv', download: 'x.csv' }))
     expect(link).toContain('<a ')
     expect(link).toContain('href="/x.csv"')
@@ -49,18 +47,6 @@ describe('icon button styling', () => {
     expect(base).toContain('var(--w-text-2)')
     expect(css).toMatch(/\.a-icon-btn:hover:not\(:disabled\)\s*\{\s*color:\s*var\(--w-info\)/)
     expect(css).toMatch(/\.a-icon-btn:active:not\(:disabled\),\s*\.a-icon-btn:focus-visible\s*\{\s*color:\s*var\(--w-info\);\s*outline:\s*none/)
-  })
-
-  it('the danger one is red at rest and stays red', () => {
-    expect(rule('.a-icon-btn--danger, .a-icon-btn--danger:focus-visible')).toContain('var(--w-danger)')
-    expect(css).not.toMatch(/\.a-icon-btn--danger:hover:not\(:disabled\)\s*\{[^}]*--w-info/)
-  })
-
-  it('the primary one is a filled round button with its icon in --w-on-primary (white in light, dark in dark)', () => {
-    const primary = rule('.a-icon-btn--primary, .a-icon-btn--primary:focus-visible')
-    expect(primary).toContain('background: var(--w-primary)')
-    expect(primary).toContain('color: var(--w-on-primary)')
-    expect(primary).toContain('border-radius: 50%')
   })
 })
 
@@ -150,14 +136,13 @@ describe('the tiles and headers of the committee screens', () => {
   const itemsOf = (menu) => menu.split(/\r?\n/).filter((line) => /\{ label:/.test(line))
 
   it('red is used for exactly one thing, deleting, and every screen that lists things has it', () => {
-    const uses = views.flatMap((f) => [
-      ...[...read(f).matchAll(/<IconButton([^>]*tone="danger"[^>]*)/g)].map((m) => [f, m[1]]),
-      ...menus(f).flatMap((menu) => itemsOf(menu).filter((line) => line.includes('danger: true')).map((line) => [f, line])),
-    ])
+    const uses = views.flatMap((f) =>
+      menus(f).flatMap((menu) => itemsOf(menu).filter((line) => line.includes('danger: true')).map((line) => [f, line])),
+    )
     expect(uses.map(([f]) => f).sort()).toEqual([
       'AgentView.jsx', 'HistoryView.jsx', 'PointsView.jsx', 'ProvidersView.jsx', 'SettingsView.jsx',
     ])
-    for (const [f, attrs] of uses) expect(attrs, `${f}: a red action must be a trash can`).toMatch(/icon=\{IconTrash\}|icon: IconTrash/)
+    for (const [f, attrs] of uses) expect(attrs, `${f}: a red action must be a trash can`).toMatch(/icon: IconTrash/)
   })
 
   it('the red trash can is the last action of every tile and row, so it sits in the same place on every screen', () => {
@@ -230,10 +215,6 @@ describe('the tiles and headers of the committee screens', () => {
     expect(out).toMatch(/^<button[^>]*><svg[^>]*width="20"[^>]*height="20"[\s\S]*<\/svg>x<\/button>$/) // the plus first, then the words
     expect(out).not.toContain('aria-label') // the name is the visible text
     expect(out).not.toContain('title=')
-  })
-
-  it('no screen has the solid round "+" any more: the account circle is the quiet one and the pill is the one filled thing at the top', () => {
-    for (const f of views) expect(read(f), f).not.toContain('tone="primary"')
   })
 
   it('deleting a point is a real delete, and the confirmation says its scans stay in the history', () => {

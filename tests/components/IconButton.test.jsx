@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, cleanup } from '@testing-library/react'
 import { IconButton } from '../../src/admin/ui.jsx'
-import { IconEdit, IconTrash, IconPlus } from '../../src/admin/icons.jsx'
+import { IconEdit, IconTrash } from '../../src/admin/icons.jsx'
 
 afterEach(cleanup)
 
@@ -45,17 +45,9 @@ describe('IconButton', () => {
     expect(screen.queryByRole('link')).toBeNull()
   })
 
-  it('has a grey default, a red danger tone and a filled primary tone', () => {
-    render(
-      <>
-        <IconButton icon={IconEdit} label="a" />
-        <IconButton icon={IconTrash} label="b" tone="danger" />
-        <IconButton icon={IconPlus} label="c" tone="primary" />
-      </>,
-    )
+  it('has one look: the grey icon, with the one class a-icon-btn', () => {
+    render(<IconButton icon={IconEdit} label="a" />)
     expect(screen.getByRole('button', { name: 'a' }).className).toBe('a-icon-btn')
-    expect(screen.getByRole('button', { name: 'b' }).className).toBe('a-icon-btn a-icon-btn--danger')
-    expect(screen.getByRole('button', { name: 'c' }).className).toBe('a-icon-btn a-icon-btn--primary')
   })
 
   it('never submits a form by accident', () => {
