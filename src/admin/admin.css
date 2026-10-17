@@ -523,7 +523,7 @@ select.a-input {
 .a-audit__subject { font-weight: var(--w-weight-semibold); }
 /* Who did it: the word "by" and then the name, a box of its own for the same reason, as wide as the name or as the room that the word leaves. */
 .a-audit__who { grid-area: who; margin-block-start: var(--w-space-0-5); color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; display: flex; column-gap: var(--w-space-1); }
-.a-audit__by { flex: none; }
+.a-audit__by, .a-audit__mark { flex: none; }
 .a-audit__who > .a-clamp-2 { flex: 0 1 auto; min-width: 0; }
 .a-audit__detail { grid-area: detail; margin-block-start: var(--w-space-1); color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; display: flex; flex-direction: column; gap: var(--w-space-0-5); }
 .a-audit__arrow { display: inline-block; }

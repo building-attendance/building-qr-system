@@ -287,6 +287,12 @@ describe('an entry of the audit log', () => {
       expect(isolates.map((el) => el.textContent)).toEqual([ADDRESS, '(נמחק)'])
       expect(isolates[0].getAttribute('dir')).toBe('ltr')
       expect(isolates[0].textContent, 'the mark is not part of the address').not.toContain('נמחק')
+      // the mark is an item of the row, after the left-to-right box and outside it: inside it, it would be drawn to the right of the address
+      const box = who.querySelector('.a-clamp-2')
+      expect(box.textContent, 'the left-to-right box holds the address alone').toBe(ADDRESS)
+      const mark = who.querySelector('.a-audit__mark')
+      expect(mark.parentElement, 'the mark stands in the row, beside the box').toBe(who)
+      expect(box.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING, 'the mark comes after the address').toBeTruthy()
     })
 
     it('leaves a name that is not an address as it was: one isolate, with its mark', async () => {
