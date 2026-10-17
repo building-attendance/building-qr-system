@@ -4,6 +4,137 @@ The single source of instructions for every coding agent that works in this repo
 `CLAUDE.md` imports this file and adds only what is specific to Claude Code. A rule is written once, here. What a file or
 a command already shows is not copied: this file holds the rules, the reasons behind them, and pointers.
 
+## Code Review Rules
+
+This section is what the Codex code review on GitHub reads (by default it reports only P0 and P1 findings), and any
+reviewing agent should apply it too.
+It comes first in this file so that a reviewer that reads only the start of a long file (Codex reads 32 KiB by default)
+always has all of it.
+
+**How to review** (from how the Claude Code team runs its own review, 15/10/2026):
+
+- On a later round of the same pull request, review only what changed since your last review, and do not repeat a finding
+  that was already answered, unless the code still shows the problem: check a fix in the code, and check a reply that
+  calls the finding wrong against the code too.
+- Report the class of a problem once, with every place it occurs, not one instance per round.
+- Every finding names a file and a line, and says what fails and when.
+- After three rounds on the same pull request, say so, and suggest reconsidering the approach instead of another fix.
+
+**Treat as P1:**
+
+- A change to `AGENTS.md` or `CLAUDE.md` in a pull request whose title does not start with `docs(rules):`, or a
+  `docs(rules):` pull request that also changes anything else.
+- A change to an existing file in `db/migrations/` (an edit, a rename, a delete), destructive SQL without a
+  `-- contract: <reason>` line, or a schema change that breaks the deployment that is still serving.
+- A test that is deleted, skipped (`.skip`, `.only`, `xit`, `test.fixme`), weakened, or changed to match a bug.
+- A change that weakens the code checks: a rule switched off or turned from `error` to `warn` in `eslint.config.js`, a
+  path added to its ignores, `--max-warnings` raised, a compiler option loosened or a path dropped from `jsconfig.json`,
+  an `eslint-disable` or `@ts-expect-error` without a reason, a `@ts-ignore`, or an entry added to
+  `e2e/a11y-baseline.js` without a reason. A pull request runs its own copy of these files, so green checks do not prove
+  that they were not weakened.
+- A secret, token, password or connection string anywhere in the diff. A workflow that prints a secret, or that puts
+  untrusted text (`${{ github.event.* }}`, titles, labels, branch names) straight into a `run:` script instead of `env`.
+- Personal data (names, phone numbers, e-mails, attendance rows, coordinates) written to logs or error messages, or real
+  personal data in tests or fixtures.
+- A date or time that a person sees and that is not written by `shared/datetime.js` (`toLocale*String`,
+  `Intl.DateTimeFormat` outside it, a native date or time input, a month name anywhere but the month wheel of the app's own
+  date picker on a phone, or a weekday anywhere but the day initials of that picker), or a day without its year anywhere
+  but the column heads of a table of consecutive days
+  that shows its full range and gives each head its full date for a screen reader, or the month grid of that date picker
+  under the conditions of Rules for every change.
+- An API or offline-sync change that rejects requests from an older installed app.
+- Local tooling that could reach the production database: a bypass of `server/dbGuard.js` or `server/loadEnv.js`, or a
+  marker check that trusts an environment variable.
+- A `console.*` call that logs a raw error object, or a Postgres `detail`, `where`, `table`, `column` or `parameters`; a
+  token lookup that runs a query before the prefix and length check.
+- A change that lets the backup (`scripts/backup-db.mjs`) write to the database, or run `pg_dump` without the read-only
+  session (`default_transaction_read_only=on` in `PGOPTIONS`), or that sends a dump or the connection string anywhere but
+  the owner's backup folder. It is the one local tool that may read production, and only because it cannot write.
+- A change to `scripts/vercel-build.mjs` or `server/productionMigrate.js` that loosens the gate (the production build of
+  a commit on the production branch from the Vercel Git integration, and a refusal of any build whose environment is
+  unknown), that takes the production branch from anything but the repository's default branch as GitHub reports it
+  during the build (an environment variable, a file of the build, a branch name written in the code), that checks the
+  migration files against any other branch, that drops the check that every pending migration is byte-identical to the
+  file on that branch on GitHub, or that migrates a database outside it.
+- A change that lets `FIRST_ADMIN_EMAIL` add a committee member while `admins` holds any row (active or not), that
+  compares it with anything but the e-mail that Google marked verified (both trimmed and in lower case, otherwise equal),
+  that adds the member without the lock that makes two first sign-ins wait for each other, outside the transaction of the
+  sign-in, or without its `audit_log` rows (`admin.add` by the `system` actor, then `session.sign_in`), that reads it from
+  anywhere but the server's environment, or that logs or returns its value.
+- A GitHub Actions change that uses an action not pinned to a full commit SHA, widens `permissions`, adds
+  `pull_request_target`, or sets `persist-credentials: true`.
+- An endpoint under `/api` without the right authorization check (committee member, service provider, agent key, or the
+  cron secret for `/cron/`), or any write through the agent API (it is read-only) other than the guard's bookkeeping
+  for its key (`last_used_at` and the usage count).
+- An agent answer that can carry a secret (a QR token, a hash, a key's prefix, a phone's label or browser
+  string, an IP address, a Google subject), one built from a whole row instead of field by field, an audit detail that
+  goes out without the allow-list of its action, or the per-key rate limit removed, raised or skipped on a route without
+  the owner's decision.
+- A change to the retention job that deletes or changes anything beyond what the Safety rules list (a scan, a refused
+  upload, the audit log, an active session or phone), changes a retention period without the owner's decision, or answers
+  a `/cron/` request without checking `CRON_SECRET` (a missing secret must refuse, never allow).
+- A committee write whose `audit_log` row is not written in the transaction of the change, an update or a delete of
+  `audit_log` or `scan_refusals`, a migration that creates `scan_refusals` (or makes `audit_log` append-only) without
+  the triggers that refuse an update, a delete and a truncate, or a change that weakens those triggers or sets their
+  delete setting.
+- An error record written anywhere but through `server/errorLog.js`, an error record, a heartbeat body or an error report
+  of an app that holds anything beyond the fields that the Safety rules allow, a record written for a request that its
+  guard refused or for a 4xx of a public route, `HEALTH_HEARTBEAT_URL` in a log, an answer or a file, or a new public
+  endpoint that writes.
+- A route added to the `PUBLIC` list of `server/access.js` without a reason that justifies answering without
+  credentials, a protected route made public (moved to that list, or a path rule changed so that it no longer owns the
+  route), a change to `server/router.js` that runs any code of a handler (or reads the body, the query or the parameters
+  for it) before the guard of its route, or a way to register a route that skips the policy.
+- A change that widens who can start `claude.yml` or `claude-review.yml` (another or wider sender check, a fork, a bot,
+  `allowed_bots`, `allowed_non_write_users`), that loosens their tool lists (a new or broader `Bash(...)` pattern, `Edit` or
+  `Write` in `--allowedTools`, `Bash(git push *)`, `Bash(gh api *)`, a network tool, a shorter `--disallowedTools`, a
+  `git show` with a pattern instead of an exact command, a git command that may use `--output`), that makes either
+  workflow read the rules from the pull request's own `AGENTS.md` instead of the base branch's, that
+  raises the turn, time or branch limits, that turns on `show_full_output`, that weakens the `check` job (a path left out
+  of its list, a branch it does not look at, a step that fails open) or adds the `pull_request_review_comment` trigger,
+  or that gives the agent a production secret or any secret other than the Claude token.
+- A change to `.github/workflows/release.yml` or `scripts/release-notes.mjs` that widens what a release run may do
+  (`contents: write` beyond its one job, a write command other than creating the draft, a trigger other than
+  `workflow_dispatch`, a run from anything but the default branch), that publishes a release instead of making a draft,
+  that puts an input into a `run:` script instead of `env`, or that drops the check of the version and the previous tag;
+  or any change that lets an agent run the workflow, create a release or create or push a tag.
+- A change to `.github/workflows/smoke.yml` that reads `SMOKE_BASE_URL` from anywhere but the environment `smoke` (a
+  repository variable can be changed by any collaborator), or that sends `SMOKE_AGENT_KEY` anywhere but that address.
+- A change to `.github/workflows/auto-merge.yml` or `scripts/check-auto-merge.mjs` that widens the class or drops a
+  condition of the rule in "Git and pull requests", that checks out or runs any code of a pull request, that adds a
+  trigger other than `workflow_run` and `issue_comment` (both run the workflow of the default branch), that merges
+  without the head commit it decided on, that reads its App key from anywhere but the environment `auto-merge`, or
+  that turns the live merge on without the owner's decision written in that pull request; or a change that gives the
+  App any bypass but the pull-request bypass of `master-approval`.
+
+- A change that weakens the Content-Security-Policy in `vercel.json`: `'unsafe-eval'`, or `'unsafe-inline'` in
+  `script-src`, a wildcard or a scheme-only source, a directive removed or widened, an enforced policy turned back into
+  report-only, a new origin without its reason, an inline script in `index.html`, or `tests/security-headers.test.js`
+  loosened.
+- A budget in `scripts/check-bundle-size.json` raised without a reason in the pull request, or a measured file dropped
+  from the check.
+- A budget in `tests/design-budget.json` raised, or an exception added to it, without a reason in the pull request.
+- A visual baseline (a PNG of the screenshot tests under `e2e/`) added, changed or deleted in a pull request that does
+  not show the change and say why.
+- A change to `scripts/vercel-ignore.mjs` or to the `ignoreCommand` of `vercel.json` that lets a change to the app, the
+  server, the shared code, a migration, the build or its configuration skip the deployment (a path like that added to
+  its list), or that skips the build when it cannot tell.
+
+**Report as P2 when you are sure:**
+
+- An em dash or an en dash.
+- UI text of the provider app that is not taken from `src/i18n/*.js`, or that is missing in one of the four languages
+  (the committee app's Hebrew lives in `src/admin/` and `src/pages/AdminApp.jsx` for now).
+- A committee tile or row whose actions break the rule (one "more" button on the tile; in its menu: edit, screen
+  actions, switch off / on, then the red delete last).
+- A layout change made for only one of phone and computer.
+- A change to what a person sees that breaks a rule of `docs/design.md`.
+
+**Do not report:** style preferences that the codebase does not follow, or anything that the CI guards already check by
+themselves, unless the change weakens the guard. Nor a change to a path that the agent loop may not touch, for that
+reason alone, in a pull request that says at its top that the owner directs it (The agent loop): judge it by what it
+does, with the rules above; the `check` job, not the review, checks the limits of the loop.
+
 ## What this is
 
 A tool for a building committee. Service providers (a cleaning company, a gardener) scan a QR code at a point in the
@@ -96,6 +227,8 @@ The scripts are the `scripts` of `package.json`, and `CONTRIBUTING.md` says what
   `// eslint-disable-next-line <rule> -- <reason>` names its rule and says why the code is right; a
   `// @ts-expect-error <reason>` likewise. Never switch a rule off, widen an ignore or loosen a compiler option to get to
   zero: fix the code, or bring the exception to the owner.
+- Report a check as passed only when you ran it on the final files and it exited 0, and show its output. Every wait has
+  a limit: a loop that sleeps, a `--watch` or a `tail -f` runs under `timeout <seconds>` or stops at a counter.
 - A value that the phone and the server must agree on lives in `shared/contract.js` (and a shape they exchange in
   `shared/types.js`), never as a copy on each side; `tests/contract.test.js` pins every value and fails on a copy.
 - The browser loads only what the Content-Security-Policy in `vercel.json` allows (`tests/security-headers.test.js` pins
@@ -188,7 +321,12 @@ parses the JSON before any route runs).
 
 ## Git and pull requests
 
-- Branch from `master`. One pull request is about one thing and stays small.
+- Branch from `master`. One pull request is about one thing and stays small: about 400 changed lines at most,
+  pictures not counted. In #241 to #268 Codex found problems in 5 of the 7 pull requests over 800 lines and in 2 of the 14
+  under 100. A larger one is split, or says at its top why it cannot be.
+- After three rounds of review on one pull request, stop fixing and bring the owner a different approach. A finding that
+  comes back a second time becomes a check (a test, a lint rule, a hook) in the pull request that fixes it, so that it does
+  not come back; when it needs a rule instead, the rule goes into its own `docs(rules):` pull request (below).
 - The PR title is a Conventional Commit: `type(scope): description` or `type: description`, `!` for a breaking change (the
   types are in `CONTRIBUTING.md`). Pull requests are squash-merged, so the title becomes the commit on `master`.
 - `master` is protected by rulesets (`.github/rulesets/`, explained in `.github/rulesets/README.md`): a pull request,
@@ -320,123 +458,3 @@ before you change the loop or answer for what it does.
 
 The decisions behind these rules are in `docs/adr/`, one short Architecture Decision Record per decision, indexed in
 `docs/adr/README.md`. Read the record before you change what it decided.
-
-## Code Review Rules
-
-This section is what the Codex code review on GitHub reads (by default it reports only P0 and P1 findings), and any
-reviewing agent should apply it too.
-
-**Treat as P1:**
-
-- A change to `AGENTS.md` or `CLAUDE.md` in a pull request whose title does not start with `docs(rules):`, or a
-  `docs(rules):` pull request that also changes anything else.
-- A change to an existing file in `db/migrations/` (an edit, a rename, a delete), destructive SQL without a
-  `-- contract: <reason>` line, or a schema change that breaks the deployment that is still serving.
-- A test that is deleted, skipped (`.skip`, `.only`, `xit`, `test.fixme`), weakened, or changed to match a bug.
-- A change that weakens the code checks: a rule switched off or turned from `error` to `warn` in `eslint.config.js`, a
-  path added to its ignores, `--max-warnings` raised, a compiler option loosened or a path dropped from `jsconfig.json`,
-  an `eslint-disable` or `@ts-expect-error` without a reason, a `@ts-ignore`, or an entry added to
-  `e2e/a11y-baseline.js` without a reason. A pull request runs its own copy of these files, so green checks do not prove
-  that they were not weakened.
-- A secret, token, password or connection string anywhere in the diff. A workflow that prints a secret, or that puts
-  untrusted text (`${{ github.event.* }}`, titles, labels, branch names) straight into a `run:` script instead of `env`.
-- Personal data (names, phone numbers, e-mails, attendance rows, coordinates) written to logs or error messages, or real
-  personal data in tests or fixtures.
-- A date or time that a person sees and that is not written by `shared/datetime.js` (`toLocale*String`,
-  `Intl.DateTimeFormat` outside it, a native date or time input, a month name anywhere but the month wheel of the app's own
-  date picker on a phone, or a weekday anywhere but the day initials of that picker), or a day without its year anywhere
-  but the column heads of a table of consecutive days
-  that shows its full range and gives each head its full date for a screen reader, or the month grid of that date picker
-  under the conditions of Rules for every change.
-- An API or offline-sync change that rejects requests from an older installed app.
-- Local tooling that could reach the production database: a bypass of `server/dbGuard.js` or `server/loadEnv.js`, or a
-  marker check that trusts an environment variable.
-- A `console.*` call that logs a raw error object, or a Postgres `detail`, `where`, `table`, `column` or `parameters`; a
-  token lookup that runs a query before the prefix and length check.
-- A change that lets the backup (`scripts/backup-db.mjs`) write to the database, or run `pg_dump` without the read-only
-  session (`default_transaction_read_only=on` in `PGOPTIONS`), or that sends a dump or the connection string anywhere but
-  the owner's backup folder. It is the one local tool that may read production, and only because it cannot write.
-- A change to `scripts/vercel-build.mjs` or `server/productionMigrate.js` that loosens the gate (the production build of
-  a commit on the production branch from the Vercel Git integration, and a refusal of any build whose environment is
-  unknown), that takes the production branch from anything but the repository's default branch as GitHub reports it
-  during the build (an environment variable, a file of the build, a branch name written in the code), that checks the
-  migration files against any other branch, that drops the check that every pending migration is byte-identical to the
-  file on that branch on GitHub, or that migrates a database outside it.
-- A change that lets `FIRST_ADMIN_EMAIL` add a committee member while `admins` holds any row (active or not), that
-  compares it with anything but the e-mail that Google marked verified (both trimmed and in lower case, otherwise equal),
-  that adds the member without the lock that makes two first sign-ins wait for each other, outside the transaction of the
-  sign-in, or without its `audit_log` rows (`admin.add` by the `system` actor, then `session.sign_in`), that reads it from
-  anywhere but the server's environment, or that logs or returns its value.
-- A GitHub Actions change that uses an action not pinned to a full commit SHA, widens `permissions`, adds
-  `pull_request_target`, or sets `persist-credentials: true`.
-- An endpoint under `/api` without the right authorization check (committee member, service provider, agent key, or the
-  cron secret for `/cron/`), or any write through the agent API (it is read-only) other than the guard's bookkeeping
-  for its key (`last_used_at` and the usage count).
-- An agent answer that can carry a secret (a QR token, a hash, a key's prefix, a phone's label or browser
-  string, an IP address, a Google subject), one built from a whole row instead of field by field, an audit detail that
-  goes out without the allow-list of its action, or the per-key rate limit removed, raised or skipped on a route without
-  the owner's decision.
-- A change to the retention job that deletes or changes anything beyond what the Safety rules list (a scan, a refused
-  upload, the audit log, an active session or phone), changes a retention period without the owner's decision, or answers
-  a `/cron/` request without checking `CRON_SECRET` (a missing secret must refuse, never allow).
-- A committee write whose `audit_log` row is not written in the transaction of the change, an update or a delete of
-  `audit_log` or `scan_refusals`, a migration that creates `scan_refusals` (or makes `audit_log` append-only) without
-  the triggers that refuse an update, a delete and a truncate, or a change that weakens those triggers or sets their
-  delete setting.
-- An error record written anywhere but through `server/errorLog.js`, an error record, a heartbeat body or an error report
-  of an app that holds anything beyond the fields that the Safety rules allow, a record written for a request that its
-  guard refused or for a 4xx of a public route, `HEALTH_HEARTBEAT_URL` in a log, an answer or a file, or a new public
-  endpoint that writes.
-- A route added to the `PUBLIC` list of `server/access.js` without a reason that justifies answering without
-  credentials, a protected route made public (moved to that list, or a path rule changed so that it no longer owns the
-  route), a change to `server/router.js` that runs any code of a handler (or reads the body, the query or the parameters
-  for it) before the guard of its route, or a way to register a route that skips the policy.
-- A change that widens who can start `claude.yml` or `claude-review.yml` (another or wider sender check, a fork, a bot,
-  `allowed_bots`, `allowed_non_write_users`), that loosens their tool lists (a new or broader `Bash(...)` pattern, `Edit` or
-  `Write` in `--allowedTools`, `Bash(git push *)`, `Bash(gh api *)`, a network tool, a shorter `--disallowedTools`, a
-  `git show` with a pattern instead of an exact command, a git command that may use `--output`), that makes either
-  workflow read the rules from the pull request's own `AGENTS.md` instead of the base branch's, that
-  raises the turn, time or branch limits, that turns on `show_full_output`, that weakens the `check` job (a path left out
-  of its list, a branch it does not look at, a step that fails open) or adds the `pull_request_review_comment` trigger,
-  or that gives the agent a production secret or any secret other than the Claude token.
-- A change to `.github/workflows/release.yml` or `scripts/release-notes.mjs` that widens what a release run may do
-  (`contents: write` beyond its one job, a write command other than creating the draft, a trigger other than
-  `workflow_dispatch`, a run from anything but the default branch), that publishes a release instead of making a draft,
-  that puts an input into a `run:` script instead of `env`, or that drops the check of the version and the previous tag;
-  or any change that lets an agent run the workflow, create a release or create or push a tag.
-- A change to `.github/workflows/smoke.yml` that reads `SMOKE_BASE_URL` from anywhere but the environment `smoke` (a
-  repository variable can be changed by any collaborator), or that sends `SMOKE_AGENT_KEY` anywhere but that address.
-- A change to `.github/workflows/auto-merge.yml` or `scripts/check-auto-merge.mjs` that widens the class or drops a
-  condition of the rule in "Git and pull requests", that checks out or runs any code of a pull request, that adds a
-  trigger other than `workflow_run` and `issue_comment` (both run the workflow of the default branch), that merges
-  without the head commit it decided on, that reads its App key from anywhere but the environment `auto-merge`, or
-  that turns the live merge on without the owner's decision written in that pull request; or a change that gives the
-  App any bypass but the pull-request bypass of `master-approval`.
-
-- A change that weakens the Content-Security-Policy in `vercel.json`: `'unsafe-eval'`, or `'unsafe-inline'` in
-  `script-src`, a wildcard or a scheme-only source, a directive removed or widened, an enforced policy turned back into
-  report-only, a new origin without its reason, an inline script in `index.html`, or `tests/security-headers.test.js`
-  loosened.
-- A budget in `scripts/check-bundle-size.json` raised without a reason in the pull request, or a measured file dropped
-  from the check.
-- A budget in `tests/design-budget.json` raised, or an exception added to it, without a reason in the pull request.
-- A visual baseline (a PNG of the screenshot tests under `e2e/`) added, changed or deleted in a pull request that does
-  not show the change and say why.
-- A change to `scripts/vercel-ignore.mjs` or to the `ignoreCommand` of `vercel.json` that lets a change to the app, the
-  server, the shared code, a migration, the build or its configuration skip the deployment (a path like that added to
-  its list), or that skips the build when it cannot tell.
-
-**Report as P2 when you are sure:**
-
-- An em dash or an en dash.
-- UI text of the provider app that is not taken from `src/i18n/*.js`, or that is missing in one of the four languages
-  (the committee app's Hebrew lives in `src/admin/` and `src/pages/AdminApp.jsx` for now).
-- A committee tile or row whose actions break the rule (one "more" button on the tile; in its menu: edit, screen
-  actions, switch off / on, then the red delete last).
-- A layout change made for only one of phone and computer.
-- A change to what a person sees that breaks a rule of `docs/design.md`.
-
-**Do not report:** style preferences that the codebase does not follow, or anything that the CI guards already check by
-themselves, unless the change weakens the guard. Nor a change to a path that the agent loop may not touch, for that
-reason alone, in a pull request that says at its top that the owner directs it (The agent loop): judge it by what it
-does, with the rules above; the `check` job, not the review, checks the limits of the loop.
