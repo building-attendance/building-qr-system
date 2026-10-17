@@ -53,14 +53,22 @@ function Line({ line }) {
 }
 
 /**
- * Who did it, in an isolate of its own. A member who has no saved name is named by the e-mail address (the audit contract), and an
- * address is drawn by `Email`, so that it breaks only after "@" and dots like every other address of the committee app; the mark of a
- * member who is gone ("(נמחק)") then stands beside it, outside it. Any other name is one isolate with its mark, as `actorText` writes it.
+ * Who did it, in a clamped box of its own (stops at two lines) that takes the direction of its own text, so that its ellipsis lands at the end
+ * of the name (`.a-clamp-2`). A member who has no saved name is named by the e-mail address (the audit contract), and an address is drawn
+ * by `Email`, so that it breaks only after "@" and dots like every other address of the committee app, in a left-to-right box; the mark of
+ * a member who is gone ("(נמחק)") then stands beside that box, as an item of the row of its own and never inside it: inside the
+ * left-to-right box it would be drawn to the right of the address, so the line would read "על ידי (נמחק) address". Any other name is one
+ * `bdi`, the box itself, with its mark, as `actorText` writes it.
  * @param {{ actor: { name: string, deleted: boolean } }} props
  */
 function Actor({ actor }) {
-  if (!isEmailAddress(actor.name)) return <bdi>{actorText(actor)}</bdi>
-  return <><Email address={actor.name} />{actor.deleted && <> <bdi>{DELETED_ACTOR_MARK}</bdi></>}</>
+  if (!isEmailAddress(actor.name)) return <bdi className="a-clamp-2">{actorText(actor)}</bdi>
+  return (
+    <>
+      <span className="a-clamp-2" dir="ltr"><Email address={actor.name} /></span>
+      {actor.deleted && <>{' '}<bdi className="a-audit__mark">{DELETED_ACTOR_MARK}</bdi></>}
+    </>
+  )
 }
 
 /** One entry: read only. The time, what was done and about what, who did it, and the detail. Everything is text. */
@@ -69,13 +77,13 @@ function EntryRow({ entry }) {
   return (
     <li className="a-audit">
       <span className="a-scan__time a-audit__time">{formatTime(entry.at)}</span>
-      <div className="a-audit__what a-clamp-2">
+      <div className="a-audit__what">
         {phrase.known
           ? <span className="a-audit__action">{phrase.text}</span>
           : <span className="a-audit__action a-audit__action--raw" dir="ltr">{phrase.text}</span>}
-        {subject && <> <span aria-hidden="true">·</span> <bdi className="a-audit__subject">{isEmailAddress(subject) ? <Email address={subject} /> : subject}</bdi></>}
+        {subject && <> <span aria-hidden="true">·</span> <bdi className="a-audit__subject a-clamp-2" dir={isEmailAddress(subject) ? 'ltr' : undefined}>{isEmailAddress(subject) ? <Email address={subject} /> : subject}</bdi></>}
       </div>
-      <div className="a-audit__who a-clamp-2">על ידי <Actor actor={actor} /></div>
+      <div className="a-audit__who"><span className="a-audit__by">על ידי</span>{' '}<Actor actor={actor} /></div>
       {lines.length > 0 && (
         <div className="a-audit__detail">
           {lines.map((line, i) => <Line key={i} line={line} />)}

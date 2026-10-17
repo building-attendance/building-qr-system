@@ -288,10 +288,16 @@ const SCANNERS_SHOWN = 2
 
 /**
  * The names on the "מי סורק" tile: every provider when none is chosen, else the first two names and "ועוד N" for the N that are left.
- * Text is cut here and not by CSS (a count has to be said), so the names that are not drawn are still in the page for a screen reader,
- * in a visually hidden run after the drawn text, and the drawn "ועוד N" is hidden from it, so that it hears every name once and no
- * "and 3 more". Each name is isolated (R3), the drawn ones and the hidden ones alike, each in its own `bdi` with its own delimiter, so a
- * Latin or Russian name, or one with digits or punctuation, keeps its order inside the Hebrew line and never reorders its neighbours.
+ * Each drawn name is on a line of its own and stops at two lines with an ellipsis (`.a-clamp-2`, owner decision of 17/10/2026, the same rule
+ * as the names in the History and the audit log), and "ועוד N" follows on its own line, so two names of 120 characters make a tile of a few
+ * lines and not of fourteen. Text is cut here and not by CSS (a count has to be said), and the ellipsis is the browser's, so the whole name
+ * stays in the page. The names that are not drawn are still in the page for a screen reader, in a visually hidden run after the drawn text,
+ * and the drawn "ועוד N" is hidden from it, so that it hears every name once and no "and 3 more". The names are not separated by a visible
+ * comma any more (each is on its own line): a visually hidden ", " between the drawn names, and one before each hidden name, keeps the
+ * list a list for a screen reader, which hears "name1, name2, name3". Each name is isolated (R3), the drawn ones and the hidden ones alike,
+ * each in its own `bdi`, so a Latin or Russian name, or one with digits or punctuation, keeps its order inside the Hebrew line and never
+ * reorders its neighbours. A drawn name is its own `bdi` and the clamped box at once: a `bdi` takes the direction of its own text, so the
+ * ellipsis of a Russian name lands at the end of the name and not at the left of a right-to-left card (see `.a-clamp-2` in admin.css).
  * @param {{ names: string[] }} props
  */
 function Scanners({ names }) {
@@ -299,10 +305,15 @@ function Scanners({ names }) {
   const rest = names.slice(SCANNERS_SHOWN)
   return (
     <>
-      {names.slice(0, SCANNERS_SHOWN).map((name, i) => <Fragment key={i}>{i > 0 && ', '}<bdi>{name}</bdi></Fragment>)}
+      {names.slice(0, SCANNERS_SHOWN).map((name, i) => (
+        <Fragment key={i}>
+          {i > 0 && <span className="w-sr">, </span>}
+          <bdi className="a-clamp-2">{name}</bdi>
+        </Fragment>
+      ))}
       {rest.length > 0 && (
         <>
-          {' '}<span aria-hidden="true">ועוד {rest.length}</span>
+          <div aria-hidden="true">ועוד {rest.length}</div>
           <span className="w-sr">{rest.map((name, i) => <Fragment key={i}>, <bdi>{name}</bdi></Fragment>)}</span>
         </>
       )}
@@ -400,7 +411,7 @@ export default function PointsView() {
                   <span className="a-card__icon" aria-hidden="true"><IconPin size={22} /></span>
                   <div>
                     <h2 className="a-card__title">{p.name}</h2>
-                    {p.description && <p className="a-card__sub a-clamp-2">{p.description}</p>}
+                    {p.description && <p className="a-card__sub a-clamp-2" dir="auto">{p.description}</p>}
                   </div>
                 </div>
                 <div className="a-card__tools">

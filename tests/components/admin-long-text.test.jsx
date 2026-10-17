@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Long values in the committee app's cards and rows (owner decisions of 16/10/2026): the tile "מי סורק" of a point names two providers and
+// Long values in the committee app's cards and rows (owner decisions of 16/10/2026): the tile "מי סורק" of a point names two providers, each on a line of its own that stops at two lines (owner decision of 17/10/2026), and
 // then "ועוד N", the description of a point, the provider's name of a History row, and the audit log's "what" and "who" stop at two lines,
 // and the account button's name and address stop at one. jsdom has no layout, so a line cannot be counted here. What is tested is what
 // the markup and the stylesheet decide: the class that clamps, the rule that it names, and, above all, that the clamped text is still
@@ -62,8 +62,29 @@ async function showPoint(over, providers = PROVIDERS) {
   return tile
 }
 const whoScans = (tile) => within(tile).getByText('מי סורק').closest('div').querySelector('dd')
-/** What a person sees in the tile: the text without the part that is for a screen reader only (`w-sr`) and without the part that is hidden from one. */
-const seen = (dd) => [...dd.childNodes].filter((n) => !(n.nodeType === 1 && n.classList.contains('w-sr'))).map((n) => n.textContent).join('')
+/** The lines that a person sees in the cell: one element for each drawn name and one for the drawn "ועוד N", without the parts for a screen reader only (`w-sr`). */
+const lines = (dd) => [...dd.children].filter((el) => !el.classList.contains('w-sr'))
+/** The drawn names: each is an element of its own that `.a-clamp-2` cuts at two lines. */
+const drawn = (dd) => [...dd.children].filter((el) => el.classList.contains('a-clamp-2'))
+/** What a screen reader is given: the text of the cell without the part that is hidden from it (`aria-hidden`, the drawn "ועוד N"). */
+const heard = (dd) => {
+  const copy = dd.cloneNode(true)
+  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove()
+  return copy.textContent
+}
+/**
+ * How a clamped box takes its direction. The ellipsis of a clamp goes at the end of the box in the box's own direction, so a box that kept the
+ * direction of a right-to-left card put the ellipsis of a Russian or Latin name at the left of its last word. A box takes the direction of its
+ * own text instead: `dir="auto"`, or a `bdi`, which is auto when it has no `dir`; an address is always left to right.
+ */
+const directionOf = (el) => el.getAttribute('dir') ?? (el.tagName === 'BDI' ? 'auto' : 'the direction of the card')
+/** A drawn name is a `bdi` (R3) that is the clamped box itself, so it takes the direction of its own text, and it holds the whole name and nothing else. */
+const expectDrawn = (el, name) => {
+  expect(el.tagName, `${name} is a bdi`).toBe('BDI')
+  expect(el.classList.contains('a-clamp-2'), `${name} is clamped to two lines`).toBe(true)
+  expect(directionOf(el), `${name} takes the direction of its own text, so that its ellipsis lands at the end of the name`).toBe('auto')
+  expect([...el.childNodes].map((n) => `${n.nodeName}:${n.textContent}`), `${name}: the whole name and nothing else`).toEqual([`#text:${name}`])
+}
 
 describe('the tile "מי סורק" of a point', () => {
   const some = (n) => PROVIDERS.slice(0, n).map((p) => p.id)
@@ -74,56 +95,73 @@ describe('the tile "מי סורק" of a point', () => {
     expect(dd.textContent).toBe('כל נותני השירות')
   })
 
-  it('names one provider, and no "ועוד"', async () => {
+  it('names one provider on a clamped line of its own, and no "ועוד"', async () => {
     const one = whoScans(await showPoint({ provider_ids: some(1) }))
-    expect(seen(one)).toBe(names(1)[0])
+    expect(lines(one)).toHaveLength(1)
+    expectDrawn(lines(one)[0], names(1)[0])
     expect(one.textContent).not.toContain('ועוד')
+    expect(heard(one)).toBe(names(1)[0])
   })
 
-  it('names two providers, and no "ועוד", and nothing is hidden from view', async () => {
+  it('names two providers, each on a clamped line of its own, with no visible comma between them and no "ועוד"', async () => {
     const two = whoScans(await showPoint({ provider_ids: some(2) }))
-    expect(seen(two)).toBe(names(2).join(', '))
+    expect(drawn(two).length, 'the two names are two separate elements').toBe(2)
+    expect(lines(two), 'and they are all that is drawn').toEqual(drawn(two))
+    drawn(two).forEach((el, i) => expectDrawn(el, names(2)[i]))
     expect(two.textContent).not.toContain('ועוד')
-    expect(two.querySelector('.w-sr')).toBeNull()
+    expect(lines(two).map((el) => el.textContent).join('')).not.toContain(',')
+    expect([...two.querySelectorAll('.w-sr')].map((el) => el.textContent), 'what is hidden from view is the delimiter between the two names, for a screen reader').toEqual([', '])
+    expect(heard(two)).toBe(names(2).join(', '))
   })
 
-  it('names two and says "ועוד 1" for a third', async () => {
+  it('names two and says "ועוד 1" for a third, on a line of its own', async () => {
     const dd = whoScans(await showPoint({ provider_ids: some(3) }))
-    expect(seen(dd)).toBe(`${names(3).slice(0, 2).join(', ')} ועוד 1`)
-    expect([...dd.children].filter((el) => el.tagName === 'BDI').length, 'two names are drawn').toBe(2)
+    expect(lines(dd).map((el) => el.textContent)).toEqual([...names(3).slice(0, 2), 'ועוד 1'])
+    expect(drawn(dd).length, 'two names are drawn').toBe(2)
+    drawn(dd).forEach((el, i) => expectDrawn(el, names(3)[i]))
+    const more = lines(dd)[2]
+    expect(more.parentElement, 'the count is an element of the cell, not a piece of the last name').toBe(dd)
+    expect(getComputedStyle(more).display, 'a block, so a line of its own').toBe('block')
+    expect(more.classList.contains('a-clamp-2')).toBe(false)
     expect(dd.querySelectorAll('.w-sr bdi').length, 'the third is in the run for a screen reader, isolated too').toBe(1)
   })
 
   it('counts every one that is left: "ועוד 3" for five', async () => {
     const dd = whoScans(await showPoint({ provider_ids: some(5) }))
-    expect(seen(dd)).toBe(`${names(5).slice(0, 2).join(', ')} ועוד 3`)
+    expect(lines(dd).map((el) => el.textContent)).toEqual([...names(5).slice(0, 2), 'ועוד 3'])
   })
 
-  it('keeps every name in the page for a screen reader, and hides the count from it, so that it hears each name once and no "and 3 more"', async () => {
+  it('hides the count from a screen reader, which hears every name once, separated by ", ", and no "and 3 more"', async () => {
     const dd = whoScans(await showPoint({ provider_ids: some(5) }))
-    expect(dd.querySelector('[aria-hidden="true"]').textContent).toBe('ועוד 3')
-    const hidden = dd.querySelector('.w-sr')
-    expect(hidden.textContent).toBe(`, ${names(5).slice(2).join(', ')}`)
+    expect([...dd.querySelectorAll('[aria-hidden="true"]')].map((el) => el.textContent), 'only the count is hidden from a screen reader').toEqual(['ועוד 3'])
+    expect(heard(dd)).toBe(names(5).join(', '))
+    for (const name of names(5)) expect(heard(dd).split(name).length - 1, `${name} is heard once`).toBe(1)
+    expect(dd.lastElementChild.textContent, 'the names that are not drawn follow, each with its own delimiter').toBe(`, ${names(5).slice(2).join(', ')}`)
     for (const name of names(5)) expect(dd.textContent).toContain(name) // all five are in the page
   })
 
-  it('isolates each hidden name too, in its own bdi with its own delimiter (a Latin name, a Russian one and one with digits and punctuation)', async () => {
-    const HIDDEN = ['John Smith', 'Константин Иванов', 'Cleaning Co. 24/7 (A-1)']
-    const providers = [...PROVIDERS.slice(0, 2), ...HIDDEN.map((contact_name, i) => ({ ...PROVIDERS[0], id: `h${i}`, contact_name }))]
+  it('isolates every name, the drawn ones and the hidden ones, in a bdi of its own (a Latin name, a Russian one, one with digits and punctuation)', async () => {
+    const NAMES = ['Cleaning Co. 24/7 (A-1)', 'Константин Иванов', 'John Smith', 'Cleaning & Co., Ltd. 24/7 (A-1)', 'Gebaeude, GmbH (24/7)']
+    const providers = NAMES.map((contact_name, i) => ({ ...PROVIDERS[0], id: `h${i}`, contact_name }))
     const dd = whoScans(await showPoint({ provider_ids: providers.map((p) => p.id) }, providers))
-    expect(seen(dd)).toBe(`${PROVIDERS[0].contact_name}, ${PROVIDERS[1].contact_name} ועוד 3`)
-    const hidden = dd.querySelector('.w-sr')
+    // what the cell is made of, in order: a clamped line, the delimiter for a screen reader, a clamped line, the count, the hidden run
+    expect([...dd.children].map((el) => (el.classList.contains('a-clamp-2') ? 'name' : el.classList.contains('w-sr') ? 'delimiter' : 'count'))).toEqual(
+      ['name', 'delimiter', 'name', 'count', 'delimiter'],
+    )
+    drawn(dd).forEach((el, i) => expectDrawn(el, NAMES[i]))
+    const hidden = dd.lastElementChild
     // the run is, name by name, a plain ", " and then the name in a bdi: no name stands bare in the run, so none can reorder its neighbours
     expect([...hidden.childNodes].map((n) => (n.nodeName === 'BDI' ? `bdi:${n.textContent}` : `text:${n.textContent}`))).toEqual(
-      HIDDEN.flatMap((name) => ['text:, ', `bdi:${name}`]),
+      NAMES.slice(2).flatMap((name) => ['text:, ', `bdi:${name}`]),
     )
-    expect(hidden.textContent).toBe(`, ${HIDDEN.join(', ')}`) // what a screen reader is given is the same text as before
+    expect(heard(dd), 'a screen reader is given every name once, separated by ", "').toBe(NAMES.join(', '))
     expect(dd.querySelectorAll('bdi').length, 'two drawn and three hidden').toBe(5)
   })
 
   it('isolates each name (a Latin or Russian one keeps its order inside the Hebrew line)', async () => {
     const dd = whoScans(await showPoint({ provider_ids: [PROVIDERS[1].id, PROVIDERS[2].id] }))
     expect([...dd.querySelectorAll('bdi')].map((el) => el.textContent)).toEqual([PROVIDERS[1].contact_name, PROVIDERS[2].contact_name])
+    drawn(dd).forEach((el, i) => expectDrawn(el, [PROVIDERS[1], PROVIDERS[2]][i].contact_name))
   })
 })
 
@@ -132,6 +170,7 @@ describe('the description of a point', () => {
     const tile = await showPoint({ description: LONG_DESCRIPTION })
     const description = within(tile).getByText(LONG_DESCRIPTION)
     expect(description.classList.contains('a-clamp-2')).toBe(true)
+    expect(directionOf(description), 'a description in Latin letters ends with its ellipsis at its own end').toBe('auto')
     expect(description.textContent).toBe(LONG_DESCRIPTION) // cut by the browser, never by the code: nothing of it is missing from the page
     expect(LONG_DESCRIPTION.length).toBeGreaterThan(DESCRIPTION_MAX_LENGTH - 60)
   })
@@ -165,6 +204,7 @@ describe('a row of the History', () => {
     render(<ToastProvider><ConfirmProvider><HistoryView /></ConfirmProvider></ToastProvider>)
     const who = await screen.findByText(LONG_PROVIDER, {}, WAIT)
     expect(who.classList.contains('a-clamp-2')).toBe(true)
+    expect(directionOf(who), 'a Russian or Latin name ends with its ellipsis at its own end').toBe('auto')
     expect(who.textContent).toBe(LONG_PROVIDER)
     expect(within(who.closest('li')).getByText('לובי').classList.contains('a-clamp-2'), 'the point is not clamped: only the provider is').toBe(false)
   })
@@ -191,9 +231,19 @@ describe('an entry of the audit log', () => {
     const row = (await screen.findByText('עדכון נותן שירות', { selector: '.a-audit__action' }, WAIT)).closest('li')
     const what = row.querySelector('.a-audit__what')
     const who = row.querySelector('.a-audit__who')
-    expect(what.classList.contains('a-clamp-2')).toBe(true)
+    // what it is about, and who did it, are clamped boxes of their own beside the phrase and the word "by" (which are never cut), and each takes
+    // the direction of its own text
+    const subject = what.querySelector('.a-audit__subject')
+    expect(subject.classList.contains('a-clamp-2')).toBe(true)
+    expect(subject.textContent).toBe(SUBJECT)
+    expect(directionOf(subject)).toBe('auto')
+    expect(what.classList.contains('a-clamp-2'), 'the phrase is not clamped with it').toBe(false)
     expect(what.textContent).toContain(SUBJECT)
-    expect(who.classList.contains('a-clamp-2')).toBe(true)
+    const name = who.querySelector('.a-clamp-2')
+    expect(name.parentElement, 'the name is a box of its own, beside the word "by"').toBe(who)
+    expect(name.textContent).toBe(ACTOR)
+    expect(directionOf(name)).toBe('auto')
+    expect(who.classList.contains('a-clamp-2'), 'the word "by" is not clamped with it').toBe(false)
     expect(who.textContent).toBe(`על ידי ${ACTOR}`)
   })
 
@@ -219,7 +269,10 @@ describe('an entry of the audit log', () => {
 
     it('draws the address with the helper, inside the clamped line: a left-to-right isolate in whole pieces', async () => {
       const who = await actorRow({})
-      expect(who.classList.contains('a-clamp-2')).toBe(true)
+      const box = who.querySelector('.a-clamp-2')
+      expect(box.parentElement, 'the address is a clamped box of its own, beside the word "by"').toBe(who)
+      expect(directionOf(box), 'an address is always left to right: its ellipsis is at its right end').toBe('ltr')
+      expect(who.classList.contains('a-clamp-2'), 'the word "by" is not clamped with it').toBe(false)
       expect(who.textContent).toBe(`על ידי ${ADDRESS}`)
       const address = who.querySelector('bdi[dir="ltr"]')
       expect(address.textContent).toBe(ADDRESS)
@@ -234,6 +287,12 @@ describe('an entry of the audit log', () => {
       expect(isolates.map((el) => el.textContent)).toEqual([ADDRESS, '(נמחק)'])
       expect(isolates[0].getAttribute('dir')).toBe('ltr')
       expect(isolates[0].textContent, 'the mark is not part of the address').not.toContain('נמחק')
+      // the mark is an item of the row, after the left-to-right box and outside it: inside it, it would be drawn to the right of the address
+      const box = who.querySelector('.a-clamp-2')
+      expect(box.textContent, 'the left-to-right box holds the address alone').toBe(ADDRESS)
+      const mark = who.querySelector('.a-audit__mark')
+      expect(mark.parentElement, 'the mark stands in the row, beside the box').toBe(who)
+      expect(box.compareDocumentPosition(mark) & Node.DOCUMENT_POSITION_FOLLOWING, 'the mark comes after the address').toBeTruthy()
     })
 
     it('leaves a name that is not an address as it was: one isolate, with its mark', async () => {
@@ -292,6 +351,54 @@ describe('an entry of the audit log', () => {
   })
 })
 
+// ---- the direction of a clamped box ----------------------------------------------------------------------------------------------
+
+describe('a clamped box takes the direction of its own text, so that its ellipsis lands at the end of the name', () => {
+  const RUSSIAN = 'Константин Константинович Примеров-Образцовский, старший бригадир по уборке' // under the 80 characters that the audit screen shows of a name
+
+  it('every clamped box in the screens of the committee app is a bdi or has a dir attribute (read from the source, so that a new one cannot forget it)', () => {
+    const root = path.join(process.cwd(), 'src', 'admin')
+    const found = []
+    for (const name of fs.readdirSync(root, { recursive: true })) {
+      if (!String(name).endsWith('.jsx')) continue
+      const source = fs.readFileSync(path.join(root, String(name)), 'utf8')
+      for (const tag of source.matchAll(/<(\w+)([^<>]*\ba-clamp-2\b[^<>]*)>/g)) found.push({ name: String(name), tag: tag[1], attributes: tag[2] })
+    }
+    expect(found.length, 'the boxes that the screens clamp, found by their class').toBeGreaterThanOrEqual(7)
+    for (const { name, tag, attributes } of found) {
+      expect(tag === 'bdi' || /\sdir=/.test(attributes), `${name}: <${tag}${attributes}> is clamped and takes no direction of its own`).toBe(true)
+    }
+  })
+
+  it('a Russian name and a Latin one in the tile of a point, an audit entry (what it is about, and who did it) get their own direction', async () => {
+    const tile = await showPoint({ provider_ids: ['r1', 'l1'] }, [
+      { ...PROVIDERS[0], id: 'r1', contact_name: RUSSIAN },
+      { ...PROVIDERS[0], id: 'l1', contact_name: 'Cleaning Co. 24/7 (A-1)' },
+    ])
+    for (const el of drawn(whoScans(tile))) expect(directionOf(el)).toBe('auto')
+    cleanup()
+    api.mockImplementation(async (url) => {
+      if (url === '/admin/admins') return { admins: [] }
+      if (url.startsWith('/admin/audit')) {
+        return {
+          entries: [{
+            id: 1, at: '2026-10-05T07:14:00.000Z', action: 'provider.update', entity: 'provider', entity_id: 'p1', entity_name: RUSSIAN,
+            actor_type: 'admin', actor_id: 'a1', actor_name: 'John Smith', actor_deleted: false, detail: null,
+          }],
+          next_cursor: null,
+        }
+      }
+      throw new Error(`the test does not expect ${url}`)
+    })
+    render(<ToastProvider><ConfirmProvider><AuditView /></ConfirmProvider></ToastProvider>)
+    const row = (await screen.findByText('עדכון נותן שירות', { selector: '.a-audit__action' }, WAIT)).closest('li')
+    expect(directionOf(row.querySelector('.a-audit__subject'))).toBe('auto')
+    expect(row.querySelector('.a-audit__subject').textContent).toBe(RUSSIAN)
+    expect(directionOf(row.querySelector('.a-audit__who .a-clamp-2'))).toBe('auto')
+    expect(row.querySelector('.a-audit__who .a-clamp-2').textContent).toBe('John Smith')
+  })
+})
+
 // ---- what the stylesheet says ---------------------------------------------------------------------------------------------------
 
 describe('the stylesheet (src/admin/admin.css)', () => {
@@ -302,6 +409,12 @@ describe('the stylesheet (src/admin/admin.css)', () => {
     expect(rule).toMatch(/-webkit-box-orient:\s*vertical/)
     expect(rule).toMatch(/-webkit-line-clamp:\s*2\b/)
     expect(rule).toMatch(/(?<!-webkit-)line-clamp:\s*2\b/)
+    expect(rule, 'as wide as its text, up to the line: a short name keeps to the side of the card, a long one fills the line').toMatch(/width:\s*fit-content/)
+    expect(rule).toMatch(/max-width:\s*100%/)
+  })
+
+  it('.a-clamp-2 sets neither the direction nor the alignment: the box takes its direction from its text (measured: Chromium leaves out the ellipsis of a right-aligned left-to-right line that has room to spare)', () => {
+    expect(ruleOf('.a-clamp-2')).not.toMatch(/\b(?:direction|text-align|unicode-bidi)\s*:/)
   })
 
   it('a badge wraps inside its card: it may be as wide as its room and breaks a long word, and it is never nowrap', () => {
