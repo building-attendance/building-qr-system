@@ -60,12 +60,34 @@ describe('TopBar', () => {
     expect(lines()[1].className).toContain('w-brand--sub')
   })
 
+  // The layout (two lines, then an ellipsis) is measured in a real browser: e2e/building-address.spec.js. Here: which line carries the
+  // clamp, and that the clamp cuts nothing out of the page (a screen reader reads the whole address).
+  it('marks the address, and only the address, as the line that stops at two lines, and keeps all of it in the page', () => {
+    const longest = 'שדרות הדוגמה הצפונית הארוכה מאוד 11140, כניסה ג, '.repeat(5).slice(0, 200).trim()
+    expect(longest.length).toBeGreaterThan(190) // about the longest that the server accepts (200)
+    bar(<TopBar name={NAME} address={longest} />)
+    const [nameLine, addressLine] = lines()
+    expect(addressLine.classList.contains('w-brand--address')).toBe(true)
+    expect(nameLine.classList.contains('w-brand--address')).toBe(false) // the name is not clamped
+    expect(addressLine.textContent).toBe(longest) // nothing is cut out of the DOM, so nothing is cut out of what a screen reader reads
+    expect(screen.getByText(longest)).toBe(addressLine)
+    cleanup()
+    // with no name the address is the title, and it stops at two lines as well
+    bar(<TopBar address={longest} />)
+    expect(lines().map((p) => p.classList.contains('w-brand--address'))).toEqual([true])
+    expect(screen.getByText(longest)).toBeTruthy()
+    cleanup()
+    // a name alone is never marked
+    bar(<TopBar name={NAME} />)
+    expect(lines().map((p) => p.classList.contains('w-brand--address'))).toEqual([false])
+  })
+
   it('shows the name alone, and an address alone as the title it always was', () => {
     bar(<TopBar name="Sample Tower" />)
     expect(lines().map((p) => p.textContent)).toEqual(['Sample Tower'])
     cleanup()
     bar(<TopBar address={ADDRESS} />)
-    expect(lines().map((p) => p.className)).toEqual(['w-brand']) // no name: the address is not demoted
+    expect(lines().map((p) => p.className)).toEqual(['w-brand w-brand--address']) // no name: the address is not demoted
   })
 
   it('has no line at all when there is neither a name nor an address: no empty paragraph', () => {
@@ -172,7 +194,7 @@ describe('the name and the address on the phone', () => {
     bar(<Header />)
     expect(screen.getByText(NAME)).toBeTruthy()
     await waitFor(() => expect(screen.queryByText(NAME)).toBeNull())
-    expect(lines().map((p) => p.className)).toEqual(['w-brand'])
+    expect(lines().map((p) => p.className)).toEqual(['w-brand w-brand--address'])
     expect(saved()).toEqual({ address: ADDRESS, name: '' })
   })
 

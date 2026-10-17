@@ -122,6 +122,52 @@ test('a very long address wraps in the header of the provider app and pushes not
   }
 })
 
+// The address in the header stops at two lines with an ellipsis (owner decision of 16/10/2026): at 200 characters it took five lines, about a
+// fifth of the screen, on every screen of the provider app. The cut is for the eye only: the whole address is in the page. Measured in the
+// browser (the lines are what the engine laid out, not a guess): the box is two lines high, the same text with the clamp taken off is
+// taller, the clamp is the one the stylesheet declares, and the page still holds every character. The name is not clamped.
+test('a very long address stops at two lines in the header of the provider app, with or without a name, and the whole address stays in the page', async ({ page }) => {
+  const longest = `Example ${'רחוב הארוך '.repeat(20)}`.slice(0, 200).trim()
+  const header = page.getByRole('banner')
+  /** The address line as laid out: its height in lines, the same without the clamp, and the clamp that is set. */
+  const measure = () => header.getByText(longest).evaluate((el) => {
+    const lineHeight = parseFloat(getComputedStyle(el).lineHeight)
+    const clamp = getComputedStyle(el).webkitLineClamp
+    const clamped = el.getBoundingClientRect().height
+    el.style.setProperty('-webkit-line-clamp', 'none') // the same box with the clamp taken off, through the CSSOM (the policy allows no style attribute in markup)
+    const unclamped = el.getBoundingClientRect().height
+    el.style.removeProperty('-webkit-line-clamp')
+    return { lineHeight, clamp, lines: clamped / lineHeight, linesWithoutClamp: unclamped / lineHeight }
+  })
+  const phone = page.viewportSize()
+  await adminSignIn(page)
+  try {
+    for (const name of [BUILDING_NAME, '']) {
+      expect((await page.request.put('/api/admin/building', { data: { address: longest, name } })).ok()).toBe(true)
+      for (const size of [null, COMPUTER]) {
+        const where = `${name ? 'with' : 'without'} a name, at ${size ? 'computer' : 'phone'} width`
+        await page.setViewportSize(size ?? phone)
+        await page.goto('/')
+        await expect(header.getByText(longest)).toBeVisible()
+        await expect(header.getByText(longest), `the whole address is in the page ${where}`).toHaveText(longest)
+        const shown = await measure()
+        expect(shown.clamp, `the clamp the stylesheet declares ${where}`).toBe('2')
+        expect(shown.lines, `the address is two lines high ${where}`).toBeCloseTo(2, 0)
+        expect(shown.linesWithoutClamp, `the address would take more than two lines without the clamp ${where}`).toBeGreaterThan(2.5)
+        if (name) {
+          // the name keeps what it had: no clamp
+          await expect(header.getByText(name)).toBeVisible()
+          expect(await header.getByText(name).evaluate((el) => getComputedStyle(el).webkitLineClamp), `the name is not clamped ${where}`).toBe('none')
+        }
+        expect(await noHorizontalScroll(page), `the page does not scroll sideways ${where}`).toBe(true)
+        await iconsAtTheEnd(page, `with a long address, ${where}`)
+      }
+    }
+  } finally {
+    await restore(page)
+  }
+})
+
 test('the committee is told about a character that cannot be saved, and nothing is saved', async ({ page }) => {
   await adminSignIn(page)
   await page.goto('/admin#settings')
