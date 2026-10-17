@@ -352,10 +352,11 @@ html[dir='ltr'] .a-email__piece { text-align: start; }
    description and the whole list of providers. The text keeps its overflow-wrap: anywhere, so one very long word is cut at the end of
    its second line too. The ellipsis goes at the end of the box in the box's own direction, so the box takes the direction of its own
    text (`dir="auto"`, or a `bdi`, which is auto already): a Russian or Latin name in a right-to-left card then ends with its ellipsis and
-   not with one on the wrong side of its last word, and, as every left-to-right text does, starts at the left edge of its box. It is not
-   pushed to the right edge to line up with the Hebrew ones (`text-align`, `match-parent`): measured in Chromium and WebKit, Chromium then
-   leaves out the ellipsis of a line that has room to spare, which is almost every last line of a name. */
-.a-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
+   not with one on the wrong side of its last word. The box is as wide as its text, up to the line (`width: fit-content`), so a short name
+   keeps to the card's side as it always did, and a name that fills the line starts at the left of it, as every left-to-right text does. It is
+   not pushed to the right edge to line up with the Hebrew ones (`text-align`, `match-parent`): measured in Chromium and WebKit, Chromium
+   then leaves out the ellipsis of a line that has room to spare, which is almost every last line of a name. */
+.a-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; width: fit-content; max-width: 100%; }
 .a-meta { display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); }
 .a-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: var(--w-space-1-5) var(--w-space-3-5); font-size: var(--w-font-md); }
 .a-facts dt { color: var(--w-text-3); }

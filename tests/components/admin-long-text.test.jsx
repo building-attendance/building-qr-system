@@ -403,6 +403,8 @@ describe('the stylesheet (src/admin/admin.css)', () => {
     expect(rule).toMatch(/-webkit-box-orient:\s*vertical/)
     expect(rule).toMatch(/-webkit-line-clamp:\s*2\b/)
     expect(rule).toMatch(/(?<!-webkit-)line-clamp:\s*2\b/)
+    expect(rule, 'as wide as its text, up to the line: a short name keeps to the side of the card, a long one fills the line').toMatch(/width:\s*fit-content/)
+    expect(rule).toMatch(/max-width:\s*100%/)
   })
 
   it('.a-clamp-2 sets neither the direction nor the alignment: the box takes its direction from its text (measured: Chromium leaves out the ellipsis of a right-aligned left-to-right line that has room to spare)', () => {
