@@ -14,7 +14,8 @@ always has all of it.
 **How to review** (from how the Claude Code team runs its own review, 15/10/2026):
 
 - On a later round of the same pull request, review only what changed since your last review, and do not repeat a finding
-  that was already answered: fixed, or replied to with a reason.
+  that was already answered, unless the code still shows the problem: check a fix in the code, and check a reply that
+  calls the finding wrong against the code too.
 - Report the class of a problem once, with every place it occurs, not one instance per round.
 - Every finding names a file and a line, and says what fails and when.
 - After three rounds on the same pull request, say so, and suggest reconsidering the approach instead of another fix.
@@ -324,8 +325,8 @@ parses the JSON before any route runs).
   pictures not counted. In #241 to #268 Codex found problems in 5 of the 7 pull requests over 800 lines and in 2 of the 14
   under 100. A larger one is split, or says at its top why it cannot be.
 - After three rounds of review on one pull request, stop fixing and bring the owner a different approach. A finding that
-  comes back a second time becomes a check (a test, a lint rule, a hook) or a line in these rules, in the pull request
-  that fixes it, so that it does not come back.
+  comes back a second time becomes a check (a test, a lint rule, a hook) in the pull request that fixes it, so that it does
+  not come back; when it needs a rule instead, the rule goes into its own `docs(rules):` pull request (below).
 - The PR title is a Conventional Commit: `type(scope): description` or `type: description`, `!` for a breaking change (the
   types are in `CONTRIBUTING.md`). Pull requests are squash-merged, so the title becomes the commit on `master`.
 - `master` is protected by rulesets (`.github/rulesets/`, explained in `.github/rulesets/README.md`): a pull request,
