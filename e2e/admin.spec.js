@@ -1444,8 +1444,10 @@ test('the "more" button of a card stays on the row of its title, however long th
 // Owner decisions of 16/10/2026, found by `npm run ui-review:pictures` (worst-case data at the limits of the server):
 //   - the service-type chip of a Points or Providers card wraps inside the card (it did not wrap: at 360 px it pushed the page sideways by 28 to 42 px,
 //     cut the title and left the "more" button hard to hit);
-//   - the description of a point stops at two lines with an ellipsis, and the tile "מי סורק" names two providers and then "ועוד N" (the
-//     ellipsis is the browser's, so the whole text stays in the page; the names that the tile does not draw are in a run for screen readers);
+//   - the description of a point stops at two lines with an ellipsis, and the tile "מי סורק" names two providers and then "ועוד N", each
+//     name on a line of its own that stops at two lines with an ellipsis too (owner decision of 17/10/2026), and "ועוד N" on its own line (the
+//     ellipsis is the browser's, so the whole text stays in the page; the names that the tile does not draw are in a run for screen readers,
+//     and a screen reader hears every name once, separated by ", ");
 //   - an e-mail breaks only after an "@" or a dot, so no piece of it is cut across lines (a piece longer than the room is the last resort);
 //   - the account button of the side rail keeps the name and the address to one line each, and the account menu keeps them whole.
 // The data is this run's own (the API, deleted at the end), at 320, 360 and 1280 px. The lines themselves cannot be counted in jsdom.
@@ -1454,6 +1456,12 @@ const lineHeightOf = (locator) => locator.evaluate((el) => {
   const style = getComputedStyle(el)
   const px = parseFloat(style.lineHeight)
   return Number.isNaN(px) ? parseFloat(style.fontSize) * 1.4 : px
+})
+/** The names that a screen reader hears from a cell of the tile "מי סורק", sorted: its text without the part that is hidden from it (`aria-hidden`, the "ועוד N"), split at the ", " between names. */
+const heardNames = (cell) => cell.evaluate((el) => {
+  const copy = el.cloneNode(true)
+  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove()
+  return copy.textContent.split(', ').sort()
 })
 /** The pieces of an address that a line break cuts across two lines (a piece is the text up to an "@" or a dot: `.a-email__piece`). */
 const cutPieces = (bdi) => bdi.evaluate((el) => {
@@ -1466,7 +1474,7 @@ const cutPieces = (bdi) => bdi.evaluate((el) => {
   return cut
 })
 
-test('a long service name, a long description and many scanners fit the cards of Points and Providers at 320, 360 and 1280 px: the chip wraps inside its card, the description stops at two lines, the tile names two providers and "ועוד N", and nothing makes the page scroll sideways', async ({ page }) => {
+test('a long service name, a long description and many scanners fit the cards of Points and Providers at 320, 360 and 1280 px: the chip wraps inside its card, the description stops at two lines, the tile names two providers, each on a line of its own that stops at two lines, and then "ועוד N", and nothing makes the page scroll sideways', async ({ page }) => {
   await adminSignIn(page, 'points')
   const tag = randomUUID().slice(0, 6)
   const created = []
@@ -1489,9 +1497,15 @@ test('a long service name, a long description and many scanners fit the cards of
       }, (r) => r.provider))
     }
     const ids = providers.map((p) => p.id)
+    // and two with the longest name that the server accepts (120 characters): words, and the same length with one long word in it
+    const longProviders = []
+    for (const name of [wordsUpTo(NAME_MAX_LENGTH), withLongWord(NAME_MAX_LENGTH)]) {
+      longProviders.push(await make('/api/admin/providers', { contact_name: name, company: `Co ${tag}`, service_type: 'cleaning', password: 'dev-pass-card-row' }, (r) => r.provider))
+    }
     const points = [
       { name: `Chip words ${tag}`, service: words, description, provider_ids: ids }, // three scanners: "ועוד 1"
       { name: `Chip word ${tag}`, service: oneWord, description: 'Wxyz'.repeat(DESCRIPTION_MAX_LENGTH / 4), provider_ids: ids.slice(0, 2) }, // two: no "ועוד"
+      { name: `Long names ${tag}`, service: undefined, description: undefined, provider_ids: longProviders.map((p) => p.id) }, // two names of 120 characters: each stops at two lines
     ]
     for (const p of points) {
       await make('/api/admin/points', {
@@ -1519,7 +1533,7 @@ test('a long service name, a long description and many scanners fit the cards of
     for (const width of [320, 360, 1280]) {
       await page.setViewportSize({ width, height: 800 })
       for (const [screen, cards] of [
-        ['points', points.map((p) => ({ title: p.name, service: p.service }))],
+        ['points', points.slice(0, 2).map((p) => ({ title: p.name, service: p.service }))],
         ['providers', providers.slice(0, 2).map((p) => ({ title: p.contact_name, service: p.service_type }))],
       ]) {
         await page.goto(`/admin#${screen}`)
@@ -1558,15 +1572,43 @@ test('a long service name, a long description and many scanners fit the cards of
       const long = cardOf(points[1].name).locator('.a-card__sub')
       expect(await long.evaluate((el) => el.clientHeight), `${width} px: a description that is one long word is cut at two lines too`).toBeLessThanOrEqual(lineHeight * 2 + 1)
 
-      // "מי סורק": two names and "ועוד 1" for the third, every name still in the page; two names alone say no "ועוד"
+      // "מי סורק": two names, each in an element of its own, and "ועוד 1" for the third on a line of its own, every name still in the page;
+      // two names alone say no "ועוד"
       const who = card.locator('.a-facts dd').first()
-      expect(await who.evaluate((el) => [...el.children].filter((child) => child.tagName === 'BDI').length), `${width} px: two names are drawn`).toBe(2)
+      const drawnNames = who.locator(':scope > .a-clamp-2')
+      await expect(drawnNames, `${width} px: two names are drawn, each in an element of its own that is clamped`).toHaveCount(2)
+      await expect(drawnNames.locator('bdi'), `${width} px: each drawn name is isolated`).toHaveCount(2)
       await expect(who.locator('.w-sr bdi'), `${width} px: the third name is in the run for a screen reader, isolated like the others`).toHaveCount(1)
       await expect(who.getByText('ועוד 1', { exact: true }), `${width} px: the third is "ועוד 1"`).toBeVisible()
       for (const p of providers) await expect(who, `${width} px: ${p.contact_name} is in the page`).toContainText(p.contact_name)
+      expect(await heardNames(who), `${width} px: a screen reader hears every name once, separated by ", ", and no count`).toEqual(providers.map((p) => p.contact_name).sort())
+      const stack = await who.evaluate((el) => {
+        const box = (n) => { const b = n.getBoundingClientRect(); return { top: b.top, bottom: b.bottom } }
+        return { names: [...el.querySelectorAll(':scope > .a-clamp-2')].map(box), more: box(el.querySelector(':scope > [aria-hidden="true"]')) }
+      })
+      expect(stack.names[1].top, `${width} px: the second name is under the first, not beside it`).toBeGreaterThanOrEqual(stack.names[0].bottom - 0.5)
+      expect(stack.more.top, `${width} px: "ועוד 1" is on a line of its own, under the last name`).toBeGreaterThanOrEqual(stack.names[1].bottom - 0.5)
       const two = cardOf(points[1].name).locator('.a-facts dd').first()
       await expect(two.locator('bdi'), `${width} px: two names`).toHaveCount(2)
       await expect(two, `${width} px: two names say no "ועוד"`).not.toContainText('ועוד')
+      expect(await heardNames(two), `${width} px: two names are heard once each, separated by ", "`).toEqual(providers.slice(0, 2).map((p) => p.contact_name).sort())
+
+      // two names of 120 characters (words, and one long word): each stops at two lines and is cut, so the tile is four lines or fewer
+      const longWho = cardOf(points[2].name).locator('.a-facts dd').first()
+      const longNames = longWho.locator(':scope > .a-clamp-2')
+      await expect(longNames, `${width} px: two long names are drawn, each in an element of its own`).toHaveCount(2)
+      await expect(longWho, `${width} px: two names say no "ועוד"`).not.toContainText('ועוד')
+      const wanted = longProviders.map((p) => p.contact_name)
+      expect((await longNames.allTextContents()).sort(), `${width} px: the whole of each long name is in the page`).toEqual([...wanted].sort())
+      const longLineHeight = await lineHeightOf(longNames.first())
+      for (const i of [0, 1]) {
+        const shape = await longNames.nth(i).evaluate((el) => ({ shown: el.clientHeight, whole: el.scrollHeight, clamp: getComputedStyle(el).webkitLineClamp }))
+        expect(shape.clamp, `${width} px: long name ${i + 1} is clamped to two lines`).toBe('2')
+        expect(shape.shown, `${width} px: long name ${i + 1} shows two lines or fewer`).toBeLessThanOrEqual(longLineHeight * 2 + 1)
+        expect(shape.whole, `${width} px: long name ${i + 1} holds more than it shows, so the clamp cut it`).toBeGreaterThan(shape.shown + 1)
+      }
+      expect(await longWho.evaluate((el) => el.getBoundingClientRect().height), `${width} px: the two names make four lines or fewer`).toBeLessThanOrEqual(longLineHeight * 4 + 2)
+      expect(await heardNames(longWho), `${width} px: the long names are heard once each, separated by ", "`).toEqual([...wanted].sort())
     }
 
     // the edit dialog holds all of it: the whole description, and every provider who may scan

@@ -171,8 +171,9 @@ test.afterAll(async () => {
  *     in the top bar of the committee app (`.a-brand__text`, src/admin/admin.css), the building's address in the header of the
  *     provider app (`.w-brand--address`, src/ui/ui.css), and the texts that the owner chose to clamp on 16/10/2026 (`.a-clamp-2`:
  *     the description of a point, the provider's name in a row of the History, what an entry of the audit log says and who did
- *     it). They are reported as `designed`, not as a finding, but only for a line that is cut at the bottom (the clamp): a cut at
- *     the side of such a box is not the design, and is a finding like any other. Any other box that hides a line is a finding.
+ *     it, and, from 17/10/2026, each name on the tile of a point that says who scans there). They are reported as `designed`, not
+ *     as a finding, but only for a line that is cut at the bottom (the clamp): a cut at the side of such a box is not the design,
+ *     and is a finding like any other. Any other box that hides a line is a finding.
  * The ellipsis of a tab label (`.a-nav-label`) is NOT left out: admin.css says it "should never show".
  *
  * The width of the screen is given, not read from `window.innerWidth`: Chromium's mobile emulation widens the layout viewport to the

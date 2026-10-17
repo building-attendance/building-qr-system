@@ -346,9 +346,11 @@ html[dir='ltr'] .a-email__piece { text-align: start; }
 .a-card__title { font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); overflow-wrap: anywhere; }
 .a-card__sub { color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; }
 /* A text that stops at two lines and ends with an ellipsis (owner decision of 16/10/2026): the description of a point, the provider's name
-   in a row of the History, and what an entry of the audit log says and who did it. The browser cuts it (-webkit-line-clamp, which the
-   standard line-clamp follows), so the whole text stays in the page for a screen reader and for a copy, and the edit form of a point holds
-   the whole description. The text keeps its overflow-wrap: anywhere, so one very long word is cut at the end of its second line too. */
+   in a row of the History, and what an entry of the audit log says and who did it; and, from 17/10/2026, each provider's name on the tile
+   of a point that says who scans there, one name to a line. The browser cuts it (-webkit-line-clamp, which the standard line-clamp
+   follows), so the whole text stays in the page for a screen reader and for a copy, and the edit form of a point holds the whole
+   description and the whole list of providers. The text keeps its overflow-wrap: anywhere, so one very long word is cut at the end of
+   its second line too. */
 .a-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .a-meta { display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); }
 .a-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: var(--w-space-1-5) var(--w-space-3-5); font-size: var(--w-font-md); }

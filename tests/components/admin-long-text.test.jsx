@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-// Long values in the committee app's cards and rows (owner decisions of 16/10/2026): the tile "מי סורק" of a point names two providers and
+// Long values in the committee app's cards and rows (owner decisions of 16/10/2026): the tile "מי סורק" of a point names two providers, each on a line of its own that stops at two lines (owner decision of 17/10/2026), and
 // then "ועוד N", the description of a point, the provider's name of a History row, and the audit log's "what" and "who" stop at two lines,
 // and the account button's name and address stop at one. jsdom has no layout, so a line cannot be counted here. What is tested is what
 // the markup and the stylesheet decide: the class that clamps, the rule that it names, and, above all, that the clamped text is still
@@ -62,8 +62,21 @@ async function showPoint(over, providers = PROVIDERS) {
   return tile
 }
 const whoScans = (tile) => within(tile).getByText('מי סורק').closest('div').querySelector('dd')
-/** What a person sees in the tile: the text without the part that is for a screen reader only (`w-sr`) and without the part that is hidden from one. */
-const seen = (dd) => [...dd.childNodes].filter((n) => !(n.nodeType === 1 && n.classList.contains('w-sr'))).map((n) => n.textContent).join('')
+/** The lines that a person sees in the cell: one element for each drawn name and one for the drawn "ועוד N", without the parts for a screen reader only (`w-sr`). */
+const lines = (dd) => [...dd.children].filter((el) => !el.classList.contains('w-sr'))
+/** The drawn names: each is an element of its own that `.a-clamp-2` cuts at two lines. */
+const drawn = (dd) => [...dd.children].filter((el) => el.classList.contains('a-clamp-2'))
+/** What a screen reader is given: the text of the cell without the part that is hidden from it (`aria-hidden`, the drawn "ועוד N"). */
+const heard = (dd) => {
+  const copy = dd.cloneNode(true)
+  for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove()
+  return copy.textContent
+}
+/** A drawn name is whole in its own clamped element, and it is the only thing in it, inside a `bdi` (R3). */
+const expectDrawn = (el, name) => {
+  expect(el.classList.contains('a-clamp-2'), `${name} is clamped to two lines`).toBe(true)
+  expect([...el.childNodes].map((n) => `${n.nodeName}:${n.textContent}`), `${name}: one bdi with the whole name`).toEqual([`BDI:${name}`])
+}
 
 describe('the tile "מי סורק" of a point', () => {
   const some = (n) => PROVIDERS.slice(0, n).map((p) => p.id)
@@ -74,56 +87,73 @@ describe('the tile "מי סורק" of a point', () => {
     expect(dd.textContent).toBe('כל נותני השירות')
   })
 
-  it('names one provider, and no "ועוד"', async () => {
+  it('names one provider on a clamped line of its own, and no "ועוד"', async () => {
     const one = whoScans(await showPoint({ provider_ids: some(1) }))
-    expect(seen(one)).toBe(names(1)[0])
+    expect(lines(one)).toHaveLength(1)
+    expectDrawn(lines(one)[0], names(1)[0])
     expect(one.textContent).not.toContain('ועוד')
+    expect(heard(one)).toBe(names(1)[0])
   })
 
-  it('names two providers, and no "ועוד", and nothing is hidden from view', async () => {
+  it('names two providers, each on a clamped line of its own, with no visible comma between them and no "ועוד"', async () => {
     const two = whoScans(await showPoint({ provider_ids: some(2) }))
-    expect(seen(two)).toBe(names(2).join(', '))
+    expect(drawn(two).length, 'the two names are two separate elements').toBe(2)
+    expect(lines(two), 'and they are all that is drawn').toEqual(drawn(two))
+    drawn(two).forEach((el, i) => expectDrawn(el, names(2)[i]))
     expect(two.textContent).not.toContain('ועוד')
-    expect(two.querySelector('.w-sr')).toBeNull()
+    expect(lines(two).map((el) => el.textContent).join('')).not.toContain(',')
+    expect([...two.querySelectorAll('.w-sr')].map((el) => el.textContent), 'what is hidden from view is the delimiter between the two names, for a screen reader').toEqual([', '])
+    expect(heard(two)).toBe(names(2).join(', '))
   })
 
-  it('names two and says "ועוד 1" for a third', async () => {
+  it('names two and says "ועוד 1" for a third, on a line of its own', async () => {
     const dd = whoScans(await showPoint({ provider_ids: some(3) }))
-    expect(seen(dd)).toBe(`${names(3).slice(0, 2).join(', ')} ועוד 1`)
-    expect([...dd.children].filter((el) => el.tagName === 'BDI').length, 'two names are drawn').toBe(2)
+    expect(lines(dd).map((el) => el.textContent)).toEqual([...names(3).slice(0, 2), 'ועוד 1'])
+    expect(drawn(dd).length, 'two names are drawn').toBe(2)
+    drawn(dd).forEach((el, i) => expectDrawn(el, names(3)[i]))
+    const more = lines(dd)[2]
+    expect(more.parentElement, 'the count is an element of the cell, not a piece of the last name').toBe(dd)
+    expect(getComputedStyle(more).display, 'a block, so a line of its own').toBe('block')
+    expect(more.classList.contains('a-clamp-2')).toBe(false)
     expect(dd.querySelectorAll('.w-sr bdi').length, 'the third is in the run for a screen reader, isolated too').toBe(1)
   })
 
   it('counts every one that is left: "ועוד 3" for five', async () => {
     const dd = whoScans(await showPoint({ provider_ids: some(5) }))
-    expect(seen(dd)).toBe(`${names(5).slice(0, 2).join(', ')} ועוד 3`)
+    expect(lines(dd).map((el) => el.textContent)).toEqual([...names(5).slice(0, 2), 'ועוד 3'])
   })
 
-  it('keeps every name in the page for a screen reader, and hides the count from it, so that it hears each name once and no "and 3 more"', async () => {
+  it('hides the count from a screen reader, which hears every name once, separated by ", ", and no "and 3 more"', async () => {
     const dd = whoScans(await showPoint({ provider_ids: some(5) }))
-    expect(dd.querySelector('[aria-hidden="true"]').textContent).toBe('ועוד 3')
-    const hidden = dd.querySelector('.w-sr')
-    expect(hidden.textContent).toBe(`, ${names(5).slice(2).join(', ')}`)
+    expect([...dd.querySelectorAll('[aria-hidden="true"]')].map((el) => el.textContent), 'only the count is hidden from a screen reader').toEqual(['ועוד 3'])
+    expect(heard(dd)).toBe(names(5).join(', '))
+    for (const name of names(5)) expect(heard(dd).split(name).length - 1, `${name} is heard once`).toBe(1)
+    expect(dd.lastElementChild.textContent, 'the names that are not drawn follow, each with its own delimiter').toBe(`, ${names(5).slice(2).join(', ')}`)
     for (const name of names(5)) expect(dd.textContent).toContain(name) // all five are in the page
   })
 
-  it('isolates each hidden name too, in its own bdi with its own delimiter (a Latin name, a Russian one and one with digits and punctuation)', async () => {
-    const HIDDEN = ['John Smith', 'Константин Иванов', 'Cleaning Co. 24/7 (A-1)']
-    const providers = [...PROVIDERS.slice(0, 2), ...HIDDEN.map((contact_name, i) => ({ ...PROVIDERS[0], id: `h${i}`, contact_name }))]
+  it('isolates every name, the drawn ones and the hidden ones, in a bdi of its own (a Latin name, a Russian one, one with digits and punctuation)', async () => {
+    const NAMES = ['Cleaning Co. 24/7 (A-1)', 'Константин Иванов', 'John Smith', 'Cleaning & Co., Ltd. 24/7 (A-1)', 'Gebaeude, GmbH (24/7)']
+    const providers = NAMES.map((contact_name, i) => ({ ...PROVIDERS[0], id: `h${i}`, contact_name }))
     const dd = whoScans(await showPoint({ provider_ids: providers.map((p) => p.id) }, providers))
-    expect(seen(dd)).toBe(`${PROVIDERS[0].contact_name}, ${PROVIDERS[1].contact_name} ועוד 3`)
-    const hidden = dd.querySelector('.w-sr')
+    // what the cell is made of, in order: a clamped line, the delimiter for a screen reader, a clamped line, the count, the hidden run
+    expect([...dd.children].map((el) => (el.classList.contains('a-clamp-2') ? 'name' : el.classList.contains('w-sr') ? 'delimiter' : 'count'))).toEqual(
+      ['name', 'delimiter', 'name', 'count', 'delimiter'],
+    )
+    drawn(dd).forEach((el, i) => expectDrawn(el, NAMES[i]))
+    const hidden = dd.lastElementChild
     // the run is, name by name, a plain ", " and then the name in a bdi: no name stands bare in the run, so none can reorder its neighbours
     expect([...hidden.childNodes].map((n) => (n.nodeName === 'BDI' ? `bdi:${n.textContent}` : `text:${n.textContent}`))).toEqual(
-      HIDDEN.flatMap((name) => ['text:, ', `bdi:${name}`]),
+      NAMES.slice(2).flatMap((name) => ['text:, ', `bdi:${name}`]),
     )
-    expect(hidden.textContent).toBe(`, ${HIDDEN.join(', ')}`) // what a screen reader is given is the same text as before
+    expect(heard(dd), 'a screen reader is given every name once, separated by ", "').toBe(NAMES.join(', '))
     expect(dd.querySelectorAll('bdi').length, 'two drawn and three hidden').toBe(5)
   })
 
   it('isolates each name (a Latin or Russian one keeps its order inside the Hebrew line)', async () => {
     const dd = whoScans(await showPoint({ provider_ids: [PROVIDERS[1].id, PROVIDERS[2].id] }))
     expect([...dd.querySelectorAll('bdi')].map((el) => el.textContent)).toEqual([PROVIDERS[1].contact_name, PROVIDERS[2].contact_name])
+    drawn(dd).forEach((el, i) => expectDrawn(el, [PROVIDERS[1], PROVIDERS[2]][i].contact_name))
   })
 })
 
