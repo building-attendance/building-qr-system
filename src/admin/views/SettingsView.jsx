@@ -6,6 +6,7 @@ import { IconBan, IconCheck, IconShield, IconAlert, IconTrash } from '../icons.j
 import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { useBuildingName } from '../buildingName.jsx'
 import MemberFace from '../MemberFace.jsx'
+import Email from '../Email.jsx'
 import BuildLabel from '../../ui/BuildLabel.jsx'
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
@@ -247,7 +248,7 @@ export default function SettingsView({ admin }) {
                       <div>
                         <h3 className="a-card__title">{name}{me && ' (אתם)'}</h3>
                         {/* an address reads left to right, but it lines up with the title like the other cards' second line */}
-                        <p className="a-card__sub"><bdi dir="ltr">{a.email}</bdi></p>
+                        <p className="a-card__sub"><Email address={a.email} /></p>
                       </div>
                     </div>
                     {/* your own card has no menu: you cannot remove or delete yourself */}

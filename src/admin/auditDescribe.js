@@ -23,7 +23,7 @@ import {
 export { looksSecret }
 
 /** @typedef {{ kind: 'text', text: string }} TextLine */
-/** @typedef {{ kind: 'field', label: string, value: string }} FieldLine */
+/** @typedef {{ kind: 'field', label: string, value: string, email?: true }} FieldLine  `email`: the value is an e-mail address, drawn by src/admin/Email.jsx */
 /** @typedef {{ kind: 'change', label: string, from: string, to: string }} ChangeLine */
 /** @typedef {TextLine | FieldLine | ChangeLine} DetailLine */
 
@@ -151,7 +151,7 @@ function detailLines(entry, detail, subject) {
   if (typeof detail.method === 'string' && has(METHOD_LABELS, detail.method)) text(METHOD_LABELS[detail.method])
 
   const email = plain(detail.email)
-  if (email && email.includes('@') && !repeatsSubject(email)) field('אימייל', email)
+  if (email && email.includes('@') && !repeatsSubject(email)) lines.push({ kind: 'field', label: 'אימייל', value: email, email: true })
 
   if (entry.entity === 'scan') {
     // An entry written before 14/10/2026 holds the older form. The stored text is judged first, then put in today's form and judged

@@ -195,7 +195,7 @@ function RefusalRow({ r }) {
       <span className="a-scan__time">{formatTime(r.at)}</span>
       <div className="a-scan__main">
         <div className="a-scan__point">{r.point_name || NO_POINT}</div>
-        <div className="a-scan__who">{r.provider_name}</div>
+        <div className="a-scan__who a-clamp-2">{r.provider_name}</div>
         {onPhone && <div className="a-scan__who">נסרק בטלפון: <span className="a-scan__stamp">{formatDateTime(r.client_time)}</span></div>}
       </div>
       <div className="a-scan__flags">
@@ -484,7 +484,7 @@ export default function HistoryView() {
                 <span className="a-scan__time">{formatTime(s.checked_in_at)}</span>
                 <div className="a-scan__main">
                   <div className="a-scan__point">{s.point_name}</div>
-                  <div className="a-scan__who">{s.provider_name}</div>
+                  <div className="a-scan__who a-clamp-2">{s.provider_name}</div>
                 </div>
                 <div className="a-scan__flags">
                   {s.outcome !== OUTCOME_ACCEPTED && <Badge tone="danger">{OUTCOMES[s.outcome] ?? s.outcome}</Badge>}

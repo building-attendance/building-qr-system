@@ -166,7 +166,8 @@ describe('who did it', () => {
     expect(within(row).getByText('מנהל מערכת')).toBeTruthy()
     cleanup()
     const row2 = await rowFor({ actor_name: 'someone@example.test' }, 'עדכון נקודה')
-    expect(within(row2).getByText('someone@example.test')).toBeTruthy()
+    // an address is drawn in pieces (src/admin/Email.jsx), so no one element holds all of it: the whole line of who did it says it as it is
+    expect(row2.querySelector('.a-audit__who').textContent).toBe('על ידי someone@example.test')
   })
 })
 
@@ -445,7 +446,7 @@ describe('what is never shown', () => {
     const long = 'Cleaning Company of the Northern Tower and the Parking Levels'
     const row = await rowFor({ entity_name: long, actor_name: 'someone.with.a.long.address@example.test' }, 'עדכון נקודה')
     expect(within(row).getByText(long)).toBeTruthy()
-    expect(within(row).getByText('someone.with.a.long.address@example.test')).toBeTruthy()
+    expect(row.querySelector('.a-audit__who').textContent).toBe('על ידי someone.with.a.long.address@example.test') // an address, in pieces (src/admin/Email.jsx)
   })
 
   it('describeEntry filters every string that the API sends: both names, whatever the entity', () => {

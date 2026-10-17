@@ -58,15 +58,28 @@
 @media (hover: hover) { .a-account-btn:hover { background: var(--w-surface-2); } }
 .a-account-btn > svg { flex: none; color: var(--w-text-3); transform: rotate(90deg); }
 .a-account-btn[aria-expanded='true'] > svg { transform: rotate(-90deg); }
-/* A name over an e-mail (the member's own account: any length, wrapped anywhere). The e-mail is an inline run (it is left to right inside a
-   right-to-left page), so its lines start at the start edge like the name's. In the rail's button it is one line (owner decision of 14/10/2026,
-   an address that broke into two lines was hard to read): a box as wide as the address or as the room there is, whichever is less, that
-   keeps the start of the address and ends a longer one with an ellipsis (it is left to right, so the start is its left). The whole address
-   is its `title` and is written in the account menu, where it wraps. */
+/* A name over an e-mail (the member's own account: any length). The e-mail is an inline run (it is left to right inside a right-to-left page,
+   src/admin/Email.jsx), so its lines start at the start edge like the name's. In the account menu both wrap: the name anywhere, the address
+   after its @ or a dot (the pieces of Email, below), and only a piece longer than the room breaks inside a word (overflow-wrap: anywhere,
+   the last resort). In the rail's button each is one line (owner decisions of 14/10/2026 for the address and 16/10/2026 for the name: a name
+   of 120 characters made the button as tall as the rail): the name is a block that ends a longer one with an ellipsis, and the address is a
+   box as wide as the address or as the room there is, whichever is less, that keeps the start of the address and ends a longer one with an
+   ellipsis (it is left to right, so the start is its left). Both are cut by CSS only, so the whole text is in the page for a screen reader;
+   the whole name and address are written in the account menu, and the address is the `title` of the button. The address of the button is
+   plain text (Email `oneLine`), one line with nothing to break at. */
 .a-who { flex: 1; min-width: 0; overflow-wrap: anywhere; }
 .a-who strong { display: block; font-weight: var(--w-weight-semibold); }
-.a-who span { color: var(--w-text-3); font-size: var(--w-font-xs); }
-.a-who .a-who__mail { display: inline-block; max-width: 100%; vertical-align: top; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.a-who span, .a-who bdi { color: var(--w-text-3); font-size: var(--w-font-xs); }
+.a-account-btn .a-who strong, .a-who .a-who__mail { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.a-who .a-who__mail { display: inline-block; max-width: 100%; vertical-align: top; }
+/* A piece of an e-mail address (src/admin/Email.jsx): the text up to an "@" or a dot, or the end. A line breaks between pieces and not inside
+   one, because an inline block is an atom to the line breaker (the break after a hyphen, which the browser would take by itself, stays
+   inside a piece). A piece that is wider than its line is held to the line's width, and its own text wraps inside it: after a hyphen
+   first, then anywhere (the overflow-wrap: anywhere that the box around the address has), the last resort. The address is a left-to-right
+   isolate, so the lines inside a piece that wraps would start at its left, while the lines of the other pieces stand at the start of the
+   line (the right, in this page): `end` puts them where the others are. */
+.a-email__piece { display: inline-block; max-width: 100%; text-align: end; }
+html[dir='ltr'] .a-email__piece { text-align: start; }
 
 /* The account popover (src/admin/AccountMenu.jsx) takes the look of the "more" menu further down (.a-menu); these are its own parts. */
 .a-account { width: 300px; gap: var(--w-space-1); }
@@ -332,6 +345,11 @@
 .a-card.is-off .a-card__icon { background: var(--w-surface-2); color: var(--w-text-2); }
 .a-card__title { font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); overflow-wrap: anywhere; }
 .a-card__sub { color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; }
+/* A text that stops at two lines and ends with an ellipsis (owner decision of 16/10/2026): the description of a point, the provider's name
+   in a row of the History, and what an entry of the audit log says and who did it. The browser cuts it (-webkit-line-clamp, which the
+   standard line-clamp follows), so the whole text stays in the page for a screen reader and for a copy, and the edit form of a point holds
+   the whole description. The text keeps its overflow-wrap: anywhere, so one very long word is cut at the end of its second line too. */
+.a-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .a-meta { display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); }
 .a-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: var(--w-space-1-5) var(--w-space-3-5); font-size: var(--w-font-md); }
 .a-facts dt { color: var(--w-text-3); }
@@ -356,8 +374,12 @@
 .a-phones:focus-visible { border-radius: var(--w-radius-md); } /* the focus outline (.a-app :focus-visible) follows the corners of the boxes */
 
 /* A chip of a card (src/admin/ui.jsx Badge): a tint with its ink, the four pairs of the tokens (tests/contrast.test.js holds each to AA);
-   neutral is the quiet grey of something switched off, and red is a problem. */
-.a-badge { display: inline-flex; align-items: center; gap: var(--w-space-1-5); padding: var(--w-space-1) var(--w-space-3); border-radius: var(--w-radius-pill); font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); background: var(--w-surface-2); color: var(--w-text-2); white-space: nowrap; }
+   neutral is the quiet grey of something switched off, and red is a problem. A chip is one line while it fits, but its words can be the
+   committee's own (the service type is free text of up to 60 characters): then it wraps onto more lines inside its card, all of its text
+   visible, and a single long word breaks where it must (owner decision of 16/10/2026: without wrapping it ran out of the card by 28 to 42 px
+   at 360 px, cut the title and pushed the "more" button out of reach). A flex row that wraps (.a-meta) moves a whole chip to the next line
+   before it shortens one. */
+.a-badge { display: inline-flex; align-items: center; gap: var(--w-space-1-5); max-width: 100%; padding: var(--w-space-1) var(--w-space-3); border-radius: var(--w-radius-pill); font-size: var(--w-font-xs); font-weight: var(--w-weight-medium); background: var(--w-surface-2); color: var(--w-text-2); overflow-wrap: anywhere; }
 .a-badge--ok { background: var(--w-tint-mint); color: var(--w-tint-mint-ink); }
 .a-badge--warn { background: var(--w-tint-peach); color: var(--w-tint-peach-ink); }
 .a-badge--danger { background: var(--w-danger-bg); color: var(--w-danger); }
@@ -457,8 +479,6 @@ select.a-input {
 .a-scan__who { color: var(--w-text-2); font-size: var(--w-font-xs); overflow-wrap: anywhere; }
 .a-scan__flags { grid-area: flags; display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); margin-block-start: var(--w-space-1); }
 .a-scan__flags:empty { display: none; }
-/* A badge is one line, but a long one (a distance with its accuracy, in a narrow phone) wraps instead of running out of the row. */
-.a-scan__flags .a-badge { max-width: 100%; white-space: normal; }
 @media (min-width: 768px) {
   .a-scan { grid-template-columns: auto minmax(0, 1.2fr) minmax(0, 1fr) auto; grid-template-areas: 'time main flags tools'; }
   .a-scan__flags { margin-block-start: 0; }

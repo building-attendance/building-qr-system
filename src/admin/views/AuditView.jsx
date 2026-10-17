@@ -3,10 +3,11 @@ import { adminApi, auditLog, errorText } from '../api.js'
 import { useLoad, usePhoneLayout, LOAD_KEY } from '../hooks.js'
 import { loadCacheEpoch, readLoadCache, writeLoadCache } from '../loadCache.js'
 import { Field, EmptyState, Spinner, IconButton, useToast, useAction } from '../ui.jsx'
+import Email, { isEmailAddress } from '../Email.jsx'
 import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useFilterState, useUnfinishedDates } from '../filters.jsx'
 import { IconClock, IconRefresh, IconAlert } from '../icons.jsx'
 import { formatDay, formatTime, isoDay } from '../../../shared/datetime.js'
-import { GROUP_OPTIONS } from '../auditLabels.js'
+import { DELETED_ACTOR_MARK, GROUP_OPTIONS } from '../auditLabels.js'
 import { describeEntry, actorText } from '../auditDescribe.js'
 
 // The audit log: what the committee's members (and the system) did, and when (ADR 0007, decision 4). Read only, so a row has no
@@ -43,12 +44,23 @@ function rememberedList(filters) {
 /** One line of detail. The values are bidi-isolated: a name or a number inside Hebrew keeps its own direction. */
 function Line({ line }) {
   if (line.kind === 'text') return <div>{line.text}</div>
-  if (line.kind === 'field') return <div>{line.label}: <bdi>{line.value}</bdi></div>
+  if (line.kind === 'field') return <div>{line.label}: {line.email ? <Email address={line.value} /> : <bdi>{line.value}</bdi>}</div>
   return (
     <div>
       {line.label}: <bdi>{line.from}</bdi> <span className="a-audit__arrow" role="img" aria-label="הפך ל">←</span> <bdi>{line.to}</bdi>
     </div>
   )
+}
+
+/**
+ * Who did it, in an isolate of its own. A member who has no saved name is named by the e-mail address (the audit contract), and an
+ * address is drawn by `Email`, so that it breaks only after "@" and dots like every other address of the committee app; the mark of a
+ * member who is gone ("(נמחק)") then stands beside it, outside it. Any other name is one isolate with its mark, as `actorText` writes it.
+ * @param {{ actor: { name: string, deleted: boolean } }} props
+ */
+function Actor({ actor }) {
+  if (!isEmailAddress(actor.name)) return <bdi>{actorText(actor)}</bdi>
+  return <><Email address={actor.name} />{actor.deleted && <> <bdi>{DELETED_ACTOR_MARK}</bdi></>}</>
 }
 
 /** One entry: read only. The time, what was done and about what, who did it, and the detail. Everything is text. */
@@ -57,13 +69,13 @@ function EntryRow({ entry }) {
   return (
     <li className="a-audit">
       <span className="a-scan__time a-audit__time">{formatTime(entry.at)}</span>
-      <div className="a-audit__what">
+      <div className="a-audit__what a-clamp-2">
         {phrase.known
           ? <span className="a-audit__action">{phrase.text}</span>
           : <span className="a-audit__action a-audit__action--raw" dir="ltr">{phrase.text}</span>}
-        {subject && <> <span aria-hidden="true">·</span> <bdi className="a-audit__subject">{subject}</bdi></>}
+        {subject && <> <span aria-hidden="true">·</span> <bdi className="a-audit__subject">{isEmailAddress(subject) ? <Email address={subject} /> : subject}</bdi></>}
       </div>
-      <div className="a-audit__who">על ידי <bdi>{actorText(actor)}</bdi></div>
+      <div className="a-audit__who a-clamp-2">על ידי <Actor actor={actor} /></div>
       {lines.length > 0 && (
         <div className="a-audit__detail">
           {lines.map((line, i) => <Line key={i} line={line} />)}
