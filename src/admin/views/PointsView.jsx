@@ -296,7 +296,8 @@ const SCANNERS_SHOWN = 2
  * comma any more (each is on its own line): a visually hidden ", " between the drawn names, and one before each hidden name, keeps the
  * list a list for a screen reader, which hears "name1, name2, name3". Each name is isolated (R3), the drawn ones and the hidden ones alike,
  * each in its own `bdi`, so a Latin or Russian name, or one with digits or punctuation, keeps its order inside the Hebrew line and never
- * reorders its neighbours.
+ * reorders its neighbours. A drawn name is its own `bdi` and the clamped box at once: a `bdi` takes the direction of its own text, so the
+ * ellipsis of a Russian name lands at the end of the name and not at the left of a right-to-left card (see `.a-clamp-2` in admin.css).
  * @param {{ names: string[] }} props
  */
 function Scanners({ names }) {
@@ -307,7 +308,7 @@ function Scanners({ names }) {
       {names.slice(0, SCANNERS_SHOWN).map((name, i) => (
         <Fragment key={i}>
           {i > 0 && <span className="w-sr">, </span>}
-          <div className="a-clamp-2"><bdi>{name}</bdi></div>
+          <bdi className="a-clamp-2">{name}</bdi>
         </Fragment>
       ))}
       {rest.length > 0 && (
@@ -410,7 +411,7 @@ export default function PointsView() {
                   <span className="a-card__icon" aria-hidden="true"><IconPin size={22} /></span>
                   <div>
                     <h2 className="a-card__title">{p.name}</h2>
-                    {p.description && <p className="a-card__sub a-clamp-2">{p.description}</p>}
+                    {p.description && <p className="a-card__sub a-clamp-2" dir="auto">{p.description}</p>}
                   </div>
                 </div>
                 <div className="a-card__tools">

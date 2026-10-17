@@ -72,10 +72,18 @@ const heard = (dd) => {
   for (const hidden of copy.querySelectorAll('[aria-hidden="true"]')) hidden.remove()
   return copy.textContent
 }
-/** A drawn name is whole in its own clamped element, and it is the only thing in it, inside a `bdi` (R3). */
+/**
+ * How a clamped box takes its direction. The ellipsis of a clamp goes at the end of the box in the box's own direction, so a box that kept the
+ * direction of a right-to-left card put the ellipsis of a Russian or Latin name at the left of its last word. A box takes the direction of its
+ * own text instead: `dir="auto"`, or a `bdi`, which is auto when it has no `dir`; an address is always left to right.
+ */
+const directionOf = (el) => el.getAttribute('dir') ?? (el.tagName === 'BDI' ? 'auto' : 'the direction of the card')
+/** A drawn name is a `bdi` (R3) that is the clamped box itself, so it takes the direction of its own text, and it holds the whole name and nothing else. */
 const expectDrawn = (el, name) => {
+  expect(el.tagName, `${name} is a bdi`).toBe('BDI')
   expect(el.classList.contains('a-clamp-2'), `${name} is clamped to two lines`).toBe(true)
-  expect([...el.childNodes].map((n) => `${n.nodeName}:${n.textContent}`), `${name}: one bdi with the whole name`).toEqual([`BDI:${name}`])
+  expect(directionOf(el), `${name} takes the direction of its own text, so that its ellipsis lands at the end of the name`).toBe('auto')
+  expect([...el.childNodes].map((n) => `${n.nodeName}:${n.textContent}`), `${name}: the whole name and nothing else`).toEqual([`#text:${name}`])
 }
 
 describe('the tile "מי סורק" of a point', () => {
@@ -162,6 +170,7 @@ describe('the description of a point', () => {
     const tile = await showPoint({ description: LONG_DESCRIPTION })
     const description = within(tile).getByText(LONG_DESCRIPTION)
     expect(description.classList.contains('a-clamp-2')).toBe(true)
+    expect(directionOf(description), 'a description in Latin letters ends with its ellipsis at its own end').toBe('auto')
     expect(description.textContent).toBe(LONG_DESCRIPTION) // cut by the browser, never by the code: nothing of it is missing from the page
     expect(LONG_DESCRIPTION.length).toBeGreaterThan(DESCRIPTION_MAX_LENGTH - 60)
   })
@@ -195,6 +204,7 @@ describe('a row of the History', () => {
     render(<ToastProvider><ConfirmProvider><HistoryView /></ConfirmProvider></ToastProvider>)
     const who = await screen.findByText(LONG_PROVIDER, {}, WAIT)
     expect(who.classList.contains('a-clamp-2')).toBe(true)
+    expect(directionOf(who), 'a Russian or Latin name ends with its ellipsis at its own end').toBe('auto')
     expect(who.textContent).toBe(LONG_PROVIDER)
     expect(within(who.closest('li')).getByText('לובי').classList.contains('a-clamp-2'), 'the point is not clamped: only the provider is').toBe(false)
   })
@@ -221,9 +231,19 @@ describe('an entry of the audit log', () => {
     const row = (await screen.findByText('עדכון נותן שירות', { selector: '.a-audit__action' }, WAIT)).closest('li')
     const what = row.querySelector('.a-audit__what')
     const who = row.querySelector('.a-audit__who')
-    expect(what.classList.contains('a-clamp-2')).toBe(true)
+    // what it is about, and who did it, are clamped boxes of their own beside the phrase and the word "by" (which are never cut), and each takes
+    // the direction of its own text
+    const subject = what.querySelector('.a-audit__subject')
+    expect(subject.classList.contains('a-clamp-2')).toBe(true)
+    expect(subject.textContent).toBe(SUBJECT)
+    expect(directionOf(subject)).toBe('auto')
+    expect(what.classList.contains('a-clamp-2'), 'the phrase is not clamped with it').toBe(false)
     expect(what.textContent).toContain(SUBJECT)
-    expect(who.classList.contains('a-clamp-2')).toBe(true)
+    const name = who.querySelector('.a-clamp-2')
+    expect(name.parentElement, 'the name is a box of its own, beside the word "by"').toBe(who)
+    expect(name.textContent).toBe(ACTOR)
+    expect(directionOf(name)).toBe('auto')
+    expect(who.classList.contains('a-clamp-2'), 'the word "by" is not clamped with it').toBe(false)
     expect(who.textContent).toBe(`על ידי ${ACTOR}`)
   })
 
@@ -249,7 +269,10 @@ describe('an entry of the audit log', () => {
 
     it('draws the address with the helper, inside the clamped line: a left-to-right isolate in whole pieces', async () => {
       const who = await actorRow({})
-      expect(who.classList.contains('a-clamp-2')).toBe(true)
+      const box = who.querySelector('.a-clamp-2')
+      expect(box.parentElement, 'the address is a clamped box of its own, beside the word "by"').toBe(who)
+      expect(directionOf(box), 'an address is always left to right: its ellipsis is at its right end').toBe('ltr')
+      expect(who.classList.contains('a-clamp-2'), 'the word "by" is not clamped with it').toBe(false)
       expect(who.textContent).toBe(`על ידי ${ADDRESS}`)
       const address = who.querySelector('bdi[dir="ltr"]')
       expect(address.textContent).toBe(ADDRESS)
@@ -322,6 +345,54 @@ describe('an entry of the audit log', () => {
   })
 })
 
+// ---- the direction of a clamped box ----------------------------------------------------------------------------------------------
+
+describe('a clamped box takes the direction of its own text, so that its ellipsis lands at the end of the name', () => {
+  const RUSSIAN = 'Константин Константинович Примеров-Образцовский, старший бригадир по уборке' // under the 80 characters that the audit screen shows of a name
+
+  it('every clamped box in the screens of the committee app is a bdi or has a dir attribute (read from the source, so that a new one cannot forget it)', () => {
+    const root = path.join(process.cwd(), 'src', 'admin')
+    const found = []
+    for (const name of fs.readdirSync(root, { recursive: true })) {
+      if (!String(name).endsWith('.jsx')) continue
+      const source = fs.readFileSync(path.join(root, String(name)), 'utf8')
+      for (const tag of source.matchAll(/<(\w+)([^<>]*\ba-clamp-2\b[^<>]*)>/g)) found.push({ name: String(name), tag: tag[1], attributes: tag[2] })
+    }
+    expect(found.length, 'the boxes that the screens clamp, found by their class').toBeGreaterThanOrEqual(7)
+    for (const { name, tag, attributes } of found) {
+      expect(tag === 'bdi' || /\sdir=/.test(attributes), `${name}: <${tag}${attributes}> is clamped and takes no direction of its own`).toBe(true)
+    }
+  })
+
+  it('a Russian name and a Latin one in the tile of a point, an audit entry (what it is about, and who did it) get their own direction', async () => {
+    const tile = await showPoint({ provider_ids: ['r1', 'l1'] }, [
+      { ...PROVIDERS[0], id: 'r1', contact_name: RUSSIAN },
+      { ...PROVIDERS[0], id: 'l1', contact_name: 'Cleaning Co. 24/7 (A-1)' },
+    ])
+    for (const el of drawn(whoScans(tile))) expect(directionOf(el)).toBe('auto')
+    cleanup()
+    api.mockImplementation(async (url) => {
+      if (url === '/admin/admins') return { admins: [] }
+      if (url.startsWith('/admin/audit')) {
+        return {
+          entries: [{
+            id: 1, at: '2026-10-05T07:14:00.000Z', action: 'provider.update', entity: 'provider', entity_id: 'p1', entity_name: RUSSIAN,
+            actor_type: 'admin', actor_id: 'a1', actor_name: 'John Smith', actor_deleted: false, detail: null,
+          }],
+          next_cursor: null,
+        }
+      }
+      throw new Error(`the test does not expect ${url}`)
+    })
+    render(<ToastProvider><ConfirmProvider><AuditView /></ConfirmProvider></ToastProvider>)
+    const row = (await screen.findByText('עדכון נותן שירות', { selector: '.a-audit__action' }, WAIT)).closest('li')
+    expect(directionOf(row.querySelector('.a-audit__subject'))).toBe('auto')
+    expect(row.querySelector('.a-audit__subject').textContent).toBe(RUSSIAN)
+    expect(directionOf(row.querySelector('.a-audit__who .a-clamp-2'))).toBe('auto')
+    expect(row.querySelector('.a-audit__who .a-clamp-2').textContent).toBe('John Smith')
+  })
+})
+
 // ---- what the stylesheet says ---------------------------------------------------------------------------------------------------
 
 describe('the stylesheet (src/admin/admin.css)', () => {
@@ -332,6 +403,10 @@ describe('the stylesheet (src/admin/admin.css)', () => {
     expect(rule).toMatch(/-webkit-box-orient:\s*vertical/)
     expect(rule).toMatch(/-webkit-line-clamp:\s*2\b/)
     expect(rule).toMatch(/(?<!-webkit-)line-clamp:\s*2\b/)
+  })
+
+  it('.a-clamp-2 sets neither the direction nor the alignment: the box takes its direction from its text (measured: Chromium leaves out the ellipsis of a right-aligned left-to-right line that has room to spare)', () => {
+    expect(ruleOf('.a-clamp-2')).not.toMatch(/\b(?:direction|text-align|unicode-bidi)\s*:/)
   })
 
   it('a badge wraps inside its card: it may be as wide as its room and breaks a long word, and it is never nowrap', () => {

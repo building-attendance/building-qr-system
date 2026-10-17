@@ -350,7 +350,11 @@ html[dir='ltr'] .a-email__piece { text-align: start; }
    of a point that says who scans there, one name to a line. The browser cuts it (-webkit-line-clamp, which the standard line-clamp
    follows), so the whole text stays in the page for a screen reader and for a copy, and the edit form of a point holds the whole
    description and the whole list of providers. The text keeps its overflow-wrap: anywhere, so one very long word is cut at the end of
-   its second line too. */
+   its second line too. The ellipsis goes at the end of the box in the box's own direction, so the box takes the direction of its own
+   text (`dir="auto"`, or a `bdi`, which is auto already): a Russian or Latin name in a right-to-left card then ends with its ellipsis and
+   not with one on the wrong side of its last word, and, as every left-to-right text does, starts at the left edge of its box. It is not
+   pushed to the right edge to line up with the Hebrew ones (`text-align`, `match-parent`): measured in Chromium and WebKit, Chromium then
+   leaves out the ellipsis of a line that has room to spare, which is almost every last line of a name. */
 .a-clamp-2 { overflow: hidden; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; line-clamp: 2; }
 .a-meta { display: flex; flex-wrap: wrap; gap: var(--w-space-1-5); }
 .a-facts { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: var(--w-space-1-5) var(--w-space-3-5); font-size: var(--w-font-md); }
@@ -508,11 +512,18 @@ select.a-input {
   grid-template-areas: 'time what' '. who' '. detail';
 }
 .a-audit__time { grid-area: time; }
-.a-audit__what { grid-area: what; min-width: 0; overflow-wrap: anywhere; }
+/* What an entry says is a row of the phrase, a dot and what it is about, and what it is about is a box of its own (.a-clamp-2): its ellipsis
+   has to land at the end of the name and not at the end of the sentence (a name in another direction than the phrase). A subject that does
+   not fit beside the phrase goes under it, the whole width, and stops at two lines. */
+.a-audit__what { grid-area: what; min-width: 0; overflow-wrap: anywhere; display: flex; flex-wrap: wrap; column-gap: var(--w-space-1); }
+.a-audit__what > .a-clamp-2 { flex: 0 1 auto; min-width: 0; }
 .a-audit__action { font-weight: var(--w-weight-semibold); }
 .a-audit__action--raw { color: var(--w-text-2); font-weight: var(--w-weight-regular); unicode-bidi: isolate; display: inline-block; } /* a name the screen has no words for */
 .a-audit__subject { font-weight: var(--w-weight-semibold); }
-.a-audit__who { grid-area: who; margin-block-start: var(--w-space-0-5); color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; }
+/* Who did it: the word "by" and then the name, a box of its own for the same reason, as wide as the name or as the room that the word leaves. */
+.a-audit__who { grid-area: who; margin-block-start: var(--w-space-0-5); color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; display: flex; column-gap: var(--w-space-1); }
+.a-audit__by { flex: none; }
+.a-audit__who > .a-clamp-2 { flex: 0 1 auto; min-width: 0; }
 .a-audit__detail { grid-area: detail; margin-block-start: var(--w-space-1); color: var(--w-text-2); font-size: var(--w-font-md); overflow-wrap: anywhere; display: flex; flex-direction: column; gap: var(--w-space-0-5); }
 .a-audit__arrow { display: inline-block; }
 /* Computer: the time, the action and who on one line, and the detail under them. */

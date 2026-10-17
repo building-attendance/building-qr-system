@@ -1565,8 +1565,9 @@ test('a long service name, a long description and many scanners fit the cards of
       const card = cardOf(points[0].name)
       const text = card.locator('.a-card__sub')
       await expect(text, `${width} px: the whole description is in the page`).toHaveText(description)
-      const [lineHeight, shape] = await Promise.all([lineHeightOf(text), text.evaluate((el) => ({ shown: el.clientHeight, whole: el.scrollHeight, clamp: getComputedStyle(el).webkitLineClamp }))])
+      const [lineHeight, shape] = await Promise.all([lineHeightOf(text), text.evaluate((el) => ({ shown: el.clientHeight, whole: el.scrollHeight, clamp: getComputedStyle(el).webkitLineClamp, direction: getComputedStyle(el).direction }))])
       expect(shape.clamp, `${width} px: the description is clamped to two lines`).toBe('2')
+      expect(shape.direction, `${width} px: a description in Latin letters takes its own direction (the page is right to left), so that its ellipsis is at its end`).toBe('ltr')
       expect(shape.shown, `${width} px: it shows two lines or fewer`).toBeLessThanOrEqual(lineHeight * 2 + 1)
       expect(shape.whole, `${width} px: it holds more than it shows, so the clamp cut it`).toBeGreaterThan(shape.shown + 1)
       const long = cardOf(points[1].name).locator('.a-card__sub')
@@ -1575,9 +1576,7 @@ test('a long service name, a long description and many scanners fit the cards of
       // "מי סורק": two names, each in an element of its own, and "ועוד 1" for the third on a line of its own, every name still in the page;
       // two names alone say no "ועוד"
       const who = card.locator('.a-facts dd').first()
-      const drawnNames = who.locator(':scope > .a-clamp-2')
-      await expect(drawnNames, `${width} px: two names are drawn, each in an element of its own that is clamped`).toHaveCount(2)
-      await expect(drawnNames.locator('bdi'), `${width} px: each drawn name is isolated`).toHaveCount(2)
+      await expect(who.locator(':scope > bdi.a-clamp-2'), `${width} px: two names are drawn, each in a bdi of its own that is the clamped box`).toHaveCount(2)
       await expect(who.locator('.w-sr bdi'), `${width} px: the third name is in the run for a screen reader, isolated like the others`).toHaveCount(1)
       await expect(who.getByText('ועוד 1', { exact: true }), `${width} px: the third is "ועוד 1"`).toBeVisible()
       for (const p of providers) await expect(who, `${width} px: ${p.contact_name} is in the page`).toContainText(p.contact_name)
@@ -1595,15 +1594,16 @@ test('a long service name, a long description and many scanners fit the cards of
 
       // two names of 120 characters (words, and one long word): each stops at two lines and is cut, so the tile is four lines or fewer
       const longWho = cardOf(points[2].name).locator('.a-facts dd').first()
-      const longNames = longWho.locator(':scope > .a-clamp-2')
+      const longNames = longWho.locator(':scope > bdi.a-clamp-2')
       await expect(longNames, `${width} px: two long names are drawn, each in an element of its own`).toHaveCount(2)
       await expect(longWho, `${width} px: two names say no "ועוד"`).not.toContainText('ועוד')
       const wanted = longProviders.map((p) => p.contact_name)
       expect((await longNames.allTextContents()).sort(), `${width} px: the whole of each long name is in the page`).toEqual([...wanted].sort())
       const longLineHeight = await lineHeightOf(longNames.first())
       for (const i of [0, 1]) {
-        const shape = await longNames.nth(i).evaluate((el) => ({ shown: el.clientHeight, whole: el.scrollHeight, clamp: getComputedStyle(el).webkitLineClamp }))
+        const shape = await longNames.nth(i).evaluate((el) => ({ shown: el.clientHeight, whole: el.scrollHeight, clamp: getComputedStyle(el).webkitLineClamp, direction: getComputedStyle(el).direction }))
         expect(shape.clamp, `${width} px: long name ${i + 1} is clamped to two lines`).toBe('2')
+        expect(shape.direction, `${width} px: long name ${i + 1} is in Latin letters, so its box is left to right in the right-to-left page and its ellipsis lands at its end`).toBe('ltr')
         expect(shape.shown, `${width} px: long name ${i + 1} shows two lines or fewer`).toBeLessThanOrEqual(longLineHeight * 2 + 1)
         expect(shape.whole, `${width} px: long name ${i + 1} holds more than it shows, so the clamp cut it`).toBeGreaterThan(shape.shown + 1)
       }
