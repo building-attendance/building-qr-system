@@ -290,7 +290,8 @@ const SCANNERS_SHOWN = 2
  * The names on the "מי סורק" tile: every provider when none is chosen, else the first two names and "ועוד N" for the N that are left.
  * Text is cut here and not by CSS (a count has to be said), so the names that are not drawn are still in the page for a screen reader,
  * in a visually hidden run after the drawn text, and the drawn "ועוד N" is hidden from it, so that it hears every name once and no
- * "and 3 more". Each name is isolated (R3), so a Latin or Russian name keeps its order inside the Hebrew line.
+ * "and 3 more". Each name is isolated (R3), the drawn ones and the hidden ones alike, each in its own `bdi` with its own delimiter, so a
+ * Latin or Russian name, or one with digits or punctuation, keeps its order inside the Hebrew line and never reorders its neighbours.
  * @param {{ names: string[] }} props
  */
 function Scanners({ names }) {
@@ -302,7 +303,7 @@ function Scanners({ names }) {
       {rest.length > 0 && (
         <>
           {' '}<span aria-hidden="true">ועוד {rest.length}</span>
-          <span className="w-sr">, {rest.join(', ')}</span>
+          <span className="w-sr">{rest.map((name, i) => <Fragment key={i}>, <bdi>{name}</bdi></Fragment>)}</span>
         </>
       )}
     </>

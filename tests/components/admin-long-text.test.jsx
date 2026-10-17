@@ -49,10 +49,10 @@ afterEach(() => {
 
 // ---- the point card --------------------------------------------------------------------------------------------------------------
 
-async function showPoint(over) {
+async function showPoint(over, providers = PROVIDERS) {
   api.mockImplementation(async (url) => {
     if (url === '/admin/points') return { points: [point(over)] }
-    if (url === '/admin/providers') return { providers: PROVIDERS }
+    if (url === '/admin/providers') return { providers }
     throw new Error(`the test does not expect ${url}`)
   })
   render(<ToastProvider><ConfirmProvider><PointsView /></ConfirmProvider></ToastProvider>)
@@ -90,7 +90,8 @@ describe('the tile "מי סורק" of a point', () => {
   it('names two and says "ועוד 1" for a third', async () => {
     const dd = whoScans(await showPoint({ provider_ids: some(3) }))
     expect(seen(dd)).toBe(`${names(3).slice(0, 2).join(', ')} ועוד 1`)
-    expect(dd.querySelectorAll('bdi').length, 'two names are drawn').toBe(2)
+    expect([...dd.children].filter((el) => el.tagName === 'BDI').length, 'two names are drawn').toBe(2)
+    expect(dd.querySelectorAll('.w-sr bdi').length, 'the third is in the run for a screen reader, isolated too').toBe(1)
   })
 
   it('counts every one that is left: "ועוד 3" for five', async () => {
@@ -104,6 +105,20 @@ describe('the tile "מי סורק" of a point', () => {
     const hidden = dd.querySelector('.w-sr')
     expect(hidden.textContent).toBe(`, ${names(5).slice(2).join(', ')}`)
     for (const name of names(5)) expect(dd.textContent).toContain(name) // all five are in the page
+  })
+
+  it('isolates each hidden name too, in its own bdi with its own delimiter (a Latin name, a Russian one and one with digits and punctuation)', async () => {
+    const HIDDEN = ['John Smith', 'Константин Иванов', 'Cleaning Co. 24/7 (A-1)']
+    const providers = [...PROVIDERS.slice(0, 2), ...HIDDEN.map((contact_name, i) => ({ ...PROVIDERS[0], id: `h${i}`, contact_name }))]
+    const dd = whoScans(await showPoint({ provider_ids: providers.map((p) => p.id) }, providers))
+    expect(seen(dd)).toBe(`${PROVIDERS[0].contact_name}, ${PROVIDERS[1].contact_name} ועוד 3`)
+    const hidden = dd.querySelector('.w-sr')
+    // the run is, name by name, a plain ", " and then the name in a bdi: no name stands bare in the run, so none can reorder its neighbours
+    expect([...hidden.childNodes].map((n) => (n.nodeName === 'BDI' ? `bdi:${n.textContent}` : `text:${n.textContent}`))).toEqual(
+      HIDDEN.flatMap((name) => ['text:, ', `bdi:${name}`]),
+    )
+    expect(hidden.textContent).toBe(`, ${HIDDEN.join(', ')}`) // what a screen reader is given is the same text as before
+    expect(dd.querySelectorAll('bdi').length, 'two drawn and three hidden').toBe(5)
   })
 
   it('isolates each name (a Latin or Russian one keeps its order inside the Hebrew line)', async () => {
@@ -180,6 +195,52 @@ describe('an entry of the audit log', () => {
     expect(what.textContent).toContain(SUBJECT)
     expect(who.classList.contains('a-clamp-2')).toBe(true)
     expect(who.textContent).toBe(`על ידי ${ACTOR}`)
+  })
+
+  describe('who did it, when the actor is named by an e-mail address (a member with no saved name)', () => {
+    const ADDRESS = 'bartholomew.fitzgerald@northwind.example.test'
+    async function actorRow(over) {
+      api.mockImplementation(async (url) => {
+        if (url === '/admin/admins') return { admins: [] }
+        if (url.startsWith('/admin/audit')) {
+          return {
+            entries: [{
+              id: 9, at: '2026-10-05T07:14:00.000Z', action: 'point.update', entity: 'point', entity_id: 'p1', entity_name: 'לובי',
+              actor_type: 'admin', actor_id: 'a1', actor_name: ADDRESS, actor_deleted: false, detail: null, ...over,
+            }],
+            next_cursor: null,
+          }
+        }
+        throw new Error(`the test does not expect ${url}`)
+      })
+      render(<ToastProvider><ConfirmProvider><AuditView /></ConfirmProvider></ToastProvider>)
+      return (await screen.findByText('עדכון נקודה', { selector: '.a-audit__action' }, WAIT)).closest('li').querySelector('.a-audit__who')
+    }
+
+    it('draws the address with the helper, inside the clamped line: a left-to-right isolate in whole pieces', async () => {
+      const who = await actorRow({})
+      expect(who.classList.contains('a-clamp-2')).toBe(true)
+      expect(who.textContent).toBe(`על ידי ${ADDRESS}`)
+      const address = who.querySelector('bdi[dir="ltr"]')
+      expect(address.textContent).toBe(ADDRESS)
+      expect([...address.querySelectorAll('.a-email__piece')].map((el) => el.textContent)).toEqual(['bartholomew.', 'fitzgerald@', 'northwind.', 'example.', 'test'])
+      expect(who.querySelectorAll('bdi').length, 'one isolate: the address').toBe(1)
+    })
+
+    it('keeps the mark of a member who is gone outside the address, in an isolate of its own', async () => {
+      const who = await actorRow({ actor_deleted: true })
+      expect(who.textContent).toBe(`על ידי ${ADDRESS} (נמחק)`)
+      const isolates = [...who.querySelectorAll('bdi')]
+      expect(isolates.map((el) => el.textContent)).toEqual([ADDRESS, '(נמחק)'])
+      expect(isolates[0].getAttribute('dir')).toBe('ltr')
+      expect(isolates[0].textContent, 'the mark is not part of the address').not.toContain('נמחק')
+    })
+
+    it('leaves a name that is not an address as it was: one isolate, with its mark', async () => {
+      const who = await actorRow({ actor_name: 'אבי מזרחי', actor_deleted: true })
+      expect([...who.querySelectorAll('bdi')].map((el) => el.textContent)).toEqual(['אבי מזרחי (נמחק)'])
+      expect(who.querySelector('.a-email__piece')).toBeNull()
+    })
   })
 
   it('draws the e-mail line of a member who was added with the address helper (it may break after "@" and dots)', async () => {

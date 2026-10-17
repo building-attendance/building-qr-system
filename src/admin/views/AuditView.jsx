@@ -7,7 +7,7 @@ import Email, { isEmailAddress } from '../Email.jsx'
 import { DateRangeFields, FilterBar, FilterSheet, goodDate, sameFilters, useFilterFocus, useFilterState, useUnfinishedDates } from '../filters.jsx'
 import { IconClock, IconRefresh, IconAlert } from '../icons.jsx'
 import { formatDay, formatTime, isoDay } from '../../../shared/datetime.js'
-import { GROUP_OPTIONS } from '../auditLabels.js'
+import { DELETED_ACTOR_MARK, GROUP_OPTIONS } from '../auditLabels.js'
 import { describeEntry, actorText } from '../auditDescribe.js'
 
 // The audit log: what the committee's members (and the system) did, and when (ADR 0007, decision 4). Read only, so a row has no
@@ -52,6 +52,17 @@ function Line({ line }) {
   )
 }
 
+/**
+ * Who did it, in an isolate of its own. A member who has no saved name is named by the e-mail address (the audit contract), and an
+ * address is drawn by `Email`, so that it breaks only after "@" and dots like every other address of the committee app; the mark of a
+ * member who is gone ("(נמחק)") then stands beside it, outside it. Any other name is one isolate with its mark, as `actorText` writes it.
+ * @param {{ actor: { name: string, deleted: boolean } }} props
+ */
+function Actor({ actor }) {
+  if (!isEmailAddress(actor.name)) return <bdi>{actorText(actor)}</bdi>
+  return <><Email address={actor.name} />{actor.deleted && <> <bdi>{DELETED_ACTOR_MARK}</bdi></>}</>
+}
+
 /** One entry: read only. The time, what was done and about what, who did it, and the detail. Everything is text. */
 function EntryRow({ entry }) {
   const { phrase, subject, actor, lines } = describeEntry(entry)
@@ -64,7 +75,7 @@ function EntryRow({ entry }) {
           : <span className="a-audit__action a-audit__action--raw" dir="ltr">{phrase.text}</span>}
         {subject && <> <span aria-hidden="true">·</span> <bdi className="a-audit__subject">{isEmailAddress(subject) ? <Email address={subject} /> : subject}</bdi></>}
       </div>
-      <div className="a-audit__who a-clamp-2">על ידי <bdi>{actorText(actor)}</bdi></div>
+      <div className="a-audit__who a-clamp-2">על ידי <Actor actor={actor} /></div>
       {lines.length > 0 && (
         <div className="a-audit__detail">
           {lines.map((line, i) => <Line key={i} line={line} />)}

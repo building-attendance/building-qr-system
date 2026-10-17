@@ -1560,7 +1560,8 @@ test('a long service name, a long description and many scanners fit the cards of
 
       // "מי סורק": two names and "ועוד 1" for the third, every name still in the page; two names alone say no "ועוד"
       const who = card.locator('.a-facts dd').first()
-      await expect(who.locator('bdi'), `${width} px: two names are drawn`).toHaveCount(2)
+      expect(await who.evaluate((el) => [...el.children].filter((child) => child.tagName === 'BDI').length), `${width} px: two names are drawn`).toBe(2)
+      await expect(who.locator('.w-sr bdi'), `${width} px: the third name is in the run for a screen reader, isolated like the others`).toHaveCount(1)
       await expect(who.getByText('ועוד 1', { exact: true }), `${width} px: the third is "ועוד 1"`).toBeVisible()
       for (const p of providers) await expect(who, `${width} px: ${p.contact_name} is in the page`).toContainText(p.contact_name)
       const two = cardOf(points[1].name).locator('.a-facts dd').first()
