@@ -91,8 +91,9 @@ A rule named in parentheses, such as (Safety), is spelled out in that section of
 - A change that weakens the Content-Security-Policy in `vercel.json` (anything the CSP rule forbids (Rules for every
   change), an enforced policy turned back into report-only, a directive removed or widened), or that loosens
   `tests/security-headers.test.js`.
-- A budget in `scripts/check-bundle-size.json` or `tests/design-budget.json` raised, an exception added to the latter,
-  or a measured file dropped from the former, without a reason in the pull request.
+- A budget in `scripts/check-bundle-size.json` raised without a reason in the pull request, or a measured file dropped
+  from that check.
+- A budget in `tests/design-budget.json` raised, or an exception added to it, without a reason in the pull request.
 - A visual baseline (a PNG of the screenshot tests under `e2e/`) added, changed or deleted in a pull request that does
   not show the change and say why.
 - A change to `scripts/vercel-ignore.mjs` or the `ignoreCommand` of `vercel.json` that lets a change to the app, the
