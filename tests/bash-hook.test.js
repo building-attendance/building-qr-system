@@ -37,12 +37,20 @@ const REFUSED = [
   ['While (-not (Test-Path x)) { sleep 2 }', 'PowerShell'],
   ['Get-Content server.log -Wait', 'PowerShell'],
   ['gh pr checks 270 --watch', 'PowerShell'],
+  // GNU timeout reads a duration of 0 as no limit, and -k takes a value of its own (Codex on #271).
+  ["timeout 0 sh -c 'until false; do sleep 5; done'", 'Bash'],
+  ["timeout -k 5 0 bash -c 'while true; do sleep 5; done'", 'Bash'],
+  ['timeout 0s tail -f server.log', 'Bash'],
+  ['Start-Job { while ($true) { Start-Sleep 5 } } | Wait-Job -Timeout 0', 'PowerShell'],
 ]
 
 // [command, tool]: each one has a limit, or does not wait.
 const ALLOWED = [
   ["timeout 20 sh -c 'until false; do sleep 5; done'", 'Bash'],
   ["timeout -k 5 300 bash -c 'while true; do sleep 5; done'", 'Bash'],
+  ["timeout -k 0 20 sh -c 'until false; do sleep 5; done'", 'Bash'], // the duration is 20: -k 0 only drops the kill
+  ["timeout 0.5 sh -c 'while true; do sleep 0.1; done'", 'Bash'],
+  ['timeout --kill-after=5 30s tail -f server.log', 'Bash'],
   ['for i in $(seq 30); do curl -sf http://localhost:3000 && break; sleep 2; done', 'Bash'],
   ['i=0; until curl -sf http://localhost:3000 || [ $i -ge 30 ]; do i=$((i+1)); sleep 2; done', 'Bash'],
   ['n=0; while (( n < 10 )); do n=$((n+1)); sleep 1; done', 'Bash'],

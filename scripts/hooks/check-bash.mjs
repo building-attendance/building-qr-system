@@ -9,8 +9,8 @@
 //
 // It refuses (exit 2, the message on stderr, which Claude Code shows to the agent instead of running the command):
 //   - a loop (`until` or `while` in a shell; `while (` or `do { } until (` in PowerShell) that sleeps (`sleep N`,
-//     `Start-Sleep`), when nothing in the command limits it: no `timeout <n>`, no counter test (`-lt`, `-le`, `-gt`,
-//     `-ge`, `(( a < b ))`, `seq <n>`) and no PowerShell `-Timeout <n>`;
+//     `Start-Sleep`), when nothing in the command limits it: no `timeout <n>` with n above 0, no counter test (`-lt`,
+//     `-le`, `-gt`, `-ge`, `(( a < b ))`, `seq <n>`) and no PowerShell `-Timeout <n>`;
 //   - a command that follows without end (`tail -f`, `tail --follow`, PowerShell `Get-Content -Wait`, `gh ... --watch`,
 //     `gh run watch`), when it has no `timeout <n>` (or PowerShell `-Timeout <n>`).
 // It lets through a loop that does not sleep, a `while read` loop (it ends with its input), a JavaScript `sleep(500)`,
@@ -36,8 +36,13 @@ const POWERSHELL_LOOP = /\bwhile\s*\(|\bdo\s*\{[\s\S]*\}\s*(?:until|while)\b/i
 // function call such as `sleep(500)` or `time.sleep(5)`.
 const SLEEP = /(?:^|[^\w$.-])sleep\s+(?:-\w+\s+)?[\d$"']|\bStart-Sleep\b/i
 // A limit: GNU `timeout 20`, `timeout -k 5 20`, `timeout --signal=KILL 20s` (not a `--timeout` option of another
-// command), PowerShell's `-Timeout 600` (Wait-Job, Wait-Process), and for a loop a counter test as well.
-const TIMEOUT = /(?<![\w-])timeout\s+(?:-\S+\s+)*\d|\s-Timeout\s+\d/i
+// command), PowerShell's `-Timeout 600` (Wait-Job, Wait-Process), and for a loop a counter test as well. Only a duration
+// above zero is a limit: GNU timeout reads 0 as no limit at all. `-k` and `-s` take a value of their own, so the duration
+// of `timeout -k 5 0` is 0, not 5.
+const GNU_TIMEOUT = /(?<![\w-])timeout\s+(?:(?:-[ks]\s+\S+|--\S+|-(?![ks]\s)\S+)\s+)*(\d+(?:\.\d*)?|\.\d+)/g
+const POWERSHELL_TIMEOUT = /\s-Timeout\s+(\d+)/gi
+const hasLimit = (command) =>
+  [...command.matchAll(GNU_TIMEOUT), ...command.matchAll(POWERSHELL_TIMEOUT)].some((match) => Number(match[1]) > 0)
 const COUNTER = /\s-(?:lt|le|gt|ge)\b|\(\([^)]*[<>][^)]*\)\)|\bseq\s+\d/i
 // A command that follows without end: `tail -f`, `tail -n 50 -F`, `tail --follow=name`, PowerShell's `Get-Content -Wait`
 // (and its aliases), `gh pr checks --watch`, `gh run watch`. Only inside one simple command (up to ; & | or a new line).
@@ -50,7 +55,7 @@ const FOLLOWS = [
 /** Why this command waits with no limit, or null when it does not (or has a limit). */
 function findUnlimitedWait(command) {
   if (typeof command !== 'string' || !command || command.length > MAX_COMMAND) return null
-  const hasTimeout = TIMEOUT.test(command)
+  const hasTimeout = hasLimit(command)
   if ((SHELL_LOOP.test(command) || POWERSHELL_LOOP.test(command)) && SLEEP.test(command) && !hasTimeout && !COUNTER.test(command)) {
     return { kind: 'loop', what: 'a loop that sleeps until something happens, with nothing that ends it if it never does' }
   }
