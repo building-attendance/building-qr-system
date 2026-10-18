@@ -34,22 +34,25 @@ is the whole of your task.
 
 ## Before you finish
 
-1. Run, before you commit, the four checks that the stop gate runs, until each exits 0:
-   `node scripts/check-migrations.mjs --base <base>`, `node scripts/check-tests.mjs --base <base>`, `npm run -s lint` and
-   `npm run -s typecheck`, where `<base>` is the remote's default branch (`git symbolic-ref --short
-   refs/remotes/origin/HEAD`: `origin/master` here, often `origin/main` in a copy).
+The stop gate runs four checks. Two read your files: `npm run -s lint` and `npm run -s typecheck`. Two read your commits
+(`<base>...HEAD`), so they see a change only once it is committed: `node scripts/check-migrations.mjs --base <base>` and
+`node scripts/check-tests.mjs --base <base>`, where `<base>` is the remote's default branch (`git symbolic-ref --short
+refs/remotes/origin/HEAD`: `origin/master` here, often `origin/main` in a copy).
+
+1. Run lint and typecheck until each exits 0.
 2. Run the unit tests of what you changed: `npx vitest related --run <the files you changed>`. Put the command and the
    end of its output in your report.
 3. Run `/code-review` on your diff, and `/security-review` too when the task file marks the task 🔴 (high blast radius).
    Fix what is important, or say in your report why not. After a fix, run steps 1 and 2 again.
-4. Commit, then push with `git push origin HEAD:<the branch of the brief>` (never a `claude/` branch, never a force push),
-   and open a draft pull request: the title a Conventional Commit, the body the repository's template. Do not wait for
-   CI or for a review.
-5. When you try to finish, the stop gate runs those four checks again in your worktree. If it blocks you, its message
-   names the failing step and the command: fix it, run the step until it exits 0, commit the fix and push it to the same
-   branch (the pull request must point at the fixed commit), then finish again. If you cannot fix it (it needs the owner,
-   or the failure is not from your change), run the `--blocked` command that the message gives, then finish and start
-   your report with BLOCKED.
+4. Commit. Then run the two checks that read commits until each exits 0; a fix is another commit.
+5. Push with `git push origin HEAD:<the branch of the brief>` (never a `claude/` branch, never a force push), and open a
+   draft pull request: the title a Conventional Commit, the body the repository's template. Do not wait for CI or for a
+   review.
+6. When you try to finish, the stop gate runs the four checks again in your worktree. If it blocks you, its message names
+   the failing step and the command: fix it, commit the fix, run the step until it exits 0, and push to the same branch
+   (the pull request must point at the fixed commit), then finish again. If you cannot fix it (it needs the owner, or the
+   failure is not from your change), run the `--blocked` command that the message gives, then finish and start your
+   report with BLOCKED.
 
 ## Your report
 

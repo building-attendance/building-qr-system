@@ -177,7 +177,8 @@ function blockReason(failures, key, blocks) {
     ...failures.map(
       (f) => `- ${f.name} fails in ${f.tree}:\n${f.output.map((line) => `    ${line}`).join('\n')}\n  Run it: cd "${f.tree}" && ${f.command}`,
     ),
-    'Fix it, run the command again until it exits 0, commit the fix and push it to the same branch, and then finish.',
+    'Fix it, commit the fix, run the command again until it exits 0 (lint and typecheck read your files, check-migrations',
+    'and check-tests read your commits), push to the same branch, and then finish.',
     'If you cannot fix it (it needs the owner, or the failure does not come from your change), run',
     `  node "${SELF}" --blocked --agent ${key} "<why, in one line>"`,
     'then finish, and start your report with BLOCKED and the reason.',
