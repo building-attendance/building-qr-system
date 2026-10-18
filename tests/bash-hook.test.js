@@ -37,8 +37,16 @@ const REFUSED = [
   ['While (-not (Test-Path x)) { sleep 2 }', 'PowerShell'],
   ['Get-Content server.log -Wait', 'PowerShell'],
   ['gh pr checks 270 --watch', 'PowerShell'],
-  // GNU timeout reads a duration of 0 (or inf) as no limit, and its options -k / --kill-after and -s / --signal take a
-  // value of their own, in every form `timeout --help` allows (Codex on #271, twice).
+  // Where the hook has to guess, it refuses (three Codex rounds on #271 each found a spelling that a reader of timeout's
+  // options or of sleep's operand missed). Only the plain `timeout <n>` with n above 0 is a limit: GNU timeout reads 0 and
+  // inf as no limit, and options before the duration take values that look like one, so any option there is refused.
+  ["timeout -k 5 300 bash -c 'while true; do sleep 5; done'", 'Bash'],
+  ['timeout -s KILL 30 tail -f server.log', 'Bash'],
+  ['timeout --kill-after=5 30s tail -f server.log', 'Bash'],
+  // ...and anything after the word sleep makes a sleep.
+  ['until false; do sleep .5; done', 'Bash'],
+  ['while true; do sleep "$DELAY"; done', 'Bash'],
+  ['until false; do sleep 1e-1; done', 'Bash'],
   ["timeout 0 sh -c 'until false; do sleep 5; done'", 'Bash'],
   ["timeout -k 5 0 bash -c 'while true; do sleep 5; done'", 'Bash'],
   ['timeout 0s tail -f server.log', 'Bash'],
@@ -54,14 +62,10 @@ const REFUSED = [
 // [command, tool]: each one has a limit, or does not wait.
 const ALLOWED = [
   ["timeout 20 sh -c 'until false; do sleep 5; done'", 'Bash'],
-  ["timeout -k 5 300 bash -c 'while true; do sleep 5; done'", 'Bash'],
-  ["timeout -k 0 20 sh -c 'until false; do sleep 5; done'", 'Bash'], // the duration is 20: -k 0 only drops the kill
   ["timeout 0.5 sh -c 'while true; do sleep 0.1; done'", 'Bash'],
-  ['timeout --kill-after=5 30s tail -f server.log', 'Bash'],
-  ["timeout --signal 9 20 sh -c 'until false; do sleep 5; done'", 'Bash'],
-  ['timeout -s KILL 30 tail -f server.log', 'Bash'],
-  ["timeout -k5 20 sh -c 'until false; do sleep 5; done'", 'Bash'],
-  ["timeout --foreground --signal=KILL --kill-after=5 20 sh -c 'until false; do sleep 5; done'", 'Bash'],
+  ["timeout 20s sh -c 'until false; do sleep .5; done'", 'Bash'],
+  ['node -e "let m; while ((m = re.exec(s))) out.push(m[1])"', 'Bash'], // a loop that does not sleep
+  ['node -e "async function sleep (ms) { await new Promise((r) => setTimeout(r, ms)) }; while (!done()) await sleep (500)"', 'Bash'],
   ['for i in $(seq 30); do curl -sf http://localhost:3000 && break; sleep 2; done', 'Bash'],
   ['i=0; until curl -sf http://localhost:3000 || [ $i -ge 30 ]; do i=$((i+1)); sleep 2; done', 'Bash'],
   ['n=0; while (( n < 10 )); do n=$((n+1)); sleep 1; done', 'Bash'],
@@ -109,6 +113,7 @@ describe('the wait hook: the message gives two capped forms, in the language of 
   ])('for %j (%s)', (command, tool, forms) => {
     const { stderr } = runHook(call(command, tool))
     for (const form of forms) expect(stderr).toContain(form)
+    expect(stderr).toContain('A time limit counts only in its plain form')
   })
 
   it('and the hook lets each of those forms through', () => {
