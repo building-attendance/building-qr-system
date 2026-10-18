@@ -47,8 +47,9 @@ describe('LoginView', () => {
     for (const { code } of LANGS) {
       window.localStorage.setItem('qr.lang', code)
       withI18n(view())
-      const note = document.querySelector('.w-note > span').textContent
-      expect(note.slice(0, firstSentence[code].length), code).toBe(firstSentence[code])
+      // Exactly one element must hold the note's own text, and it must start with the sentence.
+      const note = screen.getByText((content) => content.startsWith(firstSentence[code]))
+      expect(note.textContent.slice(0, firstSentence[code].length), code).toBe(firstSentence[code])
       cleanup()
     }
   })
