@@ -27,40 +27,46 @@ const REFUSED = [
   'npx vitest --watch',
   'tail -f server.log',
   'cd "C:/work/tree" && npm test',
-  'timeout 0 npm test', // GNU timeout reads 0 as no limit
-  'timeout 0s npm test',
-  'timeout -k 5 300 npm test', // an option before the number: the plain form only
-  'timeout --signal 9 0 npm test',
-  'timeout $LIMIT npm test',
-  'timeout 300',
-  'timeout 300 npm test; until false; do sleep 1; done',
-  'timeout 300 npm test && npm run build',
-  'timeout 300 npm test || until false; do sleep 1; done',
-  'timeout 300 npm test | tail -40',
-  'timeout 300 npm test |& tail -40',
-  'timeout 300 npm test &',
-  'timeout 300 npm test\nuntil false; do sleep 1; done',
-  'npm test && timeout 300 npm run build', // only cd may come before the limit
-  'timeout 300 echo $(until false; do sleep 1; done)',
-  'timeout 300 echo "$(sleep 999)"',
-  'timeout 300 echo `sleep 999`',
-  'timeout 300 diff <(sleep 999) a.txt',
+  // TERM alone is not an upper bound: a program can catch or ignore it, and this one outlives `timeout 1` (Codex on #274).
+  `timeout 1 sh -c 'trap "" TERM; while :; do sleep 1; done'`,
+  'timeout 300 npm test',
+  'timeout -k 0 300 npm test', // GNU timeout reads 0 as no limit, for -k too
+  'timeout -k 10 0 npm test',
+  'timeout -k 10 0s npm test',
+  'timeout --kill-after=10 300 npm test', // one fixed form only: nothing to parse
+  'timeout -s KILL 300 npm test',
+  'timeout -k 10 --signal 9 0 npm test',
+  'timeout -k 10 $LIMIT npm test',
+  'timeout -k 10 300',
+  'timeout -k 10 300 npm test; until false; do sleep 1; done',
+  'timeout -k 10 300 npm test && npm run build',
+  'timeout -k 10 300 npm test || until false; do sleep 1; done',
+  'timeout -k 10 300 npm test | tail -40',
+  'timeout -k 10 300 npm test |& tail -40',
+  'timeout -k 10 300 npm test &',
+  'timeout -k 10 300 npm test\nuntil false; do sleep 1; done',
+  'npm test && timeout -k 10 300 npm run build', // only cd may come before the limit
+  'timeout -k 10 300 echo $(until false; do sleep 1; done)',
+  'timeout -k 10 300 echo "$(sleep 999)"',
+  'timeout -k 10 300 echo `sleep 999`',
+  'timeout -k 10 300 diff <(sleep 999) a.txt',
 ]
 
 // Commands that have their own limit, or that the Bash tool stops by itself.
 const ALLOWED = [
-  ['timeout 1800 npm run test:e2e', {}],
-  ['timeout 30m npm run test:e2e', {}],
-  ['timeout 0.5 sleep 1', {}],
-  ['cd "C:/Users/Some One/bqr-x" && timeout 1800 npm run test:unit', {}],
-  ["cd a && cd 'b c' && timeout 60 npm test", {}],
-  [`timeout 1800 sh -c 'npm run test:e2e 2>&1 | tail -40; echo "exit=$?"'`, {}],
-  [`timeout 300 sh -c 'until test -f done; do sleep 5; done; echo $(date)'`, {}], // inside single quotes, the shell under the limit runs it
-  ['timeout 300 sh -c "until test -f done; do sleep 5; done"', {}],
-  ['timeout 600 npm test > out.log 2>&1', {}],
-  ['timeout 600 npm test &> out.log', {}],
-  [`timeout 60 node -e "console.log('a;b|c&d')"`, {}],
-  ['timeout 60 npm \\\n  test', {}], // a line continued with a backslash
+  ['timeout -k 10 1800 npm run test:e2e', {}],
+  ['timeout -k 30s 30m npm run test:e2e', {}],
+  ['timeout -k 1 0.5 sleep 1', {}],
+  [`timeout -k 1 1 sh -c 'trap "" TERM; while :; do sleep 1; done'`, {}], // KILL 1 s after TERM ends it
+  ['cd "C:/Users/Some One/bqr-x" && timeout -k 10 1800 npm run test:unit', {}],
+  ["cd a && cd 'b c' && timeout -k 10 60 npm test", {}],
+  [`timeout -k 10 1800 sh -c 'npm run test:e2e 2>&1 | tail -40; echo "exit=$?"'`, {}],
+  [`timeout -k 10 300 sh -c 'until test -f done; do sleep 5; done; echo $(date)'`, {}], // inside single quotes, the shell under the limit runs it
+  ['timeout -k 10 300 sh -c "until test -f done; do sleep 5; done"', {}],
+  ['timeout -k 10 600 npm test > out.log 2>&1', {}],
+  ['timeout -k 10 600 npm test &> out.log', {}],
+  [`timeout -k 10 60 node -e "console.log('a;b|c&d')"`, {}],
+  ['timeout -k 10 60 npm \\\n  test', {}], // a line continued with a backslash
   ['until false; do sleep 5; done', { background: false }], // the foreground: the Bash tool stops it
   ['npx vitest --watch', { background: false }],
   ['until false; do sleep 5; done', { tool: 'Monitor' }],
@@ -75,25 +81,26 @@ describe('the background hook: a background command without a limit of its own i
     expect(result.stderr).toMatch(/It did not run/)
   })
 
-  it('says why, and gives the plain form', () => {
-    expect(runHook(call('timeout 0 npm test')).stderr).toContain('its time limit is 0')
-    expect(runHook(call('timeout 300 npm test | tail -40')).stderr).toContain('a part of it runs outside the time limit')
-    expect(runHook(call('timeout 300 echo $(sleep 9)')).stderr).toContain('which the shell runs before the time limit starts')
+  it('says why, and gives the form', () => {
+    expect(runHook(call('timeout -k 10 0 npm test')).stderr).toContain('one of its times is 0')
+    expect(runHook(call('timeout -k 10 300 npm test | tail -40')).stderr).toContain('a part of it runs outside the time limit')
+    expect(runHook(call('timeout -k 10 300 echo $(sleep 9)')).stderr).toContain('which the shell runs before the time limit starts')
+    expect(runHook(call('timeout 300 npm test')).stderr).toContain('it does not start with `timeout -k <seconds> <seconds>`')
     const { stderr } = runHook(call('npx vitest --watch'))
-    expect(stderr).toContain('it does not start with a plain `timeout <n>`')
-    expect(stderr).toContain('timeout 1800 npm run test:e2e')
-    expect(stderr).toContain(`cd "<dir>" && timeout 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`)
+    expect(stderr).toContain('KILL 10 seconds after TERM')
+    expect(stderr).toContain('timeout -k 10 1800 npm run test:e2e')
+    expect(stderr).toContain(`cd "<dir>" && timeout -k 10 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`)
   })
 
   it('and lets the forms of its message through', () => {
-    expect(runHook(call('timeout 1800 npm run test:e2e'))).toEqual(ALLOW)
-    expect(runHook(call(`cd "C:/work/tree" && timeout 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`))).toEqual(ALLOW)
+    expect(runHook(call('timeout -k 10 1800 npm run test:e2e'))).toEqual(ALLOW)
+    expect(runHook(call(`cd "C:/work/tree" && timeout -k 10 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`))).toEqual(ALLOW)
   })
 
   it('refuses a background PowerShell command, which has no timeout', () => {
-    const result = runHook(call('timeout 1800 npm test', { tool: 'PowerShell' }))
+    const result = runHook(call('timeout -k 10 1800 npm test', { tool: 'PowerShell' }))
     expect(result.code).toBe(2)
-    expect(result.stderr).toMatch(/Run it with the Bash tool as `timeout <seconds> <command>`/)
+    expect(result.stderr).toMatch(/Run it with the Bash tool as `timeout -k 10 <seconds> <command>`/)
     expect(runHook(call('npm test', { tool: 'PowerShell', background: false }))).toEqual(ALLOW)
   })
 })

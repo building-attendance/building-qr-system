@@ -9,11 +9,13 @@
 // stops it at its own time limit (2 minutes by default, 10 at most).
 //
 // The rule, refused with exit 2 and the message on stderr:
-//   - A background Bash command is one command under a plain time limit: `timeout <n> <command>`, with n a number above 0
-//     (seconds, or with the suffix s, m, h or d) right after the word, optionally after `cd <dir> &&` steps. Anything that
-//     could run outside the limit is refused: another command after ; && || | & or a new line, and $( ), backticks, <( )
-//     or >( ) outside single quotes (the shell runs them before timeout starts). A compound command goes inside the limit:
-//     `timeout 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`.
+//   - A background Bash command is one command under a time limit in one fixed form: `timeout -k <k> <n> <command>`, with
+//     k and n numbers above 0 (seconds, or with the suffix s, m, h or d), optionally after `cd <dir> &&` steps. After n,
+//     timeout sends TERM, which a program can catch or ignore (`trap "" TERM`); k later it sends KILL, which no program
+//     can, so -k is what makes the limit an upper bound. Anything that could run outside the limit is refused: another
+//     command after ; && || | & or a new line, and $( ), backticks, <( ) or >( ) outside single quotes (the shell runs
+//     them before timeout starts). A compound command goes inside the limit:
+//     `timeout -k 10 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`.
 //   - A background PowerShell command is refused: PowerShell has no `timeout`, and the Bash tool has.
 // It reads the form of the command, not what the program does, so it needs no list of programs that wait: any program in
 // the background gets the limit. What it cannot see, on purpose: a process that the command detaches by itself (`nohup`,
@@ -25,9 +27,9 @@
 // error of its own: 0, a hook must never break a session.
 import fs from 'node:fs'
 
-// `timeout 1800 <command>`: the plain form only. With an option before the number (`timeout -k 5 0`), the number may not be
-// the duration, so that form is refused rather than read.
-const LIMIT = /^timeout\s+(\d+(?:\.\d*)?|\.\d+)[smhd]?\s+\S/
+// `timeout -k 10 1800 <command>`: this one form only, so nothing has to be parsed (another option, or the two numbers in
+// another order, could make a number mean something else).
+const LIMIT = /^timeout\s+-k\s+(\d+(?:\.\d*)?|\.\d+)[smhd]?\s+(\d+(?:\.\d*)?|\.\d+)[smhd]?\s+\S/
 // `cd <dir>`, the one step allowed before the limit (it ends at once): a word, or a quoted path with spaces.
 const CD = /^cd(?:\s+(?:"[^"]*"|'[^']*'|[^\s'"]+))?$/
 
@@ -89,14 +91,16 @@ function missingLimit(command) {
     if (parts[i].sep !== '&&' || !CD.test(parts[i].text)) return 'a part of it runs outside the time limit'
   }
   const limit = LIMIT.exec(parts[last].text)
-  if (!limit) return 'it does not start with a plain `timeout <n>`'
-  if (!(Number.parseFloat(limit[1]) > 0)) return 'its time limit is 0, which GNU timeout reads as no limit at all'
+  if (!limit) return 'it does not start with `timeout -k <seconds> <seconds>`'
+  if (!(Number.parseFloat(limit[1]) > 0 && Number.parseFloat(limit[2]) > 0)) {
+    return 'one of its times is 0, which GNU timeout reads as no limit at all'
+  }
   return null
 }
 
 const BASH_FORMS = [
-  'timeout 1800 npm run test:e2e',
-  `cd "<dir>" && timeout 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`,
+  'timeout -k 10 1800 npm run test:e2e',
+  `cd "<dir>" && timeout -k 10 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`,
 ]
 
 function main() {
@@ -106,7 +110,7 @@ function main() {
     if (input.tool_name === 'PowerShell') {
       process.stderr.write(
         'This PowerShell command would run in the background, where nothing stops it, and PowerShell has no `timeout` ' +
-          '(scripts/hooks/check-background.mjs). It did not run. Run it with the Bash tool as `timeout <seconds> <command>`, ' +
+          '(scripts/hooks/check-background.mjs). It did not run. Run it with the Bash tool as `timeout -k 10 <seconds> <command>`, ' +
           'or in the foreground, where the tool stops it at its own limit.\n',
       )
       return 2
@@ -116,8 +120,8 @@ function main() {
     if (!why) return 0
     process.stderr.write(
       `This command would run in the background, where nothing stops it, without a time limit of its own ` +
-        `(scripts/hooks/check-background.mjs): ${why}. It did not run. Put the whole command under a plain limit, a number ` +
-        `of seconds above 0 right after \`timeout\`:\n${BASH_FORMS.map((form) => `  ${form}`).join('\n')}\n` +
+        `(scripts/hooks/check-background.mjs): ${why}. It did not run. Put the whole command under a limit in this form ` +
+        `(KILL 10 seconds after TERM, which a program can ignore):\n${BASH_FORMS.map((form) => `  ${form}`).join('\n')}\n` +
         'Or run it in the foreground, where the Bash tool stops it at its own limit.\n',
     )
     return 2
