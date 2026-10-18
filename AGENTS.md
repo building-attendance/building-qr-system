@@ -65,16 +65,17 @@ A rule named in parentheses, such as (Safety), is spelled out in that section of
 - An agent answer that breaks the agent API rule (Safety): one that can carry a secret, one built from a whole row
   instead of field by field, an audit detail without the allow-list of its action, or the per-key rate limit removed,
   raised or skipped on a route without the owner's decision.
-- A change to the retention job that deletes or changes what it never touches (Safety), changes a retention period
-  without the owner's decision, or answers a `/cron/` request without checking `CRON_SECRET` (a missing secret must
-  refuse, never allow).
+- A change to the retention job that deletes or changes anything beyond what `docs/privacy.md` lists or anything it
+  never touches (Safety), changes a retention period without the owner's decision, or answers a `/cron/` request without
+  checking `CRON_SECRET` (a missing secret must refuse, never allow).
 - A committee write whose `audit_log` row is not written in the transaction of the change, an update or a delete of
   `audit_log` or `scan_refusals`, a migration that creates `scan_refusals` (or makes `audit_log` append-only) without
   the triggers that refuse an update, a delete and a truncate, or a change that weakens those triggers or sets their
   delete setting.
-- An error record written anywhere but through `server/errorLog.js` or holding more than the fields of the error rule
-  (Safety), a record for a request that its guard refused or for a 4xx of a public route, `HEALTH_HEARTBEAT_URL` in a
-  log, an answer or a file, or a new public endpoint that writes.
+- An error record written anywhere but through `server/errorLog.js`; an error record, a heartbeat body or an app's error
+  report that holds anything beyond the fields the error rule allows (Safety); a record for a request that its guard
+  refused or for a 4xx of a public route, `HEALTH_HEARTBEAT_URL` in a log, an answer or a file, or a new public endpoint
+  that writes.
 - A route added to the `PUBLIC` list of `server/access.js` without a reason that justifies answering without
   credentials, a protected route made public (moved to that list, or a path rule changed so that it no longer owns the
   route), a change to `server/router.js` that runs any code of a handler (or reads the body, the query or the parameters
@@ -221,9 +222,9 @@ scan), or change the icons, the accessibility baseline (`e2e/a11y-baseline.js`),
 Production is migrated only by the Vercel production build of a merge to the production branch
 (`scripts/vercel-build.mjs`, ADR 0002), never by hand (`npm run db:migrate` refuses production); a failed migration
 fails its deployment and the previous one keeps serving. The production branch is the default branch as GitHub reports
-it during the build (`master` here, often `main` in a copy). `scripts/vercel-ignore.mjs` skips the build of a merge
-whose every file is on its short list (documents, tests, CI); any other file, and any doubt, builds
-(`docs/runbooks/deploy-and-rollback.md`).
+it during the build (`master` here, often `main` in a copy), never a value from the build environment.
+`scripts/vercel-ignore.mjs` skips the build of a merge whose every file is on its short list (documents, tests, CI), and
+such a merge has no smoke test; any other file, and any doubt, builds (`docs/runbooks/deploy-and-rollback.md`).
 
 The old deployment serves while the new one builds and migrates, and an installed PWA runs its old JavaScript until it
 is next opened, so old code calls the API for days or weeks and a phone's offline queue (`qr.queue.v1`) can hold
@@ -317,9 +318,10 @@ change the loop or answer for it.
 - Never read or print `.env.local` or any other secret file, and never paste a secret into a command line, a file of the
   repository, an issue, a pull request or a log. `.env.example` has no values and is fine to read.
 - Local tooling never touches the production database: `server/loadEnv.js` refuses an env file pulled from Vercel
-  production and `server/dbGuard.js` a database marked `production`. The only exceptions (ADR 0005, Addendum) are
-  `npm run db:backup`, read-only by construction (`pg_dump` in a session the server holds read-only), and
-  `db:create-admin`. Nothing else reads production.
+  production and `server/dbGuard.js` a database marked `production`; neither is bypassed or made to trust an environment
+  variable (any shell can set one). The only exceptions (ADR 0005, Addendum) are `npm run db:backup`, read-only by
+  construction (`pg_dump` in a session the server holds read-only), and `db:create-admin`. Nothing else reads
+  production.
 - Never `vercel env pull` from Production, `vercel --prod` or `vercel deploy --prod`. Deploying is the owner's step, and
   so is the first committee member of a deployment (`FIRST_ADMIN_EMAIL`, or `db:create-admin`:
   `docs/runbooks/secrets.md`).
@@ -332,12 +334,12 @@ change the loop or answer for it.
 - **The agent API rule.** The committee's agent is its analyst (owner, 08/10/2026): the agent API (`/api/agent/v1/`,
   read-only) may show everything the committee app shows, the audit log and the members' names and e-mails included, and
   never a secret: a point's QR token, a password hash, a token or a key, a key's prefix, a phone's label or browser
-  string (phone health goes out as numbers per provider), an IP address, `app_errors`, `alert_pings` or a Google
-  subject. Every answer is built field by field (never `select *` or a whole row), and an audit detail goes out only
-  through an allow-list per action, with any string that looks like a secret (`shared/secretLike.js`) removed, as on the
-  committee's audit screen. A pull request that shows the agent more changes `docs/privacy.md` too. Its only writes are
-  its key's `last_used_at` (at most every 5 minutes) and usage count, which also rate-limits the key
-  (`429 rate_limited`, limits in `server/config.js`).
+  string (phone health goes out as numbers per provider, never a row per phone), an IP address, `app_errors`,
+  `alert_pings` or a Google subject. Every answer is built field by field (never `select *` or a whole row), and an
+  audit detail goes out only through an allow-list per action, with any string that looks like a secret
+  (`shared/secretLike.js`) removed, as on the committee's audit screen. A pull request that shows the agent more changes
+  `docs/privacy.md` too. Its only writes are its key's `last_used_at` (at most every 5 minutes) and usage count, which
+  also rate-limits the key (`429 rate_limited`, limits in `server/config.js`).
 - Every committee change writes its `audit_log` row in the same transaction: `audit(c, ...)` of `server/audit.js` with
   that transaction's client, never the module's `query()`. `audit_log` and `scan_refusals` are append-only (triggers
   refuse an update, a delete and a truncate); the one way to delete is a transaction-local setting
@@ -348,11 +350,12 @@ change the loop or answer for it.
   error's code or name, the build, counts, times, the Vercel request id): never a message, the path or query asked for,
   a body, a token, a name, a QR code or a position. A request its guard refused, and a 4xx of a public route, record
   nothing. The apps report errors only through the endpoints of their own role (`POST /api/my/errors`,
-  `POST /api/admin/client-errors`), with the fields `shared/contract.js` allows. An unhandled API error is logged only
-  through `describeUnhandled` in `server/router.js`, never a raw error object (a Postgres error carries `detail`,
-  `where`, `table`, `column` and `parameters`, which can hold row values).
-- `HEALTH_HEARTBEAT_URL` (healthchecks.io, ADR 0007) is a secret: never logged, returned or written to a file; what the
-  server sends there holds counts, route patterns, codes and dates, never personal data.
+  `POST /api/admin/client-errors`), with the fields `shared/contract.js` allows; no public endpoint writes. An unhandled
+  API error is logged only through `describeUnhandled` in `server/router.js`, never a raw error object (a Postgres error
+  carries `detail`, `where`, `table`, `column` and `parameters`, which can hold row values).
+- `HEALTH_HEARTBEAT_URL` (healthchecks.io, ADR 0007) is a secret: the server reads it only when it uses it, and never
+  logs it, returns it or writes it to a file. What the server sends there holds counts, route patterns, codes, and dates
+  written by `shared/datetime.js`, never personal data.
 - Tests and fixtures use only fake data (the dev seed): never real names, phone numbers, e-mails, coordinates or
   attendance rows. Nothing personal goes into a log or an error message.
 - Every secret the server mints has its prefix and maximum length in `server/config.js` (`PROVIDER_TOKEN_PREFIX`,
