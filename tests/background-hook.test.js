@@ -50,6 +50,13 @@ const REFUSED = [
   'timeout -k 10 300 echo "$(sleep 999)"',
   'timeout -k 10 300 echo `sleep 999`',
   'timeout -k 10 300 diff <(sleep 999) a.txt',
+  // Forms of the shell that the hook does not follow, each of which can hide a separator from it (each one, run in bash,
+  // ran its second command outside the limit; the first two are Codex's on #274).
+  "timeout -k 1 1 true $'a\\''; echo OUTSIDE",
+  'timeout -k 1 1 echo x \\>& tail -f /dev/null',
+  "timeout -k 1 1 true #'\ntail -f /dev/null",
+  'timeout -k 1 1 echo $"hi"',
+  'timeout -k 10 60 find . -name \\*.js', // an escape outside quotes, refused even where it would be harmless
 ]
 
 // Commands that have their own limit, or that the Bash tool stops by itself.
@@ -67,6 +74,8 @@ const ALLOWED = [
   ['timeout -k 10 600 npm test &> out.log', {}],
   [`timeout -k 10 60 node -e "console.log('a;b|c&d')"`, {}],
   ['timeout -k 10 60 npm \\\n  test', {}], // a line continued with a backslash
+  ['timeout -k 10 60 echo "a\\"; tail -f x"', {}], // inside double quotes \" does not end them, so ; stays inside
+  ["timeout -k 10 60 echo 'a#b' x#y", {}], // a # inside a word starts no comment
   ['until false; do sleep 5; done', { background: false }], // the foreground: the Bash tool stops it
   ['npx vitest --watch', { background: false }],
   ['until false; do sleep 5; done', { tool: 'Monitor' }],
@@ -84,7 +93,7 @@ describe('the background hook: a background command without a limit of its own i
   it('says why, and gives the form', () => {
     expect(runHook(call('timeout -k 10 0 npm test')).stderr).toContain('one of its times is 0')
     expect(runHook(call('timeout -k 10 300 npm test | tail -40')).stderr).toContain('a part of it runs outside the time limit')
-    expect(runHook(call('timeout -k 10 300 echo $(sleep 9)')).stderr).toContain('which the shell runs before the time limit starts')
+    expect(runHook(call('timeout -k 10 300 echo $(sleep 9)')).stderr).toContain('a form of the shell that this hook does not follow')
     expect(runHook(call('timeout 300 npm test')).stderr).toContain('it does not start with `timeout -k <seconds> <seconds>`')
     const { stderr } = runHook(call('npx vitest --watch'))
     expect(stderr).toContain('KILL 10 seconds after TERM')

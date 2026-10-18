@@ -13,8 +13,9 @@
 //     k and n numbers above 0 (seconds, or with the suffix s, m, h or d), optionally after `cd <dir> &&` steps. After n,
 //     timeout sends TERM, which a program can catch or ignore (`trap "" TERM`); k later it sends KILL, which no program
 //     can, so -k is what makes the limit an upper bound. Anything that could run outside the limit is refused: another
-//     command after ; && || | & or a new line, and $( ), backticks, <( ) or >( ) outside single quotes (the shell runs
-//     them before timeout starts). A compound command goes inside the limit:
+//     command after ; && || | & or a new line, $( ), backticks, <( ) or >( ) outside single quotes (the shell runs them
+//     before timeout starts), and any form of the shell that this hook does not follow ($'...', an escape or a comment
+//     outside quotes), because such a form could hide a separator from it. A compound command goes inside the limit:
 //     `timeout -k 10 1800 sh -c 'npm run test:e2e 2>&1 | tail -40'`.
 //   - A background PowerShell command is refused: PowerShell has no `timeout`, and the Bash tool has.
 // It reads the form of the command, not what the program does, so it needs no list of programs that wait: any program in
@@ -34,8 +35,12 @@ const LIMIT = /^timeout\s+-k\s+(\d+(?:\.\d*)?|\.\d+)[smhd]?\s+(\d+(?:\.\d*)?|\.\
 const CD = /^cd(?:\s+(?:"[^"]*"|'[^']*'|[^\s'"]+))?$/
 
 /**
- * The command cut at the separators that the shell reads outside quotes, as [{ text, sep }], or null when it holds a part
- * that the shell runs before the command itself: $( ), backticks, <( ) or >( ) outside single quotes.
+ * The command cut at the separators that the shell reads outside quotes, as [{ text, sep }], or null when it holds a form
+ * that this reader does not follow. It follows single quotes, double quotes (inside which a backslash escapes the next
+ * character) and a backslash that continues a line, and nothing else, so any other form that could change where a command
+ * ends is refused rather than read: $( ), backticks, <( ) and >( ) (the shell runs them before timeout starts), $'...' and
+ * $"..." quotes, an escape outside quotes (`\>`, `\;`), and a comment (a # that starts a word hides the rest of its line,
+ * quotes included).
  * @param {string} command
  */
 function topLevel(command) {
@@ -50,18 +55,22 @@ function topLevel(command) {
       if (c === "'") quote = ''
       continue
     }
+    if (c === '`' || (c === '$' && next === '(')) return null
+    if (quote === '"') {
+      text += c === '\\' ? c + next : c // inside double quotes a backslash escapes the next character, a quote included
+      if (c === '\\') i++
+      else if (c === '"') quote = ''
+      continue
+    }
     if (c === '\\') {
-      text += c + next // an escaped character, a new line included, is not a separator
+      if (next !== '\n') return null // an escape outside quotes
+      text += c + next // a line continued with a backslash
       i++
       continue
     }
-    if (c === '`' || (c === '$' && next === '(')) return null
-    if (quote === '"') {
-      text += c
-      if (c === '"') quote = ''
-      continue
-    }
+    if (c === '$' && (next === "'" || next === '"')) return null
     if ((c === '<' || c === '>') && next === '(') return null
+    if (c === '#' && (text === '' || /\s$/.test(text))) return null
     if (c === "'" || c === '"') {
       quote = c
       text += c
@@ -85,7 +94,9 @@ function topLevel(command) {
 /** Why this background Bash command has no limit of its own, or null when it has one. */
 function missingLimit(command) {
   const parts = topLevel(command.trim())
-  if (!parts) return 'it holds $( ), backticks, <( ) or >( ), which the shell runs before the time limit starts'
+  if (!parts) {
+    return "it uses a form of the shell that this hook does not follow ($( ), backticks, <( ), >( ), $'...', or an escape or a comment outside quotes)"
+  }
   const last = parts.length - 1
   for (let i = 0; i < last; i++) {
     if (parts[i].sep !== '&&' || !CD.test(parts[i].text)) return 'a part of it runs outside the time limit'
