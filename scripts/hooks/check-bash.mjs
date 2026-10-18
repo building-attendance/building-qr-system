@@ -35,14 +35,47 @@ const POWERSHELL_LOOP = /\bwhile\s*\(|\bdo\s*\{[\s\S]*\}\s*(?:until|while)\b/i
 // A sleep: `sleep 5`, `sleep 0.5`, `sleep $DELAY`, PowerShell's alias `sleep -Seconds 5`, and `Start-Sleep`. Not a
 // function call such as `sleep(500)` or `time.sleep(5)`.
 const SLEEP = /(?:^|[^\w$.-])sleep\s+(?:-\w+\s+)?[\d$"']|\bStart-Sleep\b/i
-// A limit: GNU `timeout 20`, `timeout -k 5 20`, `timeout --signal=KILL 20s` (not a `--timeout` option of another
-// command), PowerShell's `-Timeout 600` (Wait-Job, Wait-Process), and for a loop a counter test as well. Only a duration
-// above zero is a limit: GNU timeout reads 0 as no limit at all. `-k` and `-s` take a value of their own, so the duration
-// of `timeout -k 5 0` is 0, not 5.
-const GNU_TIMEOUT = /(?<![\w-])timeout\s+(?:(?:-[ks]\s+\S+|--\S+|-(?![ks]\s)\S+)\s+)*(\d+(?:\.\d*)?|\.\d+)/g
+// A limit: GNU `timeout 20` (not a `--timeout` option of another command), PowerShell's `-Timeout 600` (Wait-Job,
+// Wait-Process), and for a loop a counter test as well. Only a duration above zero is a limit: GNU timeout reads 0 as no
+// limit at all. The duration is the first operand after timeout's options, read as `timeout --help` describes them: `-k` /
+// `--kill-after` and `-s` / `--signal` take a value, attached (`-k5`, `--signal=KILL`) or as the next word (`-k 5`,
+// `--signal 9`, also inside a group such as `-vk 5` and with a long name cut short such as `--kill 5`), the other options
+// take none, and `--` ends them. So the duration of `timeout --signal 9 0` is 0, not 9.
+const TIMEOUT_WORD = /(?<![\w-])timeout(?=\s)/g
+const TAKES_VALUE = ['kill-after', 'signal']
 const POWERSHELL_TIMEOUT = /\s-Timeout\s+(\d+)/gi
+
+/** The duration operand among the words that follow `timeout`, or undefined. */
+function timeoutDuration(words) {
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i]
+    if (word === '--') return words[i + 1]
+    if (word.startsWith('--')) {
+      const name = word.slice(2).split('=')[0]
+      if (name && !word.includes('=') && TAKES_VALUE.some((option) => option.startsWith(name))) i++ // the value is the next word
+      continue
+    }
+    if (word.length > 1 && word.startsWith('-')) {
+      // Short options, maybe grouped: the first k or s takes the rest of the word as its value, or the next word when it ends the word.
+      if (word.slice(1).search(/[ks]/) === word.length - 2) i++
+      continue
+    }
+    return word
+  }
+  return undefined
+}
+
+/** True for a duration above zero: a number (GNU allows a fraction and a suffix s, m, h or d), not `0`, `inf` or a variable. */
+function positiveDuration(word) {
+  const text = typeof word === 'string' ? word.replace(/^['"]|['"]$/g, '') : ''
+  const seconds = Number.parseFloat(text)
+  return /^(?:\d|\.\d)/.test(text) && Number.isFinite(seconds) && seconds > 0
+}
+
 const hasLimit = (command) =>
-  [...command.matchAll(GNU_TIMEOUT), ...command.matchAll(POWERSHELL_TIMEOUT)].some((match) => Number(match[1]) > 0)
+  [...command.matchAll(TIMEOUT_WORD)].some((match) =>
+    positiveDuration(timeoutDuration(command.slice(match.index + match[0].length).trim().split(/\s+/).slice(0, 16))),
+  ) || [...command.matchAll(POWERSHELL_TIMEOUT)].some((match) => Number(match[1]) > 0)
 const COUNTER = /\s-(?:lt|le|gt|ge)\b|\(\([^)]*[<>][^)]*\)\)|\bseq\s+\d/i
 // A command that follows without end: `tail -f`, `tail -n 50 -F`, `tail --follow=name`, PowerShell's `Get-Content -Wait`
 // (and its aliases), `gh pr checks --watch`, `gh run watch`. Only inside one simple command (up to ; & | or a new line).

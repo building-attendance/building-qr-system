@@ -37,10 +37,17 @@ const REFUSED = [
   ['While (-not (Test-Path x)) { sleep 2 }', 'PowerShell'],
   ['Get-Content server.log -Wait', 'PowerShell'],
   ['gh pr checks 270 --watch', 'PowerShell'],
-  // GNU timeout reads a duration of 0 as no limit, and -k takes a value of its own (Codex on #271).
+  // GNU timeout reads a duration of 0 (or inf) as no limit, and its options -k / --kill-after and -s / --signal take a
+  // value of their own, in every form `timeout --help` allows (Codex on #271, twice).
   ["timeout 0 sh -c 'until false; do sleep 5; done'", 'Bash'],
   ["timeout -k 5 0 bash -c 'while true; do sleep 5; done'", 'Bash'],
   ['timeout 0s tail -f server.log', 'Bash'],
+  ['timeout inf tail -f server.log', 'Bash'],
+  ["timeout --signal 9 0 sh -c 'until false; do sleep 5; done'", 'Bash'],
+  ["timeout --kill-after 5 0 sh -c 'until false; do sleep 5; done'", 'Bash'],
+  ["timeout --kill 5 0 sh -c 'until false; do sleep 5; done'", 'Bash'],
+  ["timeout -vk 5 0 sh -c 'until false; do sleep 5; done'", 'Bash'],
+  ["timeout -s KILL -- 0 sh -c 'until false; do sleep 5; done'", 'Bash'],
   ['Start-Job { while ($true) { Start-Sleep 5 } } | Wait-Job -Timeout 0', 'PowerShell'],
 ]
 
@@ -51,6 +58,10 @@ const ALLOWED = [
   ["timeout -k 0 20 sh -c 'until false; do sleep 5; done'", 'Bash'], // the duration is 20: -k 0 only drops the kill
   ["timeout 0.5 sh -c 'while true; do sleep 0.1; done'", 'Bash'],
   ['timeout --kill-after=5 30s tail -f server.log', 'Bash'],
+  ["timeout --signal 9 20 sh -c 'until false; do sleep 5; done'", 'Bash'],
+  ['timeout -s KILL 30 tail -f server.log', 'Bash'],
+  ["timeout -k5 20 sh -c 'until false; do sleep 5; done'", 'Bash'],
+  ["timeout --foreground --signal=KILL --kill-after=5 20 sh -c 'until false; do sleep 5; done'", 'Bash'],
   ['for i in $(seq 30); do curl -sf http://localhost:3000 && break; sleep 2; done', 'Bash'],
   ['i=0; until curl -sf http://localhost:3000 || [ $i -ge 30 ]; do i=$((i+1)); sleep 2; done', 'Bash'],
   ['n=0; while (( n < 10 )); do n=$((n+1)); sleep 1; done', 'Bash'],
