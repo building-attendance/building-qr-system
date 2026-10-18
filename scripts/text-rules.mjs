@@ -27,27 +27,27 @@ export const LONG_DASHES = Object.freeze([
 // ---- which files -------------------------------------------------------------------------------------------------
 
 // Folders that are not part of the project, wherever they are. .claude is the assistant tooling's own workspace
-// (personal settings, worktrees/ with full copies of the repository, notes and caches it writes for itself), with one
-// exception: see SKILLS_DIR. playwright-report, test-results and blob-report are what Playwright generates (its report
-// is a bundle of its own code).
+// (personal settings, worktrees/ with full copies of the repository, notes and caches it writes for itself), with two
+// exceptions: see CLAUDE_PROJECT_DIRS. playwright-report, test-results and blob-report are what Playwright generates (its
+// report is a bundle of its own code).
 export const SKIP_DIRS = new Set([
   'node_modules', 'dist', '.git', '.vercel', '.claude', 'coverage', 'playwright-report', 'test-results', 'blob-report',
 ])
 // The files that are text of the project. package-lock.json is text, but generated.
 export const TEXT = /\.(js|jsx|mjs|cjs|css|html|md|json|sql|txt|yml|yaml|sh)$|^\.env\.example$|^\.gitignore$/
 export const SKIP_FILES = new Set(['package-lock.json'])
-// The one folder inside .claude that is part of the project: its skills are committed (AGENTS.md, CLAUDE.md), so they
-// are text of the project like any document. Only this exact folder at the project root: the rest of .claude/
-// (settings.local.json, worktrees/, ...) stays out, and so does a .claude folder anywhere else.
-export const SKILLS_DIR = '.claude/skills'
+// The folders inside .claude that are part of the project: its skills and its agents are committed (.gitignore, AGENTS.md,
+// CLAUDE.md), so they are text of the project like any document. Only these exact folders at the project root: the rest
+// of .claude/ (settings.local.json, worktrees/, ...) stays out, and so does a .claude folder anywhere else.
+export const CLAUDE_PROJECT_DIRS = Object.freeze(['.claude/skills', '.claude/agents'])
 
 const norm = (relativePath) => String(relativePath).replace(/\\/g, '/')
 const split = (relativePath) => norm(relativePath).split('/').filter(Boolean)
 
 /** True when a file in these folders (names from the project root) is inside a skipped folder. */
 function insideSkippedDir(dirs) {
-  const skills = SKILLS_DIR.split('/')
-  const below = skills.every((name, i) => dirs[i] === name) ? dirs.slice(skills.length) : dirs
+  const own = CLAUDE_PROJECT_DIRS.map((dir) => dir.split('/')).find((names) => names.every((name, i) => dirs[i] === name))
+  const below = own ? dirs.slice(own.length) : dirs
   return below.some((dir) => SKIP_DIRS.has(dir))
 }
 
@@ -57,7 +57,8 @@ function insideSkippedDir(dirs) {
  */
 export function isSkippedDir(relativeDir) {
   const dirs = split(relativeDir)
-  if (dirs.length === 1 && SKILLS_DIR.startsWith(`${dirs[0]}/`)) return false // .claude itself: entered only to reach skills/
+  // .claude itself: entered only to reach the folders of CLAUDE_PROJECT_DIRS
+  if (dirs.length === 1 && CLAUDE_PROJECT_DIRS.some((dir) => dir.startsWith(`${dirs[0]}/`))) return false
   return insideSkippedDir(dirs)
 }
 

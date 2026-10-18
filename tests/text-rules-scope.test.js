@@ -1,5 +1,6 @@
-// Which files the text rules cover (scripts/text-rules.mjs): the project's own text, with one exception inside .claude.
-// The skills in .claude/skills/ are committed, so the rules apply to them like to any document. The rest of .claude/ is
+// Which files the text rules cover (scripts/text-rules.mjs): the project's own text, with two exceptions inside .claude.
+// The skills in .claude/skills/ and the agents in .claude/agents/ are committed, so the rules apply to them like to any
+// document. The rest of .claude/ is
 // the assistant tooling's own workspace (personal settings, worktrees/ with full copies of the repository, caches) and
 // stays out, whatever the .gitignore does with it.
 //
@@ -18,11 +19,12 @@ const root = decodeURIComponent(new URL('..', import.meta.url).pathname).replace
 const HOOK = path.join(root, 'scripts', 'hooks', 'check-edit.mjs')
 const DASHED = `a line ${EM_DASH} with an em dash\nand a line ${EN_DASH} with an en dash\n`
 
-// Every file below holds an em dash and an en dash. The rules must catch the skill's three files and the plain document,
-// and no other.
+// Every file below holds an em dash and an en dash. The rules must catch the skill's three files, the agent and the plain
+// document, and no other.
 const SKILL = '.claude/skills/demo/SKILL.md'
 const SKILL_REFERENCE = '.claude/skills/demo/references/notes.md'
 const SKILL_SCRIPT = '.claude/skills/demo/scripts/run.sh' // a skill's shell script is text of the project too
+const AGENT = '.claude/agents/worker.md'
 const WORKTREE_COPY = '.claude/worktrees/feature/docs/copy.md'
 const WORKTREE_SKILL = '.claude/worktrees/feature/.claude/skills/demo/SKILL.md'
 const LOCAL_SETTINGS = '.claude/settings.local.json'
@@ -38,7 +40,7 @@ let project // a temporary project folder
 beforeAll(() => {
   project = fs.mkdtempSync(path.join(os.tmpdir(), 'text-rules-scope-'))
   for (const file of [
-    SKILL, SKILL_REFERENCE, SKILL_SCRIPT, WORKTREE_COPY, WORKTREE_SKILL, LOCAL_SETTINGS, SHARED_SETTINGS, CACHE, NESTED_CLAUDE,
+    SKILL, SKILL_REFERENCE, SKILL_SCRIPT, AGENT, WORKTREE_COPY, WORKTREE_SKILL, LOCAL_SETTINGS, SHARED_SETTINGS, CACHE, NESTED_CLAUDE,
     SKILL_DEPENDENCY, PACKAGE_DOC, DOC,
   ]) {
     const full = path.join(project, ...file.split('/'))
@@ -64,6 +66,12 @@ describe('the scope of the text rules: the paths', () => {
     expect(isTextFileToCheck(SKILL_REFERENCE)).toBe(true)
     expect(isTextFileToCheck('.claude\\skills\\demo\\SKILL.md')).toBe(true)
     expect(isTextFileToCheck('.claude/skills/demo/SOURCE.md')).toBe(true)
+  })
+
+  it('a file under .claude/agents/ is checked, with either separator', () => {
+    expect(isTextFileToCheck(AGENT)).toBe(true)
+    expect(isTextFileToCheck('.claude\\agents\\worker.md')).toBe(true)
+    expect(isTextFileToCheck('.claude/worktrees/feature/.claude/agents/worker.md')).toBe(false)
   })
 
   it('a file under .claude/worktrees/ is not, not even a copy of a skill inside a worktree', () => {
@@ -97,6 +105,8 @@ describe('the scope of the text rules: the paths', () => {
     expect(isSkippedDir('.claude')).toBe(false)
     expect(isSkippedDir('.claude/skills')).toBe(false)
     expect(isSkippedDir('.claude/skills/demo/references')).toBe(false)
+    expect(isSkippedDir('.claude/agents')).toBe(false)
+    expect(isSkippedDir('.claude/agents/node_modules')).toBe(true)
     expect(isSkippedDir('.claude/worktrees')).toBe(true)
     expect(isSkippedDir('.claude/cc10x')).toBe(true)
     expect(isSkippedDir('docs/.claude')).toBe(true)
@@ -112,6 +122,7 @@ describe('the scope of the text rules: the three readers agree', () => {
     expect(files).toContain(SKILL)
     expect(files).toContain(SKILL_REFERENCE)
     expect(files).toContain(SKILL_SCRIPT)
+    expect(files).toContain(AGENT)
     expect(files).toContain(DOC)
     for (const left of [WORKTREE_COPY, WORKTREE_SKILL, LOCAL_SETTINGS, SHARED_SETTINGS, CACHE, NESTED_CLAUDE, SKILL_DEPENDENCY, PACKAGE_DOC]) {
       expect(files, left).not.toContain(left)
@@ -123,7 +134,7 @@ describe('the scope of the text rules: the three readers agree', () => {
       .filter(isTextFileToCheck)
       .map((file) => ({ file, dashes: findDashLines(fs.readFileSync(path.join(project, ...file.split('/')), 'utf8')).flatMap((d) => d.dashes) }))
       .filter(({ dashes }) => dashes.length > 0)
-    expect(found.map(({ file }) => file).sort()).toEqual([SKILL_REFERENCE, SKILL_SCRIPT, DOC, SKILL].sort())
+    expect(found.map(({ file }) => file).sort()).toEqual([SKILL_REFERENCE, SKILL_SCRIPT, AGENT, DOC, SKILL].sort())
     for (const { file, dashes } of found) expect(dashes, file).toEqual(['em dash', 'en dash'])
   })
 
@@ -134,14 +145,16 @@ describe('the scope of the text rules: the three readers agree', () => {
     expect(skill.stderr).toMatch(/em dash on line 1\b/)
     expect(skill.stderr).toMatch(/en dash on line 2\b/)
     expect(runHook(SKILL_REFERENCE).code).toBe(2)
+    expect(runHook(AGENT).code).toBe(2)
     for (const left of [WORKTREE_COPY, WORKTREE_SKILL, LOCAL_SETTINGS, SHARED_SETTINGS, CACHE]) {
       expect(runHook(left), left).toEqual({ code: 0, stderr: '' })
     }
   })
 
-  it('on the real repository the walk reaches the skills and no other part of .claude', () => {
+  it('on the real repository the walk reaches the skills and the agents, and no other part of .claude', () => {
     const files = listProjectFiles(root)
     expect(files.some((file) => file.startsWith('.claude/skills/') && file.endsWith('/SKILL.md'))).toBe(true)
-    expect(files.filter((file) => file.startsWith('.claude/') && !file.startsWith('.claude/skills/'))).toEqual([])
+    expect(files).toContain('.claude/agents/worker.md')
+    expect(files.filter((file) => file.startsWith('.claude/') && !/^\.claude\/(?:skills|agents)\//.test(file))).toEqual([])
   })
 })

@@ -44,6 +44,14 @@
           { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/lint-edit.mjs\"", "timeout": 30 }
         ]
       }
+    ],
+    "SubagentStop": [
+      {
+        "matcher": "^worker$",
+        "hooks": [
+          { "type": "command", "command": "node \"$CLAUDE_PROJECT_DIR/scripts/hooks/worker-stop-gate.mjs\"", "timeout": 120 }
+        ]
+      }
     ]
   }
 }

@@ -74,13 +74,15 @@ describe('the documents are written in English', () => {
 
   it('the walk skips the folders that are not part of the project', () => {
     const relative = documents()
-    // Under .claude only skills/ is walked, and inside it the skipped folders (node_modules, ...) are still skipped.
+    // Under .claude only skills/ and agents/ are walked, and inside them the skipped folders (node_modules, ...) are still
+    // skipped.
+    const committed = (file) => /^\.claude\/(?:skills|agents)\//.test(file)
     const inSkippedFolder = (file) => {
       const dirs = file.split('/').slice(0, -1)
-      return (file.startsWith('.claude/skills/') ? dirs.slice(2) : dirs).some((part) => SKIP_DIRS.has(part))
+      return (committed(file) ? dirs.slice(2) : dirs).some((part) => SKIP_DIRS.has(part))
     }
     expect(relative.filter(inSkippedFolder)).toEqual([])
-    expect(relative.filter((file) => file.startsWith('.claude/') && !file.startsWith('.claude/skills/'))).toEqual([])
+    expect(relative.filter((file) => file.startsWith('.claude/') && !committed(file))).toEqual([])
   })
 })
 

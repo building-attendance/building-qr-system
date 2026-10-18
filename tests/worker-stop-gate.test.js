@@ -163,6 +163,32 @@ describe('the stop gate blocks a worker whose checks fail', () => {
     expect(state('agent-fix').blocks).toBe(0)
   })
 
+  it("compares with the remote's default branch: origin/HEAD, here pointing at origin/main as in a copy", () => {
+    git(project, 'update-ref', 'refs/remotes/origin/main', 'master')
+    git(project, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
+    try {
+      fail('check-tests')
+      const { reason } = JSON.parse(runGate(stop('agent-main')).stdout)
+      expect(reason).toContain('node scripts/check-tests.mjs --base origin/main')
+    } finally {
+      git(project, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD')
+      git(project, 'update-ref', '-d', 'refs/remotes/origin/main')
+    }
+  })
+
+  it('never puts a default branch that a shell would read as more than a word into a step: it lets the worker stop', () => {
+    git(project, 'update-ref', 'refs/remotes/origin/a;b', 'master')
+    git(project, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/a;b')
+    try {
+      fail('lint')
+      expect(runGate(stop('agent-odd-base'))).toEqual(ALLOW)
+      expect(stepsRun()).toEqual([])
+    } finally {
+      git(project, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD')
+      git(project, 'update-ref', '-d', 'refs/remotes/origin/a;b')
+    }
+  })
+
   it('at most 3 times in a row for one agent: then it records that it gave up and lets it stop', () => {
     fail('lint')
     for (const n of [1, 2, 3]) expect(JSON.parse(runGate(stop('agent-loop')).stdout).reason).toContain(`(block ${n} of 3)`)
@@ -184,5 +210,25 @@ describe('the stop gate blocks a worker whose checks fail', () => {
     const { reason } = JSON.parse(runGate(stop('agent-wt', project, { agent_transcript_path: transcript })).stdout)
     expect(reason).toContain(`- typecheck fails in ${worktree}:`)
     expect(reason).toContain('error TS2304')
+  })
+})
+
+describe('the stop gate: the wiring', () => {
+  it('runs when a worker subagent stops, from .claude/settings.json, and the worker agent has that name', () => {
+    // A SubagentStop hook of the settings file, not the agent's frontmatter: on 18/10/2026 the desktop app did not run a
+    // subagent's frontmatter Stop hook, while the hooks of the settings file ran inside subagents.
+    const settings = JSON.parse(fs.readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8'))
+    const group = settings.hooks.SubagentStop.find((g) => g.matcher === '^worker$')
+    expect(group.hooks).toContainEqual({
+      type: 'command',
+      command: 'node "$CLAUDE_PROJECT_DIR/scripts/hooks/worker-stop-gate.mjs"',
+      timeout: 120,
+    })
+    const agent = fs.readFileSync(path.join(root, '.claude', 'agents', 'worker.md'), 'utf8').replace(/\r\n/g, '\n')
+    const frontmatter = agent.match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? ''
+    expect(frontmatter).toMatch(/^name: worker$/m)
+    expect(frontmatter).toMatch(/^isolation: worktree$/m) // the gate checks the worktree the worker edited
+    expect(frontmatter).not.toMatch(/^hooks:/m) // its gate is in the settings file, where it runs
+    expect(frontmatter).not.toMatch(/^tools:.*\bAgent\b/m) // a worker does its task itself
   })
 })
