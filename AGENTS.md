@@ -342,10 +342,10 @@ change the loop or answer for it.
   `docs/privacy.md` too. Its only writes are its key's `last_used_at` (at most every 5 minutes) and usage count, which
   also rate-limits the key (`429 rate_limited`, limits in `server/config.js`).
 - Every committee change writes its `audit_log` row in the same transaction: `audit(c, ...)` of `server/audit.js` with
-  that transaction's client, never the module's `query()`. `audit_log` and `scan_refusals` are append-only (triggers
-  refuse an update, a delete and a truncate); the one way to delete is a transaction-local setting
-  (`app.audit_retention`, `app.refusal_retention`) that nothing sets, and code that sets it needs a legal decision and a
-  rules change first.
+  that transaction's client, never the module's `query()`, so there is no change without its row and no row without its
+  change. `audit_log` and `scan_refusals` are append-only (triggers refuse an update, a delete and a truncate); the one
+  way to delete is a transaction-local setting (`app.audit_retention`, `app.refusal_retention`) that nothing sets, and
+  code that sets it needs a legal decision and a rules change first.
 - **The error rule.** Errors are recorded in our own database (ADR 0007) only through `server/errorLog.js`, with only
   the fields its header lists (the route as written in the code or a fixed screen key, the method, the status, the
   error's code or name, the build, counts, times, the Vercel request id): never a message, the path or query asked for,
