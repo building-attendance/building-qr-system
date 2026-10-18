@@ -163,6 +163,32 @@ describe('the stop gate blocks a worker whose checks fail', () => {
     expect(state('agent-fix').blocks).toBe(0)
   })
 
+  it("compares with the remote's default branch: origin/HEAD, here pointing at origin/main as in a copy", () => {
+    git(project, 'update-ref', 'refs/remotes/origin/main', 'master')
+    git(project, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/main')
+    try {
+      fail('check-tests')
+      const { reason } = JSON.parse(runGate(stop('agent-main')).stdout)
+      expect(reason).toContain('node scripts/check-tests.mjs --base origin/main')
+    } finally {
+      git(project, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD')
+      git(project, 'update-ref', '-d', 'refs/remotes/origin/main')
+    }
+  })
+
+  it('never puts a default branch that a shell would read as more than a word into a step: it lets the worker stop', () => {
+    git(project, 'update-ref', 'refs/remotes/origin/a;b', 'master')
+    git(project, 'symbolic-ref', 'refs/remotes/origin/HEAD', 'refs/remotes/origin/a;b')
+    try {
+      fail('lint')
+      expect(runGate(stop('agent-odd-base'))).toEqual(ALLOW)
+      expect(stepsRun()).toEqual([])
+    } finally {
+      git(project, 'symbolic-ref', '--delete', 'refs/remotes/origin/HEAD')
+      git(project, 'update-ref', '-d', 'refs/remotes/origin/a;b')
+    }
+  })
+
   it('at most 3 times in a row for one agent: then it records that it gave up and lets it stop', () => {
     fail('lint')
     for (const n of [1, 2, 3]) expect(JSON.parse(runGate(stop('agent-loop')).stdout).reason).toContain(`(block ${n} of 3)`)

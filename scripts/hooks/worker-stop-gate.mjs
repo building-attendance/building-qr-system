@@ -1,25 +1,27 @@
 // Claude Code hook: the stop gate of the worker agent (.claude/agents/worker.md). Node built-ins only.
 //
-// It is meant to be wired in .claude/settings.json as a SubagentStop hook with the matcher ^worker$, so that it runs when a
-// worker subagent ends its turn. Not in the worker's frontmatter: on 18/10/2026 the desktop app (Claude Code 2.1.299) did
-// not run a subagent's frontmatter Stop hook, while hooks from the settings file ran inside subagents. Claude Code sends
-// the event as JSON on stdin ({ "cwd", "agent_id", "agent_transcript_path", ... }). Before the worker may end its turn,
-// the gate runs in its worktree the cheap part of CI's guards job, each step with its own time limit:
-//   node scripts/check-migrations.mjs --base origin/master
-//   node scripts/check-tests.mjs --base origin/master
+// It is wired in .claude/settings.json as a SubagentStop hook with the matcher ^worker$, so that it runs when a worker
+// subagent ends its turn. Not in the worker's frontmatter: on 18/10/2026 the desktop app (Claude Code 2.1.299) did not run
+// a subagent's frontmatter Stop hook, while hooks from the settings file ran inside subagents. Claude Code sends the event
+// as JSON on stdin ({ "cwd", "agent_id", "agent_transcript_path", ... }). Before the worker may end its turn, the gate runs
+// in its worktree the cheap part of CI's guards job, each step with its own time limit:
+//   node scripts/check-migrations.mjs --base <base>
+//   node scripts/check-tests.mjs --base <base>
 //   npm run -s lint
 //   npm run -s typecheck
+// <base> is the remote's default branch: origin/HEAD, or origin/main or origin/master when origin/HEAD is not set
+// (origin/master here, often origin/main in a copy of the repository).
 // All pass: the worker may stop. One fails: the gate prints {"decision":"block","reason":"..."}, which Claude Code gives the
 // worker as its next instruction: the step, the first lines of its output, the command, and the way out. The unit tests
 // are not run here (`vitest related` takes minutes): the worker runs them and reports their output, and CI stays the gate.
 //
 // Which worktree: the git work trees of the files that the worker edited (read from its transcript) or, when it edited
 // none, the one of `cwd`. A worker without isolation keeps the coordinator's folder as its cwd and edits a worktree beside
-// it. A work tree is checked when it holds this gate (a checkout of this project) and differs from origin/master (a change,
-// a commit or an untracked file).
+// it. A work tree is checked when it holds this gate (a checkout of this project) and differs from <base> (a change, a
+// commit or an untracked file).
 //
 // It lets the worker stop (exit 0, nothing on stdout):
-//   - when there is nothing to check: no such work tree, or none differs from origin/master;
+//   - when there is nothing to check: no such work tree, or none differs from <base>;
 //   - when the worker said it is blocked, with the command that a block gives it:
 //       node scripts/hooks/worker-stop-gate.mjs --blocked --agent <id> "<reason>"
 //   - when it has already blocked this agent 3 times in a row: it records that it gave up, and says so to the person;
@@ -37,11 +39,13 @@ const MARKER = path.join('scripts', 'hooks', 'worker-stop-gate.mjs')
 const MAX_BLOCKS = 3
 const BUDGET_MS = 100_000 // the settings give the hook 120 s
 const STEPS = [
-  { name: 'check-migrations', command: 'node scripts/check-migrations.mjs --base origin/master', timeout: 20_000 },
-  { name: 'check-tests', command: 'node scripts/check-tests.mjs --base origin/master', timeout: 20_000 },
-  { name: 'lint', command: 'npm run -s lint', timeout: 40_000 },
-  { name: 'typecheck', command: 'npm run -s typecheck', timeout: 30_000 },
+  { name: 'check-migrations', command: (base) => `node scripts/check-migrations.mjs --base ${base}`, timeout: 20_000 },
+  { name: 'check-tests', command: (base) => `node scripts/check-tests.mjs --base ${base}`, timeout: 20_000 },
+  { name: 'lint', command: () => 'npm run -s lint', timeout: 40_000 },
+  { name: 'typecheck', command: () => 'npm run -s typecheck', timeout: 30_000 },
 ]
+// A remote branch, and nothing a shell would read as more than a word: the steps run in a shell.
+const BASE_REF = /^origin\/[\w.-]+(?:\/[\w.-]+)*$/
 const LINES_PER_STEP = 12
 const EDIT_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const AGENT_KEY = /^[A-Za-z0-9_-]{1,128}$/ // also the name of its state file
@@ -118,11 +122,20 @@ function workTrees(input) {
   return [...trees]
 }
 
-/** True when the work tree differs from origin/master: a change or a commit of a tracked file, or an untracked file. */
-function differs(tree) {
-  const diff = git(tree, ['diff', '--quiet', 'origin/master', '--'])
+/** The remote's default branch as a ref (origin/master here, often origin/main in a copy), or null when there is none. */
+function defaultBranch(tree) {
+  const head = git(tree, ['symbolic-ref', '--quiet', '--short', 'refs/remotes/origin/HEAD'])
+  const named = head.status === 0 ? head.stdout.trim() : ''
+  const candidates = named ? [named] : ['origin/main', 'origin/master']
+  const base = candidates.find((ref) => git(tree, ['rev-parse', '--verify', '--quiet', `${ref}^{commit}`]).status === 0)
+  return base && BASE_REF.test(base) && !base.includes('..') ? base : null
+}
+
+/** True when the work tree differs from its base: a change or a commit of a tracked file, or an untracked file. */
+function differs(tree, base) {
+  const diff = git(tree, ['diff', '--quiet', base, '--'])
   if (diff.status === 1) return true
-  if (diff.status !== 0) throw new Error('git diff failed') // no origin/master, for example: fail open
+  if (diff.status !== 0) throw new Error('git diff failed') // fail open
   const untracked = git(tree, ['ls-files', '--others', '--exclude-standard'])
   if (untracked.status !== 0) throw new Error('git ls-files failed')
   return untracked.stdout.trim() !== ''
@@ -137,13 +150,14 @@ const firstLines = (text) =>
     .map((line) => (line.length > 300 ? `${line.slice(0, 300)}...` : line))
 
 /** The steps that fail in this work tree. A step that cannot run or finish in its time is skipped, never a failure. */
-function failingSteps(tree, deadline) {
+function failingSteps(tree, base, deadline) {
   const failures = []
   for (const step of STEPS) {
     const left = deadline - Date.now()
     if (left < 5_000) break // out of time: what is left is CI's to check
-    // A fixed command line, no input in it: the shell finds npm on every system (npm.cmd on Windows).
-    const result = spawnSync(step.command, {
+    // A fixed command line with no input but the checked base ref: the shell finds npm on every system (npm.cmd on Windows).
+    const command = step.command(base)
+    const result = spawnSync(command, {
       cwd: tree,
       shell: true,
       encoding: 'utf8',
@@ -152,7 +166,7 @@ function failingSteps(tree, deadline) {
       maxBuffer: 16 * 1024 * 1024,
     })
     if (result.error || result.signal || result.status === null) continue
-    if (result.status !== 0) failures.push({ ...step, tree, output: firstLines(`${result.stdout}\n${result.stderr}`) })
+    if (result.status !== 0) failures.push({ name: step.name, command, tree, output: firstLines(`${result.stdout}\n${result.stderr}`) })
   }
   return failures
 }
@@ -163,7 +177,7 @@ function blockReason(failures, key, blocks) {
     ...failures.map(
       (f) => `- ${f.name} fails in ${f.tree}:\n${f.output.map((line) => `    ${line}`).join('\n')}\n  Run it: cd "${f.tree}" && ${f.command}`,
     ),
-    'Fix it, run the command again until it exits 0, and then finish.',
+    'Fix it, run the command again until it exits 0, commit the fix and push it to the same branch, and then finish.',
     'If you cannot fix it (it needs the owner, or the failure does not come from your change), run',
     `  node "${SELF}" --blocked --agent ${key} "<why, in one line>"`,
     'then finish, and start your report with BLOCKED and the reason.',
@@ -182,7 +196,11 @@ function gate(input) {
     return { systemMessage: `The worker stop gate gave up on agent ${key} after ${MAX_BLOCKS} blocks: its checks may still fail, CI will say.` }
   }
   const deadline = Date.now() + BUDGET_MS
-  const failures = workTrees(input).filter(differs).flatMap((tree) => failingSteps(tree, deadline))
+  const failures = workTrees(input).flatMap((tree) => {
+    const base = defaultBranch(tree)
+    if (!base) throw new Error('no default branch') // fail open
+    return differs(tree, base) ? failingSteps(tree, base, deadline) : []
+  })
   if (!failures.length) {
     if (state.blocks) writeState(dir, key, { ...state, blocks: 0 })
     return null

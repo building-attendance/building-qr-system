@@ -35,8 +35,9 @@ is the whole of your task.
 ## Before you finish
 
 1. Run, before you commit, the four checks that the stop gate runs, until each exits 0:
-   `node scripts/check-migrations.mjs --base origin/master`, `node scripts/check-tests.mjs --base origin/master`,
-   `npm run -s lint` and `npm run -s typecheck`.
+   `node scripts/check-migrations.mjs --base <base>`, `node scripts/check-tests.mjs --base <base>`, `npm run -s lint` and
+   `npm run -s typecheck`, where `<base>` is the remote's default branch (`git symbolic-ref --short
+   refs/remotes/origin/HEAD`: `origin/master` here, often `origin/main` in a copy).
 2. Run the unit tests of what you changed: `npx vitest related --run <the files you changed>`. Put the command and the
    end of its output in your report.
 3. Run `/code-review` on your diff, and `/security-review` too when the task file marks the task 🔴 (high blast radius).
