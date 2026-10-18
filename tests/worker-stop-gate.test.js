@@ -186,3 +186,23 @@ describe('the stop gate blocks a worker whose checks fail', () => {
     expect(reason).toContain('error TS2304')
   })
 })
+
+describe('the stop gate: the wiring', () => {
+  it('runs when a worker subagent stops, from .claude/settings.json, and the worker agent has that name', () => {
+    // A SubagentStop hook of the settings file, not the agent's frontmatter: on 18/10/2026 the desktop app did not run a
+    // subagent's frontmatter Stop hook, while the hooks of the settings file ran inside subagents.
+    const settings = JSON.parse(fs.readFileSync(path.join(root, '.claude', 'settings.json'), 'utf8'))
+    const group = settings.hooks.SubagentStop.find((g) => g.matcher === '^worker$')
+    expect(group.hooks).toContainEqual({
+      type: 'command',
+      command: 'node "$CLAUDE_PROJECT_DIR/scripts/hooks/worker-stop-gate.mjs"',
+      timeout: 120,
+    })
+    const agent = fs.readFileSync(path.join(root, '.claude', 'agents', 'worker.md'), 'utf8').replace(/\r\n/g, '\n')
+    const frontmatter = agent.match(/^---\n([\s\S]*?)\n---\n/)?.[1] ?? ''
+    expect(frontmatter).toMatch(/^name: worker$/m)
+    expect(frontmatter).toMatch(/^isolation: worktree$/m) // the gate checks the worktree the worker edited
+    expect(frontmatter).not.toMatch(/^hooks:/m) // its gate is in the settings file, where it runs
+    expect(frontmatter).not.toMatch(/^tools:.*\bAgent\b/m) // a worker does its task itself
+  })
+})

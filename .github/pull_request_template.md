@@ -11,6 +11,10 @@ Closes #
 <!-- The commands you ran, for example npm run test:unit and npm run test:e2e. -->
 <!-- For a change that people can see: a screenshot on a phone and one on a computer. Cover all personal data first. -->
 
+## Risk and how to revert
+
+<!-- What could break, and for whom. How to undo it: a revert of this pull request, or more (a migration that has run, data that was written, a setting outside the repository). -->
+
 ## Written with
 
 <!-- Tick all that apply. You are responsible for every line, whoever wrote it. -->
