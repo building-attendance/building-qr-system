@@ -163,9 +163,15 @@ jobs:
           LANGUAGES: ${{ needs.gap.outputs.languages }}
           SINCE: ${{ needs.gap.outputs.since }}
           MERGE_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          # The only way to GitHub in this step: refused unless it runs in GitHub Actions on the default branch, or a person sets
+          # VIDEO_GH_LIVE=1 on purpose, so that a dry run of this script on a computer (or a test) never reaches the repository.
+          live() { { [ "${GITHUB_ACTIONS:-}" = true ] && [ -n "${DEFAULT_BRANCH:-}" ] && [ "${GITHUB_REF:-}" = "refs/heads/${DEFAULT_BRANCH}" ]; } || [ "${VIDEO_GH_LIVE:-}" = 1 ]; }
+          gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
+          live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
           id='[a-z0-9]+(-[a-z0-9]+)*'
           if [ "${#SCENES}" -gt 500 ] || ! printf '%s' "$SCENES" | grep -Eqx "$id(,$id)*"; then
             echo "::error::The gap check gave scene ids that are not of the expected shape."
@@ -318,6 +324,10 @@ jobs:
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          # The only way to GitHub in this step, as in gap-issue: refused unless GitHub Actions on the default branch, or VIDEO_GH_LIVE=1.
+          live() { { [ "${GITHUB_ACTIONS:-}" = true ] && [ -n "${DEFAULT_BRANCH:-}" ] && [ "${GITHUB_REF:-}" = "refs/heads/${DEFAULT_BRANCH}" ]; } || [ "${VIDEO_GH_LIVE:-}" = 1 ]; }
+          gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
+          live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
           watched='^(src/|shared/|public/|server/|db/migrations/|scripts/video/|video/|index\.html$|vite\.config\.js$|scripts/dev-seed\.mjs$|scripts/sample-data\.mjs$|e2e/fixtures\.js$|playwright\.config\.js$|playwright\.video\.config\.js$)'
           # A compare that cannot be read, or that lists 300 files (the most it returns), counts as "maybe behind".
           later=maybe

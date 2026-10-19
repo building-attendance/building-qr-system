@@ -2,6 +2,7 @@
 // Pages (scripts/video/render-all.mjs). No network, no database and no browser: the published site is a fake fetch, the frames are
 // small PNGs made here, and every run writes into a folder of its own under the system's temporary folder.
 import { describe, it, expect, beforeEach, afterEach } from 'vitest'
+import { spawnSync } from 'node:child_process'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -309,5 +310,97 @@ describe('the published site', () => {
     const quiet = watchedSite({ url: `${SITE}video/voice-cache/`, fetch: async () => new Response('not found', { status: 404 }) })
     await expect(siteOnlyVoice({ lang: 'he', outRoot: dir, site: quiet, env: {}, log: () => {} })).resolves.toMatchObject({ spoken: [], voice: 'none' })
     expect(watchedSite({ url: '' })).toBe(null)
+  })
+})
+
+// ---- the steps of video.yml that write to GitHub ---------------------------------------------------------------------
+//
+// A dry run of the issue step on a computer once reached the real gh (19/10/2026; GitHub refused only because the label was
+// missing). So every step that calls gh defines one gh() that refuses unless it runs in GitHub Actions on the default branch, or
+// a person sets VIDEO_GH_LIVE=1, and these tests run the steps against a fake gh that only writes down its calls.
+
+describe('the steps of video.yml that write to GitHub never reach gh outside GitHub Actions on the default branch', () => {
+  const NL = String.fromCharCode(10)
+  const lines = fs.readFileSync(path.join(root, '.github/workflows/video.yml'), 'utf8').replaceAll(String.fromCharCode(13), '').split(NL)
+
+  /** Every `run: |` script of the workflow, without its indentation. */
+  const runScripts = () => {
+    const scripts = []
+    lines.forEach((line, at) => {
+      if (line.trim() !== 'run: |') return
+      const indent = ' '.repeat(line.length - line.trimStart().length + 2)
+      const body = []
+      for (let i = at + 1; i < lines.length && (lines[i].trim() === '' || lines[i].startsWith(indent)); i++) body.push(lines[i].slice(indent.length))
+      scripts.push({ at, body: body.join(NL) })
+    })
+    return scripts
+  }
+  /** The run script of the step named `name`. */
+  const runOf = (name) => {
+    const step = lines.findIndex((line) => line.trim() === `- name: ${name}`)
+    return runScripts().find((script) => script.at > step).body
+  }
+
+  /** Runs a step under `bash -e` with a fake gh first on the PATH and none of this machine's GITHUB_* or GH_* settings. */
+  const runStep = (name, settings) => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'video-gh-'))
+    const bin = path.join(dir, 'bin')
+    fs.mkdirSync(bin)
+    const log = path.join(dir, 'gh.log')
+    fs.writeFileSync(path.join(bin, 'gh'), ['#!/usr/bin/env bash', 'echo "$*" >> "$FAKE_GH_LOG"', ''].join(NL), { mode: 0o755 })
+    const script = path.join(dir, 'step.sh')
+    fs.writeFileSync(script, runOf(name))
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([key]) => !/^(GITHUB_|GH_|VIDEO_GH_LIVE$|PATH$)/i.test(key)),
+    )
+    Object.assign(env, { PATH: `${bin}${path.delimiter}${process.env.PATH ?? process.env.Path ?? ''}`, FAKE_GH_LOG: log, RUNNER_TEMP: dir, GH_REPO: 'example/video-test', ...settings })
+    const result = spawnSync('bash', ['-e', script], { env, encoding: 'utf8' })
+    const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split(NL).filter(Boolean) : []
+    fs.rmSync(dir, { recursive: true, force: true })
+    return { status: result.status, calls, error: result.error }
+  }
+
+  const ISSUE_STEP = 'Open the issue, or comment on the open one'
+  const CLOSE_STEP = 'Close the open video-gap issue, unless a later merge may still be behind'
+  const issueSettings = {
+    SCENES: 'password',
+    LANGUAGES: 'he',
+    SINCE: 'c'.repeat(40),
+    MERGE_SHA: 'd'.repeat(40),
+    REPO_URL: 'https://github.com/example/video-test',
+    RUN_URL: 'https://github.com/example/video-test/actions/runs/1',
+  }
+  const closeSettings = { PUBLISHED_SHA: 'd'.repeat(40), RUN_URL: 'https://github.com/example/video-test/actions/runs/1' }
+
+  it('guards every step that calls gh', () => {
+    const withGh = runScripts().filter((script) => /(^|[^a-z_.-])gh [a-z]/m.test(script.body))
+    expect(withGh.length).toBe(2)
+    for (const script of withGh) expect(script.body, `the run script at line ${script.at + 1}`).toContain('live || {')
+  })
+
+  it('refuses on a computer: no GitHub Actions, so the fake gh is never called', () => {
+    for (const [name, settings] of [[ISSUE_STEP, issueSettings], [CLOSE_STEP, closeSettings]]) {
+      const run = runStep(name, { ...settings, DEFAULT_BRANCH: 'master' })
+      expect(run.error, name).toBeUndefined()
+      expect(run.status, name).toBe(97)
+      expect(run.calls, name).toEqual([])
+    }
+  })
+
+  it('refuses in GitHub Actions on another branch', () => {
+    const run = runStep(ISSUE_STEP, { ...issueSettings, GITHUB_ACTIONS: 'true', GITHUB_REF: 'refs/heads/feature', DEFAULT_BRANCH: 'master' })
+    expect(run.status).toBe(97)
+    expect(run.calls).toEqual([])
+  })
+
+  it('reaches gh in GitHub Actions on the default branch, and with VIDEO_GH_LIVE=1 set on purpose', () => {
+    const inActions = runStep(ISSUE_STEP, { ...issueSettings, GITHUB_ACTIONS: 'true', GITHUB_REF: 'refs/heads/master', DEFAULT_BRANCH: 'master' })
+    expect(inActions.status).toBe(0)
+    expect(inActions.calls[0]).toMatch(/^issue list --label video-gap/)
+    expect(inActions.calls.at(-1)).toMatch(/^issue create --title/)
+    const live = runStep(CLOSE_STEP, { ...closeSettings, DEFAULT_BRANCH: 'master', VIDEO_GH_LIVE: '1' })
+    expect(live.status).toBe(0)
+    expect(live.calls[0]).toMatch(/^api repos[/]example[/]video-test[/]compare[/]/)
+    expect(live.calls).toContainEqual(expect.stringMatching(/^issue list --label video-gap/))
   })
 })
