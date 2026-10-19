@@ -6,7 +6,9 @@ import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { SCENES, SCRIPTS } from '../video/script/index.js'
 import { COLORS, TEXT_PAIRS } from '../video/src/theme.js'
+import { QR_TOKEN_PREFIX } from '../shared/contract.js'
 import {
+  DEMO_QR,
   FPS,
   LAYOUT,
   HEIGHT,
@@ -303,5 +305,22 @@ describe('the video folder', () => {
   it('uses the Rubik of the app, from the same package', () => {
     expect(lock.dependencies['@fontsource-variable/rubik']).toBeDefined()
     expect(read('video/src/Root.jsx')).toContain("import '@fontsource-variable/rubik'")
+  })
+})
+
+describe('the demo QR code of the camera scene', () => {
+  it('holds plain text: no link, no address and never the token of a point (a secret), so scanning the screen opens nothing', () => {
+    expect(DEMO_QR.text).toBe('DEMO')
+    expect(DEMO_QR.text).not.toMatch(/[:/.]/)
+    expect(DEMO_QR.text.toUpperCase()).not.toContain(QR_TOKEN_PREFIX.toUpperCase())
+  })
+
+  it('is made at every render as vector graphics, with the pinned qrcode of video/, and covers the code of the printed sign', () => {
+    expect(DEMO_QR.file).toMatch(/^[a-z-]+\.svg$/)
+    expect(JSON.parse(read('video/package.json')).dependencies.qrcode).toMatch(/^\d+\.\d+\.\d+$/)
+    expect(read('video/src/render.mjs')).toContain("type: 'svg'")
+    const camera = read('video/src/Screens.jsx')
+    expect(camera).toContain('staticFile(DEMO_QR.file)')
+    expect(camera).not.toContain('blur(')
   })
 })

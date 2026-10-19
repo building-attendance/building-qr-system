@@ -3,7 +3,7 @@
 // title cards of the opening and the end. Nothing here is a copy of a dialog of Android or of iOS.
 import { Easing, Img, interpolate, staticFile } from 'remotion'
 import { COLORS, FONT_FAMILY } from './theme.js'
-import { LAYOUT, dotsAt, isRtl, scaleBox } from './timing.js'
+import { DEMO_QR, LAYOUT, dotsAt, isRtl, scaleBox } from './timing.js'
 
 const SCREEN = { width: LAYOUT.screenWidth, height: LAYOUT.screenHeight }
 
@@ -115,8 +115,8 @@ const clamp = { extrapolateLeft: 'clamp', extrapolateRight: 'clamp' }
 
 /**
  * The first drawn scene: a phone's camera held at the printed sign. The picture is the sign as the committee prints it (the beat's own
- * picture), seen a little tilted and coming closer. The QR code is blurred, so that nobody can scan a screen: the blurred copy of the
- * picture covers the code (`highlight` of the beat). A viewfinder closes around it, and a link chip rises under it.
+ * picture), seen a little tilted and coming closer. A sharp demo QR code (DEMO_QR: plain text, so scanning the screen opens nothing)
+ * covers the code of the picture (`highlight` of the beat). A viewfinder closes around it, and a link chip rises under it.
  */
 export function CameraScene({ beat, frame, strings, chipTap }) {
   const { width: W, height: H } = SCREEN
@@ -130,7 +130,6 @@ export function CameraScene({ beat, frame, strings, chipTap }) {
   const left = cx - qx * scale + Math.sin(frame / 22) * 3
   const top = cy - qy * scale + Math.cos(frame / 27) * 3
   const tilt = -2.5 * (1 - closer) + Math.sin(frame / 35) * 0.4
-  const clip = `inset(${qr.y * scale}px ${(beat.width - qr.x - qr.w) * scale}px ${(beat.height - qr.y - qr.h) * scale}px ${qr.x * scale}px round ${10 * scale}px)`
 
   const pad = 18
   const bw = qr.w * scale + pad * 2
@@ -161,7 +160,7 @@ export function CameraScene({ beat, frame, strings, chipTap }) {
         }}
       >
         <Img src={staticFile(beat.image)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }} />
-        <Img src={staticFile(beat.image)} style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', filter: 'blur(11px)', clipPath: clip }} />
+        <Img src={staticFile(DEMO_QR.file)} style={{ position: 'absolute', left: qr.x * scale, top: qr.y * scale, width: qr.w * scale, height: qr.h * scale }} />
       </div>
       <div style={{ position: 'absolute', left: bx, top: by, width: bw, height: bh, opacity: brackets, transform: `scale(${1.12 - 0.12 * brackets})`, filter: 'drop-shadow(0 0 3px rgba(255, 255, 255, 0.9))' }}>
         <div style={corner({ left: 0, top: 0, borderLeftWidth: 5, borderTopWidth: 5 })} />
