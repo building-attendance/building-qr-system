@@ -45,7 +45,7 @@ The ones that matter most:
 You do not need Google, Vercel or a production database to work on the code. To host your own deployment, see
 [docs/install.md](docs/install.md).
 
-1. Install Node 24, release 24.15 or later (`engines` in [`package.json`](package.json)). [`.nvmrc`](.nvmrc) says 24,
+1. Install Node 24, release 24.18 or later (`engines` in [`package.json`](package.json)). [`.nvmrc`](.nvmrc) says 24,
    so `nvm install` takes the newest Node 24.
 2. `npm install`
 3. `npx playwright install chromium webkit` (about 350 MB, needed for the browser tests).
