@@ -377,8 +377,17 @@ Do these in order. After step 5 every change to the default branch needs a pull 
      start only when the sender is the literal login `MatanBaruch1988`, so in a copy they never run: their jobs are
      skipped. You may delete both files, or leave them. To run an agent loop of your own you would change that login and
      set up its secret and app, as the header of `claude.yml` explains: that is a separate decision, not part of the
-     install. `release.yml` runs only by hand and a copy can ignore it. `scorecard.yml` reports the repository's security
-     habits and may be deleted. Keep `ci.yml`, `e2e.yml` (which `ci.yml` calls for the end-to-end tests) and `smoke.yml`.
+     install. `auto-merge.yml` never merges in a copy either: `scripts/check-auto-merge.mjs` lets only a pull request
+     opened by the literal login `MatanBaruch1988` (its `OWNER_LOGIN`) merge, and the merge job needs the secrets of a
+     GitHub App in the environment `auto-merge`, which a copy does not have. It still runs after CI on every pull request
+     from a branch of your repository, and on a ready one with a `test` or `docs` title it writes one comment per head
+     commit that says "will not merge" and why. Do not delete the file by itself: `tests/check-auto-merge.test.js` reads
+     it, so the `unit` check would fail. To stop the comments, disable it (`gh workflow disable auto-merge.yml --repo
+     <owner>/<repo>`). To use it, change `OWNER_LOGIN` to your login, have the Codex review on your repository (a clean
+     Codex review of the head commit is one of its conditions), and set up your own App, as
+     [`.github/rulesets/README.md`](../.github/rulesets/README.md), "The auto-merge App", says. `release.yml` runs only
+     by hand and a copy can ignore it. `scorecard.yml` reports the repository's security habits and may be deleted. Keep
+     `ci.yml`, `e2e.yml` (which `ci.yml` calls for the end-to-end tests) and `smoke.yml`.
 
    This push starts the checks and a production deployment, which is also the first run of the smoke test. In the trial,
    Vercel (Hobby) deployed this push to the repository of a free organization, and the smoke test ran after it and passed.
