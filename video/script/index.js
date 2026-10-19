@@ -9,9 +9,16 @@
 //   of the beat before it is still being said (the screens of the other languages, the notice that the visits were sent).
 // - The ids are lower-case words with hyphens: they name the files, and the lines of each language are keyed by them.
 import he from './he.js'
+import heNiqqud from './he-niqqud.js'
 
 /** The narration of each language, keyed by beat id. A new language is a file next to he.js and a line here. */
 export const SCRIPTS = Object.freeze({ he })
+
+/**
+ * The vowel points that the narrator reads, per language that needs them (Hebrew): a dictionary of plain word to vowelled word, so
+ * that the lines stay plain and every word is vowelled once (scripts/video/script.mjs, spokenLine and the check).
+ */
+export const VOWELS = Object.freeze({ he: heNiqqud })
 
 /** The languages of the video, the first one being the language that the video is made in first. */
 export const LANGUAGES = Object.freeze(Object.keys(SCRIPTS))
