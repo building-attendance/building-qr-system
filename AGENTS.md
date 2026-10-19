@@ -150,7 +150,8 @@ The scripts are in `package.json`, and `CONTRIBUTING.md` says what each is for. 
 
 - Everything in the repository is written in English: documents, code comments, commits, pull requests, issues,
   templates. Another language appears only in text a person sees in the app (`src/i18n/*.js`, and for now the committee
-  app's Hebrew in `src/admin/` and `src/pages/AdminApp.jsx`) and in the tests of that text. `tests/english-docs.test.js`
+  app's Hebrew in `src/admin/` and `src/pages/AdminApp.jsx`), in the narration of the provider app's tutorial video
+  (`video/script/*.js`), and in the tests of that text. `tests/english-docs.test.js`
   fails on a Hebrew letter in a `.md`, `.yml` or `.yaml` file, except a UI label quoted in parentheses and double
   quotes.
 - No em dash and no en dash anywhere (code, comments, UI text, docs, data the app writes): a hyphen, a comma or
