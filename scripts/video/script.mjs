@@ -31,11 +31,19 @@ const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
  */
 export const VOWELLED_LANGUAGES = Object.freeze(['he'])
 
-/** A vowel point or another mark that Hebrew writes on its letters, U+05B0 to U+05C7 without the punctuation among them. */
-const NIQQUD = /[ְ-ׇֽֿׁׂׅׄ]/
+/** A vowel point (niqqud) on a Hebrew letter: U+05B0 to U+05C7, without the punctuation among them. */
+const NIQQUD = /[\u05B0-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/
 const NIQQUD_ALL = new RegExp(NIQQUD.source, 'g')
-/** A Hebrew word: letters with the marks on them. */
-const HEBREW_WORD = /[ְ-ׇא-ת]*[א-ת][ְ-ׇא-ת]*/g
+/** Every mark that sits on a Hebrew letter (the cantillation U+0591 to U+05AF and the vowel points), and the Hebrew letters. */
+const MARKS = '\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7'
+const LETTERS = '\\u05D0-\\u05EA'
+/** A Hebrew word: letters with the marks on them. Hebrew punctuation (maqaf, paseq, sof pasuq) is not a mark, so it ends a word. */
+const HEBREW_WORD = new RegExp(`[${MARKS}]*[${LETTERS}][${MARKS}${LETTERS}]*`, 'g')
+const HEBREW_LETTER = new RegExp(`[${LETTERS}]`)
+/** The punctuation inside the block of the marks (maqaf, paseq, sof pasuq, nun hafukha): a skeleton keeps it. */
+const PUNCTUATION = /[\u05BE\u05C0\u05C3\u05C6]/
+/** Vav and yod: the two letters that a plain spelling adds for a vowel and a vowelled spelling often leaves out. */
+const VAV_AND_YOD = /[\u05D5\u05D9]/g
 
 /** The Hebrew words of a line that carry no vowel point. */
 export function unvowelledWords(text) {
@@ -44,12 +52,16 @@ export function unvowelledWords(text) {
 
 /**
  * The letters of a line that both of its spellings share: no marks, no vav and no yod (a vowelled word is often spelled without the vav
- * or the yod that the plain spelling uses for its vowel: נקודה, נְקֻדָּה), and single spaces. The say line and the caption of a vowelled
- * language must give the same skeleton, so that the narrator never says other words than the screen shows, and a renamed button in
- * src/i18n fails here until its vowelled form is written.
+ * or the yod that its plain spelling uses for a vowel), and single spaces. The say line and the caption of a vowelled language must give
+ * the same skeleton, so that the narrator never says other words than the screen shows, and a renamed button in src/i18n fails here
+ * until its vowelled form is written.
  */
 export function skeleton(text) {
-  return String(text).replace(/[֑-ׇ]/g, (mark) => (/[־׀׃׆]/.test(mark) ? mark : '')).replace(/[וי]/g, '').replace(/\s+/g, ' ').trim()
+  return String(text)
+    .replace(/[\u0591-\u05C7]/g, (mark) => (PUNCTUATION.test(mark) ? mark : ''))
+    .replace(VAV_AND_YOD, '')
+    .replace(/\s+/g, ' ')
+    .trim()
 }
 
 /** The keys that a line refers to, in order. */
@@ -161,11 +173,9 @@ export function checkScript(scripts = SCRIPTS, scenes = SCENES) {
 function vowelledProblems(lang, id, line) {
   const { caption, say } = line ?? {}
   if (typeof caption !== 'string' || typeof say !== 'string') return []
-  if (!/[א-ת]/.test(caption + say)) return [] // no Hebrew word, nothing to vowel
+  if (!HEBREW_LETTER.test(caption + say)) return [] // no Hebrew word, nothing to vowel
   const problems = []
   if (NIQQUD.test(caption)) problems.push(`${lang} "${id}" caption: a vowel point (the video shows plain text, only the say line is vowelled)`)
-  const bare = unvowelledWords(say)
-  if (bare.length) problems.push(`${lang} "${id}" say: words with no vowel point (${bare.slice(0, 5).join(', ')})`)
   let spoken = say
   let shown = caption
   try {
@@ -174,6 +184,9 @@ function vowelledProblems(lang, id, line) {
   } catch {
     // a key problem, already reported line by line
   }
+  // What the narrator receives: a `{key}` in a say line brings the app's plain label, which must be vowelled too.
+  const bare = unvowelledWords(spoken)
+  if (bare.length) problems.push(`${lang} "${id}" say: words with no vowel point (${bare.slice(0, 5).join(', ')})`)
   if (skeleton(spoken) !== skeleton(shown)) {
     problems.push(`${lang} "${id}" say: not the caption with vowel points (the say line reads "${spoken.replace(NIQQUD_ALL, '')}", the caption "${shown}")`)
   }

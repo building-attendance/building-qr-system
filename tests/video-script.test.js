@@ -75,7 +75,7 @@ describe('the script of the video', () => {
 // ---- the vowelled narration --------------------------------------------------------------------------------------
 
 describe('the Hebrew narrator reads vowelled lines, and the screen shows plain ones', () => {
-  const POINT = /[ְ-ׇֽֿׁׂׅׄ]/
+  const POINT = /[\u05B0-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/
 
   it('is the rule for Hebrew', () => {
     expect(VOWELLED_LANGUAGES).toContain('he')
@@ -155,6 +155,17 @@ describe('the check of the script reports', () => {
   it('in Hebrew: a label of the app whose vowelled form in the say line is another label (a renamed button)', () => {
     const problems = checkScript(script('לוחצים "{checkin.done}"', 'לוֹחֲצִים "כְּנִיסָה"'), scenes)
     expect(problems).toEqual([`he "one" say: not the caption with vowel points (the say line reads "לוחצים "כניסה"", the caption "לוחצים "${he['checkin.done']}"")`])
+  })
+
+  it('in Hebrew: a say line whose {key} brings the plain label of the app to the narrator', () => {
+    expect(checkScript(script('לוחצים "{login.submit}"', 'לוֹחֲצִים "{login.submit}"'), scenes))
+      .toEqual([`he "one" say: words with no vowel point (${he['login.submit']})`])
+  })
+
+  it('in Hebrew: a word with no vowel point after a maqaf, which ends the word before it', () => {
+    const maqaf = String.fromCodePoint(0x05be)
+    expect(checkScript(script(`שלום${maqaf}עולם`, `שָׁלוֹם${maqaf}עולם`), scenes)).toEqual(['he "one" say: words with no vowel point (עולם)'])
+    expect(checkScript(script(`שלום${maqaf}עולם`, `שָׁלוֹם${maqaf}עוֹלָם`), scenes)).toEqual([])
   })
 
   it('a duration that is not positive, beats that do not add up, a repeated or a bad id, and a scene that starts by continuing', () => {
