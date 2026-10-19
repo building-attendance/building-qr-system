@@ -37,8 +37,9 @@ is more than 8 MB (it is about 3 MB).
   density, each cross-fading into the next), the caption bar under the phone (Rubik, from right to left for Hebrew and Arabic,
   42 to 34 pixels by the length of the line), a tap mark that grows on the box that the recorder measured, and the password dots
   typed one by one (uncovered from the picture of the sign-in button, so they are the app's own dots).
-- Two scenes are drawn, because a phone's own screens cannot be recorded in the browser: the camera held at the printed sign (the
-  QR code is blurred, so that nobody can scan a screen, and a link chip rises under it), and a neutral question about the
+- Two scenes are drawn, because a phone's own screens cannot be recorded in the browser: the camera held at the printed sign (a
+  sharp demo QR code covers the sign's own code: `render.mjs` makes it with `qrcode` at every render, and it holds the plain text
+  "DEMO", never a link or a point's token, so scanning the screen opens nothing; a link chip rises under it), and a neutral question about the
   location over the "checking location" screen. Neither copies the dialog of Android or iOS. Their words, and the title cards,
   are in `video/script/drawn.js`, in the four languages.
 - `src/assets/tap.wav`: the tap sound, made by `src/make-tap-sound.mjs` from two sine waves. Nothing of a third party.

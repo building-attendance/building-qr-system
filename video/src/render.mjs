@@ -5,15 +5,17 @@
 // provider-<lang>.vtt (the captions). Without a timings.json the video runs the estimated seconds of scenes.json and has no voice (only the
 // tap sounds): a silent render.
 //
-// Node built-ins, Remotion's bundler and renderer, and timing.js (pure). Nothing of the app is imported, and nothing is sent anywhere: the
-// browser that Remotion renders with (Chrome Headless Shell) is downloaded by it, once, into video/node_modules/.remotion.
+// Node built-ins, Remotion's bundler and renderer, qrcode (the demo QR code) and timing.js (pure). Nothing of the app is imported, and
+// nothing is sent anywhere: the browser that Remotion renders with (Chrome Headless Shell) is downloaded by it, once, into
+// video/node_modules/.remotion.
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { argv, exit, hrtime, stderr, stdout } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { bundle } from '@remotion/bundler'
 import { renderMedia, renderStill, selectComposition } from '@remotion/renderer'
-import { FPS, isSafeAudioName, planBeats, toVtt } from './timing.js'
+import QRCode from 'qrcode'
+import { DEMO_QR, FPS, isSafeAudioName, planBeats, toVtt } from './timing.js'
 
 /** The most that the mp4 may weigh (it goes to a page and to a phone). */
 const MAX_BYTES = 8 * 1024 * 1024
@@ -75,6 +77,11 @@ for (const file of readdirSync(outDir)) {
   if (/^[a-z0-9-]+\.png$/.test(file) && !file.endsWith('.masked.png')) cpSync(path.join(outDir, file), path.join(publicDir, file))
 }
 if (existsSync(path.join(outDir, 'voice'))) cpSync(path.join(outDir, 'voice'), path.join(publicDir, 'voice'), { recursive: true })
+// The demo QR code of the camera scene, as vector graphics, so that it stays sharp at any size (DEMO_QR in timing.js).
+writeFileSync(
+  path.join(publicDir, DEMO_QR.file),
+  await QRCode.toString(DEMO_QR.text, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }),
+)
 
 const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir })
 const composition = await selectComposition({ serveUrl, id: 'Provider', inputProps })
