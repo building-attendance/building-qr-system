@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { I18nProvider, useI18n } from '../i18n/index.jsx'
+import { I18nProvider } from '../i18n/index.jsx'
 import { api } from '../api/client.js'
 import { loadSession, saveSession, clearSession, isProvider } from '../worker/session.js'
 import { createQueue } from '../worker/scanQueue.js'
@@ -42,7 +42,6 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 const stripCodeFromUrl = () => window.history.replaceState(null, '', '/')
 
 function WorkerShell({ session, setSession, building }) {
-  const { t } = useI18n()
   const queue = useMemo(() => createQueue(), [])
   const deps = useMemo(() => ({ api, getFix, queue, newId: uuid, now: () => new Date() }), [queue])
 
@@ -56,6 +55,8 @@ function WorkerShell({ session, setSession, building }) {
   const [view, setView] = useState('home') // home | working | result
   const [workingPhase, setWorkingPhase] = useState('locating')
   const [result, setResult] = useState(null)
+  // A notice holds the key of its words (and their values), never the words: the screen translates it as it draws it, so a switch
+  // of the language redraws it in the new one. The home screen's is { tone, key, params }; the sign-in list's is a key.
   const [notice, setNotice] = useState(null)
   const [loginNotice, setLoginNotice] = useState(null)
   const [refreshKey, setRefreshKey] = useState(0)
@@ -85,8 +86,8 @@ function WorkerShell({ session, setSession, building }) {
     setResult(null)
     setNotice(null) // the next person must not inherit the previous person's messages
     startedFor.current = null // after signing in again the still-pending code is processed
-    setLoginNotice(t('error.invalid_session'))
-  }, [setSession, t])
+    setLoginNotice('error.invalid_session')
+  }, [setSession])
 
   // The phone tells the server how it is doing (what waits in its queue and since when, its build). The token that the server
   // has confirmed (the session check below at app start, or a sign-in just now) is what starts the first report. There is
@@ -105,8 +106,8 @@ function WorkerShell({ session, setSession, building }) {
       setRefreshKey((k) => k + 1)
       const unaccepted = res.rejected + res.dropped
       setNotice(unaccepted
-        ? { tone: 'warn', text: t('sync.dropped', { count: unaccepted }) }
-        : { tone: 'ok', text: t('sync.done') })
+        ? { tone: 'warn', key: 'sync.dropped', params: { count: unaccepted } }
+        : { tone: 'ok', key: 'sync.done' })
     },
   })
 
@@ -130,7 +131,7 @@ function WorkerShell({ session, setSession, building }) {
         setSession((s) => (s && s.token === token ? { ...s, provider: res.provider } : s))
       })
       .catch((err) => err.status === 401 && handleSignedOut(err.code))
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- check the stored session once, at app start: a later `session` is a new sign-in, and `handleSignedOut` changes with the language
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- check the stored session once, at app start: a later `session` is a new sign-in
   }, [])
   // (A slow answer that arrives after "Switch person" and a new sign-in must not touch the new session:
   //  the token comparison above covers the 200 case; `switchWorker` clears the verify via the token check below.)
