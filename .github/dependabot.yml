@@ -23,6 +23,17 @@ updates:
       prefix: build
       include: scope
     groups:
+      # Playwright arrives on its own (owner decision of 19/10/2026). Each of its versions brings new browser builds, so
+      # it is the update most likely to break the end-to-end tests: Playwright 1.64's WebKit broke every iPhone test that
+      # draws a select (#281). On its own, a red Playwright update no longer holds back the other minor and patch
+      # updates, and its pull request can stay open until a later version fixes the break, when Dependabot updates that
+      # same pull request. It is a group, not an `ignore` rule, so its security updates still arrive. It comes first
+      # because a dependency goes to the first group it matches.
+      playwright:
+        applies-to: version-updates
+        patterns:
+          - "@playwright/*"
+          - "playwright"
       # Minor and patch updates arrive together, as one pull request a week.
       npm-minor-and-patch:
         applies-to: version-updates
