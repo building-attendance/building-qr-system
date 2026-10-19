@@ -5,7 +5,7 @@
   "license": "MIT",
   "type": "module",
   "engines": {
-    "node": "^24.15.0"
+    "node": "^24.18.0"
   },
   "scripts": {
     "dev": "vite",
@@ -19,6 +19,8 @@
     "test:e2e": "playwright test",
     "screenshots": "playwright test --config playwright.screenshots.config.js",
     "ui-review:pictures": "playwright test --config playwright.ui-review.config.js",
+    "video:frames": "playwright test --config playwright.video.config.js",
+    "video:voice": "node scripts/video/voice.mjs",
     "perf:scan": "playwright test --config playwright.perf.config.js",
     "perf:scan:baseline": "playwright test --config playwright.perf.config.js && node scripts/perf/baseline.mjs",
     "perf:api": "node scripts/perf/api-timing.mjs",
@@ -55,7 +57,7 @@
     "ajv": "^8.20.0",
     "ajv-formats": "^3.0.1",
     "eslint": "^10.12.0",
-    "eslint-plugin-es-x": "^9.7.0",
+    "eslint-plugin-es-x": "^10.0.1",
     "eslint-plugin-react-hooks": "^7.1.1",
     "globals": "^17.13.0",
     "jsdom": "^30.1.2",

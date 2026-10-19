@@ -23,6 +23,9 @@ import {
   FOLDER_SWAPPED_ERROR,
   HEARTBEAT_RETRIES,
   HEARTBEAT_TIMEOUT_MS,
+  isNetworkFailure,
+  NETWORK_RETRY_PAUSES_MS,
+  NETWORK_RETRY_WARNING,
   FOLDER_WRITABLE_ERROR,
   icaclsArgs,
   issueBody,
@@ -976,6 +979,200 @@ describe('a failing pg_dump', () => {
     })
     expect(r.exitCode).toBe(1)
     expect(r.message).toBe('boom ***')
+  })
+})
+
+describe('a network that is not back yet (right after a wake)', () => {
+  // What the tools printed on 19/10/2026 on Windows, for a name that does not resolve, a refused connection and a time out (the
+  // Neon CLI 7.0.6 prints the same line for the first two), with this file's fake host.
+  const NEON_OFFLINE =
+    'ERROR: Could not reach the Neon API. Please check your internet connection and try again. If your connection is fine and this keeps happening, check https://neonstatus.com for ongoing incidents.\n'
+  const PG_NO_NAME = `pg_dump: error: could not translate host name "${HOST}" to address: Name or service not known\n`
+  const PG_REFUSED = `pg_dump: error: connection to server at "${HOST}" (10.0.0.1), port 5432 failed: Connection refused (0x0000274D/10061)\n\tIs the server running on that host and accepting TCP/IP connections?\n`
+  const PG_TIMEOUT = `pg_dump: error: connection to server at "${HOST}" (10.0.0.1), port 5432 failed: timeout expired\n`
+  const failed = (stderr) => ({ status: 1, stdout: '', stderr })
+  const neonOptions = { neonProject: 'square-term-1', reportIssue: 'owner/repo' }
+  const neonEnv = { BACKUP_DATABASE_URL: '' }
+
+  /** A sleep that does not wait, and writes each pause into `events`, between the calls of the tools. */
+  function pauses(events) {
+    const sleep = async (ms) => {
+      events.push(`pause ${ms}`)
+    }
+    return sleep
+  }
+
+  it('knows a failure to reach the network from an answer of a server', () => {
+    for (const stderr of [
+      NEON_OFFLINE,
+      'ERROR: getaddrinfo ENOTFOUND console.neon.tech\n', // an older CLI: the code of the socket error
+      'ERROR: getaddrinfo EAI_AGAIN console.neon.tech\n',
+      'ERROR: connect ECONNREFUSED 10.0.0.1:443\n',
+      'TypeError: fetch failed\n',
+      PG_NO_NAME,
+      PG_REFUSED,
+      PG_TIMEOUT,
+      `pg_dump: error: connection to server at "${HOST}" (10.0.0.1), port 5432 failed: Network is unreachable\n`,
+      `pg_dump: error: connection to server at "${HOST}" (10.0.0.1), port 5432 failed: No route to host\n`,
+    ]) {
+      expect(isNetworkFailure(failed(stderr)), stderr).toBe(true)
+    }
+    for (const stderr of [
+      'ERROR: Authentication failed: the Neon API rejected the API key. Check --api-key or NEON_API_KEY.\n',
+      'ERROR: not signed in\n',
+      'ERROR: project not found\n', // an answer of the API
+      "'neon.cmd' is not recognized as an internal or external command\n",
+      `pg_dump: error: connection to server at "${HOST}" (10.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "${USER}"\n`,
+      // libpq tried two addresses: the first did not open, the second reached the server, which refused
+      `pg_dump: error: connection to server at "${HOST}" (2001:db8::1), port 5432 failed: Network is unreachable\n\tIs the server running on that host and accepting TCP/IP connections?\nconnection to server at "${HOST}" (10.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "${USER}"\n`,
+      'pg_dump: error: server closed the connection unexpectedly\n',
+      'nope',
+      '',
+    ]) {
+      expect(isNetworkFailure(failed(stderr)), stderr).toBe(false)
+    }
+    // only a tool that ran to the end and failed
+    expect(isNetworkFailure({ status: 0, stdout: '', stderr: NEON_OFFLINE })).toBe(false)
+    expect(isNetworkFailure({ status: null, stdout: '', stderr: NEON_OFFLINE, problem: 'TIMEOUT' })).toBe(false)
+    expect(isNetworkFailure({ status: null, stdout: '', stderr: '', problem: 'ENOENT' })).toBe(false)
+    expect(NETWORK_RETRY_PAUSES_MS).toEqual([30_000, 60_000])
+  })
+
+  it('runs the Neon CLI again after 30 and 60 seconds, and the backup works and says so with a warning, not the error', async () => {
+    const events = []
+    const runner = makeRunner({
+      neon: ({ n }) => {
+        events.push(`neon ${n}`)
+        return n <= 2 ? failed(NEON_OFFLINE) : defaults.neon()
+      },
+    })
+    const r = await go({ options: neonOptions, deps: { env: neonEnv, sleep: pauses(events) }, runner })
+    expect(r.exitCode).toBe(0)
+    expect(events).toEqual(['neon 1', 'pause 30000', 'neon 2', 'pause 60000', 'neon 3'])
+    // every try is the same call
+    expect(new Set(r.runner.of('neon').map((call) => JSON.stringify(call.args))).size).toBe(1)
+    expect(r.runner.of('pg_dump')).toHaveLength(1)
+    expect(r.files).toEqual(['backup.log', FINAL])
+    expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0 warning=${NETWORK_RETRY_WARNING}\n`)
+    expect(r.errs).toEqual([`backup: warning, ${NETWORK_RETRY_WARNING}`])
+    expect(r.runner.of('gh')).toEqual([]) // no issue
+    expect(visible(r)).not.toMatch(/Could not reach|neonstatus/)
+  })
+
+  it('needs only as many tries as it takes: the network is back at the second', async () => {
+    const events = []
+    const runner = makeRunner({ neon: ({ n }) => (n === 1 ? failed('ERROR: getaddrinfo ENOTFOUND console.neon.tech\n') : defaults.neon()) })
+    const r = await go({ options: neonOptions, deps: { env: neonEnv, sleep: pauses(events) }, runner })
+    expect(r.exitCode).toBe(0)
+    expect(events).toEqual(['pause 30000'])
+    expect(r.runner.of('neon')).toHaveLength(2)
+    expect(r.log).toContain(` warning=${NETWORK_RETRY_WARNING}\n`)
+  })
+
+  it('fails as before when the network does not come back: three tries, the error of the last in the log, one issue', async () => {
+    const events = []
+    const runner = makeRunner({ neon: () => failed(NEON_OFFLINE) })
+    const r = await go({ options: neonOptions, deps: { env: neonEnv, sleep: pauses(events) }, runner })
+    expect(r.exitCode).toBe(1)
+    expect(events).toEqual(['pause 30000', 'pause 60000'])
+    expect(r.runner.of('neon')).toHaveLength(3)
+    expect(r.runner.of('pg_dump')).toEqual([])
+    expect(r.message).toBe(`the Neon CLI failed (exit code 1): ${NEON_OFFLINE.trim()}`)
+    expect(r.issue).toBe('opened')
+    expect(r.runner.of('gh').filter((call) => call.args[1] === 'create')).toHaveLength(1)
+    expect(r.log).toBe(`03/10/2026 10:15 failed host=- warning=${NETWORK_RETRY_WARNING} issue=opened error=${r.message}\n`)
+  })
+
+  it('never runs a tool again for an answer of a server, nor for a tool that did not finish', async () => {
+    const answers = [
+      ['neon', failed('ERROR: Authentication failed: the Neon API rejected the API key. Check --api-key or NEON_API_KEY.\n')],
+      ['neon', { status: null, stdout: '', stderr: '', problem: 'TIMEOUT' }],
+      ['pg_dump', failed(`pg_dump: error: connection to server at "${HOST}" (10.0.0.1), port 5432 failed: FATAL:  password authentication failed for user "${USER}"\n`)],
+      ['pg_dump', { status: null, stdout: '', stderr: '', problem: 'TIMEOUT' }],
+    ]
+    for (const [tool, answer] of answers) {
+      fs.rmSync(dir, { recursive: true, force: true })
+      const events = []
+      const neon = tool === 'neon'
+      const r = await go({
+        options: neon ? neonOptions : {},
+        deps: { env: neon ? neonEnv : {}, sleep: pauses(events) },
+        runner: makeRunner({ [tool]: () => answer }),
+      })
+      expect(r.exitCode, tool).toBe(1)
+      expect(events, tool).toEqual([])
+      expect(r.runner.of(tool), tool).toHaveLength(1)
+      expect(r.log, tool).not.toContain(NETWORK_RETRY_WARNING)
+    }
+  })
+
+  it('runs pg_dump again (BACKUP_DATABASE_URL: no Neon CLI), each try from a new empty file in the same work directory and read-only session', async () => {
+    const events = []
+    const seen = []
+    const runner = makeRunner({
+      pg_dump: (call) => {
+        const file = path.join(call.options.cwd, PARTIAL)
+        seen.push({ cwd: call.options.cwd, content: fs.readFileSync(file, 'utf8'), options: call.options.env.PGOPTIONS })
+        events.push(`pg_dump ${call.n}`)
+        if (call.n === 1) {
+          fs.writeFileSync(file, 'a try that failed')
+          return failed(PG_NO_NAME)
+        }
+        return defaults.pg_dump(call)
+      },
+    })
+    const r = await go({ deps: { sleep: pauses(events) }, runner })
+    expect(r.exitCode).toBe(0)
+    expect(events).toEqual(['pg_dump 1', 'pause 30000', 'pg_dump 2'])
+    expect(seen.map((try_) => try_.content)).toEqual(['', ''])
+    expect(seen[1].cwd).toBe(seen[0].cwd)
+    expectWorkCwd(seen[0].cwd)
+    expect(seen.map((try_) => try_.options)).toEqual([READ_ONLY_OPTION, READ_ONLY_OPTION])
+    expect(r.files).toEqual(['backup.log', FINAL])
+    expect(fs.readFileSync(path.join(dir, FINAL), 'utf8')).toBe('PGDMP fake dump')
+    expect(r.log).toContain(` warning=${NETWORK_RETRY_WARNING}\n`)
+    expect(visible(r)).not.toMatch(/translate host name|Name or service/)
+  })
+
+  it('on Windows closes the new empty file of every try with icacls before pg_dump writes to it', async () => {
+    const events = []
+    const runner = makeRunner({
+      icacls: (call) => {
+        if (call.args[0] === PARTIAL && call.args.length > 1) {
+          events.push(`icacls on an empty file: ${fs.statSync(path.join(call.options.cwd, PARTIAL)).size === 0}`)
+        }
+        return defaults.icacls(call)
+      },
+      pg_dump: (call) => {
+        events.push(`pg_dump ${call.n}`)
+        return call.n === 1 ? failed(PG_REFUSED) : defaults.pg_dump(call)
+      },
+    })
+    const r = await go({
+      deps: { platform: 'win32', env: { SystemRoot: 'C:\\Windows' }, sleep: pauses(events) },
+      runner,
+    })
+    expect(r.exitCode).toBe(0)
+    expect(events).toEqual([
+      'icacls on an empty file: true',
+      'pg_dump 1',
+      'pause 30000',
+      'icacls on an empty file: true',
+      'pg_dump 2',
+    ])
+  })
+
+  it('a pg_dump that cannot reach the network fails after three tries with its own message, and keeps nothing', async () => {
+    const events = []
+    const r = await go({ options: { reportIssue: 'owner/repo' }, deps: { sleep: pauses(events) }, runner: makeRunner({ pg_dump: () => failed(PG_TIMEOUT) }) })
+    expect(r.exitCode).toBe(1)
+    expect(events).toEqual(['pause 30000', 'pause 60000'])
+    expect(r.runner.of('pg_dump')).toHaveLength(3)
+    expect(r.runner.of('pg_restore')).toEqual([])
+    expect(r.message).toBe(`pg_dump failed (exit code 1): pg_dump: error: connection to server at "${MASKED_HOST}" (10.0.0.1), port 5432 failed: timeout expired`)
+    expect(r.files).toEqual(['backup.log'])
+    expect(r.issue).toBe('opened')
+    expect(r.log).toContain(` warning=${NETWORK_RETRY_WARNING} issue=opened error=pg_dump failed`)
   })
 })
 
