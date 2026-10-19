@@ -135,6 +135,11 @@
 //
 // A computer that sleeps or hibernates in the middle of a run goes on with it when it wakes: the time limit of each tool (the
 // Neon CLI, pg_dump, pg_restore, gh, whoami, icacls, PowerShell) counts only the time that the machine is awake (see awakeDeadline).
+// The network can take some seconds more to come back after a wake, so when the Neon CLI or pg_dump fails because it could not
+// reach the network at all (a name that does not resolve, a connection that does not open: see isNetworkFailure), it is run again
+// after 30 seconds and once more after 60 (awake time), and the log line says `retried-after-network-error`, never the error. An
+// answer of a server (a key or a password refused, a project that does not exist) is never run again. Each try of pg_dump starts
+// from a new empty file, made as in step 3, in the same work directory and with the same read-only session.
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -198,6 +203,13 @@ export const LOG_SKIPPED = 'backup: backup.log was not written, because other ac
 export const HEARTBEAT_TIMEOUT_MS = 10_000
 export const HEARTBEAT_RETRIES = 2
 const HEARTBEAT_PAUSES_MS = [2_000, 5_000]
+
+// A tool that could not reach the network (see isNetworkFailure) is run again after each of these pauses, so that a run that starts
+// or goes on right after a wake waits for the network instead of failing: on 19/10/2026 the laptop woke from hibernate at 05:18:12
+// and names did not resolve until about 05:18:20. The pauses count only the time that the machine is awake (see awakeDeadline).
+export const NETWORK_RETRY_PAUSES_MS = [30_000, 60_000]
+// The word that the log line and the screen get when a step was run again for that reason: never the text of the error.
+export const NETWORK_RETRY_WARNING = 'retried-after-network-error'
 
 const NEON_TIMEOUT_MS = 2 * 60_000
 const DUMP_TIMEOUT_MS = 30 * 60_000
@@ -1106,6 +1118,51 @@ export function runProcess(command, args, { env, cwd, timeoutMs = 10 * 60_000, t
   })
 }
 
+// What a tool prints when it could not reach the network at all. The Neon CLI: `Could not reach the Neon API` is its line for
+// every error in which no request got through (version 7, checked on 19/10/2026 with a name that does not resolve and with a
+// refused connection), and an older CLI printed the code of the socket error or `fetch failed`. libpq, for pg_dump: a name that
+// does not resolve, or a connection that does not open (the same words on Windows, with the code of the error after them).
+const NETWORK_SIGNS = [
+  /\bCould not reach the Neon API\b/,
+  /\b(?:ENOTFOUND|EAI_AGAIN|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EHOSTUNREACH|ENETUNREACH|EHOSTDOWN|ENETDOWN)\b/,
+  /\bfetch failed\b/,
+  /\bcould not translate host name\b/,
+  /\bfailed: (?:Connection refused|Connection timed out|timeout expired|Network is unreachable|Network is down|No route to host|Host is down)\b/,
+]
+// A server that answered (libpq tries every address of a host, so one try can fail on the network and the next reach the server).
+const SERVER_ANSWERED = /\bfailed: +(?:FATAL|ERROR|PANIC):/
+
+/**
+ * True when a tool's result (see runProcess) says that it could not reach the network: an exit code that is not 0, a sign of
+ * NETWORK_SIGNS in what it wrote to stderr, and no answer of a server there. A tool that did not run to the end (not found, a time
+ * out) is not such a failure, and neither is any answer of a server: a key or a password that is refused, a project or a branch
+ * that does not exist, an error of Postgres.
+ */
+export function isNetworkFailure(result) {
+  if (!result || result.problem || result.status === 0) return false
+  const text = String(result.stderr ?? '')
+  return !SERVER_ANSWERED.test(text) && NETWORK_SIGNS.some((sign) => sign.test(text))
+}
+
+/** Waits `ms` of the time that the machine is awake (see awakeDeadline). */
+const waitAwake = (ms) => new Promise((resolve) => awakeDeadline(ms, TICK_MS, resolve))
+
+/**
+ * Runs `step` (one call of a tool), and runs it again after each pause of NETWORK_RETRY_PAUSES_MS while it fails because it could
+ * not reach the network (see isNetworkFailure). `onRetry()` is called before each pause and `pause(ms)` waits. Returns the result
+ * of the last call, so a failure that lasts is reported as before, with the message of the step.
+ */
+async function retryOnNetworkFailure(step, { pause, onRetry }) {
+  let result = await step()
+  for (const ms of NETWORK_RETRY_PAUSES_MS) {
+    if (!isNetworkFailure(result)) break
+    onRetry()
+    await pause(ms)
+    result = await step()
+  }
+  return result
+}
+
 // ---- the issue ---------------------------------------------------------------------------------------------------------
 
 /**
@@ -1272,7 +1329,7 @@ export function logLine({ when, ok, host, file, size, removed, stale, warning, i
   return parts.join(' ')
 }
 
-async function connectionStringFor({ options, env, platform, runner }) {
+async function connectionStringFor({ options, env, platform, runner, network }) {
   const fromEnv = String(env.BACKUP_DATABASE_URL ?? '').trim()
   // Two sources are a mistake of the person who set the task up, and a rule about which one wins would hide it: the backup
   // of the wrong database is worse than no backup.
@@ -1282,7 +1339,8 @@ async function connectionStringFor({ options, env, platform, runner }) {
     throw new Error('there is no database to back up: set BACKUP_DATABASE_URL (the direct connection string) or pass --neon-project')
   }
   const { command, args } = neonCommand({ project: options.neonProject, branch: options.neonBranch, platform })
-  const result = await runner(command, args, { env: cleanEnv(env), timeoutMs: NEON_TIMEOUT_MS })
+  // The first step that needs the network in the daily task, so the one that a run right after a wake meets first.
+  const result = await retryOnNetworkFailure(() => runner(command, args, { env: cleanEnv(env), timeoutMs: NEON_TIMEOUT_MS }), network)
   // 9009 is what cmd.exe answers when it cannot find neon.cmd
   if (result.problem === 'ENOENT' || (platform === 'win32' && result.status === 9009)) {
     throw new Error('the Neon CLI was not found: install it (npm i -g neonctl) and sign in with `neon auth`')
@@ -1324,7 +1382,7 @@ export async function runBackup(options, deps = {}) {
     umask = setProcessUmask,
     getuid = process.getuid?.bind(process),
     fetch: fetcher, // (sendHeartbeat falls back on the fetch of the system, and on a real sleep)
-    sleep,
+    sleep, // waits: the pauses of the heartbeat, and the pauses before a tool is run again after a network failure (a test passes its own)
     out = console.log,
     err = console.error,
   } = deps
@@ -1377,6 +1435,13 @@ export async function runBackup(options, deps = {}) {
   let folderIsOpen = false
   let staleRemoved = 0
   const earlyWarnings = []
+  // A tool that could not reach the network is run again (see retryOnNetworkFailure), and the log line says so, once.
+  const network = {
+    pause: sleep ?? waitAwake,
+    onRetry: () => {
+      if (!earlyWarnings.includes(NETWORK_RETRY_WARNING)) earlyWarnings.push(NETWORK_RETRY_WARNING)
+    },
+  }
   let result
 
   // Before anything is created: every file that pg_dump (a child process, which inherits the mask) or this script makes is
@@ -1489,7 +1554,7 @@ export async function runBackup(options, deps = {}) {
     staleRemoved = stale.removed
     if (stale.failed) earlyWarnings.push(`${stale.failed}-stale-work-folders-not-removed`)
     if (!stale.checked) earlyWarnings.push('stale-work-folders-not-checked')
-    const connectionString = await connectionStringFor({ options, env, platform, runner })
+    const connectionString = await connectionStringFor({ options, env, platform, runner, network })
     scrub = makeScrubber(connectionString, hiddenFolders)
     host = maskDatabaseHost(connectionString)
     const pgEnv = connectionEnv(connectionString)
@@ -1528,17 +1593,23 @@ export async function runBackup(options, deps = {}) {
 
     // The empty temporary file is made in it, exclusively (`wx`), BEFORE pg_dump writes to it. On Windows it is also given an
     // explicit owner-only list (the directory's list would reach it anyway): pg_dump opens the existing file and overwrites it
-    // in place, which keeps the list. If this fails nothing is dumped.
-    files.writeFileSync(partialPath, '', { flag: 'wx', mode: PRIVATE_FILE })
-    if (windows) await restrictToOwner({ name: partialName, cwd: workDir, owner, runner, env })
+    // in place, which keeps the list. If this fails nothing is dumped. pg_dump is run again when it could not reach the network
+    // (see retryOnNetworkFailure, the first step that needs it when BACKUP_DATABASE_URL is set), and every try starts the same
+    // way, from a new empty file: the one that a failed try left is deleted first.
+    let tries = 0
+    const dump = await retryOnNetworkFailure(async () => {
+      if (tries++ > 0) files.rmSync(partialPath, { force: true })
+      files.writeFileSync(partialPath, '', { flag: 'wx', mode: PRIVATE_FILE })
+      if (windows) await restrictToOwner({ name: partialName, cwd: workDir, owner, runner, env })
 
-    // The file name is relative and the work directory is the working directory of the tool, so a path with a name in another
-    // alphabet never has to pass through the command line of a Windows program.
-    const dump = await runner(
-      pgTool(pgBin, 'pg_dump', platform),
-      ['--format=custom', '--no-owner', '--no-privileges', '--no-password', '--file', partialName],
-      { env: { ...cleanEnv(env), ...pgEnv }, cwd: workDir, timeoutMs: DUMP_TIMEOUT_MS },
-    )
+      // The file name is relative and the work directory is the working directory of the tool, so a path with a name in another
+      // alphabet never has to pass through the command line of a Windows program.
+      return runner(
+        pgTool(pgBin, 'pg_dump', platform),
+        ['--format=custom', '--no-owner', '--no-privileges', '--no-password', '--file', partialName],
+        { env: { ...cleanEnv(env), ...pgEnv }, cwd: workDir, timeoutMs: DUMP_TIMEOUT_MS },
+      )
+    }, network)
     if (dump.problem) throw new Error(toolProblem('pg_dump', dump.problem))
     if (dump.status !== 0) throw new Error(`pg_dump failed (exit code ${dump.status})${firstLine(dump.stderr)}`)
 
