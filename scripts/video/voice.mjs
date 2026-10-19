@@ -4,8 +4,9 @@
 //
 //   node scripts/video/voice.mjs he [--voice elevenlabs|files|none] [--budget <characters>] [--out <folder>] [--recordings <folder>]
 //
-// - The lines are the `say` lines of video/script/, with every `{key}` resolved to the app's label (scripts/video/script.mjs), so
-//   that a renamed button is spoken again. No frames are needed.
+// - The lines are the `say` lines of video/script/, with every `{key}` resolved to the app's label and, in Hebrew, every word with its
+//   vowel points from video/script/he-niqqud.js (spokenLine of scripts/video/script.mjs), so that a renamed button is spoken again.
+//   No frames are needed.
 // - The voice: `elevenlabs` when a key is in the environment (ELEVENLABS_API_KEY or ELEVENLABS_API_KEY_FILE, see
 //   voice-providers/elevenlabs.mjs), else `none`, which needs no secret and writes the seconds of the script. `files` takes a
 //   recording per line (voice-providers/files.mjs), from --recordings or VIDEO_RECORDINGS_DIR, by default video/recordings/<lang>/.
@@ -24,7 +25,7 @@ import { pathToFileURL } from 'node:url'
 import { parseArgs } from 'node:util'
 import { hasSecretWord } from '../../shared/secretLike.js'
 import { LANGUAGES, SCRIPTS } from '../../video/script/index.js'
-import { beatsWithLines, resolveLine } from './script.mjs'
+import { beatsWithLines, spokenLine } from './script.mjs'
 import { ROOT, VIDEO_OUT_DIR } from './settings.mjs'
 import { buildTimings, mp3Seconds, spokenSeconds } from './timings.mjs'
 import { KEY_FILE_VARIABLE, KEY_VARIABLE, elevenlabsProvider, elevenlabsSettings, keyIsSet, readKey } from './voice-providers/elevenlabs.mjs'
@@ -63,13 +64,13 @@ export function cacheKey({ text, voice, model, lang }) {
 }
 
 /**
- * The lines of one language, in the order of the video: every beat that has a line of its own, with its say line resolved and its
- * planned seconds.
+ * The lines of one language, in the order of the video: every beat that has a line of its own, with its say line as the narrator
+ * reads it (labels resolved, Hebrew vowelled) and its planned seconds.
  * @param {string} lang
  */
 export function scriptLines(lang) {
   if (!LANGUAGES.includes(lang)) throw new Error(`The video script has no language "${lang}" (video/script/index.js has ${LANGUAGES.join(', ')}).`)
-  return beatsWithLines().map((beat) => ({ id: beat.id, seconds: beat.seconds, text: resolveLine(lang, SCRIPTS[lang][beat.id].say) }))
+  return beatsWithLines().map((beat) => ({ id: beat.id, seconds: beat.seconds, text: spokenLine(lang, SCRIPTS[lang][beat.id].say) }))
 }
 
 const EMAIL = /[^\s@]+@[^\s@]+\.[^\s@]+/
