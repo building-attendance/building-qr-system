@@ -941,7 +941,7 @@ describe('the workflow file', () => {
       const [ciPin] = pins(CI)
       expect(pins(WORKFLOW), action).toEqual([ciPin, ciPin])
     }
-    expect(WORKFLOW).toContain('uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0')
+    expect(WORKFLOW).toContain('uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0')
   })
 
   it('is live: LIVE is true (the owner decided on 18/10/2026), and the merge job runs only when it is true', () => {
