@@ -24,6 +24,34 @@ export const DATE_OR_TIME = /\d{1,2}:\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d{4}-
 /** The ids of beats and scenes: lower-case words with hyphens, because they name files. */
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
+/**
+ * The languages whose narrator reads a vowelled line (the owner, 19/10/2026: the narrator misread plain Hebrew). In these the `say`
+ * line is the caption with its vowel points (niqqud) on every Hebrew word, and the caption itself carries none: the video shows plain
+ * text, and only the narrator reads the vowelled one.
+ */
+export const VOWELLED_LANGUAGES = Object.freeze(['he'])
+
+/** A vowel point or another mark that Hebrew writes on its letters, U+05B0 to U+05C7 without the punctuation among them. */
+const NIQQUD = /[ְ-ׇֽֿׁׂׅׄ]/
+const NIQQUD_ALL = new RegExp(NIQQUD.source, 'g')
+/** A Hebrew word: letters with the marks on them. */
+const HEBREW_WORD = /[ְ-ׇא-ת]*[א-ת][ְ-ׇא-ת]*/g
+
+/** The Hebrew words of a line that carry no vowel point. */
+export function unvowelledWords(text) {
+  return (String(text).match(HEBREW_WORD) ?? []).filter((word) => !NIQQUD.test(word))
+}
+
+/**
+ * The letters of a line that both of its spellings share: no marks, no vav and no yod (a vowelled word is often spelled without the vav
+ * or the yod that the plain spelling uses for its vowel: נקודה, נְקֻדָּה), and single spaces. The say line and the caption of a vowelled
+ * language must give the same skeleton, so that the narrator never says other words than the screen shows, and a renamed button in
+ * src/i18n fails here until its vowelled form is written.
+ */
+export function skeleton(text) {
+  return String(text).replace(/[֑-ׇ]/g, (mark) => (/[־׀׃׆]/.test(mark) ? mark : '')).replace(/[וי]/g, '').replace(/\s+/g, ' ').trim()
+}
+
 /** The keys that a line refers to, in order. */
 export function referencedKeys(text) {
   return [...String(text).matchAll(REFERENCE)].map((match) => match[1])
@@ -63,7 +91,9 @@ export function beatsWithLines(scenes = SCENES) {
  *    the first beat of a scene has a line of its own;
  *  - every language: a caption and a say line, both non-empty text, for every beat that needs one, and no line for any other id;
  *  - every line: each `{key}` is a key of all four dictionaries whose label has no parameter, no long dash (scripts/text-rules.mjs),
- *    and no date or time, before and after its keys are resolved.
+ *    and no date or time, before and after its keys are resolved;
+ *  - a vowelled language (VOWELLED_LANGUAGES): no vowel point in a caption, one on every Hebrew word of a say line, and the say line
+ *    gives the skeleton of its caption once both are resolved.
  * @param {Record<string, Record<string, { caption?: unknown, say?: unknown }>>} [scripts]
  * @param {readonly { id: string, seconds: number, beats: readonly { id: string, seconds: number, continues?: boolean }[] }[]} [scenes]
  */
@@ -118,10 +148,34 @@ export function checkScript(scripts = SCRIPTS, scenes = SCENES) {
           if (DATE_OR_TIME.test(version)) problems.push(`${where}: a date or a time`)
         }
       }
+      if (VOWELLED_LANGUAGES.includes(lang)) problems.push(...vowelledProblems(lang, id, line))
     }
     for (const id of Object.keys(lines)) {
       if (!needed.includes(id)) problems.push(`${lang} "${id}": a line for a beat that has none (unknown, or it continues the line before it)`)
     }
+  }
+  return problems
+}
+
+/** The problems of one line of a vowelled language (none when its caption or say line is missing: checkScript reports that). */
+function vowelledProblems(lang, id, line) {
+  const { caption, say } = line ?? {}
+  if (typeof caption !== 'string' || typeof say !== 'string') return []
+  if (!/[א-ת]/.test(caption + say)) return [] // no Hebrew word, nothing to vowel
+  const problems = []
+  if (NIQQUD.test(caption)) problems.push(`${lang} "${id}" caption: a vowel point (the video shows plain text, only the say line is vowelled)`)
+  const bare = unvowelledWords(say)
+  if (bare.length) problems.push(`${lang} "${id}" say: words with no vowel point (${bare.slice(0, 5).join(', ')})`)
+  let spoken = say
+  let shown = caption
+  try {
+    spoken = resolveLine(lang, say)
+    shown = resolveLine(lang, caption)
+  } catch {
+    // a key problem, already reported line by line
+  }
+  if (skeleton(spoken) !== skeleton(shown)) {
+    problems.push(`${lang} "${id}" say: not the caption with vowel points (the say line reads "${spoken.replace(NIQQUD_ALL, '')}", the caption "${shown}")`)
   }
   return problems
 }

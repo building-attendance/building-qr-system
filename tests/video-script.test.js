@@ -12,7 +12,9 @@ import he from '../src/i18n/he.js'
 import { DICTS } from '../src/i18n/core.js'
 import { EM_DASH } from '../scripts/text-rules.mjs'
 import { LANGUAGES, SCENES, SCRIPTS } from '../video/script/index.js'
-import { beatsWithLines, buildScenes, checkScript, referencedKeys, resolveLine } from '../scripts/video/script.mjs'
+import {
+  VOWELLED_LANGUAGES, beatsWithLines, buildScenes, checkScript, referencedKeys, resolveLine, skeleton, unvowelledWords,
+} from '../scripts/video/script.mjs'
 import { VIDEO_APP_PORT, VIDEO_API_PORT, VIDEO_OUT_DIR, VIDEO_SCHEMA, assertLocalVideo } from '../scripts/video/settings.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -60,11 +62,49 @@ describe('the script of the video', () => {
     }
   })
 
-  it('resolves a label from src/i18n, so that a renamed button renames the narration', () => {
+  it('resolves a label from src/i18n, so that a renamed button renames the caption (and fails the vowelled say line until it follows)', () => {
     expect(resolveLine('he', SCRIPTS.he.submit.caption)).toContain(`"${he['login.submit']}"`)
-    expect(resolveLine('he', SCRIPTS.he.submit.say)).toContain(`"${he['login.remember']}"`)
+    expect(resolveLine('he', SCRIPTS.he.submit.caption)).toContain(`"${he['login.remember']}"`)
+    // the Hebrew say line spells the label out with its vowel points; the check holds it to the label (the describe below)
+    expect(skeleton(SCRIPTS.he.submit.say)).toContain(skeleton(`"${he['login.remember']}"`))
     expect(resolveLine('he', 'x {checkin.done} y')).toBe(`x ${he['checkin.done']} y`)
     expect(resolveLine('en', '{checkin.done}')).toBe(DICTS.en['checkin.done'])
+  })
+})
+
+// ---- the vowelled narration --------------------------------------------------------------------------------------
+
+describe('the Hebrew narrator reads vowelled lines, and the screen shows plain ones', () => {
+  const POINT = /[ְ-ׇֽֿׁׂׅׄ]/
+
+  it('is the rule for Hebrew', () => {
+    expect(VOWELLED_LANGUAGES).toContain('he')
+  })
+
+  it('has a vowel point on every Hebrew word of every say line, and none in a caption', () => {
+    for (const beat of beatsWithLines()) {
+      const { caption, say } = SCRIPTS.he[beat.id]
+      expect(unvowelledWords(say), `he ${beat.id} say`).toEqual([])
+      expect(POINT.test(caption), `he ${beat.id} caption`).toBe(false)
+    }
+  })
+
+  it('says the words of the caption, the labels of the app included', () => {
+    for (const beat of beatsWithLines()) {
+      const { caption, say } = SCRIPTS.he[beat.id]
+      expect(skeleton(resolveLine('he', say)), `he ${beat.id}`).toBe(skeleton(resolveLine('he', caption)))
+    }
+    // the say line of the sign-in step spells out the two labels that its caption takes from src/i18n
+    expect(skeleton(SCRIPTS.he.submit.say)).toContain(skeleton(he['login.remember']))
+    expect(skeleton(SCRIPTS.he.submit.say)).toContain(skeleton(he['login.submit']))
+  })
+
+  it('compares the letters that both spellings share: no marks, no vav, no yod', () => {
+    expect(skeleton('נְקֻדָּה')).toBe(skeleton('נקודה'))
+    expect(skeleton('בַּבִּנְיָן')).toBe(skeleton('בבניין'))
+    expect(skeleton('לִלְחֹץ "שְׁלִיחָה עַכְשָׁו"')).toBe(skeleton('ללחוץ "שליחה עכשיו"'))
+    expect(skeleton('כְּנִיסָה')).not.toBe(skeleton('התחברות'))
+    expect(skeleton('a  b')).toBe('a b')
   })
 })
 
@@ -104,6 +144,17 @@ describe('the check of the script reports', () => {
       'he "one": no caption',
       'he "two": a line for a beat that has none (unknown, or it continues the line before it)',
     ])
+  })
+
+  it('in Hebrew: a vowel point in a caption, a say word with none, and a say line that is not its caption', () => {
+    expect(checkScript(script('שָׁלוֹם', 'שָׁלוֹם'), scenes)).toEqual(['he "one" caption: a vowel point (the video shows plain text, only the say line is vowelled)'])
+    expect(checkScript(script('שלום עולם', 'שָׁלוֹם עולם'), scenes)).toEqual(['he "one" say: words with no vowel point (עולם)'])
+    expect(checkScript(script('שלום', 'לְהִתְרָאוֹת'), scenes)).toEqual(['he "one" say: not the caption with vowel points (the say line reads "להתראות", the caption "שלום")'])
+  })
+
+  it('in Hebrew: a label of the app whose vowelled form in the say line is another label (a renamed button)', () => {
+    const problems = checkScript(script('לוחצים "{checkin.done}"', 'לוֹחֲצִים "כְּנִיסָה"'), scenes)
+    expect(problems).toEqual([`he "one" say: not the caption with vowel points (the say line reads "לוחצים "כניסה"", the caption "לוחצים "${he['checkin.done']}"")`])
   })
 
   it('a duration that is not positive, beats that do not add up, a repeated or a bad id, and a scene that starts by continuing', () => {
