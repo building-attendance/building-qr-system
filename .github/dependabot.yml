@@ -27,23 +27,34 @@ updates:
       # it is the update most likely to break the end-to-end tests: Playwright 1.64's WebKit broke every iPhone test that
       # draws a select (#281). On its own, a red Playwright update no longer holds back the other minor and patch
       # updates, and its pull request can stay open until a later version fixes the break, when Dependabot updates that
-      # same pull request. It is a group, not an `ignore` rule, so its security updates still arrive. It comes first
-      # because a dependency goes to the first group it matches.
+      # same pull request. It is a group, not an `ignore` rule, so its security updates still arrive. The two groups below
+      # also exclude it by name: the order of the groups alone did not keep it out, since the first run after #295 still
+      # put @playwright/test 1.64 into the minor and patch group (#296, 19/10/2026).
       playwright:
         applies-to: version-updates
         patterns:
-          - "@playwright/*"
+          - "@playwright*"
           - "playwright"
-      # Minor and patch updates arrive together, as one pull request a week.
+      # Minor and patch updates arrive together, as one pull request a week, without Playwright (above).
       npm-minor-and-patch:
         applies-to: version-updates
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@playwright*"
+          - "playwright"
         update-types:
           - minor
           - patch
       # Major upgrades arrive as one grouped pull request. It is a prompt, not something to merge as it is: every major
-      # version needs code changes, so they are done by hand, one major at a time.
+      # version needs code changes, so they are done by hand, one major at a time. Playwright is not here either (above).
       npm-major:
         applies-to: version-updates
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@playwright*"
+          - "playwright"
         update-types:
           - major
       # Security updates are grouped separately, for every package, so that one pull request fixes them all.
