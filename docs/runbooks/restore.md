@@ -149,7 +149,9 @@ see below). It never holds the connection string, the user or the password.
   path, so a link cannot make the check look at other folders than the ones that hold the files. A link that points at nothing,
   or a part of the path that cannot be inspected, is refused. The message says whether it is the backup folder itself or a folder above it,
   never an account or a path, and what to do: use a backup folder in your own profile. When this refuses the run,
-  `backup.log` is not written (the screen says so), and `--report-issue` still opens its issue. **The scheduled task needs
+  `backup.log` is not written (the screen says so), and `--report-issue` still opens its issue. A scheduled task has no
+  screen, so an issue whose time has no line in `backup.log` comes from a refusal like this one: run the command of the
+  task by hand to read the message. **The scheduled task needs
   nothing about `TEMP` or `TMPDIR`**: the script does not use the temp folder at all, so a shared temp folder (for example one
   where another account has an explicit Modify entry) changes nothing. The checks below stay as a second net (the work
   directory's access list read back, the two looks at `backup.log`, the mode checks), and the races that they cover need write
@@ -392,7 +394,9 @@ Register-ScheduledTask -TaskName 'Building QR daily backup' -Action $action -Tri
 ```
 
 `-StartWhenAvailable` is "Run task as soon as possible after a scheduled start is missed", so a computer that was off at 03:00
-makes the backup when it is next on. Without `-User` and `-Password` the task runs as the signed-in user, only while that user
+makes the backup when it is next on. A laptop that sleeps or hibernates in the middle of a run (a missed start can begin in
+the few seconds before a hibernate) goes on with the run when it wakes: the time limit of each step counts only the time that
+the computer is awake. Without `-User` and `-Password` the task runs as the signed-in user, only while that user
 is signed in. In the Task Scheduler window the same settings are on the **Settings** tab and under **Security options**
 ("Run only when user is logged on"). Run the task once by hand from the window and read `backup.log` before you rely on it.
 If the run is refused because another account can change the backup folder or a folder above it (the first item of "Who can
