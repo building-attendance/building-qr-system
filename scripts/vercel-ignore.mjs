@@ -27,6 +27,7 @@ export const SKIP_DIRS = Object.freeze([
   'scripts/hooks/',
   'scripts/screenshots/',
   'scripts/perf/', // the timing of the scan (npm run perf:scan): a Playwright spec, its baseline and the step that writes it
+  'video/', // the provider tutorial video (its own package.json and lockfile): published to GitHub Pages by video.yml, never built here
 ])
 
 /** Files at the root that only the tests, the linters and the editors read. */

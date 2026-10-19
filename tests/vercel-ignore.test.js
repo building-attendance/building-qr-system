@@ -72,6 +72,11 @@ describe('which files can be left undeployed', () => {
       'scripts/perf/scan-timing.spec.mjs',
       'scripts/perf/scan-baseline.json',
       'scripts/perf/baseline.mjs',
+      'video/package.json', // the tutorial video: its own package, published to GitHub Pages by .github/workflows/video.yml
+      'video/package-lock.json',
+      'video/src/Video.jsx',
+      'video/script/he.js',
+      'video/site/player.html',
       'LICENSE',
       'eslint.config.js',
       'jsconfig.json',
@@ -112,6 +117,10 @@ describe('which files can be left undeployed', () => {
       'tests',
       'scripts/perf', // likewise for the folder of the scan timing
       'scripts/performance/anything.mjs', // a folder whose name only starts the same
+      'scripts/video/record.spec.mjs', // the recorder of the video is not on the list: only the folder video/ is
+      'video', // a file named like the folder of the tutorial video
+      'videos/anything.mjs',
+      'src/video/anything.jsx',
       '',
     ]) {
       expect(isSkippable(file), file).toBe(false)
@@ -154,6 +163,20 @@ describe('the decision', () => {
       reason: 'files that reach the app or the server changed',
       files: ['src/main.jsx'],
     })
+  })
+
+  it('builds a merge that changes the tutorial video and the app together, and names only the app file', () => {
+    const { git } = fakeGit(nul('M', 'video/script/he.js', 'M', 'video/src/Video.jsx', 'M', 'src/i18n/he.js'))
+    expect(decide(production, git, SERVED)).toEqual({
+      build: true,
+      reason: 'files that reach the app or the server changed',
+      files: ['src/i18n/he.js'],
+    })
+  })
+
+  it('skips a merge that changes only the tutorial video', () => {
+    const { git } = fakeGit(nul('M', 'video/script/he.js', 'A', 'video/site/player.css', 'M', 'video/package-lock.json'))
+    expect(decide(production, git, SERVED).build).toBe(false)
   })
 
   it('builds for a migration', () => {

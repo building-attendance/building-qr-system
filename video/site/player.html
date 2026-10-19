@@ -1,0 +1,42 @@
+<!doctype html>
+<!--
+  The player page of the provider tutorial video, one per language, at /video/<lang>/ of the published site. scripts/video/render-all.mjs
+  fills the fields in double braces (each value HTML-escaped) and writes it beside the poster, the captions and the manifest. No script at all:
+  the policy below lets the page load only its own files, and the preview of a shared link (WhatsApp) reads the Open Graph tags.
+-->
+<html lang="{{lang}}" dir="{{dir}}">
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src 'self'; media-src 'self'; style-src 'self'; base-uri 'none'; form-action 'none'">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="referrer" content="no-referrer">
+    <title>{{title}}</title>
+    <meta name="description" content="{{description}}">
+    <meta property="og:type" content="video.other">
+    <meta property="og:locale" content="{{locale}}">
+    <meta property="og:title" content="{{title}}">
+    <meta property="og:description" content="{{description}}">
+    <meta property="og:url" content="{{pageUrl}}">
+    <meta property="og:image" content="{{posterUrl}}">
+    <meta property="og:image:type" content="image/jpeg">
+    <meta property="og:image:width" content="{{width}}">
+    <meta property="og:image:height" content="{{height}}">
+    <meta property="og:video" content="{{videoUrl}}">
+    <meta property="og:video:secure_url" content="{{videoUrl}}">
+    <meta property="og:video:type" content="video/mp4">
+    <meta property="og:video:width" content="{{width}}">
+    <meta property="og:video:height" content="{{height}}">
+    <link rel="stylesheet" href="../player.css">
+  </head>
+  <body>
+    <main>
+      <h1>{{title}}</h1>
+      <p>{{description}}</p>
+      <video controls playsinline preload="metadata" width="{{width}}" height="{{height}}" poster="poster.jpg">
+        <source src="../{{lang}}.mp4" type="video/mp4">
+        <track kind="captions" src="captions.vtt" srclang="{{lang}}" label="{{languageName}}">
+        <a href="../{{lang}}.mp4">{{title}}</a>
+      </video>
+    </main>
+  </body>
+</html>
