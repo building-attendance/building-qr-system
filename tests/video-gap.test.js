@@ -355,7 +355,19 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     const bin = path.join(dir, 'bin')
     fs.mkdirSync(bin)
     const log = path.join(dir, 'gh.log')
-    fs.writeFileSync(path.join(bin, 'gh'), ['#!/usr/bin/env bash', 'echo "$*" >> "$FAKE_GH_LOG"', ''].join(NL), { mode: 0o755 })
+    // The fake gh writes down its calls, and answers like gh would after its --jq: the open issue's number (FAKE_GH_OPEN), its
+    // author or body (FAKE_GH_AUTHOR, FAKE_GH_BODY), and the head of the default branch (FAKE_GH_HEAD).
+    const fake = [
+      '#!/usr/bin/env bash',
+      'echo "$*" >> "$FAKE_GH_LOG"',
+      'case "$1 $2" in',
+      '  "issue list") if [ -n "${FAKE_GH_OPEN:-}" ]; then echo "$FAKE_GH_OPEN"; fi ;;',
+      '  "issue view") if [ "$5" = author ]; then echo "${FAKE_GH_AUTHOR:-github-actions}"; else echo "${FAKE_GH_BODY:-}"; fi ;;',
+      '  api*) echo "${FAKE_GH_HEAD:-}" ;;',
+      'esac',
+      '',
+    ]
+    fs.writeFileSync(path.join(bin, 'gh'), fake.join(NL), { mode: 0o755 })
     const script = path.join(dir, 'step.sh')
     fs.writeFileSync(script, runOf(name))
     const env = Object.fromEntries(
@@ -368,8 +380,8 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     return { status: result.status, calls, error: result.error }
   }
 
-  const ISSUE_STEP = 'Open the issue, or comment on the open one'
-  const CLOSE_STEP = 'Close the open video-gap issue, unless a later merge may still be behind'
+  const ISSUE_STEP = 'Open, update or close the video-gap issue'
+  const CLOSE_STEP = 'Close the video-gap issue if the default branch is still the published commit'
   const issueSettings = {
     SCENES: 'password',
     LANGUAGES: 'he',
@@ -408,8 +420,43 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     expect(inActions.calls.at(-1)).toMatch(/^issue create --title/)
     const live = runStep(CLOSE_STEP, { ...closeSettings, DEFAULT_BRANCH: 'master', VIDEO_GH_LIVE: '1' })
     expect(live.status).toBe(0)
-    expect(live.calls[0]).toMatch(/^api repos[/]example[/]video-test[/]compare[/]/)
+    expect(live.calls[0]).toMatch(/^api repos[/]example[/]video-test[/]commits[/]master/)
     expect(live.calls).toContainEqual(expect.stringMatching(/^issue list --label video-gap/))
+  })
+
+  const inActions = { GITHUB_ACTIONS: 'true', GITHUB_REF: 'refs/heads/master', DEFAULT_BRANCH: 'master' }
+
+  it('rewrites the open issue quietly when a later merge leaves scenes behind, and never comments on it', () => {
+    const run = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, FAKE_GH_OPEN: '7' })
+    expect(run.status).toBe(0)
+    expect(run.calls).toContainEqual(expect.stringMatching(/^issue edit 7 --body-file /))
+    expect(run.calls.some((call) => /^issue (comment|create)/.test(call))).toBe(false)
+  })
+
+  it('reports in a comment, never in the description, on an issue that a person opened with the label', () => {
+    const run = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, FAKE_GH_OPEN: '7', FAKE_GH_AUTHOR: 'a-person' })
+    expect(run.status).toBe(0)
+    expect(run.calls).toContainEqual(expect.stringMatching(/^issue comment 7 --body-file /))
+    expect(run.calls.some((call) => /^issue edit/.test(call))).toBe(false)
+  })
+
+  it('closes the open issue when a push finds no scene behind, and does nothing when none is open', () => {
+    const closes = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, SCENES: '', LANGUAGES: '', FAKE_GH_OPEN: '7' })
+    expect(closes.status).toBe(0)
+    expect(closes.calls).toContainEqual(expect.stringMatching(/^issue close 7 --reason completed/))
+    const quiet = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, SCENES: '', LANGUAGES: '' })
+    expect(quiet.status).toBe(0)
+    expect(quiet.calls).toEqual([expect.stringMatching(/^issue list --label video-gap/)])
+  })
+
+  it('after a publish, closes the issue only when the default branch is still the published commit', () => {
+    const still = runStep(CLOSE_STEP, { ...closeSettings, ...inActions, FAKE_GH_OPEN: '7', FAKE_GH_HEAD: closeSettings.PUBLISHED_SHA })
+    expect(still.status).toBe(0)
+    expect(still.calls).toContainEqual(expect.stringMatching(/^issue close 7 --reason completed/))
+    const moved = runStep(CLOSE_STEP, { ...closeSettings, ...inActions, FAKE_GH_OPEN: '7', FAKE_GH_HEAD: 'e'.repeat(40) })
+    expect(moved.status).toBe(0)
+    expect(moved.calls).toContainEqual(expect.stringMatching(/^issue edit 7 --body-file /))
+    expect(moved.calls.some((call) => /^issue close/.test(call))).toBe(false)
   })
 })
 
@@ -432,18 +479,15 @@ describe('the conditions of video.yml', () => {
     for (const block of withRefName) expect(block).toContain("github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch")
   })
 
-  it('watches the same files in the push trigger and in the close-gap step, the root package.json and lockfile included', () => {
-    const start = lines.findIndex((line) => line.trim() === 'paths:')
-    const paths = []
-    for (let i = start + 1; lines[i].trim().startsWith('- "'); i++) paths.push(lines[i].trim().slice(3, -1))
-    expect(paths).toEqual(expect.arrayContaining(['package.json', 'package-lock.json']))
-    const line = lines.find((l) => l.trim().startsWith("watched='"))
-    const watched = new RegExp(line.trim().slice("watched='".length, -1))
-    for (const pattern of paths) {
-      const sample = pattern.endsWith('/**') ? `${pattern.slice(0, -2)}any/file.js` : pattern
-      expect(watched.test(sample), `${pattern} (as ${sample})`).toBe(true)
-    }
-    expect(watched.test('docs/video.md')).toBe(false)
-    expect(watched.test('tests/video-gap.test.js')).toBe(false)
+  it('runs the gap check on every push to the default branch, ignoring only documentation, with no list of watched files', () => {
+    const push = lines.findIndex((line) => line === '  push:')
+    const dispatch = lines.findIndex((line) => line === '  workflow_dispatch:')
+    const trigger = lines.slice(push, dispatch).map((line) => line.trim())
+    expect(trigger).not.toContain('paths:')
+    const start = trigger.indexOf('paths-ignore:')
+    const ignored = []
+    for (let i = start + 1; trigger[i]?.startsWith('- "'); i++) ignored.push(trigger[i].slice(3, -1))
+    expect(ignored).toEqual(['**/*.md', 'docs/**'])
+    expect(lines.some((line) => line.trim().startsWith("watched='"))).toBe(false)
   })
 })

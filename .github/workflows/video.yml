@@ -1,14 +1,17 @@
 # The provider tutorial video (the topic "provider tutorial video", decisions D5 and D6). Two separate things:
 #
-#   Gap check (automatic, never publishes): a push to the default branch that touches what the video shows (the paths below)
-#     records the frames of the provider app again (scripts/video/record.spec.mjs: no voice, no render) and compares each beat with
-#     the published video's manifest (scripts/video/gap.mjs: the caption, the spoken line, and the masked frame by the threshold of
-#     e2e/visual.spec.js). When a scene changed, it opens one issue labelled `video-gap`, or comments on the one that is open: the
-#     merge, the scenes, and a link to this run, whose artifact holds the published and the new frames. The owner's words (D5):
-#     "not automatically, but you must tell me when a gap appears and turn it into a task".
+#   Gap check (automatic, never publishes): every push to the default branch (only documentation is ignored: a .md file or docs/
+#     cannot change a frame or a line) records the frames of the provider app again (scripts/video/record.spec.mjs: no voice, no
+#     render) and compares each beat with the published video's manifest (scripts/video/gap.mjs: the caption, the spoken line, and
+#     the masked frame by the threshold of e2e/visual.spec.js). The comparison decides, not a list of watched files (the owner,
+#     19/10/2026). When a scene is behind, it opens one issue labelled `video-gap`, or quietly rewrites the description of the open
+#     one (an edit sends no notification, so the owner hears once, when a gap first opens); when no scene is behind any more, it
+#     closes the open issue. Nothing is fixed, published or opened as a pull request by itself. The owner's words (D5): "not
+#     automatically, but you must tell me when a gap appears and turn it into a task".
 #   Publish (by hand only, workflow_dispatch from the default branch): records, voices, renders and deploys the video to GitHub
 #     Pages (scripts/video/render-all.mjs): /video/<lang>.mp4, the player page /video/<lang>/, its manifest and masked frames, and
-#     the voice cache /video/voice-cache/. Then it closes the open `video-gap` issue.
+#     the voice cache /video/voice-cache/. Then it closes the open `video-gap` issue when the default branch has not moved since
+#     the published commit; otherwise it notes the publish in the issue, and the gap check of the next push decides.
 #
 # Who holds what:
 #   - gap: a read-only token, no environment, no secret. It runs the recorder against its own Postgres container with the fake
@@ -23,8 +26,8 @@
 #     deployment); it adds no deployment record (and no deployment_status event for smoke.yml).
 #   - deploy: `pages: write` and `id-token: write`, in the environment `github-pages` that GitHub made with Pages. It runs no code
 #     of the repository, only actions/deploy-pages.
-#   - close-gap: `issues: write` and `contents: read` (for the compare API), after a deploy that succeeded. Like gap-issue it
-#     checks out nothing. It closes the issue only when no later merge may still be behind (see the job).
+#   - close-gap: `issues: write` and `contents: read` (to read the head of the default branch), after a deploy that succeeded. Like
+#     gap-issue it checks out nothing. It closes the issue only when the published commit is still the head of the default branch.
 #
 # No pull_request or pull_request_target trigger: code of a pull request never runs here, never reaches the key and never
 # deploys. Every third-party action is pinned to a full commit SHA (the tag is in the comment): checkout, setup-node and
@@ -42,26 +45,12 @@ name: Tutorial video
 on:
   push:
     branches: [master, main]
-    # What the recorded frames and the lines are made of: the app (and its server, migrations and build, since the recorder runs
-    # the real app, with the root package.json and lockfile that it is built from), the fake sample data, the recorder with what
-    # it imports, and the video itself.
-    paths:
-      - "src/**"
-      - "shared/**"
-      - "public/**"
-      - "index.html"
-      - "vite.config.js"
-      - "package.json"
-      - "package-lock.json"
-      - "server/**"
-      - "db/migrations/**"
-      - "scripts/dev-seed.mjs"
-      - "scripts/sample-data.mjs"
-      - "e2e/fixtures.js"
-      - "playwright.config.js"
-      - "playwright.video.config.js"
-      - "scripts/video/**"
-      - "video/**"
+    # Every push: the gap check itself decides whether the video is behind, by recording the app and comparing it with the
+    # published video, so no list of watched files can miss an input (the owner, 19/10/2026). Only documentation is ignored,
+    # which cannot change a frame or a line.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
   workflow_dispatch:
 
 permissions: {}
@@ -146,9 +135,8 @@ jobs:
           if-no-files-found: ignore
 
   gap-issue:
-    name: open or update the video-gap issue
+    name: open, update or close the video-gap issue
     needs: gap
-    if: needs.gap.outputs.scenes != ''
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -156,9 +144,10 @@ jobs:
     steps:
       # Each paragraph is one line: GitHub shows a line break inside an issue as a break. Every text written comes from the
       # outputs of the gap job, each checked against its fixed shape first, and from GitHub's own ids (the SHA, the run).
-      # A merge that leaves the same scenes behind as the last report adds nothing: the last report is read only from what this
-      # workflow wrote (the issue's body and the comments of github-actions), never from a comment that anybody else wrote.
-      - name: Open the issue, or comment on the open one
+      # One issue for the whole gap: a later merge rewrites its description (an edit sends no notification), so the owner hears
+      # once when a gap opens and once when it closes. Only an issue that this workflow opened is rewritten; a person's issue with
+      # the label gets the report as a comment.
+      - name: Open, update or close the video-gap issue
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -176,43 +165,47 @@ jobs:
           gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
           live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
           id='[a-z0-9]+(-[a-z0-9]+)*'
-          if [ "${#SCENES}" -gt 500 ] || ! printf '%s' "$SCENES" | grep -Eqx "$id(,$id)*"; then
-            echo "::error::The gap check gave scene ids that are not of the expected shape."
-            exit 1
+          if [ -n "$SCENES" ]; then
+            if [ "${#SCENES}" -gt 500 ] || ! printf '%s' "$SCENES" | grep -Eqx "$id(,$id)*"; then
+              echo "::error::The gap check gave scene ids that are not of the expected shape."
+              exit 1
+            fi
+            if ! printf '%s' "$LANGUAGES" | grep -Eqx '[a-z]{2}(,[a-z]{2})*'; then
+              echo "::error::The gap check gave languages that are not of the expected shape."
+              exit 1
+            fi
           fi
-          if ! printf '%s' "$LANGUAGES" | grep -Eqx '[a-z]{2}(,[a-z]{2})*'; then
-            echo "::error::The gap check gave languages that are not of the expected shape."
-            exit 1
+          open=$(gh issue list --label video-gap --state open --limit 1 --json number --jq '.[0].number // empty')
+          if [ -z "$SCENES" ]; then
+            if [ -n "$open" ]; then
+              gh issue close "$open" --reason completed --comment "No scene of the video is behind the app any more (merge $MERGE_SHA): $RUN_URL"
+            else
+              echo "No scene of the video is behind the app, and no video-gap issue is open."
+            fi
+            exit 0
           fi
           if printf '%s' "$SINCE" | grep -Eqx '[0-9a-f]{40}'; then
             since="- Every change since the published video: $REPO_URL/compare/$SINCE...$MERGE_SHA"
           else
             since="- The published video does not name its commit."
           fi
-          marker="<!-- video-gap scenes: $SCENES -->"
-          details="- Merge: $MERGE_SHA
-          - Scenes that changed: ${SCENES//,/, } (language: ${LANGUAGES//,/, })
-          $since
-          - The run, with the published and the new frames (artifact video-gap-frames): $RUN_URL"
-          open=$(gh issue list --label video-gap --state open --limit 1 --json number --jq '.[0].number // empty')
-          if [ -n "$open" ]; then
-            # The body (when this workflow opened the issue) and the comments of this workflow, by GitHub's login of its token.
-            ours='([if (.author.login | test("^(app/)?github-actions$")) then (.body // "") else empty end] + [.comments[] | select(.author.login | test("^(app/)?github-actions$")) | .body // ""]) | map(select(test("<!-- video-gap scenes: "))) | last // ""'
-            last=$(gh issue view "$open" --json author,body,comments --jq "$ours")
-            if printf '%s' "$last" | grep -qF -- "$marker"; then
-              echo "The same scenes as the last report of issue #$open are behind: nothing to add."
-              exit 0
-            fi
-            printf '%s\n\n%s\n\n%s\n' "Another merge changed what is behind in the video." "$details" "$marker" > "$RUNNER_TEMP/comment.md"
-            gh issue comment "$open" --body-file "$RUNNER_TEMP/comment.md"
-          else
-            printf '%s\n\n%s\n\n%s\n\n%s\n' \
-              "A merge changed what the provider tutorial video shows or says, so the published video is behind the app." \
-              "$details" \
-              "To update the video, once the owner says so: Actions, \"Tutorial video\", Run workflow (from the default branch). The publish closes this issue. A later merge that changes other scenes is added here as a comment." \
-              "$marker" > "$RUNNER_TEMP/issue.md"
+          printf '%s\n\n%s\n%s\n%s\n%s\n\n%s\n' \
+            "A merge changed what the provider tutorial video shows or says, so the published video is behind the app. Every later merge rewrites this description quietly: the list below is what is behind now." \
+            "- The latest merge: $MERGE_SHA" \
+            "- Scenes behind: ${SCENES//,/, } (language: ${LANGUAGES//,/, })" \
+            "$since" \
+            "- The latest check, with the published and the new frames (artifact video-gap-frames): $RUN_URL" \
+            "To bring the video up to date, once the owner says so: when only the screens changed, one publish (Actions, \"Tutorial video\", Run workflow, from the default branch); when the narration must change too, one pull request with all of it first. Nothing is published or opened by itself. The publish closes this issue." \
+            > "$RUNNER_TEMP/issue.md"
+          if [ -z "$open" ]; then
             gh issue create --title "The tutorial video is behind the app" --label video-gap --body-file "$RUNNER_TEMP/issue.md"
+            exit 0
           fi
+          author=$(gh issue view "$open" --json author --jq '.author.login')
+          case "$author" in
+            github-actions | app/github-actions) gh issue edit "$open" --body-file "$RUNNER_TEMP/issue.md" ;;
+            *) gh issue comment "$open" --body-file "$RUNNER_TEMP/issue.md" ;;
+          esac
 
   render:
     name: record, voice and render
@@ -306,10 +299,10 @@ jobs:
       - id: deployment
         uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
 
-  # The publish is of the commit that the owner started it from. A merge after that commit is not in the video, and if it touched
-  # what the video is made of (the paths of the push trigger, written again below), its gap may still be open: then the issue
-  # stays open with a comment, and the next publish closes it. When nothing of that kind was merged since, the issue is closed.
-  # It checks out nothing: GitHub's compare API says what changed between the published commit and the default branch.
+  # The publish is of the commit that the owner started it from. When that commit is still the head of the default branch,
+  # nothing merged after it can be behind, and the issue is closed. Otherwise the issue stays open with a quiet note, and the
+  # gap check of the next push compares the app with the new video and closes the issue when nothing is behind any more.
+  # It checks out nothing: GitHub says which commit is the head of the default branch.
   close-gap:
     name: close the video-gap issue
     needs: deploy
@@ -319,7 +312,7 @@ jobs:
       contents: read
       issues: write
     steps:
-      - name: Close the open video-gap issue, unless a later merge may still be behind
+      - name: Close the video-gap issue if the default branch is still the published commit
         env:
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
@@ -331,19 +324,21 @@ jobs:
           live() { { [ "${GITHUB_ACTIONS:-}" = true ] && [ -n "${DEFAULT_BRANCH:-}" ] && [ "${GITHUB_REF:-}" = "refs/heads/${DEFAULT_BRANCH}" ]; } || [ "${VIDEO_GH_LIVE:-}" = 1 ]; }
           gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
           live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
-          watched='^(src/|shared/|public/|server/|db/migrations/|scripts/video/|video/|index\.html$|vite\.config\.js$|scripts/dev-seed\.mjs$|scripts/sample-data\.mjs$|e2e/fixtures\.js$|playwright\.config\.js$|playwright\.video\.config\.js$|package[.]json$|package-lock[.]json$)'
-          # A compare that cannot be read, or that lists 300 files (the most it returns), counts as "maybe behind".
-          later=maybe
-          if files=$(gh api "repos/$GH_REPO/compare/$PUBLISHED_SHA...$DEFAULT_BRANCH" --jq 'if (.files | length) >= 300 then "TOO-MANY" else .files[].filename end'); then
-            if printf '%s\n' "$files" | grep -qx 'TOO-MANY'; then later=maybe
-            elif printf '%s\n' "$files" | grep -Eq "$watched"; then later=yes
-            else later=no
-            fi
-          fi
+          # When the head of the default branch is still the published commit, nothing after the publish can be behind. Otherwise
+          # a quiet note in the description, and the gap check of the next push decides what is still behind.
+          head=$(gh api "repos/$GH_REPO/commits/$DEFAULT_BRANCH" --jq '.sha' || true)
           for number in $(gh issue list --label video-gap --state open --limit 20 --json number --jq '.[].number'); do
-            if [ "$later" = no ]; then
-              gh issue close "$number" --reason completed --comment "The video was published again from $PUBLISHED_SHA: $RUN_URL"
-            else
-              gh issue comment "$number" --body "The video was published again from $PUBLISHED_SHA ($RUN_URL), but a later merge on $DEFAULT_BRANCH may change what it shows, so this issue stays open until a publish of a newer commit."
+            if [ -n "$head" ] && [ "$head" = "$PUBLISHED_SHA" ]; then
+              gh issue close "$number" --reason completed --comment "The video was published from $PUBLISHED_SHA, the head of $DEFAULT_BRANCH: $RUN_URL"
+              continue
             fi
+            note="- Last publish: $PUBLISHED_SHA ($RUN_URL). $DEFAULT_BRANCH has moved since, so the gap check of the next push decides what is still behind."
+            author=$(gh issue view "$number" --json author --jq '.author.login')
+            case "$author" in
+              github-actions | app/github-actions)
+                { gh issue view "$number" --json body --jq '.body // ""' | grep -v '^- Last publish: ' || true; printf '%s\n' "$note"; } > "$RUNNER_TEMP/body.md"
+                gh issue edit "$number" --body-file "$RUNNER_TEMP/body.md"
+                ;;
+              *) gh issue comment "$number" --body "$note" ;;
+            esac
           done
