@@ -123,7 +123,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
   const banner = (
     <>
       {notice && (
-        <div className="w-banner w-banner--warn" role="status"><IconAlert /><div className="w-banner__body">{notice}</div></div>
+        <div className="w-banner w-banner--warn" role="status"><IconAlert /><div className="w-banner__body">{t(notice)}</div></div>
       )}
       {pointName && (
         <div className="w-banner">
@@ -265,7 +265,7 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
         {notice && (
           <div className={`w-banner ${notice.tone === 'ok' ? 'w-banner--ok' : 'w-banner--warn'}`} role="status">
             {notice.tone === 'ok' ? <IconCheck /> : <IconAlert />}
-            <div className="w-banner__body">{notice.text}</div>
+            <div className="w-banner__body">{t(notice.key, notice.params)}</div>
             {/* A warning stays until it is dismissed: it is the only word the person gets that visits were refused. */}
             <button className="w-banner__close" onClick={onDismissNotice} aria-label={t('notice.dismiss')}>
               <IconX size={20} />
