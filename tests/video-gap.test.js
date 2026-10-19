@@ -404,3 +404,38 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     expect(live.calls).toContainEqual(expect.stringMatching(/^issue list --label video-gap/))
   })
 })
+
+describe('the conditions of video.yml', () => {
+  const NL = String.fromCharCode(10)
+  const yml = fs.readFileSync(path.join(root, '.github/workflows/video.yml'), 'utf8').replaceAll(String.fromCharCode(13), '')
+  const lines = yml.split(NL)
+
+  it('never runs a job from a tag that is named like the default branch: a ref name is compared only together with a branch ref', () => {
+    const blocks = []
+    lines.forEach((line, at) => {
+      if (line.trim() !== 'if: >-') return
+      const indent = ' '.repeat(line.length - line.trimStart().length + 2)
+      const body = []
+      for (let i = at + 1; i < lines.length && lines[i].startsWith(indent); i++) body.push(lines[i])
+      blocks.push(body.join(' '))
+    })
+    const withRefName = blocks.filter((block) => block.includes('github.ref_name'))
+    expect(withRefName.length).toBe(2)
+    for (const block of withRefName) expect(block).toContain("github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch")
+  })
+
+  it('watches the same files in the push trigger and in the close-gap step, the root package.json and lockfile included', () => {
+    const start = lines.findIndex((line) => line.trim() === 'paths:')
+    const paths = []
+    for (let i = start + 1; lines[i].trim().startsWith('- "'); i++) paths.push(lines[i].trim().slice(3, -1))
+    expect(paths).toEqual(expect.arrayContaining(['package.json', 'package-lock.json']))
+    const line = lines.find((l) => l.trim().startsWith("watched='"))
+    const watched = new RegExp(line.trim().slice("watched='".length, -1))
+    for (const pattern of paths) {
+      const sample = pattern.endsWith('/**') ? `${pattern.slice(0, -2)}any/file.js` : pattern
+      expect(watched.test(sample), `${pattern} (as ${sample})`).toBe(true)
+    }
+    expect(watched.test('docs/video.md')).toBe(false)
+    expect(watched.test('tests/video-gap.test.js')).toBe(false)
+  })
+})

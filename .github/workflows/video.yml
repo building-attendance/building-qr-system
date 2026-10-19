@@ -43,13 +43,16 @@ on:
   push:
     branches: [master, main]
     # What the recorded frames and the lines are made of: the app (and its server, migrations and build, since the recorder runs
-    # the real app), the fake sample data, the recorder with what it imports, and the video itself.
+    # the real app, with the root package.json and lockfile that it is built from), the fake sample data, the recorder with what
+    # it imports, and the video itself.
     paths:
       - "src/**"
       - "shared/**"
       - "public/**"
       - "index.html"
       - "vite.config.js"
+      - "package.json"
+      - "package-lock.json"
       - "server/**"
       - "db/migrations/**"
       - "scripts/dev-seed.mjs"
@@ -76,7 +79,7 @@ jobs:
     name: gap check
     if: >-
       github.event_name == 'push' &&
-      github.ref_name == github.event.repository.default_branch &&
+      github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch &&
       (github.repository == 'building-attendance/building-qr-system' || vars.VIDEO_ENABLED == 'true')
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -215,7 +218,7 @@ jobs:
     name: record, voice and render
     if: >-
       github.event_name == 'workflow_dispatch' &&
-      github.ref_name == github.event.repository.default_branch &&
+      github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch &&
       (github.repository == 'building-attendance/building-qr-system' || vars.VIDEO_ENABLED == 'true')
     environment:
       name: video
@@ -328,7 +331,7 @@ jobs:
           live() { { [ "${GITHUB_ACTIONS:-}" = true ] && [ -n "${DEFAULT_BRANCH:-}" ] && [ "${GITHUB_REF:-}" = "refs/heads/${DEFAULT_BRANCH}" ]; } || [ "${VIDEO_GH_LIVE:-}" = 1 ]; }
           gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
           live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
-          watched='^(src/|shared/|public/|server/|db/migrations/|scripts/video/|video/|index\.html$|vite\.config\.js$|scripts/dev-seed\.mjs$|scripts/sample-data\.mjs$|e2e/fixtures\.js$|playwright\.config\.js$|playwright\.video\.config\.js$)'
+          watched='^(src/|shared/|public/|server/|db/migrations/|scripts/video/|video/|index\.html$|vite\.config\.js$|scripts/dev-seed\.mjs$|scripts/sample-data\.mjs$|e2e/fixtures\.js$|playwright\.config\.js$|playwright\.video\.config\.js$|package[.]json$|package-lock[.]json$)'
           # A compare that cannot be read, or that lists 300 files (the most it returns), counts as "maybe behind".
           later=maybe
           if files=$(gh api "repos/$GH_REPO/compare/$PUBLISHED_SHA...$DEFAULT_BRANCH" --jq 'if (.files | length) >= 300 then "TOO-MANY" else .files[].filename end'); then
