@@ -135,9 +135,12 @@ describe.each(SCREENS)('$name, with the list empty', (s) => {
     show(s)
     fireEvent.click(await screen.findByRole('button', { name: s.own }, WAIT))
     await s.make(screen.getByRole('dialog', { name: s.dialog }))
-    // the dialog that follows the saving (the QR of the new point, the password, the key that is shown once), closed by Esc
-    expect(await screen.findByRole('dialog', { name: s.after }, WAIT)).toBeTruthy()
-    fireEvent.keyDown(document, { key: 'Escape' })
+    // the dialog that follows the saving (the QR of the new point, the password, the key that is shown once), closed by Esc. The key is
+    // pressed where a person's key lands, on what has the focus, once the dialog has taken it: the dialog takes the focus and starts to
+    // listen to the keyboard in one effect, which React can run after `findByRole` has already found the dialog in the page.
+    const after = await screen.findByRole('dialog', { name: s.after }, WAIT)
+    await waitFor(() => expect(after.contains(document.activeElement), 'the dialog has taken the focus').toBe(true), WAIT)
+    fireEvent.keyDown(document.activeElement, { key: 'Escape' })
     await waitFor(() => expect(screen.queryByRole('dialog')).toBeNull(), WAIT)
 
     expect(await screen.findByRole('button', { name: s.pill }, WAIT), 'the add pill is back in the heading').toBeTruthy()
