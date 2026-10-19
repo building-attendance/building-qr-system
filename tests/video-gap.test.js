@@ -299,9 +299,17 @@ describe('the published site', () => {
   })
 
   it('without a key, stops before it writes anything when the site did not answer for every line', async () => {
-    // A 404 is a line that the site does not have; a 503, a network failure or an answer that is not an mp3 is trouble, which would
-    // publish a line silent and drop its audio from the site.
-    for (const answer of [() => new Response('busy', { status: 503 }), () => Promise.reject(new TypeError('fetch failed')), () => new Response('not an mp3', { status: 200 })]) {
+    // A 404 is a line that the site does not have; a 503, a network failure, a 200 whose body breaks off or passes the size limit, or
+    // an answer that is not an mp3 is trouble, which would publish a line silent and drop its audio from the site.
+    const brokenBody = () => new Response(new ReadableStream({ start: (controller) => controller.error(new Error('connection reset')) }), { status: 200 })
+    const tooLarge = () => new Response(new Uint8Array(11 * 1024 * 1024), { status: 200 })
+    for (const answer of [
+      () => new Response('busy', { status: 503 }),
+      () => Promise.reject(new TypeError('fetch failed')),
+      () => new Response('not an mp3', { status: 200 }),
+      brokenBody,
+      tooLarge,
+    ]) {
       const site = watchedSite({ url: `${SITE}video/voice-cache/`, fetch: async () => answer() })
       const outRoot = path.join(dir, String(Math.random()).slice(2))
       await expect(siteOnlyVoice({ lang: 'he', outRoot, site, env: {}, log: () => {} })).rejects.toThrow(/could not be read for every line/)

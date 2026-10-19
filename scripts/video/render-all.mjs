@@ -115,16 +115,20 @@ export async function siteOnlyVoice({ lang, outRoot, site, env, log = console.lo
 }
 
 /**
- * The published voice cache (siteCache of voice.mjs) that remembers trouble: a network failure, a status other than 200 or 404, or
- * an answer that is not an mp3. Every deploy replaces the whole site, so its voice cache holds only what the run publishes again: a
- * line that the site did not answer for would be published silent and its audio lost from the site for good. Null without a url.
+ * The published voice cache (siteCache of voice.mjs) that remembers trouble: a network failure, a status other than 200 or 404, a
+ * 200 whose body broke off or passed the size limit (siteCache returns nothing for it, as for a 404), or an answer that is not an mp3.
+ * Every deploy replaces the whole site, so its voice cache holds only what the run publishes again: a line that the site did not
+ * answer for would be published silent and its audio lost from the site for good. Null without a url. The lines are asked one at a
+ * time (siteOnlyVoice), so `answered` belongs to the get() that is running.
  * @param {{ url: string, fetch?: typeof globalThis.fetch, log?: (line: string) => void }} options
  */
 export function watchedSite({ url, fetch = globalThis.fetch, log = () => {} }) {
   let trouble = 0
+  let answered = null // the status of the request that the running get() made, or null when it made none
   const watched = async (input, options) => {
     try {
       const res = await fetch(input, options)
+      answered = res.status
       if (res.status !== 200 && res.status !== 404) trouble += 1
       return res
     } catch (err) {
@@ -136,7 +140,12 @@ export function watchedSite({ url, fetch = globalThis.fetch, log = () => {} }) {
   if (!cache) return null
   return {
     async get(hash) {
+      answered = null
       const bytes = await cache.get(hash)
+      if (!bytes && answered === 200) {
+        trouble += 1 // the site has the line, but its body could not be read whole
+        return null
+      }
       if (bytes && !secondsOf(bytes)) {
         trouble += 1
         return null
