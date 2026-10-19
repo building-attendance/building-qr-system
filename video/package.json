@@ -1,0 +1,22 @@
+{
+  "name": "provider-video",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Composes the provider tutorial video from the frames that npm run video:frames records. Its own dependencies: the app, CI and Vercel never install them (see README.md, which has the licence note).",
+  "engines": {
+    "node": "^24.18.0"
+  },
+  "scripts": {
+    "render": "node src/render.mjs"
+  },
+  "dependencies": {
+    "@fontsource-variable/rubik": "5.3.0",
+    "@remotion/bundler": "4.0.532",
+    "@remotion/cli": "4.0.532",
+    "@remotion/renderer": "4.0.532",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "remotion": "4.0.532"
+  }
+}
