@@ -7,7 +7,7 @@
 
 import { DICTS, translate } from '../../src/i18n/core.js'
 import { findDashLines } from '../text-rules.mjs'
-import { LANGUAGES, SCENES, SCRIPTS } from '../../video/script/index.js'
+import { LANGUAGES, SCENES, SCRIPTS, VOWELS } from '../../video/script/index.js'
 
 /** Every `{...}` in a line. Whatever is between the braces is taken for a key, so `{name}` is reported as a key that does not exist. */
 const REFERENCE = /\{([^{}]*)\}/g
@@ -25,44 +25,84 @@ export const DATE_OR_TIME = /\d{1,2}:\d{2}|\d{1,2}\/\d{1,2}(?:\/\d{2,4})?|\d{4}-
 const ID = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
 /**
- * The languages whose narrator reads a vowelled line (the owner, 19/10/2026: the narrator misread plain Hebrew). In these the `say`
- * line is the caption with its vowel points (niqqud) on every Hebrew word, and the caption itself carries none: the video shows plain
- * text, and only the narrator reads the vowelled one.
+ * The languages whose narrator reads vowelled words: those that have a dictionary of vowel points (VOWELS of video/script/index.js;
+ * Hebrew, because the narrator misread plain Hebrew, the owner, 19/10/2026). In these the caption and the say line are both plain and
+ * carry the same words, and the narrator gets each Hebrew word of the say line with its vowel points from the dictionary (spokenLine).
  */
-export const VOWELLED_LANGUAGES = Object.freeze(['he'])
+export const VOWELLED_LANGUAGES = Object.freeze(Object.keys(VOWELS))
 
 /** A vowel point (niqqud) on a Hebrew letter: U+05B0 to U+05C7, without the punctuation among them. */
 const NIQQUD = /[\u05B0-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/
-const NIQQUD_ALL = new RegExp(NIQQUD.source, 'g')
-/** Every mark that sits on a Hebrew letter (the cantillation U+0591 to U+05AF and the vowel points), and the Hebrew letters. */
-const MARKS = '\\u0591-\\u05BD\\u05BF\\u05C1\\u05C2\\u05C4\\u05C5\\u05C7'
-const LETTERS = '\\u05D0-\\u05EA'
-/** A Hebrew word: letters with the marks on them. Hebrew punctuation (maqaf, paseq, sof pasuq) is not a mark, so it ends a word. */
-const HEBREW_WORD = new RegExp(`[${MARKS}]*[${LETTERS}][${MARKS}${LETTERS}]*`, 'g')
-const HEBREW_LETTER = new RegExp(`[${LETTERS}]`)
+/** Every mark that sits on a Hebrew letter: the cantillation (U+0591 to U+05AF) and the vowel points. */
+const MARK = /[\u0591-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/
+/** A plain Hebrew word: Hebrew letters only, so any punctuation, the maqaf included, ends it. */
+const PLAIN_HEBREW_WORD = /[\u05D0-\u05EA]+/g
+const HEBREW_LETTER = /[\u05D0-\u05EA]/
+const VAV = '\u05D5'
+const YOD = '\u05D9'
+/** The vowels that a yod of the plain spelling may stand for (hiriq, tsere), and those that a vav may stand for (holam, kubutz). */
+const YOD_VOWELS = /[\u05B4\u05B5]/
+const VAV_VOWELS = /[\u05B9\u05BA\u05BB]/
 /** The end of a spoken sentence: a full stop, a question mark or an exclamation mark, then perhaps a closing quote. */
 const SENTENCE_END = /[.?!]["'\u05F4)]*$/
-/** Vav and yod: the two letters that a plain spelling adds for a vowel and a vowelled spelling often leaves out. */
-const VAV_AND_YOD = /[\u05D5\u05D9]/g
 
-/** The Hebrew words of a line that carry no vowel point. */
-export function unvowelledWords(text) {
-  return (String(text).match(HEBREW_WORD) ?? []).filter((word) => !NIQQUD.test(word))
+/** The words of a line, in order: the letters and digits of any script, split at spaces and at every punctuation mark (a maqaf too). */
+export function wordsOf(text) {
+  return String(text).split(/[^\p{L}\p{N}]+/u).filter(Boolean)
 }
 
 /**
- * The words of a line that both of its spellings share: no marks, no vav and no yod (a vowelled word is often spelled without the vav
- * or the yod that its plain spelling uses for a vowel), no punctuation (the say line has its own, which shapes the reading), and
- * single spaces. The say line and the caption of a vowelled language must give the same skeleton, so that the narrator never says
- * other words than the screen shows, and a renamed button in src/i18n fails here until its vowelled form is written.
+ * Why a vowelled word is not its plain word, or null when it is. The vowelled word is read letter by letter with its marks, and it may
+ * leave out only a vav or a yod of the plain word that doubles the letter before it (a doubled vav or yod), or that stands for the
+ * vowel of the letter before it (a yod for hiriq or tsere, a vav for holam or kubutz). Nothing else may differ, so a word never becomes
+ * another word, and it must carry at least one vowel point.
  */
-export function skeleton(text) {
-  return String(text)
-    .replace(/[\u0591-\u05C7]/g, '')
-    .replace(VAV_AND_YOD, '')
-    .replace(/[^\p{L}\p{N}\s]/gu, '')
-    .replace(/\s+/g, ' ')
-    .trim()
+export function vowelledWordProblem(plain, vowelled) {
+  const units = []
+  for (const char of String(vowelled)) {
+    if (!MARK.test(char)) units.push({ letter: char, marks: '' })
+    else if (units.length) units[units.length - 1].marks += char
+    else return 'it starts with a mark'
+  }
+  if (!units.some((unit) => NIQQUD.test(unit.marks))) return 'it has no vowel point'
+  const letters = [...String(plain)]
+  let next = 0
+  for (let i = 0; i < letters.length; i++) {
+    const letter = letters[i]
+    if (next < units.length && units[next].letter === letter) {
+      next++
+      continue
+    }
+    const before = units[next - 1]
+    const doubled = i > 0 && letters[i - 1] === letter && (letter === VAV || letter === YOD)
+    const forVowel = Boolean(before) && ((letter === YOD && YOD_VOWELS.test(before.marks)) || (letter === VAV && VAV_VOWELS.test(before.marks)))
+    if (!doubled && !forVowel) return `its letters are not the word's (at letter ${i + 1})`
+  }
+  return next === units.length ? null : 'it has letters that the word has not'
+}
+
+/**
+ * The line as the narrator reads it: its `{key}` labels resolved and, in a vowelled language, every Hebrew word with its vowel points
+ * from the dictionary. Throws for a word that the dictionary lacks, so the narrator never reads a plain word (checkScript reports it
+ * first). `vowels` is the script's own unless a test passes others.
+ * @param {string} lang
+ * @param {string} text
+ * @param {Record<string, Record<string, string>>} [vowels]
+ */
+export function spokenLine(lang, text, vowels = VOWELS) {
+  const resolved = resolveLine(lang, text)
+  const dictionary = vowels[lang]
+  if (!dictionary) return resolved
+  return resolved.replace(PLAIN_HEBREW_WORD, (word) => {
+    if (!Object.hasOwn(dictionary, word)) throw new Error(`The video script says "${word}", which video/script/${lang}-niqqud.js does not have.`)
+    return dictionary[word]
+  })
+}
+
+/** The entries of a vowel dictionary that no line of the script says (each is a word to delete, or a word that a line lost). */
+export function unusedVowels(lang, scripts = SCRIPTS, vowels = VOWELS) {
+  const said = new Set(beatsWithLines().flatMap((beat) => resolveLine(lang, scripts[lang][beat.id].say).match(PLAIN_HEBREW_WORD) ?? []))
+  return Object.keys(vowels[lang] ?? {}).filter((word) => !said.has(word))
 }
 
 /** The keys that a line refers to, in order. */
@@ -105,12 +145,14 @@ export function beatsWithLines(scenes = SCENES) {
  *  - every language: a caption and a say line, both non-empty text, for every beat that needs one, and no line for any other id;
  *  - every line: each `{key}` is a key of all four dictionaries whose label has no parameter, no long dash (scripts/text-rules.mjs),
  *    and no date or time, before and after its keys are resolved;
- *  - a vowelled language (VOWELLED_LANGUAGES): no vowel point in a caption, one on every Hebrew word of a say line, and the say line
- *    gives the skeleton of its caption once both are resolved.
+ *  - a vowelled language (VOWELLED_LANGUAGES): no vowel point in a caption or a say line; once their labels are resolved, the say line
+ *    has exactly the caption's words (its punctuation may differ) and ends a sentence; and every Hebrew word it says has an entry in
+ *    the dictionary that matches the word letter by letter (vowelledWordProblem).
  * @param {Record<string, Record<string, { caption?: unknown, say?: unknown }>>} [scripts]
  * @param {readonly { id: string, seconds: number, beats: readonly { id: string, seconds: number, continues?: boolean }[] }[]} [scenes]
+ * @param {Record<string, Record<string, string>>} [vowels]
  */
-export function checkScript(scripts = SCRIPTS, scenes = SCENES) {
+export function checkScript(scripts = SCRIPTS, scenes = SCENES, vowels = VOWELS) {
   const problems = []
   const seen = new Set()
   for (const scene of scenes) {
@@ -161,22 +203,24 @@ export function checkScript(scripts = SCRIPTS, scenes = SCENES) {
           if (DATE_OR_TIME.test(version)) problems.push(`${where}: a date or a time`)
         }
       }
-      if (VOWELLED_LANGUAGES.includes(lang)) problems.push(...vowelledProblems(lang, id, line))
+      if (Object.hasOwn(vowels, lang)) problems.push(...vowelledProblems(lang, id, line, vowels[lang]))
     }
     for (const id of Object.keys(lines)) {
       if (!needed.includes(id)) problems.push(`${lang} "${id}": a line for a beat that has none (unknown, or it continues the line before it)`)
     }
   }
-  return problems
+  return [...new Set(problems)]
 }
 
 /** The problems of one line of a vowelled language (none when its caption or say line is missing: checkScript reports that). */
-function vowelledProblems(lang, id, line) {
+function vowelledProblems(lang, id, line, dictionary) {
   const { caption, say } = line ?? {}
   if (typeof caption !== 'string' || typeof say !== 'string') return []
-  if (!HEBREW_LETTER.test(caption + say)) return [] // no Hebrew word, nothing to vowel
   const problems = []
-  if (NIQQUD.test(caption)) problems.push(`${lang} "${id}" caption: a vowel point (the video shows plain text, only the say line is vowelled)`)
+  const plain = `the lines are plain, the narrator's vowels come from video/script/${lang}-niqqud.js`
+  if (NIQQUD.test(caption)) problems.push(`${lang} "${id}" caption: a vowel point (${plain})`)
+  if (NIQQUD.test(say)) problems.push(`${lang} "${id}" say: a vowel point (${plain})`)
+  if (problems.length) return problems // its words cannot be compared or looked up until the line is plain
   let spoken = say
   let shown = caption
   try {
@@ -185,19 +229,25 @@ function vowelledProblems(lang, id, line) {
   } catch {
     // a key problem, already reported line by line
   }
-  // What the narrator receives: a `{key}` in a say line brings the app's plain label, which must be vowelled too.
-  const bare = unvowelledWords(spoken)
-  if (bare.length) problems.push(`${lang} "${id}" say: words with no vowel point (${bare.slice(0, 5).join(', ')})`)
+  // Once the labels are resolved: a line that is only a label of the app is Hebrew too, and is checked like any other.
+  if (!HEBREW_LETTER.test(spoken + shown)) return problems
+  const said = wordsOf(spoken).join(' ')
+  const written = wordsOf(shown).join(' ')
+  if (said !== written) problems.push(`${lang} "${id}" say: not the caption's words (the say line has "${said}", the caption "${written}")`)
   if (!SENTENCE_END.test(say.trim())) problems.push(`${lang} "${id}" say: it does not end a sentence (a full stop, a question mark or an exclamation mark)`)
-  if (skeleton(spoken) !== skeleton(shown)) {
-    problems.push(`${lang} "${id}" say: not the caption with vowel points (the say line reads "${spoken.replace(NIQQUD_ALL, '')}", the caption "${shown}")`)
+  const words = [...new Set(spoken.match(PLAIN_HEBREW_WORD) ?? [])]
+  const missing = words.filter((word) => !Object.hasOwn(dictionary, word))
+  if (missing.length) problems.push(`${lang} "${id}" say: no vowels for ${missing.slice(0, 5).join(', ')} (add them to video/script/${lang}-niqqud.js)`)
+  for (const word of words.filter((w) => Object.hasOwn(dictionary, w))) {
+    const problem = vowelledWordProblem(word, dictionary[word])
+    if (problem) problems.push(`${lang}-niqqud.js "${word}": ${problem}`)
   }
   return problems
 }
 
 /** Throws with every problem of the script, or returns quietly. */
-export function assertScript(scripts = SCRIPTS, scenes = SCENES) {
-  const problems = checkScript(scripts, scenes)
+export function assertScript(scripts = SCRIPTS, scenes = SCENES, vowels = VOWELS) {
+  const problems = checkScript(scripts, scenes, vowels)
   if (problems.length) throw new Error(`The video script (video/script/) has ${problems.length} problem(s):\n  ${problems.join('\n  ')}`)
 }
 
