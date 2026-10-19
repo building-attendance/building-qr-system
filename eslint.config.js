@@ -52,13 +52,16 @@ const afterES2020NotLowered = Object.fromEntries(Object.entries(afterES2020).fil
 
 // The plugin's aggressive mode (on below) reports a method of a prototype (`rows.findLast(...)`, `rows.toSorted()`) on any
 // value, because without TypeScript it knows the type of few. These rules keep the plugin's default instead, which reports
-// them only on a value that it knows: the helpers of an iterator that have the names of an array's methods of ES5 and ES2019
-// (aggressive mode would refuse every `rows.map(...)`; `map.values().map(...)` is still refused), and `at`, which is also
-// the name of a field in this app (the time of a scan or of an audit entry, `entry.at`): its call is refused below instead.
+// them only on a value that it knows: the helpers of an iterator that have the names of an array's methods of ES5, ES2016 and
+// ES2019 (aggressive mode would refuse every `rows.map(...)`; `map.values().map(...)` is still refused; `includes` and `join`
+// came with the plugin's ES2027 rules in 10.1.0), and `at`, which is also the name of a field in this app (the time of a scan
+// or of an audit entry, `entry.at`): its call is refused below instead.
 const SAME_NAME_AS_OLDER = [
   'no-array-prototype-at',
   'no-string-prototype-at',
-  ...['every', 'filter', 'find', 'flatmap', 'foreach', 'map', 'reduce', 'some'].map((method) => `no-iterator-prototype-${method}`),
+  ...['every', 'filter', 'find', 'flatmap', 'foreach', 'includes', 'join', 'map', 'reduce', 'some'].map(
+    (method) => `no-iterator-prototype-${method}`,
+  ),
 ].map((rule) => `es-x/${rule}`)
 
 const AT_IS_NEWER =
