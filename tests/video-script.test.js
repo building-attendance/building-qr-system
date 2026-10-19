@@ -11,8 +11,11 @@ import { fileURLToPath } from 'node:url'
 import he from '../src/i18n/he.js'
 import { DICTS } from '../src/i18n/core.js'
 import { EM_DASH } from '../scripts/text-rules.mjs'
-import { LANGUAGES, SCENES, SCRIPTS } from '../video/script/index.js'
-import { beatsWithLines, buildScenes, checkScript, referencedKeys, resolveLine } from '../scripts/video/script.mjs'
+import { LANGUAGES, SCENES, SCRIPTS, VOWELS } from '../video/script/index.js'
+import {
+  VOWELLED_LANGUAGES, beatsWithLines, buildScenes, checkScript, referencedKeys, resolveLine, spokenLine, unusedVowels,
+  vowelledWordProblem, wordsOf,
+} from '../scripts/video/script.mjs'
 import { VIDEO_APP_PORT, VIDEO_API_PORT, VIDEO_OUT_DIR, VIDEO_SCHEMA, assertLocalVideo } from '../scripts/video/settings.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
@@ -68,11 +71,66 @@ describe('the script of the video', () => {
   })
 })
 
+// ---- the vowelled narration --------------------------------------------------------------------------------------
+
+describe("the Hebrew narrator reads the caption's words, vowelled from one dictionary", () => {
+  const POINT = /[\u05B0-\u05BD\u05BF\u05C1\u05C2\u05C4\u05C5\u05C7]/
+
+  it('is the rule for Hebrew, whose dictionary is video/script/he-niqqud.js', () => {
+    expect(VOWELLED_LANGUAGES).toEqual(['he'])
+    expect(Object.keys(VOWELS.he).length).toBeGreaterThan(50)
+  })
+
+  it("keeps every caption and say line plain, and the say line has exactly the caption's words, ending a sentence", () => {
+    for (const beat of beatsWithLines()) {
+      const { caption, say } = SCRIPTS.he[beat.id]
+      expect(POINT.test(caption), `he ${beat.id} caption`).toBe(false)
+      expect(POINT.test(say), `he ${beat.id} say`).toBe(false)
+      expect(wordsOf(resolveLine('he', say)), `he ${beat.id}`).toEqual(wordsOf(resolveLine('he', caption)))
+      expect(say.trim(), `he ${beat.id}`).toMatch(/[.?!]["')]*$/)
+    }
+  })
+
+  it('has an entry for every word that a say line says, labels of the app included, and no entry that no line says', () => {
+    for (const beat of beatsWithLines()) expect(() => spokenLine('he', SCRIPTS.he[beat.id].say), `he ${beat.id}`).not.toThrow()
+    expect(unusedVowels('he')).toEqual([])
+  })
+
+  it('holds every entry to its word, letter by letter', () => {
+    for (const [word, vowelled] of Object.entries(VOWELS.he)) expect(vowelledWordProblem(word, vowelled), word).toBeNull()
+  })
+
+  it('gives the narrator the line with its labels resolved and every Hebrew word vowelled', () => {
+    const spoken = spokenLine('he', SCRIPTS.he.submit.say)
+    expect(spoken).toContain(`"${VOWELS.he['כניסה']}"`)
+    expect(POINT.test(spoken)).toBe(true)
+    expect(spokenLine('he', 'קוד QR.')).toBe(`${VOWELS.he['קוד']} QR.`)
+    expect(() => spokenLine('he', 'מילה חדשה.')).toThrow(/"מילה"/)
+  })
+
+  it('lets a vowelled word leave out only a doubled vav or yod, or one that stands for its vowel', () => {
+    for (const [plain, vowelled] of [['נקודה', 'נְקֻדָּה'], ['בבניין', 'בַּבִּנְיָן'], ['מכוונים', 'מְכַוְּנִים'], ['ללחוץ', 'לִלְחֹץ'], ['בית', 'בַּיִת'], ['עכשיו', 'עַכְשָׁיו']]) {
+      expect(vowelledWordProblem(plain, vowelled), plain).toBeNull()
+    }
+    expect(vowelledWordProblem('בית', 'בַּת')).toBe("its letters are not the word's (at letter 2)")
+    expect(vowelledWordProblem('עכשיו', 'עַכְשָׁו')).toBe("its letters are not the word's (at letter 4)")
+    expect(vowelledWordProblem('בית', 'בַּיִתָה')).toBe('it has letters that the word has not')
+    expect(vowelledWordProblem('בית', 'בית')).toBe('it has no vowel point')
+  })
+
+  it('splits words at spaces and at every punctuation mark, a maqaf too', () => {
+    const maqaf = String.fromCodePoint(0x05be)
+    expect(wordsOf(`שלום${maqaf}עולם, ושוב.`)).toEqual(['שלום', 'עולם', 'ושוב'])
+    expect(wordsOf('קוד QR, English.')).toEqual(['קוד', 'QR', 'English'])
+  })
+})
+
 // ---- what the check reports --------------------------------------------------------------------------------------
 
 describe('the check of the script reports', () => {
   const scenes = [{ id: 'one', seconds: 3, beats: [{ id: 'one', seconds: 3 }] }]
   const script = (caption, say = caption) => ({ he: { one: { caption, say } } })
+  const vowels = { he: { 'שלום': 'שָׁלוֹם', 'עולם': 'עוֹלָם', 'בית': 'בַּיִת', 'לוחצים': 'לוֹחֲצִים', [he['login.submit']]: 'כְּנִיסָה' } }
 
   it('a made-up key, by its name, and refuses to resolve it', () => {
     const problems = checkScript(script('press "{login.madeUpButton}"'), scenes)
@@ -104,6 +162,41 @@ describe('the check of the script reports', () => {
       'he "one": no caption',
       'he "two": a line for a beat that has none (unknown, or it continues the line before it)',
     ])
+  })
+
+  it('in Hebrew: a vowel point in a caption or a say line, whose words come from the dictionary instead', () => {
+    expect(checkScript(script('שָׁלוֹם.', 'שָׁלוֹם.'), scenes, vowels)).toEqual([
+      'he "one" caption: a vowel point (the lines are plain, the narrator\'s vowels come from video/script/he-niqqud.js)',
+      'he "one" say: a vowel point (the lines are plain, the narrator\'s vowels come from video/script/he-niqqud.js)',
+    ])
+  })
+
+  it("in Hebrew: a say line whose words are not the caption's, even by one vav or yod", () => {
+    expect(checkScript(script('בית.', 'בת.'), scenes, vowels)).toEqual([
+      'he "one" say: not the caption\'s words (the say line has "בת", the caption "בית")',
+      'he "one" say: no vowels for בת (add them to video/script/he-niqqud.js)',
+    ])
+  })
+
+  it('in Hebrew: a word that the dictionary lacks, a line that is only a label of the app included', () => {
+    expect(checkScript(script('{login.submit}.', '{login.submit}.'), scenes, { he: {} })).toEqual([
+      `he "one" say: no vowels for ${he['login.submit']} (add them to video/script/he-niqqud.js)`,
+    ])
+    expect(checkScript(script('{login.submit}.', '{login.submit}.'), scenes, vowels)).toEqual([])
+  })
+
+  it('in Hebrew: an entry of the dictionary that is another word', () => {
+    expect(checkScript(script('בית.', 'בית.'), scenes, { he: { 'בית': 'בַּת' } })).toEqual(['he-niqqud.js "בית": its letters are not the word\'s (at letter 2)'])
+  })
+
+  it('in Hebrew: a say line that does not end a sentence, which the narrator would read on without a stop', () => {
+    expect(checkScript(script('שלום', 'שלום'), scenes, vowels)).toEqual(['he "one" say: it does not end a sentence (a full stop, a question mark or an exclamation mark)'])
+    for (const say of ['שלום.', 'שלום?', 'שלום!', '"שלום".', '"שלום."']) expect(checkScript(script('שלום', say), scenes, vowels), say).toEqual([])
+  })
+
+  it('in Hebrew: punctuation that only the say line has, a maqaf where the caption has a space included', () => {
+    const maqaf = String.fromCodePoint(0x05be)
+    expect(checkScript(script('שלום עולם: לוחצים.', `שלום${maqaf}עולם. לוחצים.`), scenes, vowels)).toEqual([])
   })
 
   it('a duration that is not positive, beats that do not add up, a repeated or a bad id, and a scene that starts by continuing', () => {
