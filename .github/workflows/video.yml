@@ -55,6 +55,12 @@ on:
 
 permissions: {}
 
+# The one rule for which issues this workflow may touch, read by both issue steps (gap-issue and close-gap): the open video-gap
+# issues that it opened itself, by its own login, one number per line. An issue that a person opened with the label is never
+# read, edited, commented on or closed (the owner, 19/10/2026: one issue, updated quietly).
+env:
+  VIDEO_GAP_OURS: '.[] | select(.author.login | test("^(app/)?github-actions$")) | .number'
+
 # One gap check at a time and one publish at a time, each queued, never cancelled while it runs. A newer push replaces a gap check
 # that is still waiting, which is fine: it compares the newer app, and the issue links every change since the published video,
 # so a merge whose own run was replaced is still in that link. The two kinds are separate groups, so a push never cancels a
@@ -175,9 +181,8 @@ jobs:
               exit 1
             fi
           fi
-          # The open video-gap issue that this workflow opened, if any (an issue of a person with the label is not picked).
-          ours='[.[] | select(.author.login | test("^(app/)?github-actions$"))] | .[0].number // empty'
-          open=$(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "$ours")
+          # The open video-gap issue that this workflow opened, if any, by the one rule of the workflow (VIDEO_GAP_OURS).
+          open=$(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "[$VIDEO_GAP_OURS] | .[0] // empty")
           if [ -z "$SCENES" ]; then
             if [ -n "$open" ]; then
               gh issue close "$open" --reason completed --comment "No scene of the video is behind the app any more (merge $MERGE_SHA): $RUN_URL"
@@ -326,8 +331,7 @@ jobs:
           # a quiet note in the description, and the gap check of the next push decides what is still behind. Only the issues
           # that this workflow opened are touched, as in gap-issue.
           head=$(gh api "repos/$GH_REPO/commits/$DEFAULT_BRANCH" --jq '.sha' || true)
-          ours='.[] | select(.author.login | test("^(app/)?github-actions$")) | .number'
-          for number in $(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "$ours"); do
+          for number in $(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "$VIDEO_GAP_OURS"); do
             if [ -n "$head" ] && [ "$head" = "$PUBLISHED_SHA" ]; then
               gh issue close "$number" --reason completed --comment "The video was published from $PUBLISHED_SHA, the head of $DEFAULT_BRANCH: $RUN_URL"
               continue

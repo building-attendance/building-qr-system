@@ -330,6 +330,7 @@ describe('the published site', () => {
 describe('the steps of video.yml that write to GitHub never reach gh outside GitHub Actions on the default branch', () => {
   const NL = String.fromCharCode(10)
   const lines = fs.readFileSync(path.join(root, '.github/workflows/video.yml'), 'utf8').replaceAll(String.fromCharCode(13), '').split(NL)
+  const rule = lines.find((line) => line.startsWith('  VIDEO_GAP_OURS: ')).trim().slice('VIDEO_GAP_OURS: '.length + 1, -1)
 
   /** Every `run: |` script of the workflow, without its indentation. */
   const runScripts = () => {
@@ -355,14 +356,15 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     const bin = path.join(dir, 'bin')
     fs.mkdirSync(bin)
     const log = path.join(dir, 'gh.log')
-    // The fake gh writes down its calls, and answers like gh would after its --jq: the open issue's number (FAKE_GH_OPEN), its
-    // author or body (FAKE_GH_AUTHOR, FAKE_GH_BODY), and the head of the default branch (FAKE_GH_HEAD).
+    // The fake gh writes down its calls, and answers like gh would after its --jq. FAKE_GH_ISSUES lists the open video-gap
+    // issues as `<number>:<author>`; a list answers with the numbers of those that the workflow opened (VIDEO_GAP_OURS: the
+    // login github-actions or app/github-actions). It also answers the body (FAKE_GH_BODY) and the head of the branch (FAKE_GH_HEAD).
     const fake = [
       '#!/usr/bin/env bash',
       'echo "$*" >> "$FAKE_GH_LOG"',
       'case "$1 $2" in',
-      '  "issue list") if [ -n "${FAKE_GH_OPEN:-}" ]; then echo "$FAKE_GH_OPEN"; fi ;;',
-      '  "issue view") if [ "$5" = author ]; then echo "${FAKE_GH_AUTHOR:-github-actions}"; else echo "${FAKE_GH_BODY:-}"; fi ;;',
+      '  "issue list") for entry in ${FAKE_GH_ISSUES:-}; do case "${entry#*:}" in github-actions | app/github-actions) echo "${entry%%:*}" ;; esac; done ;;',
+      '  "issue view") echo "${FAKE_GH_BODY:-}" ;;',
       '  api*) echo "${FAKE_GH_HEAD:-}" ;;',
       'esac',
       '',
@@ -373,7 +375,7 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     const env = Object.fromEntries(
       Object.entries(process.env).filter(([key]) => !/^(GITHUB_|GH_|VIDEO_GH_LIVE$|PATH$)/i.test(key)),
     )
-    Object.assign(env, { PATH: `${bin}${path.delimiter}${process.env.PATH ?? process.env.Path ?? ''}`, FAKE_GH_LOG: log, RUNNER_TEMP: dir, GH_REPO: 'example/video-test', ...settings })
+    Object.assign(env, { PATH: `${bin}${path.delimiter}${process.env.PATH ?? process.env.Path ?? ''}`, FAKE_GH_LOG: log, RUNNER_TEMP: dir, GH_REPO: 'example/video-test', VIDEO_GAP_OURS: rule, ...settings })
     const result = spawnSync('bash', ['-e', script], { env, encoding: 'utf8' })
     const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split(NL).filter(Boolean) : []
     fs.rmSync(dir, { recursive: true, force: true })
@@ -425,42 +427,59 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
   })
 
   const inActions = { GITHUB_ACTIONS: 'true', GITHUB_REF: 'refs/heads/master', DEFAULT_BRANCH: 'master' }
+  // A person's issue with the label (8) beside the one that the workflow opened (7): no path ever writes to 8.
+  const both = '8:a-person 7:github-actions'
+  const writesTo = (calls, number) => calls.filter((call) => /^issue (edit|close|comment|reopen) /.test(call) && call.split(' ')[2] === String(number))
 
-  it('rewrites the open issue quietly when a later merge leaves scenes behind, and never comments on it', () => {
-    const run = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, FAKE_GH_OPEN: '7' })
+  it('update: rewrites its own open issue quietly when a later merge leaves scenes behind, never comments, never touches a person\'s', () => {
+    const run = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, FAKE_GH_ISSUES: both })
     expect(run.status).toBe(0)
     expect(run.calls).toContainEqual(expect.stringMatching(/^issue edit 7 --body-file /))
     expect(run.calls.some((call) => /^issue (comment|create)/.test(call))).toBe(false)
+    expect(writesTo(run.calls, 8)).toEqual([])
   })
 
-  it('touches only the issues that this workflow opened: every issue list picks them by its own login, and no step comments or reads an author', () => {
-    const withList = runScripts().filter((script) => script.body.includes("gh issue list"))
+  it('opens its own issue when only a person\'s issue has the label', () => {
+    const run = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, FAKE_GH_ISSUES: '8:a-person' })
+    expect(run.status).toBe(0)
+    expect(run.calls.at(-1)).toMatch(/^issue create --title /)
+    expect(writesTo(run.calls, 8)).toEqual([])
+  })
+
+  it('touches only the issues that it opened: one rule for both steps (VIDEO_GAP_OURS), by its own login, and no step comments', () => {
+    const rule = lines.find((line) => line.startsWith('  VIDEO_GAP_OURS: '))
+    expect(rule).toContain('select(.author.login | test("^(app/)?github-actions$"))')
+    expect(lines[lines.indexOf(rule) - 1]).toBe('env:')
+    const withList = runScripts().filter((script) => script.body.includes('gh issue list'))
     expect(withList.length).toBe(2)
     for (const script of withList) {
-      expect(script.body, `the run script at line ${script.at + 1}`).toContain('select(.author.login | test("^(app/)?github-actions$"))')
-      expect(script.body).toContain('--json number,author --jq "$ours"')
+      expect(script.body, `the run script at line ${script.at + 1}`).toMatch(/--json number,author --jq "[[]?[$]VIDEO_GAP_OURS/)
       expect(script.body).not.toContain('gh issue comment')
-      expect(script.body).not.toContain('--json author')
+      expect(script.body).not.toContain('select(.author')
     }
   })
 
-  it('closes the open issue when a push finds no scene behind, and does nothing when none is open', () => {
-    const closes = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, SCENES: '', LANGUAGES: '', FAKE_GH_OPEN: '7' })
+  it('close on no gap: closes its own open issue when a push finds no scene behind, never a person\'s, and nothing when it has none', () => {
+    const closes = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, SCENES: '', LANGUAGES: '', FAKE_GH_ISSUES: both })
     expect(closes.status).toBe(0)
     expect(closes.calls).toContainEqual(expect.stringMatching(/^issue close 7 --reason completed/))
-    const quiet = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, SCENES: '', LANGUAGES: '' })
+    expect(writesTo(closes.calls, 8)).toEqual([])
+    const quiet = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, SCENES: '', LANGUAGES: '', FAKE_GH_ISSUES: '8:a-person' })
     expect(quiet.status).toBe(0)
     expect(quiet.calls).toEqual([expect.stringMatching(/^issue list --label video-gap/)])
   })
 
-  it('after a publish, closes the issue only when the default branch is still the published commit', () => {
-    const still = runStep(CLOSE_STEP, { ...closeSettings, ...inActions, FAKE_GH_OPEN: '7', FAKE_GH_HEAD: closeSettings.PUBLISHED_SHA })
+  it('close after a publish: closes its own issue only when the default branch is still the published commit, never a person\'s', () => {
+    const issues = '8:a-person 7:app/github-actions'
+    const still = runStep(CLOSE_STEP, { ...closeSettings, ...inActions, FAKE_GH_ISSUES: issues, FAKE_GH_HEAD: closeSettings.PUBLISHED_SHA })
     expect(still.status).toBe(0)
     expect(still.calls).toContainEqual(expect.stringMatching(/^issue close 7 --reason completed/))
-    const moved = runStep(CLOSE_STEP, { ...closeSettings, ...inActions, FAKE_GH_OPEN: '7', FAKE_GH_HEAD: 'e'.repeat(40) })
+    expect(writesTo(still.calls, 8)).toEqual([])
+    const moved = runStep(CLOSE_STEP, { ...closeSettings, ...inActions, FAKE_GH_ISSUES: issues, FAKE_GH_HEAD: 'e'.repeat(40) })
     expect(moved.status).toBe(0)
     expect(moved.calls).toContainEqual(expect.stringMatching(/^issue edit 7 --body-file /))
     expect(moved.calls.some((call) => /^issue close/.test(call))).toBe(false)
+    expect(writesTo(moved.calls, 8)).toEqual([])
   })
 })
 
