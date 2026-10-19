@@ -145,8 +145,8 @@ jobs:
       # Each paragraph is one line: GitHub shows a line break inside an issue as a break. Every text written comes from the
       # outputs of the gap job, each checked against its fixed shape first, and from GitHub's own ids (the SHA, the run).
       # One issue for the whole gap: a later merge rewrites its description (an edit sends no notification), so the owner hears
-      # once when a gap opens and once when it closes. Only an issue that this workflow opened is rewritten; a person's issue with
-      # the label gets the report as a comment.
+      # once when a gap opens and once when it closes. Only the issue that this workflow opened is ever read, rewritten or closed
+      # (it is picked by the workflow's own login): an issue that a person opened with the label is theirs, and is left alone.
       - name: Open, update or close the video-gap issue
         env:
           GH_TOKEN: ${{ github.token }}
@@ -175,12 +175,14 @@ jobs:
               exit 1
             fi
           fi
-          open=$(gh issue list --label video-gap --state open --limit 1 --json number --jq '.[0].number // empty')
+          # The open video-gap issue that this workflow opened, if any (an issue of a person with the label is not picked).
+          ours='[.[] | select(.author.login | test("^(app/)?github-actions$"))] | .[0].number // empty'
+          open=$(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "$ours")
           if [ -z "$SCENES" ]; then
             if [ -n "$open" ]; then
               gh issue close "$open" --reason completed --comment "No scene of the video is behind the app any more (merge $MERGE_SHA): $RUN_URL"
             else
-              echo "No scene of the video is behind the app, and no video-gap issue is open."
+              echo "No scene of the video is behind the app, and this workflow has no video-gap issue open."
             fi
             exit 0
           fi
@@ -199,13 +201,9 @@ jobs:
             > "$RUNNER_TEMP/issue.md"
           if [ -z "$open" ]; then
             gh issue create --title "The tutorial video is behind the app" --label video-gap --body-file "$RUNNER_TEMP/issue.md"
-            exit 0
+          else
+            gh issue edit "$open" --body-file "$RUNNER_TEMP/issue.md"
           fi
-          author=$(gh issue view "$open" --json author --jq '.author.login')
-          case "$author" in
-            github-actions | app/github-actions) gh issue edit "$open" --body-file "$RUNNER_TEMP/issue.md" ;;
-            *) gh issue comment "$open" --body-file "$RUNNER_TEMP/issue.md" ;;
-          esac
 
   render:
     name: record, voice and render
@@ -325,20 +323,16 @@ jobs:
           gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
           live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
           # When the head of the default branch is still the published commit, nothing after the publish can be behind. Otherwise
-          # a quiet note in the description, and the gap check of the next push decides what is still behind.
+          # a quiet note in the description, and the gap check of the next push decides what is still behind. Only the issues
+          # that this workflow opened are touched, as in gap-issue.
           head=$(gh api "repos/$GH_REPO/commits/$DEFAULT_BRANCH" --jq '.sha' || true)
-          for number in $(gh issue list --label video-gap --state open --limit 20 --json number --jq '.[].number'); do
+          ours='.[] | select(.author.login | test("^(app/)?github-actions$")) | .number'
+          for number in $(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "$ours"); do
             if [ -n "$head" ] && [ "$head" = "$PUBLISHED_SHA" ]; then
               gh issue close "$number" --reason completed --comment "The video was published from $PUBLISHED_SHA, the head of $DEFAULT_BRANCH: $RUN_URL"
               continue
             fi
             note="- Last publish: $PUBLISHED_SHA ($RUN_URL). $DEFAULT_BRANCH has moved since, so the gap check of the next push decides what is still behind."
-            author=$(gh issue view "$number" --json author --jq '.author.login')
-            case "$author" in
-              github-actions | app/github-actions)
-                { gh issue view "$number" --json body --jq '.body // ""' | grep -v '^- Last publish: ' || true; printf '%s\n' "$note"; } > "$RUNNER_TEMP/body.md"
-                gh issue edit "$number" --body-file "$RUNNER_TEMP/body.md"
-                ;;
-              *) gh issue comment "$number" --body "$note" ;;
-            esac
+            { gh issue view "$number" --json body --jq '.body // ""' | grep -v '^- Last publish: ' || true; printf '%s\n' "$note"; } > "$RUNNER_TEMP/body.md"
+            gh issue edit "$number" --body-file "$RUNNER_TEMP/body.md"
           done

@@ -433,11 +433,15 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     expect(run.calls.some((call) => /^issue (comment|create)/.test(call))).toBe(false)
   })
 
-  it('reports in a comment, never in the description, on an issue that a person opened with the label', () => {
-    const run = runStep(ISSUE_STEP, { ...issueSettings, ...inActions, FAKE_GH_OPEN: '7', FAKE_GH_AUTHOR: 'a-person' })
-    expect(run.status).toBe(0)
-    expect(run.calls).toContainEqual(expect.stringMatching(/^issue comment 7 --body-file /))
-    expect(run.calls.some((call) => /^issue edit/.test(call))).toBe(false)
+  it('touches only the issues that this workflow opened: every issue list picks them by its own login, and no step comments or reads an author', () => {
+    const withList = runScripts().filter((script) => script.body.includes("gh issue list"))
+    expect(withList.length).toBe(2)
+    for (const script of withList) {
+      expect(script.body, `the run script at line ${script.at + 1}`).toContain('select(.author.login | test("^(app/)?github-actions$"))')
+      expect(script.body).toContain('--json number,author --jq "$ours"')
+      expect(script.body).not.toContain('gh issue comment')
+      expect(script.body).not.toContain('--json author')
+    }
   })
 
   it('closes the open issue when a push finds no scene behind, and does nothing when none is open', () => {
