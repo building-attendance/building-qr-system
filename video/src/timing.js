@@ -18,6 +18,13 @@ export const HEIGHT = 1280
 /** The seconds that one picture cross-fades into the next. */
 export const FADE_SECONDS = 0.35
 
+/**
+ * The QR code that the camera scene shows over the code of the printed sign: a sharp one made for the video at every render (the owner,
+ * 19/10/2026, in place of the blurred picture of the real one). It holds plain text, never a link and never a point's token (a secret,
+ * AGENTS.md), so a viewer who scans the screen with a phone gets the word and nothing opens. render.mjs writes it as `file`.
+ */
+export const DEMO_QR = Object.freeze({ text: 'DEMO', file: 'demo-qr.svg' })
+
 /** The caption bar and the phone above it, in pixels of the 720x1280 video. The screen keeps the proportions of the 390x844 recording. */
 export const LAYOUT = Object.freeze({
   barHeight: 280,
