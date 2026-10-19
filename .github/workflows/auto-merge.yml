@@ -3,11 +3,11 @@
 # 16/10/2026). The decision is scripts/check-auto-merge.mjs, with a test for each condition (tests/check-auto-merge.test.js):
 # it reads the pull request through GitHub's API and decides, and this file acts on its answer.
 #
-# A DRY RUN for now: LIVE below is false, so the workflow only writes its decision. It writes one comment per head commit
-# of an open, ready pull request whose title is a test or docs title (edited when the decision for that commit changes,
-# never duplicated), and the summary of the run for every pull request. The merge job is written and tested, but it is
-# skipped while LIVE is false, and so it never refers to the environment `auto-merge` before the owner has created it.
-# Turning LIVE on is the owner's decision, written in a pull request of its own (a P1 item of the Code Review Rules).
+# LIVE by the owner's decision of 18/10/2026, after a dry run on #264 to #277: when every condition holds, the merge job
+# merges. The workflow writes one comment per head commit of an open, ready pull request whose title is a test or docs
+# title (edited when the decision for that commit changes, never duplicated), and the summary of the run for every pull
+# request. With LIVE false (the dry run) the merge job is skipped, and the decision is only written. Turning LIVE on or off
+# is the owner's decision, written in a pull request of its own (a P1 item of the Code Review Rules).
 #
 # When it runs: after every run of CI (workflow_run), and when the Codex review bot writes or edits a comment on a pull
 # request (issue_comment: a clean review ends with a new receipt comment and an edit of the bot's summary comment). Both
@@ -28,10 +28,11 @@
 # commit (a label, the title, a new Codex finding) still stops it, and the merge is pinned to the head commit that was
 # decided on (`sha`), so GitHub refuses it when anything was pushed in between.
 #
-# The merge, once LIVE is true, is a job of its own in the environment `auto-merge`. That environment holds the two
-# secrets of the auto-merge GitHub App (its client id and its private key), and its deployment branch policy lets only
-# the default branch read them. The job mints a token of the App that can only write contents (what a merge needs), for
-# this repository and for this job only, and merges with the squash method. The App bypasses only the approval
+# The merge is a job of its own in the environment `auto-merge`, and runs only while LIVE is true. That environment holds
+# the two secrets of the auto-merge GitHub App (its client id and its private key), and its deployment branch policy lets
+# only the default branch read them, with `deployment: false` too (a job of another branch was refused before it started,
+# 18/10/2026). The job mints a token of the App that can only write contents (what a merge needs), for this repository and
+# for this job only, and merges with the squash method. The App bypasses only the approval
 # (master-approval), never master-gates: the four checks, an up-to-date branch, resolved conversations and the squash merge
 # still hold. The App's setup, and how to switch it off: .github/rulesets/README.md, "The auto-merge App".
 #
@@ -48,9 +49,9 @@ on:
 permissions: {}
 
 env:
-  # The switch. false is the dry run: the decision is written, nothing is merged. Only the owner turns it to true, in a
-  # pull request of its own that says so (AGENTS.md, Code Review Rules).
-  LIVE: false
+  # The switch: true merges, false is the dry run (the decision is written, nothing is merged). Only the owner changes it,
+  # in a pull request of its own that says so (AGENTS.md, Code Review Rules). true by the owner's decision, 18/10/2026.
+  LIVE: true
 
 jobs:
   decide:

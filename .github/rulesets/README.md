@@ -57,9 +57,9 @@ To change one later, send the edited file with `gh api --method PUT repos/{owner
 `docs` pull request that the owner opened, whose files are only component tests, E2E tests and documents and whose commits
 are all by a person's GitHub account with no Codex co-author, and that is clean in every way
 (AGENTS.md, "Git and pull requests", the paragraph "One workflow may merge too"; the exact conditions are in
-`scripts/check-auto-merge.mjs`). It starts in a dry run that only comments (`LIVE: false` in the workflow), and nothing in
-this folder changes for it until the owner sets up its GitHub App. That App is the only new actor, and this is what it may
-do.
+`scripts/check-auto-merge.mjs`). It ran from 16/10/2026 as a dry run that only commented (`LIVE: false` in the workflow),
+and it merges since `LIVE` is on (the owner's decision of 18/10/2026). Its GitHub App is the only new actor, and this is
+what it may do.
 
 - **What it can do.** Merge a pull request through the API, nothing else. The workflow mints its token for this repository
   only, with `contents: write` only (GitHub lists the merge endpoint under "Contents"), for one job, and the token is
@@ -72,7 +72,9 @@ do.
   resolved and the squash method, and the App can never push to the default branch or delete it.
 - **Where its key lives.** In the environment `auto-merge`, never among the repository secrets. Its deployment branch
   policy allows the default branch only, so a workflow that runs for a pull request (whose ref is never the default
-  branch) cannot read the key. The workflow reads it in one step of one job, which is skipped while `LIVE` is false.
+  branch) or for any other branch cannot read the key. That holds for a job that sets `deployment: false` too: on
+  18/10/2026 a throwaway environment with the same rule refused a job of another branch, with and without it, before the
+  job started. The workflow reads it in one step of one job, which is skipped while `LIVE` is false.
 
 ### Set it up (the owner, once, before the pull request that turns `LIVE` on)
 
@@ -111,8 +113,8 @@ do.
 
 This installation (16/10/2026): the App is `building-qr-auto-merge` (id 5343219), installed on this repository only, with
 Contents: Read and write; the environment `auto-merge` allows `master` only and holds `AUTO_MERGE_APP_CLIENT_ID` and
-`AUTO_MERGE_APP_KEY` (`docs/runbooks/secrets.md`). The bypass is not added yet: it comes with the pull request that turns
-`LIVE` on, after the dry week.
+`AUTO_MERGE_APP_KEY` (`docs/runbooks/secrets.md`). The owner adds the bypass to the live ruleset right before merging the
+pull request that turns `LIVE` on (the owner's decision of 18/10/2026, after the dry run on #264 to #277).
 
 ### Switch it off
 
