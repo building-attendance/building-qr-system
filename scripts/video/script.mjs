@@ -40,8 +40,8 @@ const LETTERS = '\\u05D0-\\u05EA'
 /** A Hebrew word: letters with the marks on them. Hebrew punctuation (maqaf, paseq, sof pasuq) is not a mark, so it ends a word. */
 const HEBREW_WORD = new RegExp(`[${MARKS}]*[${LETTERS}][${MARKS}${LETTERS}]*`, 'g')
 const HEBREW_LETTER = new RegExp(`[${LETTERS}]`)
-/** The punctuation inside the block of the marks (maqaf, paseq, sof pasuq, nun hafukha): a skeleton keeps it. */
-const PUNCTUATION = /[\u05BE\u05C0\u05C3\u05C6]/
+/** The end of a spoken sentence: a full stop, a question mark or an exclamation mark, then perhaps a closing quote. */
+const SENTENCE_END = /[.?!]["'\u05F4)]*$/
 /** Vav and yod: the two letters that a plain spelling adds for a vowel and a vowelled spelling often leaves out. */
 const VAV_AND_YOD = /[\u05D5\u05D9]/g
 
@@ -51,15 +51,16 @@ export function unvowelledWords(text) {
 }
 
 /**
- * The letters of a line that both of its spellings share: no marks, no vav and no yod (a vowelled word is often spelled without the vav
- * or the yod that its plain spelling uses for a vowel), and single spaces. The say line and the caption of a vowelled language must give
- * the same skeleton, so that the narrator never says other words than the screen shows, and a renamed button in src/i18n fails here
- * until its vowelled form is written.
+ * The words of a line that both of its spellings share: no marks, no vav and no yod (a vowelled word is often spelled without the vav
+ * or the yod that its plain spelling uses for a vowel), no punctuation (the say line has its own, which shapes the reading), and
+ * single spaces. The say line and the caption of a vowelled language must give the same skeleton, so that the narrator never says
+ * other words than the screen shows, and a renamed button in src/i18n fails here until its vowelled form is written.
  */
 export function skeleton(text) {
   return String(text)
-    .replace(/[\u0591-\u05C7]/g, (mark) => (PUNCTUATION.test(mark) ? mark : ''))
+    .replace(/[\u0591-\u05C7]/g, '')
     .replace(VAV_AND_YOD, '')
+    .replace(/[^\p{L}\p{N}\s]/gu, '')
     .replace(/\s+/g, ' ')
     .trim()
 }
@@ -187,6 +188,7 @@ function vowelledProblems(lang, id, line) {
   // What the narrator receives: a `{key}` in a say line brings the app's plain label, which must be vowelled too.
   const bare = unvowelledWords(spoken)
   if (bare.length) problems.push(`${lang} "${id}" say: words with no vowel point (${bare.slice(0, 5).join(', ')})`)
+  if (!SENTENCE_END.test(say.trim())) problems.push(`${lang} "${id}" say: it does not end a sentence (a full stop, a question mark or an exclamation mark)`)
   if (skeleton(spoken) !== skeleton(shown)) {
     problems.push(`${lang} "${id}" say: not the caption with vowel points (the say line reads "${spoken.replace(NIQQUD_ALL, '')}", the caption "${shown}")`)
   }

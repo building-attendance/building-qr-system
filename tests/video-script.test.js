@@ -99,7 +99,12 @@ describe('the Hebrew narrator reads vowelled lines, and the screen shows plain o
     expect(skeleton(SCRIPTS.he.submit.say)).toContain(skeleton(he['login.submit']))
   })
 
-  it('compares the letters that both spellings share: no marks, no vav, no yod', () => {
+  it('ends every say line with a full stop, a question mark or an exclamation mark, so the narrator stops', () => {
+    for (const beat of beatsWithLines()) expect(SCRIPTS.he[beat.id].say.trim(), `he ${beat.id}`).toMatch(/[.?!]["')]*$/)
+  })
+
+  it('compares the words that both spellings share: no marks, no vav, no yod, no punctuation', () => {
+    expect(skeleton('שלום, עולם.')).toBe(skeleton('שלום עולם'))
     expect(skeleton('נְקֻדָּה')).toBe(skeleton('נקודה'))
     expect(skeleton('בַּבִּנְיָן')).toBe(skeleton('בבניין'))
     expect(skeleton('לִלְחֹץ "שְׁלִיחָה עַכְשָׁו"')).toBe(skeleton('ללחוץ "שליחה עכשיו"'))
@@ -147,25 +152,34 @@ describe('the check of the script reports', () => {
   })
 
   it('in Hebrew: a vowel point in a caption, a say word with none, and a say line that is not its caption', () => {
-    expect(checkScript(script('שָׁלוֹם', 'שָׁלוֹם'), scenes)).toEqual(['he "one" caption: a vowel point (the video shows plain text, only the say line is vowelled)'])
-    expect(checkScript(script('שלום עולם', 'שָׁלוֹם עולם'), scenes)).toEqual(['he "one" say: words with no vowel point (עולם)'])
-    expect(checkScript(script('שלום', 'לְהִתְרָאוֹת'), scenes)).toEqual(['he "one" say: not the caption with vowel points (the say line reads "להתראות", the caption "שלום")'])
+    expect(checkScript(script('שָׁלוֹם.', 'שָׁלוֹם.'), scenes)).toEqual(['he "one" caption: a vowel point (the video shows plain text, only the say line is vowelled)'])
+    expect(checkScript(script('שלום עולם.', 'שָׁלוֹם עולם.'), scenes)).toEqual(['he "one" say: words with no vowel point (עולם)'])
+    expect(checkScript(script('שלום.', 'לְהִתְרָאוֹת.'), scenes)).toEqual(['he "one" say: not the caption with vowel points (the say line reads "להתראות.", the caption "שלום.")'])
   })
 
   it('in Hebrew: a label of the app whose vowelled form in the say line is another label (a renamed button)', () => {
-    const problems = checkScript(script('לוחצים "{checkin.done}"', 'לוֹחֲצִים "כְּנִיסָה"'), scenes)
-    expect(problems).toEqual([`he "one" say: not the caption with vowel points (the say line reads "לוחצים "כניסה"", the caption "לוחצים "${he['checkin.done']}"")`])
+    const problems = checkScript(script('לוחצים "{checkin.done}".', 'לוֹחֲצִים "כְּנִיסָה".'), scenes)
+    expect(problems).toEqual([`he "one" say: not the caption with vowel points (the say line reads "לוחצים "כניסה".", the caption "לוחצים "${he['checkin.done']}".")`])
   })
 
   it('in Hebrew: a say line whose {key} brings the plain label of the app to the narrator', () => {
-    expect(checkScript(script('לוחצים "{login.submit}"', 'לוֹחֲצִים "{login.submit}"'), scenes))
+    expect(checkScript(script('לוחצים "{login.submit}".', 'לוֹחֲצִים "{login.submit}".'), scenes))
       .toEqual([`he "one" say: words with no vowel point (${he['login.submit']})`])
   })
 
   it('in Hebrew: a word with no vowel point after a maqaf, which ends the word before it', () => {
     const maqaf = String.fromCodePoint(0x05be)
-    expect(checkScript(script(`שלום${maqaf}עולם`, `שָׁלוֹם${maqaf}עולם`), scenes)).toEqual(['he "one" say: words with no vowel point (עולם)'])
-    expect(checkScript(script(`שלום${maqaf}עולם`, `שָׁלוֹם${maqaf}עוֹלָם`), scenes)).toEqual([])
+    expect(checkScript(script(`שלום${maqaf}עולם.`, `שָׁלוֹם${maqaf}עולם.`), scenes)).toEqual(['he "one" say: words with no vowel point (עולם)'])
+    expect(checkScript(script(`שלום${maqaf}עולם.`, `שָׁלוֹם${maqaf}עוֹלָם.`), scenes)).toEqual([])
+  })
+
+  it('in Hebrew: a say line that does not end a sentence, which the narrator would read on without a stop', () => {
+    expect(checkScript(script('שלום', 'שָׁלוֹם'), scenes)).toEqual(['he "one" say: it does not end a sentence (a full stop, a question mark or an exclamation mark)'])
+    for (const say of ['שָׁלוֹם.', 'שָׁלוֹם?', 'שָׁלוֹם!', '"שָׁלוֹם".', '"שָׁלוֹם."']) expect(checkScript(script('שלום', say), scenes), say).toEqual([])
+  })
+
+  it('in Hebrew: punctuation that only the say line has, a comma for a pause or a full stop for a colon', () => {
+    expect(checkScript(script('בוחרים שפה: עברית או ערבית.', 'בּוֹחֲרִים שָׂפָה. עִבְרִית, אוֹ עֲרָבִית.'), scenes)).toEqual([])
   })
 
   it('a duration that is not positive, beats that do not add up, a repeated or a bad id, and a scene that starts by continuing', () => {
