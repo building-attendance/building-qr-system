@@ -396,7 +396,11 @@ Register-ScheduledTask -TaskName 'Building QR daily backup' -Action $action -Tri
 `-StartWhenAvailable` is "Run task as soon as possible after a scheduled start is missed", so a computer that was off at 03:00
 makes the backup when it is next on. A laptop that sleeps or hibernates in the middle of a run (a missed start can begin in
 the few seconds before a hibernate) goes on with the run when it wakes: the time limit of each step counts only the time that
-the computer is awake. Without `-User` and `-Password` the task runs as the signed-in user, only while that user
+the computer is awake. The network can take some seconds more to come back after a wake, so when the Neon CLI or `pg_dump`
+cannot reach it at all (a name that does not resolve, a connection that does not open), the run tries again after 30 seconds
+and once more after 60, and `backup.log` says `warning=retried-after-network-error`; an answer of a server (a refused key or
+password, a project that does not exist) is never tried again, and a network that stays down fails the run as before. Without
+`-User` and `-Password` the task runs as the signed-in user, only while that user
 is signed in. In the Task Scheduler window the same settings are on the **Settings** tab and under **Security options**
 ("Run only when user is logged on"). Run the task once by hand from the window and read `backup.log` before you rely on it.
 If the run is refused because another account can change the backup folder or a folder above it (the first item of "Who can
