@@ -132,6 +132,9 @@
 //
 // pg_dump must not be older than the server (Neon runs Postgres 18). --pg-bin, then PG_BIN, then on Windows the usual
 // install folder of Postgres 18, then PATH, in that order.
+//
+// A computer that sleeps or hibernates in the middle of a run goes on with it when it wakes: the time limit of each tool (the
+// Neon CLI, pg_dump, pg_restore, gh, whoami, icacls, PowerShell) counts only the time that the machine is awake (see awakeDeadline).
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -207,6 +210,8 @@ const GH_TIMEOUT_MS = 60_000
 export const STALE_WORK_MS = 24 * 60 * 60 * 1000
 const ICACLS_TIMEOUT_MS = 60_000
 const SDDL_TIMEOUT_MS = 60_000
+// The limits above count the time that the machine is awake, in ticks of this length (see awakeDeadline).
+const TICK_MS = 1_000
 // Owner only: read and write for the owner on a file, and all rights for the owner on a folder.
 const PRIVATE_FILE = 0o600
 const PRIVATE_FOLDER = 0o700
@@ -1038,21 +1043,43 @@ function toolProblem(name, problem) {
 // ---- running a process -----------------------------------------------------------------------------------------------
 
 /**
+ * Calls `onExpire` once `ms` of AWAKE time have passed, counted in ticks of at most `tickMs`, and returns the function that cancels
+ * it. A setTimeout cannot be the limit of a step: on Windows the clock of Node (QueryPerformanceCounter) runs on while the machine
+ * sleeps or hibernates, so a step that a sleep froze in the middle woke up with its limit long past and was killed as if the tool
+ * had hung. On 19/10/2026 the start of 03:00 that the laptop had missed began in the few seconds before a hibernate, the folder
+ * check was stopped that way at the wake, and a refused folder check writes no line in backup.log, so the issue pointed at a log
+ * that had nothing. Node does not catch up the ticks of an interval that it missed (the next one is set from the moment one runs),
+ * so a sleep of any length costs one tick.
+ */
+function awakeDeadline(ms, tickMs, onExpire) {
+  const tick = Math.max(1, Math.min(tickMs, ms))
+  let left = Math.ceil(ms / tick)
+  const interval = setInterval(() => {
+    left -= 1
+    if (left > 0) return
+    clearInterval(interval)
+    onExpire()
+  }, tick)
+  return () => clearInterval(interval)
+}
+
+/**
  * Runs a program without a shell and always resolves: { status (the exit code, or null), stdout, stderr, problem? }.
  * `problem` is set when it could not run to the end: 'ENOENT' (no such program), 'TIMEOUT' or another error code. Its
- * standard input is closed, so a program that wants to ask a question fails instead of waiting for ever.
+ * standard input is closed, so a program that wants to ask a question fails instead of waiting for ever. The limit counts only
+ * the time that the machine is awake (see awakeDeadline); `tickMs` is for a test.
  */
-export function runProcess(command, args, { env, cwd, timeoutMs = 10 * 60_000 } = {}) {
+export function runProcess(command, args, { env, cwd, timeoutMs = 10 * 60_000, tickMs = TICK_MS } = {}) {
   return new Promise((resolve) => {
     const out = []
     const err = []
     let size = 0
     let done = false
-    let timer
+    let cancelDeadline
     const finish = (result) => {
       if (done) return
       done = true
-      clearTimeout(timer)
+      cancelDeadline?.()
       resolve({ stdout: Buffer.concat(out).toString('utf8'), stderr: Buffer.concat(err).toString('utf8'), ...result })
     }
     let child
@@ -1062,10 +1089,10 @@ export function runProcess(command, args, { env, cwd, timeoutMs = 10 * 60_000 } 
       finish({ status: null, problem: error?.code ?? 'ERROR' })
       return
     }
-    timer = setTimeout(() => {
+    cancelDeadline = awakeDeadline(timeoutMs, tickMs, () => {
       child.kill()
       finish({ status: null, problem: 'TIMEOUT' })
-    }, timeoutMs)
+    })
     const collect = (chunks) => (chunk) => {
       if (size < MAX_CAPTURE) {
         size += chunk.length

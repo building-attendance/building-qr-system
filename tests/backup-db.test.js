@@ -5268,6 +5268,26 @@ describe('runProcess', () => {
     expect(slow.status).toBeNull()
   })
 
+  it('counts only the time that the machine is awake: a sleep longer than the limit is not a time out, and the limit still holds', async () => {
+    // On Windows the clock of Node runs on while the machine sleeps, so a step that a hibernate froze woke up with its limit long past
+    // and was killed (19/10/2026). An event loop that does not run makes the same jump of the clock: here it stands still for longer
+    // than the whole limit (ten ticks), while the tool waits for it, and the jump costs one tick. The tool ends right after the wake
+    // (when the file that the test makes then is there), as a tool that the sleep froze goes on when the machine wakes.
+    const standStill = () => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 1200)
+    const awake = path.join(tmp, 'awake')
+    const waitForWake = "const fs = require('fs'); setInterval(() => { if (fs.existsSync(process.argv[1])) { console.log('done'); process.exit(0) } }, 20)"
+    const frozen = runProcess(process.execPath, ['-e', waitForWake, awake], { timeoutMs: 1000, tickMs: 100 })
+    standStill()
+    fs.writeFileSync(awake, '')
+    const r = await frozen
+    expect(r.problem).toBeUndefined()
+    expect(r.status).toBe(0)
+    expect(r.stdout.trim()).toBe('done')
+    const hung = runProcess(process.execPath, ['-e', 'setTimeout(() => {}, 60000)'], { timeoutMs: 1000, tickMs: 100 })
+    standStill()
+    expect((await hung).problem).toBe('TIMEOUT')
+  })
+
   it('passes exactly the environment and the working directory it is given', async () => {
     const script = 'console.log(JSON.stringify([process.env.ONLY_THIS, process.env.BACKUP_DATABASE_URL ?? null, process.cwd()]))'
     const env = { ONLY_THIS: 'yes', SystemRoot: process.env.SystemRoot }
