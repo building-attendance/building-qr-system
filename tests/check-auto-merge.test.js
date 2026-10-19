@@ -944,8 +944,8 @@ describe('the workflow file', () => {
     expect(WORKFLOW).toContain('uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0')
   })
 
-  it('is a dry run: LIVE is false, and the merge job runs only when it is true', () => {
-    expect(code.match(/^ *LIVE: .*$/gm)).toEqual(['  LIVE: false'])
+  it('is live: LIVE is true (the owner decided on 18/10/2026), and the merge job runs only when it is true', () => {
+    expect(code.match(/^ *LIVE: .*$/gm)).toEqual(['  LIVE: true'])
     expect(decideJob).toContain('live: ${{ env.LIVE }}')
     expect(mergeJob).toContain("if: needs.decide.outputs.live == 'true' && needs.decide.outputs.merge == 'true'")
   })

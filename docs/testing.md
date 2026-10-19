@@ -237,12 +237,14 @@ security, privacy and repository-guard tests) stay out, and so do some files und
 baselines, the files that every test runs with, the rules, the privacy record, the decision records, the runbooks, the
 design rules). The conditions are `scripts/check-auto-merge.mjs`, with a test for each in `tests/check-auto-merge.test.js`.
 
-For now it is a dry run: on an open, ready pull request with a test or docs title it writes one comment per head commit,
-"would merge" or "would not merge" with the reasons, and edits that comment when the decision for the same commit
-changes; every other pull request gets the decision in the summary of the run only. It decides again only on those two
-events, so a conversation resolved after the last of them is seen at the next CI run or Codex comment. To keep a pull
-request from merging once it is live, keep it a draft or leave a conversation open. The App that will merge, its key, and
-how to switch it off are in [`.github/rulesets/README.md`](../.github/rulesets/README.md), "The auto-merge App".
+It is live by the owner's decision of 18/10/2026, after a dry run on #264 to #277: on an open, ready pull request with a
+test or docs title it writes one comment per head commit, "merging" or "will not merge" with the reasons, edits that
+comment when the decision for the same commit changes, and merges when every condition holds; every other pull request
+gets the decision in the summary of the run only. It decides again only on those two events, so a conversation resolved
+after the last of them is seen at the next CI run or Codex comment. Codex reviews only when asked, so a branch brought up
+to date needs a new `@codex review` of its new head before it can merge. To keep a pull request from merging, keep it a
+draft or leave a conversation open. The App that merges, its key, and how to switch it off are in
+[`.github/rulesets/README.md`](../.github/rulesets/README.md), "The auto-merge App".
 
 ## The smoke test
 
