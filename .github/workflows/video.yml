@@ -1,0 +1,349 @@
+# The provider tutorial video (the topic "provider tutorial video", decisions D5 and D6). Two separate things:
+#
+#   Gap check (automatic, never publishes): every push to the default branch (only documentation is ignored: a .md file or docs/
+#     cannot change a frame or a line) records the frames of the provider app again (scripts/video/record.spec.mjs: no voice, no
+#     render) and compares each beat with the published video's manifest (scripts/video/gap.mjs: the caption, the spoken line, and
+#     the masked frame by the threshold of e2e/visual.spec.js). The comparison decides, not a list of watched files (the owner,
+#     19/10/2026). When a scene is behind, or the video's own sources (video/ and scripts/video/, and the voice settings: decision D18) changed since the last publish, it opens one issue labelled `video-gap`, or quietly rewrites the description of the open
+#     one (an edit sends no notification, so the owner hears once, when a gap first opens); when no scene is behind any more, it
+#     closes the open issue. Nothing is fixed, published or opened as a pull request by itself. The owner's words (D5): "not
+#     automatically, but you must tell me when a gap appears and turn it into a task".
+#   Publish (by hand only, workflow_dispatch from the default branch): records, voices, renders and deploys the video to GitHub
+#     Pages (scripts/video/render-all.mjs): /video/<lang>.mp4, the player page /video/<lang>/, its manifest and masked frames, and
+#     the voice cache /video/voice-cache/. Then it closes the open `video-gap` issue when the default branch has not moved since
+#     the published commit; otherwise it notes the publish in the issue, and the gap check of the next push decides.
+#
+# Who holds what:
+#   - gap: a read-only token, no environment, no secret. It runs the recorder against its own Postgres container with the fake
+#     sample data, behind assertLocalScratch (scripts/video/settings.mjs).
+#   - gap-issue: `issues: write`, and nothing else. It checks out nothing and runs no code of the repository, only the `gh` CLI
+#     of the runner. The issue holds scene ids (checked against the shape of an id), a commit SHA and a link to the run, and
+#     never text that a person wrote (no commit message, no title, no branch name).
+#   - render: a read-only token and the environment `video` (deployment branches: the default branch only), for the secret
+#     ELEVENLABS_API_KEY, which only the voice step gets. Without the secret (a copy of the repository) the publish still works:
+#     every line keeps the voice that the site published, and a changed line is silent; the step summary names the silent lines.
+#     `deployment: false`: the environment is where the key lives, with its branch rule (which still applies without a
+#     deployment); it adds no deployment record (and no deployment_status event for smoke.yml).
+#   - deploy: `pages: write` and `id-token: write`, in the environment `github-pages` that GitHub made with Pages. It runs no code
+#     of the repository, only actions/deploy-pages.
+#   - close-gap: `issues: write` and `contents: read` (to read the head of the default branch), after a deploy that succeeded. Like
+#     gap-issue it checks out nothing. It closes the issue only when the published commit is still the head of the default branch.
+#
+# No pull_request or pull_request_target trigger: code of a pull request never runs here, never reaches the key and never
+# deploys. Every third-party action is pinned to a full commit SHA (the tag is in the comment): checkout, setup-node and
+# upload-artifact are the ones of ci.yml. Every checkout keeps no credentials. Every value that a `run:` script reads goes in
+# through env.
+#
+# Off in a copy of the repository (decision D4: Remotion's free licence covers a person, a non-profit and a company of up to 3
+# employees): the jobs run only in building-attendance/building-qr-system, or in a copy whose repository variable VIDEO_ENABLED is
+# "true" (docs, T5). The site is the repository's own GitHub Pages address, https://<owner>.github.io/<repository>/.
+#
+# The owner's steps before the first run: GitHub Pages with the source "GitHub Actions"; the environment `video` with the secret
+# and the branch rule; the label `video-gap` (an issue cannot be opened with a label that does not exist, and the run fails).
+name: Tutorial video
+
+on:
+  push:
+    branches: [master, main]
+    # Every push: the gap check itself decides whether the video is behind, by recording the app and comparing it with the
+    # published video, so no list of watched files can miss an input (the owner, 19/10/2026). Only documentation is ignored,
+    # which cannot change a frame or a line.
+    paths-ignore:
+      - "**/*.md"
+      - "docs/**"
+  workflow_dispatch:
+
+permissions: {}
+
+# The one rule for which issues this workflow may touch, read by both issue steps (gap-issue and close-gap): the open video-gap
+# issues that it opened itself, by its own login, one number per line. An issue that a person opened with the label is never
+# read, edited, commented on or closed (the owner, 19/10/2026: one issue, updated quietly).
+env:
+  VIDEO_GAP_OURS: '.[] | select(.author.login | test("^(app/)?github-actions$")) | .number'
+
+# One gap check at a time and one publish at a time, each queued, never cancelled while it runs. A newer push replaces a gap check
+# that is still waiting, which is fine: it compares the newer app, and the issue links every change since the published video,
+# so a merge whose own run was replaced is still in that link. The two kinds are separate groups, so a push never cancels a
+# publish that the owner started.
+concurrency:
+  group: video-${{ github.event_name }}
+  cancel-in-progress: false
+
+jobs:
+  gap:
+    name: gap check
+    if: >-
+      github.event_name == 'push' &&
+      github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch &&
+      (github.repository == 'building-attendance/building-qr-system' || vars.VIDEO_ENABLED == 'true')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    outputs:
+      scenes: ${{ steps.gap.outputs.scenes }}
+      languages: ${{ steps.gap.outputs.languages }}
+      since: ${{ steps.gap.outputs.since }}
+      sources: ${{ steps.gap.outputs.sources }}
+    services:
+      postgres:
+        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722 # the same digest as in ci.yml
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      DATABASE_URL_UNPOOLED: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      # As in e2e.yml: up to three attempts of 5 minutes, because a slow Ubuntu mirror has made apt-get hang.
+      - name: Install Chromium and its system packages
+        timeout-minutes: 17
+        run: |
+          for attempt in 1 2 3; do
+            if timeout --kill-after=10 300 npx playwright install --with-deps chromium; then exit 0; fi
+            echo "::warning::Installing chromium failed or took more than 5 minutes (attempt $attempt of 3)"
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo dpkg --configure -a || true
+          done
+          exit 1
+      - name: Record the frames
+        run: node scripts/video/render-all.mjs --step frames
+      - name: Compare with the published video
+        id: gap
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+          OUT: ${{ runner.temp }}/video-gap
+        run: |
+          export VIDEO_SITE_URL="https://${OWNER,,}.github.io/${REPO_NAME}/"
+          node scripts/video/gap.mjs --out "$OUT"
+      - name: Keep the published and the new frames
+        if: steps.gap.outputs.scenes != ''
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: video-gap-frames
+          path: ${{ runner.temp }}/video-gap/
+          retention-days: 30
+          if-no-files-found: ignore
+
+  gap-issue:
+    name: open, update or close the video-gap issue
+    needs: gap
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      issues: write
+    steps:
+      # Each paragraph is one line: GitHub shows a line break inside an issue as a break. Every text written comes from the
+      # outputs of the gap job, each checked against its fixed shape first, and from GitHub's own ids (the SHA, the run).
+      # One issue for the whole gap: a later merge rewrites its description (an edit sends no notification), so the owner hears
+      # once when a gap opens and once when it closes. Only the issue that this workflow opened is ever read, rewritten or closed
+      # (it is picked by the workflow's own login): an issue that a person opened with the label is theirs, and is left alone.
+      - name: Open, update or close the video-gap issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          SCENES: ${{ needs.gap.outputs.scenes }}
+          LANGUAGES: ${{ needs.gap.outputs.languages }}
+          SINCE: ${{ needs.gap.outputs.since }}
+          SOURCES: ${{ needs.gap.outputs.sources }}
+          MERGE_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          REPO_URL: ${{ github.server_url }}/${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # The only way to GitHub in this step: refused unless it runs in GitHub Actions on the default branch, or a person sets
+          # VIDEO_GH_LIVE=1 on purpose, so that a dry run of this script on a computer (or a test) never reaches the repository.
+          live() { { [ "${GITHUB_ACTIONS:-}" = true ] && [ -n "${DEFAULT_BRANCH:-}" ] && [ "${GITHUB_REF:-}" = "refs/heads/${DEFAULT_BRANCH}" ]; } || [ "${VIDEO_GH_LIVE:-}" = 1 ]; }
+          gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
+          live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
+          id='[a-z0-9]+(-[a-z0-9]+)*'
+          case "${SOURCES:-}" in
+            changed | same | '') ;;
+            *) echo "::error::The gap check gave a value for the sources that is not changed or same." ; exit 1 ;;
+          esac
+          if [ -n "$SCENES" ]; then
+            if [ "${#SCENES}" -gt 500 ] || ! printf '%s' "$SCENES" | grep -Eqx "$id(,$id)*"; then
+              echo "::error::The gap check gave scene ids that are not of the expected shape."
+              exit 1
+            fi
+            if ! printf '%s' "$LANGUAGES" | grep -Eqx '[a-z]{2}(,[a-z]{2})*'; then
+              echo "::error::The gap check gave languages that are not of the expected shape."
+              exit 1
+            fi
+          fi
+          # The open video-gap issue that this workflow opened, if any, by the one rule of the workflow (VIDEO_GAP_OURS).
+          open=$(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "[$VIDEO_GAP_OURS] | .[0] // empty")
+          if [ -z "$SCENES" ] && [ "${SOURCES:-}" != changed ]; then
+            if [ -n "$open" ]; then
+              gh issue close "$open" --reason completed --comment "Nothing of the video is behind any more: no scene, and not its own sources (merge $MERGE_SHA): $RUN_URL"
+            else
+              echo "No scene is behind and the video's own sources are the same, and this workflow has no video-gap issue open."
+            fi
+            exit 0
+          fi
+          if printf '%s' "$SINCE" | grep -Eqx '[0-9a-f]{40}'; then
+            since="- Every change since the published video: $REPO_URL/compare/$SINCE...$MERGE_SHA"
+          else
+            since="- The published video does not name its commit."
+          fi
+          {
+            printf '%s\n\n' "A merge changed what the provider tutorial video shows, says or is made of, so the published video is behind. Every later merge rewrites this description quietly: the list below is what is behind now."
+            printf '%s\n' "- The latest merge: $MERGE_SHA"
+            if [ -n "$SCENES" ]; then printf '%s\n' "- Scenes behind: ${SCENES//,/, } (language: ${LANGUAGES//,/, })"; fi
+            if [ "${SOURCES:-}" = changed ]; then printf '%s\n' "- The video's own sources changed since the last publish (its editing, script, player page, tools or voice settings), so a publish would make another video even where no screen changed."; fi
+            printf '%s\n' "$since"
+            printf '%s\n\n' "- The latest check, with the published and the new frames (artifact video-gap-frames): $RUN_URL"
+            printf '%s\n' "To bring the video up to date, once the owner says so: when only the screens or the video's sources changed, one publish (Actions, \"Tutorial video\", Run workflow, from the default branch); when the narration must change too, one pull request with all of it first. Nothing is published or opened by itself. The publish closes this issue."
+          } > "$RUNNER_TEMP/issue.md"
+          if [ -z "$open" ]; then
+            gh issue create --title "The tutorial video is behind the app" --label video-gap --body-file "$RUNNER_TEMP/issue.md"
+          else
+            gh issue edit "$open" --body-file "$RUNNER_TEMP/issue.md"
+          fi
+
+  render:
+    name: record, voice and render
+    if: >-
+      github.event_name == 'workflow_dispatch' &&
+      github.ref_type == 'branch' && github.ref_name == github.event.repository.default_branch &&
+      (github.repository == 'building-attendance/building-qr-system' || vars.VIDEO_ENABLED == 'true')
+    environment:
+      name: video
+      deployment: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    services:
+      postgres:
+        image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722 # the same digest as in ci.yml
+        env:
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
+      DATABASE_URL_UNPOOLED: postgres://postgres:postgres@localhost:5432/postgres
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            video/package-lock.json
+      - run: npm ci
+      - run: npm --prefix video ci
+      # As in e2e.yml. Its system packages also cover the browser that Remotion renders with (Chrome Headless Shell).
+      - name: Install Chromium and its system packages
+        timeout-minutes: 17
+        run: |
+          for attempt in 1 2 3; do
+            if timeout --kill-after=10 300 npx playwright install --with-deps chromium; then exit 0; fi
+            echo "::warning::Installing chromium failed or took more than 5 minutes (attempt $attempt of 3)"
+            sudo pkill -9 -x apt-get || true
+            sudo pkill -9 -x dpkg || true
+            sudo dpkg --configure -a || true
+          done
+          exit 1
+      - name: Find the address of the site
+        id: site
+        env:
+          OWNER: ${{ github.repository_owner }}
+          REPO_NAME: ${{ github.event.repository.name }}
+        run: echo "url=https://${OWNER,,}.github.io/${REPO_NAME}/" >> "$GITHUB_OUTPUT"
+      - name: Record the frames
+        run: node scripts/video/render-all.mjs --step frames
+      # The only step that gets the key. Empty when the environment has no such secret: then the lines keep the published voice.
+      - name: Voice the lines
+        env:
+          ELEVENLABS_API_KEY: ${{ secrets.ELEVENLABS_API_KEY }}
+          VIDEO_SITE_URL: ${{ steps.site.outputs.url }}
+        run: node scripts/video/render-all.mjs --step voice
+      - name: Render the video
+        run: node scripts/video/render-all.mjs --step render
+      - name: Build the site
+        env:
+          VIDEO_SITE_URL: ${{ steps.site.outputs.url }}
+        run: node scripts/video/render-all.mjs --step site
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: video/out/site/
+
+  deploy:
+    name: deploy to GitHub Pages
+    needs: render
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}video/he/
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
+
+  # The publish is of the commit that the owner started it from. When that commit is still the head of the default branch,
+  # nothing merged after it can be behind, and the issue is closed. Otherwise the issue stays open with a quiet note, and the
+  # gap check of the next push compares the app with the new video and closes the issue when nothing is behind any more.
+  # It checks out nothing: GitHub says which commit is the head of the default branch.
+  close-gap:
+    name: close the video-gap issue
+    needs: deploy
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Close the video-gap issue if the default branch is still the published commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PUBLISHED_SHA: ${{ github.sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # The only way to GitHub in this step, as in gap-issue: refused unless GitHub Actions on the default branch, or VIDEO_GH_LIVE=1.
+          live() { { [ "${GITHUB_ACTIONS:-}" = true ] && [ -n "${DEFAULT_BRANCH:-}" ] && [ "${GITHUB_REF:-}" = "refs/heads/${DEFAULT_BRANCH}" ]; } || [ "${VIDEO_GH_LIVE:-}" = 1 ]; }
+          gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
+          live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
+          # When the head of the default branch is still the published commit, nothing after the publish can be behind. Otherwise
+          # a quiet note in the description, and the gap check of the next push decides what is still behind. Only the issues
+          # that this workflow opened are touched, as in gap-issue.
+          head=$(gh api "repos/$GH_REPO/commits/$DEFAULT_BRANCH" --jq '.sha' || true)
+          for number in $(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "$VIDEO_GAP_OURS"); do
+            if [ -n "$head" ] && [ "$head" = "$PUBLISHED_SHA" ]; then
+              gh issue close "$number" --reason completed --comment "The video was published from $PUBLISHED_SHA, the head of $DEFAULT_BRANCH: $RUN_URL"
+              continue
+            fi
+            note="- Last publish: $PUBLISHED_SHA ($RUN_URL). $DEFAULT_BRANCH has moved since, so the gap check of the next push decides what is still behind."
+            { gh issue view "$number" --json body --jq '.body // ""' | grep -v '^- Last publish: ' || true; printf '%s\n' "$note"; } > "$RUNNER_TEMP/body.md"
+            gh issue edit "$number" --body-file "$RUNNER_TEMP/body.md"
+          done

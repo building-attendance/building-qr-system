@@ -1,0 +1,53 @@
+/* The player page of the provider tutorial video (player.html). The colours are the video's own (video/src/theme.js: the dark violet
+   of the title cards, with its white and its light violet text, which pass AA there). One column, the video as large as the screen
+   allows: on a phone it fills the width, on a computer it is as tall as the window, and never wider than its 720 pixels. */
+:root {
+  color-scheme: dark;
+  background: #2e2670;
+  color: #ffffff;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  margin: 0;
+}
+
+main {
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  min-height: 100vh;
+  min-height: 100dvh;
+  padding: 16px max(16px, env(safe-area-inset-right)) max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+}
+
+h1 {
+  margin: 0;
+  font-size: 1.375rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+p {
+  margin: 0;
+  color: #d9d4ff;
+  text-align: center;
+}
+
+video {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: min(100%, 720px);
+  max-height: calc(100vh - 120px);
+  max-height: calc(100dvh - 120px);
+  margin-top: 8px;
+  border-radius: 12px;
+  background: #15121f;
+}
+
+a {
+  color: #ffffff;
+}
