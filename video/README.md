@@ -17,8 +17,8 @@ The first render downloads the browser that Remotion draws with (Chrome Headless
 `video/node_modules/.remotion`. A render of the 94 seconds takes about a minute on a laptop. It stops with an error if the mp4
 is more than 8 MB (it is about 3 MB).
 
-- **Without a voice** (no `timings.json`): the video runs the estimated seconds of `scenes.json`, with the captions and a soft
-  tap sound, and no narrator.
+- **Without a voice** (no `timings.json`): the video runs the estimated seconds of `scenes.json`, with the captions, a soft
+  tap sound and the music bed, and no narrator.
 - **With a voice**: when the narrator (`scripts/video/voice.mjs`) has written `video/out/he/timings.json` and the mp3 files in
   `video/out/he/voice/`, the render reads the real length of each line from it and plays each file where its beat starts. A beat
   that is missing from `timings.json`, or whose file is missing, keeps its estimated seconds (with a warning for the file).
@@ -42,7 +42,14 @@ is more than 8 MB (it is about 3 MB).
   "DEMO", never a link or a point's token, so scanning the screen opens nothing; a link chip rises under it), and a neutral question about the
   location over the "checking location" screen. Neither copies the dialog of Android or iOS. Their words, and the title cards,
   are in `video/script/drawn.js`, in the four languages.
-- `src/assets/tap.wav`: the tap sound, made by `src/make-tap-sound.mjs` from two sine waves. Nothing of a third party.
+- **Sound.** `src/assets/tap.wav` is the tap sound, made by `src/make-tap-sound.mjs` (a soft, low tick) and played at
+  `TAP_VOLUME`. The music bed is a slow pad with no beat, made at every render by `src/make-music.mjs` into the staged folder as
+  `music.wav` (never committed). Its volume is a pure function in `timing.js` (`musicVolumeAt`): a low level, lower again from a
+  moment before each line of the narrator to the end of its audio, faded in at the start and out at the end. Every sound, font
+  and picture, its source and its licence is in `ASSETS.md`; nothing of a third party is committed.
+- **Motion.** A change of scene fades for 0.35 seconds (never more than 0.4) and, when no tap mark or outline shows then, the new picture
+  rises 8 pixels as it comes in; a caption rises 8 pixels while it fades in over a quarter of a second. Nothing moves while a
+  tap mark or an outline is on the screen (`isCalm` in `timing.js`), and none of it changes the length of the video.
 - `src/render.mjs`: the render. It writes next to the pictures, in `video/out/<lang>/` (ignored by git).
 
 ## Licence

@@ -1,12 +1,35 @@
 // The composition of the provider tutorial video: the violet ground, the phone with the recorded screen of each beat (a still, which
 // cross-fades into the next), the tap marks and outlines over it, the two drawn scenes, and the caption bar under the phone. The numbers
-// (when each beat starts, when a tap happens) come from timing.js, so that this file only draws.
-import { AbsoluteFill, Html5Audio, Img, Sequence, interpolate, staticFile, useCurrentFrame } from 'remotion'
+// (when each beat starts, when a tap happens, how the music dips under the narrator, how a scene and a caption come in) come from
+// timing.js, so that this file only draws. It also plays the sound: the narrator, the taps and the music bed (music.wav, made by render.mjs).
+import { AbsoluteFill, Html5Audio, Img, Sequence, staticFile, useCurrentFrame } from 'remotion'
 import { DRAWN } from '../script/drawn.js'
 import tapSound from './assets/tap.wav'
 import { CameraScene, HighlightBox, LocationQuestion, TapMark, TitleCard, TypedDots, allowButtonBox } from './Screens.jsx'
 import { COLORS, FONT_FAMILY } from './theme.js'
-import { FADE_SECONDS, FPS, HEIGHT, LAYOUT, WIDTH, beatMotion, captionFontSize, captionGroups, centerOf, isRtl, planBeats, scaleBox, tapFrames, voiceTracks } from './timing.js'
+import {
+  FADE_SECONDS,
+  FPS,
+  HEIGHT,
+  LAYOUT,
+  MUSIC_FILE,
+  TAP_VOLUME,
+  WIDTH,
+  beatMotion,
+  captionAt,
+  captionFontSize,
+  centerOf,
+  entranceAt,
+  isRtl,
+  musicVolumeAt,
+  planBeats,
+  risingCaptions,
+  scaleBox,
+  sceneEntrance,
+  tapFrames,
+  voiceTracks,
+  voicedSpans,
+} from './timing.js'
 
 const SCREEN = { width: LAYOUT.screenWidth, height: LAYOUT.screenHeight }
 const FADE_FRAMES = Math.round(FADE_SECONDS * FPS)
@@ -18,7 +41,7 @@ function Beat({ beat, plan, lang, strings, credit }) {
   const frame = useCurrentFrame()
   const motion = beatMotion(beat, beat.frames)
   const from = { width: beat.width, height: beat.height }
-  const opacity = beat.index === 0 ? 1 : interpolate(frame, [0, FADE_FRAMES], [0, 1], { extrapolateRight: 'clamp' })
+  const { opacity, offsetY } = entranceAt(sceneEntrance(plan, beat.index), frame)
   const tapBox = beat.tap ? scaleBox(beat.tap, from, SCREEN) : null
   const highlight = beat.highlight && beat.id !== 'sign' ? scaleBox(beat.highlight, from, SCREEN) : null
   const taps = motion.taps.map((start) => ({ start, length: motion.tapLength }))
@@ -46,10 +69,10 @@ function Beat({ beat, plan, lang, strings, credit }) {
       </>
     )
   }
-  return <AbsoluteFill style={{ opacity }}>{body}</AbsoluteFill>
+  return <AbsoluteFill style={{ opacity, transform: offsetY ? `translateY(${offsetY}px)` : undefined }}>{body}</AbsoluteFill>
 }
 
-/** The caption of each line, in the bar under the phone: Rubik, from right to left for Hebrew and Arabic, fading between two lines. */
+/** The caption of each line, in the bar under the phone: Rubik, from right to left for Hebrew and Arabic, rising a little as it fades in. */
 function CaptionBar({ groups, lang }) {
   const frame = useCurrentFrame()
   return (
@@ -67,10 +90,7 @@ function CaptionBar({ groups, lang }) {
     >
       {groups.map((group) => {
         if (frame < group.startFrame - 1 || frame > group.endFrame + 1) return null
-        const opacity = interpolate(frame, [group.startFrame, group.startFrame + 7, group.endFrame - 6, group.endFrame], [0, 1, 1, 0], {
-          extrapolateLeft: 'clamp',
-          extrapolateRight: 'clamp',
-        })
+        const { opacity, offsetY } = captionAt(group, frame)
         return (
           <div
             key={group.id}
@@ -83,6 +103,7 @@ function CaptionBar({ groups, lang }) {
               padding: '0 40px',
               boxSizing: 'border-box',
               opacity,
+              transform: offsetY ? `translateY(${offsetY}px)` : undefined,
               direction: isRtl(lang) ? 'rtl' : 'ltr',
               textAlign: 'center',
               color: COLORS.barText,
@@ -105,9 +126,10 @@ function CaptionBar({ groups, lang }) {
  */
 export function ProviderVideo({ lang, scenes, timings }) {
   const plan = planBeats(scenes, timings)
-  const groups = captionGroups(plan)
+  const groups = risingCaptions(plan)
   const strings = DRAWN[lang] ?? DRAWN.en
   const credit = timings?.voice === 'elevenlabs' ? strings.voiceCredit : null
+  const spans = voicedSpans(plan)
   const left = (WIDTH - PHONE_WIDTH) / 2
   return (
     <AbsoluteFill style={{ background: `linear-gradient(165deg, ${COLORS.groundFrom} 0%, ${COLORS.groundTo} 100%)`, fontFamily: FONT_FAMILY }}>
@@ -137,9 +159,10 @@ export function ProviderVideo({ lang, scenes, timings }) {
         </div>
       </div>
       <CaptionBar groups={groups} lang={lang} />
+      <Html5Audio src={staticFile(MUSIC_FILE)} volume={(frame) => musicVolumeAt(spans, frame, plan.totalFrames)} />
       {tapFrames(plan).map((start) => (
         <Sequence key={`tap-${start}`} from={start} durationInFrames={6}>
-          <Html5Audio src={tapSound} volume={0.35} />
+          <Html5Audio src={tapSound} volume={TAP_VOLUME} />
         </Sequence>
       ))}
       {voiceTracks(plan).map((track) => (

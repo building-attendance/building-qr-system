@@ -7,25 +7,42 @@ import { fileURLToPath } from 'node:url'
 import { SCENES, SCRIPTS } from '../video/script/index.js'
 import { COLORS, TEXT_PAIRS } from '../video/src/theme.js'
 import { QR_TOKEN_PREFIX } from '../shared/contract.js'
+import { PAUSE_SECONDS } from '../scripts/video/timings.mjs'
+import { MUSIC_RATE, musicWav } from '../video/src/make-music.mjs'
 import {
+  CAPTION_FADE_IN_SECONDS,
+  CAPTION_RISE_PX,
   DEMO_QR,
+  FADE_SECONDS,
   FPS,
   LAYOUT,
   HEIGHT,
+  MAX_TRANSITION_SECONDS,
+  MUSIC,
+  MUSIC_FILE,
+  SCENE_PUSH_PX,
+  TAP_VOLUME,
+  VOICE_PAUSE_SECONDS,
   WIDTH,
   beatMotion,
+  captionAt,
   captionFontSize,
   captionGroups,
   centerOf,
   contrastRatio,
   dotsAt,
+  entranceAt,
   isRtl,
   isSafeAudioName,
+  musicVolumeAt,
   planBeats,
+  risingCaptions,
+  sceneEntrance,
   scaleBox,
   tapFrames,
   toVtt,
   voiceTracks,
+  voicedSpans,
   vttTime,
 } from '../video/src/timing.js'
 
@@ -46,8 +63,8 @@ function scenesFile(lang = 'he') {
         width: beat.id === 'sign' ? 900 : 390,
         height: beat.id === 'sign' ? 1200 : 844,
         scale: 2,
-        tap: ['list', 'password', 'submit', 'pending'].includes(beat.id) ? { x: 20, y: 300, w: 350, h: 60 } : null,
-        highlight: beat.id === 'sign' ? { x: 204, y: 234, w: 491, h: 491 } : null,
+        tap: ['list', 'password', 'submit', 'recorded', 'far', 'pending', 'language'].includes(beat.id) ? { x: 20, y: 300, w: 350, h: 60 } : null,
+        highlight: ['sign', 'submit', 'home', 'queued', 'sent'].includes(beat.id) ? { x: 204, y: 234, w: 491, h: 491 } : null,
         caption: beat.continues ? null : SCRIPTS[lang][beat.id].caption,
         say: beat.continues ? null : SCRIPTS[lang][beat.id].say,
         seconds: beat.seconds,
@@ -322,5 +339,185 @@ describe('the demo QR code of the camera scene', () => {
     const camera = read('video/src/Screens.jsx')
     expect(camera).toContain('staticFile(DEMO_QR.file)')
     expect(camera).not.toContain('blur(')
+  })
+})
+
+/** The timings.json of a narrator that voiced every line of the script except the ones in `silent` (6 seconds a line, the pause included). */
+function voicedTimings(silent = []) {
+  const beats = {}
+  for (const scene of SCENES) {
+    for (const beat of scene.beats) if (!beat.continues && !silent.includes(beat.id)) beats[beat.id] = { seconds: 6, audio: `${beat.id}.mp3` }
+  }
+  return { lang: 'he', voice: 'files', beats }
+}
+
+describe('the music bed', () => {
+  const plan = planBeats(scenesFile(), voicedTimings(['far']))
+  const spans = voicedSpans(plan)
+  const volume = (frame) => musicVolumeAt(spans, frame, plan.totalFrames)
+  const beat = (id) => plan.beats.find((entry) => entry.id === id)
+  const middle = (id) => beat(id).startFrame + Math.floor(beat(id).frames / 2)
+  const pauseFrames = Math.round(VOICE_PAUSE_SECONDS * FPS)
+
+  it('is lower while the narrator speaks than in a quiet stretch, and both levels are within their bounds', () => {
+    const voiced = volume(middle('list'))
+    const quiet = volume(middle('far')) // the one line that has no voice in this plan
+    expect(voiced).toBeCloseTo(MUSIC.duckedLevel, 6)
+    expect(quiet).toBeCloseTo(MUSIC.level, 6)
+    expect(voiced).toBeLessThan(quiet)
+    expect(MUSIC.duckedLevel).toBeGreaterThan(0)
+    expect(MUSIC.level).toBeLessThanOrEqual(0.3) // a bed, never a rival of the voice
+    expect(MUSIC.level / MUSIC.duckedLevel).toBeGreaterThanOrEqual(1.5)
+  })
+
+  it('dips a moment before a line starts and rises a moment after it ends, never jumping', () => {
+    const next = beat('queued')
+    expect(volume(next.startFrame - Math.round(MUSIC.leadSeconds * FPS))).toBeCloseTo(MUSIC.duckedLevel, 6)
+    expect(volume(next.startFrame - Math.round((MUSIC.leadSeconds + MUSIC.rampSeconds) * FPS) - 1)).toBeCloseTo(MUSIC.level, 6)
+    const before = spans.find((entry) => entry.startFrame === beat('home').startFrame)
+    expect(volume(before.endFrame + Math.round((MUSIC.tailSeconds + MUSIC.rampSeconds) * FPS) + 1)).toBeGreaterThan(MUSIC.duckedLevel)
+    for (let frame = 1; frame < plan.totalFrames; frame += 1) {
+      expect(Math.abs(volume(frame) - volume(frame - 1))).toBeLessThan(0.02)
+    }
+  })
+
+  it('fades in at the start and out at the end, and stays within 0 and the quiet level', () => {
+    expect(volume(0)).toBe(0)
+    expect(volume(plan.totalFrames)).toBe(0)
+    const rise = []
+    for (let frame = 0; frame <= MUSIC.fadeInSeconds * FPS; frame += 1) rise.push(musicVolumeAt([], frame, plan.totalFrames))
+    expect(rise).toEqual([...rise].sort((a, b) => a - b))
+    expect(rise[rise.length - 1]).toBeCloseTo(MUSIC.level, 6)
+    const fall = []
+    for (let frame = plan.totalFrames - Math.round(MUSIC.fadeOutSeconds * FPS); frame <= plan.totalFrames; frame += 1) fall.push(musicVolumeAt([], frame, plan.totalFrames))
+    expect(fall).toEqual([...fall].sort((a, b) => b - a))
+    for (let frame = 0; frame <= plan.totalFrames; frame += 1) {
+      expect(volume(frame)).toBeGreaterThanOrEqual(0)
+      expect(volume(frame)).toBeLessThanOrEqual(MUSIC.level)
+    }
+  })
+
+  it('treats the audio of a line, not its pause, as the voiced part, and a line over the screens that continue it as one stretch', () => {
+    const lead = beat('list')
+    expect(spans.find((entry) => entry.startFrame === lead.startFrame).endFrame).toBe(lead.endFrame - pauseFrames)
+    const language = spans.find((entry) => entry.startFrame === beat('language').startFrame)
+    expect(language.endFrame).toBe(beat('language-ar').endFrame - pauseFrames)
+    expect(spans.some((entry) => entry.startFrame === beat('language-en').startFrame)).toBe(false)
+    expect(spans.some((entry) => entry.startFrame === beat('far').startFrame)).toBe(false)
+    expect(VOICE_PAUSE_SECONDS).toBe(PAUSE_SECONDS) // the narrator step's pause, which the music must not duck for
+  })
+
+  it('does not change the length of the video: the music and the motion are not in the plan', () => {
+    expect(planBeats(scenesFile()).totalFrames).toBe(Math.round(SCENES.reduce((sum, scene) => sum + scene.seconds, 0) * FPS))
+    expect(plan.totalFrames).toBe(Math.round(plan.seconds * FPS))
+    expect(plan.seconds).toBeCloseTo(plan.beats.reduce((total, entry) => total + entry.seconds, 0), 6)
+  })
+
+  it('is made in code: a stereo WAV of the length asked for, the same bytes every time, quiet and not silent', () => {
+    const wav = musicWav(12)
+    expect(wav.toString('latin1', 0, 4)).toBe('RIFF')
+    expect(wav.toString('latin1', 8, 12)).toBe('WAVE')
+    expect(wav.readUInt16LE(22)).toBe(2)
+    expect(wav.readUInt32LE(24)).toBe(MUSIC_RATE)
+    expect(wav.length).toBe(44 + 12 * MUSIC_RATE * 4)
+    expect(Buffer.compare(wav, musicWav(12))).toBe(0)
+    let peak = 0
+    for (let i = 44; i < wav.length; i += 2) peak = Math.max(peak, Math.abs(wav.readInt16LE(i)))
+    expect(peak / 32767).toBeGreaterThan(0.05)
+    expect(peak / 32767).toBeLessThan(0.5)
+  })
+
+  it('is written by the render into the staged folder and played by the composition, and no audio but the tap is committed', () => {
+    expect(MUSIC_FILE).toMatch(/^[a-z-]+\.wav$/)
+    expect(read('video/src/render.mjs')).toContain('musicWav(')
+    expect(read('video/src/Video.jsx')).toContain('staticFile(MUSIC_FILE)')
+    expect(fs.readdirSync(fileURLToPath(new URL('../video/src/assets', import.meta.url)))).toEqual(['tap.wav'])
+  })
+})
+
+describe('the motion between scenes and of the captions', () => {
+  const plan = planBeats(scenesFile(), voicedTimings())
+
+  it('never takes a scene change longer than 0.4 seconds, and gives the first picture no fade', () => {
+    expect(FADE_SECONDS).toBeLessThanOrEqual(MAX_TRANSITION_SECONDS)
+    plan.beats.forEach((entry, i) => {
+      const entrance = sceneEntrance(plan, i)
+      expect(entrance.frames / FPS).toBeLessThanOrEqual(MAX_TRANSITION_SECONDS)
+      expect(entrance.frames).toBeLessThanOrEqual(entry.frames)
+    })
+    expect(sceneEntrance(plan, 0)).toEqual({ frames: 0, push: 0 })
+    expect(entranceAt(sceneEntrance(plan, 0), 0)).toEqual({ opacity: 1, offsetY: 0 })
+  })
+
+  it('pushes only where a new scene starts, and never while a tap mark or an outline is on the screen', () => {
+    const pushed = []
+    plan.beats.forEach((entry, i) => {
+      const entrance = sceneEntrance(plan, i)
+      if (!entrance.push) return
+      pushed.push(entry.id)
+      expect(entrance.push).toBe(SCENE_PUSH_PX)
+      expect(entry.sceneId).not.toBe(plan.beats[i - 1].sceneId)
+      for (const start of beatMotion(entry, entry.frames).taps) expect(start).toBeGreaterThanOrEqual(entrance.frames)
+      expect(entry.highlight).toBeFalsy()
+      expect(plan.beats[i - 1].highlight).toBeFalsy()
+    })
+    expect(pushed.length).toBeGreaterThanOrEqual(2)
+    expect(pushed).toContain('outro')
+    for (const id of ['sign', 'submit', 'home', 'language-en']) expect(pushed).not.toContain(id)
+  })
+
+  it('rises and fades in smoothly, and ends at rest', () => {
+    const entrance = { frames: 10, push: SCENE_PUSH_PX }
+    expect(entranceAt(entrance, 0)).toEqual({ opacity: 0, offsetY: SCENE_PUSH_PX })
+    expect(entranceAt(entrance, 10)).toEqual({ opacity: 1, offsetY: 0 })
+    expect(entranceAt(entrance, 40)).toEqual({ opacity: 1, offsetY: 0 })
+    let before = entranceAt(entrance, 0)
+    for (let frame = 1; frame <= 10; frame += 1) {
+      const now = entranceAt(entrance, frame)
+      expect(now.opacity).toBeGreaterThanOrEqual(before.opacity)
+      expect(now.offsetY).toBeLessThanOrEqual(before.offsetY)
+      before = now
+    }
+  })
+
+  it('raises a caption 8 pixels while it fades in over a quarter of a second, and not while an outline comes in', () => {
+    expect(CAPTION_RISE_PX).toBe(8)
+    expect(CAPTION_FADE_IN_SECONDS).toBe(0.25)
+    const groups = risingCaptions(plan)
+    const group = (id) => groups.find((entry) => entry.id === id)
+    expect(group('list').rise).toBe(true)
+    for (const id of ['sign', 'submit', 'home', 'queued']) expect(group(id).rise, id).toBe(false)
+    const rising = { startFrame: 100, endFrame: 400, rise: true }
+    expect(captionAt(rising, 100)).toEqual({ opacity: 0, offsetY: CAPTION_RISE_PX })
+    expect(captionAt(rising, 100 + CAPTION_FADE_IN_SECONDS * FPS)).toEqual({ opacity: 1, offsetY: 0 })
+    expect(captionAt(rising, 200)).toEqual({ opacity: 1, offsetY: 0 })
+    expect(captionAt(rising, 397).offsetY).toBe(0) // it fades out without moving
+    expect(captionAt(rising, 397).opacity).toBeLessThan(1)
+    expect(captionAt(rising, 400).opacity).toBe(0)
+    expect(captionAt({ ...rising, rise: false }, 100).offsetY).toBe(0)
+  })
+
+  it('plays the tap softer than before (it was 0.35)', () => {
+    expect(TAP_VOLUME).toBeLessThan(0.35)
+    expect(TAP_VOLUME).toBeGreaterThan(0)
+  })
+})
+
+describe('the assets of the video', () => {
+  const assets = read('video/ASSETS.md')
+
+  it('are all listed in video/ASSETS.md: every file under src/assets and every generated sound', () => {
+    for (const file of fs.readdirSync(fileURLToPath(new URL('../video/src/assets', import.meta.url)))) expect(assets, file).toContain(file)
+    const generators = fs.readdirSync(fileURLToPath(new URL('../video/src', import.meta.url))).filter((name) => /^make-.*\.mjs$/.test(name))
+    expect(generators).toEqual(expect.arrayContaining(['make-music.mjs', 'make-tap-sound.mjs']))
+    for (const file of generators) expect(assets, file).toContain(file)
+    expect(assets).toContain('@fontsource-variable/rubik')
+  })
+
+  it('say that nothing of a third party is committed, and give every row a licence', () => {
+    expect(assets).toContain('no file of a third party is committed')
+    const rows = assets.split('\n').filter((line) => line.startsWith('| ') && !line.startsWith('| Asset'))
+    expect(rows.length).toBeGreaterThanOrEqual(4)
+    for (const row of rows) expect(row.split('|').filter((cell) => cell.trim()).length, row).toBe(5)
   })
 })

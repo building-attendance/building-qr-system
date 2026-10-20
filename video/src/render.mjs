@@ -3,7 +3,7 @@
 // Reads video/out/<lang>/ (the frames and scenes.json of `npm run video:frames`, and timings.json and voice/ when the narrator has written
 // them) and writes, beside them, provider-<lang>.mp4 (720x1280, H.264 and AAC, at most 8 MB), provider-<lang>.jpg (the poster) and
 // provider-<lang>.vtt (the captions). Without a timings.json the video runs the estimated seconds of scenes.json and has no voice (only the
-// tap sounds): a silent render.
+// tap sounds and the music bed): a silent render.
 //
 // Node built-ins, Remotion's bundler and renderer, qrcode (the demo QR code) and timing.js (pure). Nothing of the app is imported, and
 // nothing is sent anywhere: the browser that Remotion renders with (Chrome Headless Shell) is downloaded by it, once, into
@@ -15,7 +15,8 @@ import { fileURLToPath } from 'node:url'
 import { bundle } from '@remotion/bundler'
 import { renderMedia, renderStill, selectComposition } from '@remotion/renderer'
 import QRCode from 'qrcode'
-import { DEMO_QR, FPS, isSafeAudioName, planBeats, toVtt } from './timing.js'
+import { musicWav } from './make-music.mjs'
+import { DEMO_QR, FPS, MUSIC_FILE, isSafeAudioName, planBeats, toVtt } from './timing.js'
 
 /** The most that the mp4 may weigh (it goes to a page and to a phone). */
 const MAX_BYTES = 8 * 1024 * 1024
@@ -83,6 +84,9 @@ writeFileSync(
   await QRCode.toString(DEMO_QR.text, { type: 'svg', errorCorrectionLevel: 'M', margin: 1, color: { dark: '#000000', light: '#ffffff' } }),
 )
 
+// The music bed, made here from code (make-music.mjs, decisions D14 and D15), a second longer than the video. It is never committed.
+writeFileSync(path.join(publicDir, MUSIC_FILE), musicWav(plan.seconds + 1))
+
 const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir })
 const composition = await selectComposition({ serveUrl, id: 'Provider', inputProps })
 
@@ -95,7 +99,7 @@ await renderMedia({
   codec: 'h264',
   audioCodec: 'aac',
   audioBitrate: '96k',
-  enforceAudioTrack: true, // a silent render still has an audio track (the tap sounds), so that every player and every mix treats it the same
+  enforceAudioTrack: true, // a silent render still has an audio track (the tap sounds and the music), so that every player and every mix treats it the same
   pixelFormat: 'yuv420p',
   crf: 28,
   x264Preset: 'slow',
