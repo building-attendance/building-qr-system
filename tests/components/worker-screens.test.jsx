@@ -7,7 +7,7 @@ import { I18nProvider } from '../../src/i18n/index.jsx'
 import { LoginView, ResultView, HomeView, WorkingView } from '../../src/worker/components.jsx'
 import he from '../../src/i18n/he.js'
 import { DICTS, LANGS, LANG_STORAGE_KEY } from '../../src/i18n/core.js'
-import { TUTORIAL_BASE, TUTORIAL_LANGS, tutorialUrl } from '../../src/worker/tutorial.js'
+import { tutorialUrl } from '../../src/worker/tutorial.js'
 import { api } from '../../src/api/client.js'
 import { SAMPLE_PROVIDER_NAMES } from '../../scripts/sample-data.mjs'
 
@@ -245,15 +245,21 @@ describe('HomeView', () => {
   })
 
   it('links to the tutorial video in the language of the person, in a new tab, and falls back to Hebrew where a language has no video yet', () => {
+    // The addresses are written out, so that publishing another language is a deliberate edit here too (src/worker/tutorial.js).
+    const HEBREW_PAGE = 'https://building-attendance.github.io/building-qr-system/video/he/'
+    const pages = { he: HEBREW_PAGE, en: HEBREW_PAGE, ru: HEBREW_PAGE, ar: HEBREW_PAGE }
+    expect(Object.keys(pages)).toEqual(LANGS.map((l) => l.code))
     for (const lang of LANGS.map((l) => l.code)) {
       window.localStorage.setItem(LANG_STORAGE_KEY, lang)
       const { unmount } = show()
-      const link = screen.getByRole('link', { name: DICTS[lang]['home.tutorial'] })
-      const published = TUTORIAL_LANGS.includes(lang) ? lang : 'he'
-      expect(link.getAttribute('href'), lang).toBe(`${TUTORIAL_BASE}${published}/`)
-      expect(link.getAttribute('target')).toBe('_blank')
-      expect(link.getAttribute('rel')).toContain('noopener')
-      unmount()
+      try {
+        const link = screen.getByRole('link', { name: DICTS[lang]['home.tutorial'] })
+        expect(link.getAttribute('href'), lang).toBe(pages[lang])
+        expect(link.getAttribute('target')).toBe('_blank')
+        expect(link.getAttribute('rel')).toContain('noopener')
+      } finally {
+        unmount()
+      }
     }
   })
 
