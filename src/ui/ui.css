@@ -220,6 +220,9 @@
   min-height: 48px; padding-inline: var(--w-space-2); text-decoration: underline; text-underline-offset: 3px; align-self: center;
 }
 
+/* The same quiet link as an anchor (the tutorial video): a button centres its text in the 48px by itself, an anchor needs this. */
+a.w-link { display: inline-flex; align-items: center; text-align: center; }
+
 .w-admin-link {
   display: inline-flex; align-items: center; gap: var(--w-space-2); align-self: center; min-height: 48px; padding-inline: var(--w-space-3-5);
   color: var(--w-text-3); font-size: var(--w-font-md); text-decoration: none; border-radius: var(--w-radius-sm); margin-block-start: auto;

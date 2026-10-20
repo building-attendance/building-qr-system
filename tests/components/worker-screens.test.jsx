@@ -6,7 +6,8 @@ import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/re
 import { I18nProvider } from '../../src/i18n/index.jsx'
 import { LoginView, ResultView, HomeView, WorkingView } from '../../src/worker/components.jsx'
 import he from '../../src/i18n/he.js'
-import { DICTS, LANGS } from '../../src/i18n/core.js'
+import { DICTS, LANGS, LANG_STORAGE_KEY } from '../../src/i18n/core.js'
+import { tutorialUrl } from '../../src/worker/tutorial.js'
 import { api } from '../../src/api/client.js'
 import { SAMPLE_PROVIDER_NAMES } from '../../scripts/sample-data.mjs'
 
@@ -241,6 +242,31 @@ describe('HomeView', () => {
     expect(screen.getByRole('heading', { name: /שלום/ }).textContent).toContain(ploni.contact_name)
     expect(screen.getByText(ploni.company)).toBeTruthy()
     expect([...document.querySelectorAll('.w-hero .w-step')].map((el) => el.textContent)).toEqual(stepsOf(he))
+  })
+
+  it('links to the tutorial video in the language of the person, in a new tab, and falls back to Hebrew where a language has no video yet', () => {
+    // The addresses are written out, so that publishing another language is a deliberate edit here too (src/worker/tutorial.js).
+    const HEBREW_PAGE = 'https://building-attendance.github.io/building-qr-system/video/he/'
+    const pages = { he: HEBREW_PAGE, en: HEBREW_PAGE, ru: HEBREW_PAGE, ar: HEBREW_PAGE }
+    expect(Object.keys(pages)).toEqual(LANGS.map((l) => l.code))
+    for (const lang of LANGS.map((l) => l.code)) {
+      window.localStorage.setItem(LANG_STORAGE_KEY, lang)
+      const { unmount } = show()
+      try {
+        const link = screen.getByRole('link', { name: DICTS[lang]['home.tutorial'] })
+        expect(link.getAttribute('href'), lang).toBe(pages[lang])
+        expect(link.getAttribute('target')).toBe('_blank')
+        expect(link.getAttribute('rel')).toContain('noopener')
+      } finally {
+        unmount()
+      }
+    }
+  })
+
+  it('never builds a link to a language that is not published', () => {
+    expect(tutorialUrl('he')).toBe('https://building-attendance.github.io/building-qr-system/video/he/')
+    expect(tutorialUrl('xx')).toBe(tutorialUrl('he'))
+    expect(tutorialUrl(undefined)).toBe(tutorialUrl('he'))
   })
 
   it("gives each of today's visits a chip: recorded, or waiting to be sent", () => {
