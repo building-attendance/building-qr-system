@@ -4,7 +4,7 @@
 #     cannot change a frame or a line) records the frames of the provider app again (scripts/video/record.spec.mjs: no voice, no
 #     render) and compares each beat with the published video's manifest (scripts/video/gap.mjs: the caption, the spoken line, and
 #     the masked frame by the threshold of e2e/visual.spec.js). The comparison decides, not a list of watched files (the owner,
-#     19/10/2026). When a scene is behind, it opens one issue labelled `video-gap`, or quietly rewrites the description of the open
+#     19/10/2026). When a scene is behind, or the video's own sources (video/ and scripts/video/, and the voice settings: decision D18) changed since the last publish, it opens one issue labelled `video-gap`, or quietly rewrites the description of the open
 #     one (an edit sends no notification, so the owner hears once, when a gap first opens); when no scene is behind any more, it
 #     closes the open issue. Nothing is fixed, published or opened as a pull request by itself. The owner's words (D5): "not
 #     automatically, but you must tell me when a gap appears and turn it into a task".
@@ -84,6 +84,7 @@ jobs:
       scenes: ${{ steps.gap.outputs.scenes }}
       languages: ${{ steps.gap.outputs.languages }}
       since: ${{ steps.gap.outputs.since }}
+      sources: ${{ steps.gap.outputs.sources }}
     services:
       postgres:
         image: postgres:18@sha256:5a5a84b19854a9ffaa54082c166ff4ec27473a361e496e5ea167f298f2da9722 # the same digest as in ci.yml
@@ -160,6 +161,7 @@ jobs:
           SCENES: ${{ needs.gap.outputs.scenes }}
           LANGUAGES: ${{ needs.gap.outputs.languages }}
           SINCE: ${{ needs.gap.outputs.since }}
+          SOURCES: ${{ needs.gap.outputs.sources }}
           MERGE_SHA: ${{ github.sha }}
           DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           REPO_URL: ${{ github.server_url }}/${{ github.repository }}
@@ -171,6 +173,10 @@ jobs:
           gh() { if live; then command gh "$@"; else echo "::error::gh refused: not GitHub Actions on the default branch, and VIDEO_GH_LIVE is not 1." >&2; return 97; fi; }
           live || { echo "::error::This step writes to GitHub: it runs only in GitHub Actions on the default branch, or with VIDEO_GH_LIVE=1." >&2; exit 97; }
           id='[a-z0-9]+(-[a-z0-9]+)*'
+          case "${SOURCES:-}" in
+            changed | same | '') ;;
+            *) echo "::error::The gap check gave a value for the sources that is not changed or same." ; exit 1 ;;
+          esac
           if [ -n "$SCENES" ]; then
             if [ "${#SCENES}" -gt 500 ] || ! printf '%s' "$SCENES" | grep -Eqx "$id(,$id)*"; then
               echo "::error::The gap check gave scene ids that are not of the expected shape."
@@ -183,11 +189,11 @@ jobs:
           fi
           # The open video-gap issue that this workflow opened, if any, by the one rule of the workflow (VIDEO_GAP_OURS).
           open=$(gh issue list --label video-gap --state open --limit 20 --json number,author --jq "[$VIDEO_GAP_OURS] | .[0] // empty")
-          if [ -z "$SCENES" ]; then
+          if [ -z "$SCENES" ] && [ "${SOURCES:-}" != changed ]; then
             if [ -n "$open" ]; then
-              gh issue close "$open" --reason completed --comment "No scene of the video is behind the app any more (merge $MERGE_SHA): $RUN_URL"
+              gh issue close "$open" --reason completed --comment "Nothing of the video is behind any more: no scene, and not its own sources (merge $MERGE_SHA): $RUN_URL"
             else
-              echo "No scene of the video is behind the app, and this workflow has no video-gap issue open."
+              echo "No scene is behind and the video's own sources are the same, and this workflow has no video-gap issue open."
             fi
             exit 0
           fi
@@ -196,14 +202,15 @@ jobs:
           else
             since="- The published video does not name its commit."
           fi
-          printf '%s\n\n%s\n%s\n%s\n%s\n\n%s\n' \
-            "A merge changed what the provider tutorial video shows or says, so the published video is behind the app. Every later merge rewrites this description quietly: the list below is what is behind now." \
-            "- The latest merge: $MERGE_SHA" \
-            "- Scenes behind: ${SCENES//,/, } (language: ${LANGUAGES//,/, })" \
-            "$since" \
-            "- The latest check, with the published and the new frames (artifact video-gap-frames): $RUN_URL" \
-            "To bring the video up to date, once the owner says so: when only the screens changed, one publish (Actions, \"Tutorial video\", Run workflow, from the default branch); when the narration must change too, one pull request with all of it first. Nothing is published or opened by itself. The publish closes this issue." \
-            > "$RUNNER_TEMP/issue.md"
+          {
+            printf '%s\n\n' "A merge changed what the provider tutorial video shows, says or is made of, so the published video is behind. Every later merge rewrites this description quietly: the list below is what is behind now."
+            printf '%s\n' "- The latest merge: $MERGE_SHA"
+            if [ -n "$SCENES" ]; then printf '%s\n' "- Scenes behind: ${SCENES//,/, } (language: ${LANGUAGES//,/, })"; fi
+            if [ "${SOURCES:-}" = changed ]; then printf '%s\n' "- The video's own sources changed since the last publish (its editing, script, player page, tools or voice settings), so a publish would make another video even where no screen changed."; fi
+            printf '%s\n' "$since"
+            printf '%s\n\n' "- The latest check, with the published and the new frames (artifact video-gap-frames): $RUN_URL"
+            printf '%s\n' "To bring the video up to date, once the owner says so: when only the screens or the video's sources changed, one publish (Actions, \"Tutorial video\", Run workflow, from the default branch); when the narration must change too, one pull request with all of it first. Nothing is published or opened by itself. The publish closes this issue."
+          } > "$RUNNER_TEMP/issue.md"
           if [ -z "$open" ]; then
             gh issue create --title "The tutorial video is behind the app" --label video-gap --body-file "$RUNNER_TEMP/issue.md"
           else

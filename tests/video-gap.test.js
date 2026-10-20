@@ -13,7 +13,7 @@ import { buildScenes, spokenLine } from '../scripts/video/script.mjs'
 import { PUBLISHED_VOICE_CACHE, cacheKey, scriptLines } from '../scripts/video/voice.mjs'
 import { ELEVENLABS_DEFAULTS } from '../scripts/video/voice-providers/elevenlabs.mjs'
 import {
-  PIXEL_THRESHOLD, PUBLISHED_SITE, changedScenes, checkLanguage, compareFrames, main, manifestOf, manifestUrl, siteUrl, summaryOf,
+  PIXEL_THRESHOLD, PUBLISHED_SITE, VIDEO_SOURCES, changedScenes, checkLanguage, compareFrames, main, manifestOf, manifestUrl, siteUrl, sourcesFingerprint, summaryOf,
 } from '../scripts/video/gap.mjs'
 import { buildSite, playerPage, siteOnlyVoice, watchedSite, withoutKey } from '../scripts/video/render-all.mjs'
 
@@ -198,16 +198,38 @@ describe('the gap command', () => {
     fs.writeFileSync(path.join(recorded, 'scenes.json'), JSON.stringify(scenes))
     for (const beat of scenes.scenes.flatMap((scene) => scene.beats)) fs.writeFileSync(path.join(recorded, beat.masked), png())
     fs.writeFileSync(path.join(recorded, 'list.masked.png'), png(8, 8, [10, 10, 10]))
-    const site = fakeSite(publishedSite(manifestOf('he', scenes, { commit: COMMIT })))
+    const site = fakeSite(publishedSite(manifestOf('he', scenes, { commit: COMMIT, sources: 'f'.repeat(64) })))
     const env = { GITHUB_OUTPUT: path.join(dir, 'output.txt'), GITHUB_STEP_SUMMARY: path.join(dir, 'summary.md') }
     const printed = []
-    const code = await main(['he', '--site', SITE, '--out', path.join(dir, 'out')], env, { fetch: site.fetch, outDir: () => recorded, log: () => {}, print: (text) => printed.push(text) })
+    const code = await main(['he', '--site', SITE, '--out', path.join(dir, 'out')], env, { fetch: site.fetch, outDir: () => recorded, log: () => {}, print: (text) => printed.push(text), fingerprint: () => 'f'.repeat(64) })
     expect(code).toBe(0)
     const gap = JSON.parse(printed[0])
-    expect(gap).toMatchObject({ published: true, since: COMMIT, languages: ['he'], scenes: ['list'] })
-    expect(fs.readFileSync(env.GITHUB_OUTPUT, 'utf8')).toBe(`scenes=list\nlanguages=he\nsince=${COMMIT}\n`)
+    expect(gap).toMatchObject({ published: true, since: COMMIT, languages: ['he'], scenes: ['list'], sources: 'same' })
+    expect(fs.readFileSync(env.GITHUB_OUTPUT, 'utf8')).toBe(`scenes=list\nlanguages=he\nsince=${COMMIT}\nsources=same\n`)
     expect(fs.readFileSync(env.GITHUB_STEP_SUMMARY, 'utf8')).toContain('| he | list | list | frame')
     expect(fs.readdirSync(path.join(dir, 'out')).sort()).toEqual(['gap.json', 'he-list.new.png', 'he-list.published.png'])
+  })
+
+  it("reports the video's own sources as behind when their fingerprint differs, though no screen changed, and not when it is the same", async () => {
+    const recorded = path.join(dir, 'he')
+    fs.mkdirSync(recorded)
+    const scenes = fakeScenes()
+    fs.writeFileSync(path.join(recorded, 'scenes.json'), JSON.stringify(scenes))
+    for (const beat of scenes.scenes.flatMap((scene) => scene.beats)) fs.writeFileSync(path.join(recorded, beat.masked), png())
+    const site = fakeSite(publishedSite(manifestOf('he', scenes, { commit: COMMIT, sources: 'f'.repeat(64) })))
+    const run = async (fingerprint) => {
+      const env = { GITHUB_OUTPUT: path.join(dir, `output-${fingerprint.slice(0, 1)}.txt`), GITHUB_STEP_SUMMARY: path.join(dir, `summary-${fingerprint.slice(0, 1)}.md`) }
+      const printed = []
+      expect(await main(['he', '--site', SITE], env, { fetch: site.fetch, outDir: () => recorded, log: () => {}, print: (text) => printed.push(text), fingerprint: () => fingerprint })).toBe(0)
+      return { gap: JSON.parse(printed[0]), output: fs.readFileSync(env.GITHUB_OUTPUT, 'utf8'), summary: fs.readFileSync(env.GITHUB_STEP_SUMMARY, 'utf8') }
+    }
+    const changed = await run('e'.repeat(64))
+    expect(changed.gap).toMatchObject({ scenes: [], sources: 'changed' })
+    expect(changed.output).toContain('sources=changed')
+    expect(changed.summary).toContain("The video's own sources changed since the last publish.")
+    const same = await run('f'.repeat(64))
+    expect(same.gap).toMatchObject({ scenes: [], sources: 'same' })
+    expect(same.output).toContain('sources=same')
   })
 
   it('exits 1 with the reason when nothing was recorded', async () => {
@@ -259,7 +281,7 @@ describe('the published site', () => {
     fs.writeFileSync(path.join(cache, `${'a'.repeat(64)}.mp3`), 'mp3')
     fs.writeFileSync(path.join(cache, `${'a'.repeat(64)}.mp3.123.tmp`), 'half written')
     const siteDir = path.join(dir, 'site')
-    const built = buildSite({ langs: ['he'], site: SITE, commit: COMMIT, outRoot: path.join(dir, 'out'), siteDir, outDir: () => recorded })
+    const built = buildSite({ langs: ['he'], site: SITE, commit: COMMIT, sources: 'f'.repeat(64), outRoot: path.join(dir, 'out'), siteDir, outDir: () => recorded })
     expect(built.lines).toBe(1)
     const files = fs.readdirSync(siteDir, { recursive: true }).map((file) => String(file).replaceAll('\\', '/')).filter((file) => file.includes('.'))
     expect(files).toEqual(expect.arrayContaining([
@@ -268,7 +290,8 @@ describe('the published site', () => {
     ]))
     expect(files.some((file) => file.endsWith('.tmp'))).toBe(false)
     const manifest = JSON.parse(fs.readFileSync(path.join(siteDir, 'video', 'he', 'manifest.json'), 'utf8'))
-    expect(manifest).toEqual(manifestOf('he', scenes, { commit: COMMIT }))
+    expect(manifest).toEqual(manifestOf('he', scenes, { commit: COMMIT, sources: 'f'.repeat(64) }))
+    expect(manifest.sources).toBe('f'.repeat(64))
     // Every frame that the manifest names is in the site, where the gap check will look for it.
     for (const beat of manifest.beats) expect(fs.existsSync(path.join(siteDir, 'video', 'he', beat.frame)), beat.frame).toBe(true)
     expect(decodePng(fs.readFileSync(path.join(siteDir, 'video', 'he', 'frames', 'home.masked.png'))).width).toBe(8)
@@ -378,8 +401,10 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     Object.assign(env, { PATH: `${bin}${path.delimiter}${process.env.PATH ?? process.env.Path ?? ''}`, FAKE_GH_LOG: log, RUNNER_TEMP: dir, GH_REPO: 'example/video-test', VIDEO_GAP_OURS: rule, ...settings })
     const result = spawnSync('bash', ['-e', script], { env, encoding: 'utf8' })
     const calls = fs.existsSync(log) ? fs.readFileSync(log, 'utf8').split(NL).filter(Boolean) : []
+    const issue = path.join(dir, 'issue.md')
+    const body = fs.existsSync(issue) ? fs.readFileSync(issue, 'utf8') : null
     fs.rmSync(dir, { recursive: true, force: true })
-    return { status: result.status, calls, error: result.error }
+    return { status: result.status, calls, error: result.error, body }
   }
 
   const ISSUE_STEP = 'Open, update or close the video-gap issue'
@@ -469,6 +494,25 @@ describe('the steps of video.yml that write to GitHub never reach gh outside Git
     expect(quiet.calls).toEqual([expect.stringMatching(/^issue list --label video-gap/)])
   })
 
+  it("sources: a change of the video's own sources with no screen changed opens or updates the issue, saying so; the same sources add nothing", () => {
+    const sourcesOnly = { ...issueSettings, ...inActions, SCENES: '', LANGUAGES: '', SOURCES: 'changed' }
+    const updates = runStep(ISSUE_STEP, { ...sourcesOnly, FAKE_GH_ISSUES: both })
+    expect(updates.status).toBe(0)
+    expect(updates.calls).toContainEqual(expect.stringMatching(/^issue edit 7 --body-file /))
+    expect(updates.body).toContain("The video's own sources changed since the last publish")
+    expect(updates.body).not.toContain('Scenes behind')
+    expect(writesTo(updates.calls, 8)).toEqual([])
+    const opens = runStep(ISSUE_STEP, { ...sourcesOnly, FAKE_GH_ISSUES: '' })
+    expect(opens.status).toBe(0)
+    expect(opens.calls.at(-1)).toMatch(/^issue create --title /)
+    const same = runStep(ISSUE_STEP, { ...sourcesOnly, SOURCES: 'same', FAKE_GH_ISSUES: both })
+    expect(same.status).toBe(0)
+    expect(same.calls).toContainEqual(expect.stringMatching(/^issue close 7 --reason completed/))
+    const odd = runStep(ISSUE_STEP, { ...sourcesOnly, SOURCES: 'maybe', FAKE_GH_ISSUES: both })
+    expect(odd.status).toBe(1)
+    expect(odd.calls).toEqual([])
+  })
+
   it('close after a publish: closes its own issue only when the default branch is still the published commit, never a person\'s', () => {
     const issues = '8:a-person 7:app/github-actions'
     const still = runStep(CLOSE_STEP, { ...closeSettings, ...inActions, FAKE_GH_ISSUES: issues, FAKE_GH_HEAD: closeSettings.PUBLISHED_SHA })
@@ -512,5 +556,72 @@ describe('the conditions of video.yml', () => {
     for (let i = start + 1; trigger[i]?.startsWith('- "'); i++) ignored.push(trigger[i].slice(3, -1))
     expect(ignored).toEqual(['**/*.md', 'docs/**'])
     expect(lines.some((line) => line.trim().startsWith("watched='"))).toBe(false)
+  })
+})
+
+// ---- the fingerprint of the video's own sources (decision D18) ---------------------------------------------------------------
+
+describe("the fingerprint of the video's own sources", () => {
+  const NL = String.fromCharCode(10)
+  let repo
+  const git = (...args) => {
+    const result = spawnSync('git', ['-c', 'user.name=test', '-c', 'user.email=test@example.test', '-c', 'core.autocrlf=false', ...args], { cwd: repo, encoding: 'utf8' })
+    if (result.status !== 0) throw new Error(`git ${args.join(' ')}: ${result.stderr}`)
+    return result
+  }
+  const write = (file, text) => {
+    fs.mkdirSync(path.dirname(path.join(repo, file)), { recursive: true })
+    fs.writeFileSync(path.join(repo, file), text)
+  }
+  const commitAll = () => {
+    git('add', '-A')
+    git('commit', '-q', '-m', 'step')
+  }
+  const fingerprint = (env = {}) => sourcesFingerprint({ cwd: repo, env })
+
+  beforeEach(() => {
+    repo = fs.mkdtempSync(path.join(os.tmpdir(), 'video-fp-'))
+    git('init', '-q')
+    write('.gitignore', `video/out/${NL}`)
+    write('video/src/Video.jsx', 'export default 1')
+    write('video/script/he.js', 'export default {}')
+    write('scripts/video/record.spec.mjs', '// the recorder')
+    write('src/app.js', 'the app')
+    commitAll()
+  })
+  afterEach(() => {
+    fs.rmSync(repo, { recursive: true, force: true })
+  })
+
+  it('is one hash of every tracked file under video/ and scripts/video/, and the voice settings', () => {
+    expect(VIDEO_SOURCES).toEqual(['video', 'scripts/video'])
+    expect(fingerprint()).toMatch(/^[0-9a-f]{64}$/)
+    expect(fingerprint()).toBe(fingerprint())
+  })
+
+  it('changes when a tracked file of the video changes, with no screen changed', () => {
+    const before = fingerprint()
+    write('video/src/Video.jsx', 'export default 2')
+    commitAll()
+    expect(fingerprint()).not.toBe(before)
+    const again = fingerprint()
+    write('scripts/video/record.spec.mjs', '// the recorder, changed')
+    commitAll()
+    expect(fingerprint()).not.toBe(again)
+  })
+
+  it('changes with the voice settings (the model or the voice)', () => {
+    const before = fingerprint()
+    expect(fingerprint({ ELEVENLABS_MODEL: 'eleven_v3' })).not.toBe(before)
+    expect(fingerprint({ ELEVENLABS_VOICE_ID: 'another_voice' })).not.toBe(before)
+  })
+
+  it('ignores untracked and ignored files (video/out), and files outside the two folders', () => {
+    const before = fingerprint()
+    write('video/out/he/provider-he.mp4', 'a render')
+    write('src/app.js', 'the app, changed')
+    commitAll()
+    write('video/untracked.txt', 'never added') // written after the commit, so git does not track it
+    expect(fingerprint()).toBe(before)
   })
 })

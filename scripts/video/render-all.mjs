@@ -30,7 +30,7 @@ import { LANGS } from '../../src/i18n/core.js'
 import { DRAWN } from '../../video/script/drawn.js'
 import { LANGUAGES } from '../../video/script/index.js'
 import { HEIGHT, WIDTH } from '../../video/src/timing.js'
-import { manifestOf, siteUrl } from './gap.mjs'
+import { manifestOf, siteUrl, sourcesFingerprint } from './gap.mjs'
 import { ROOT, VIDEO_OUT_DIR, languageOutDir } from './settings.mjs'
 import { buildTimings, mp3Seconds, spokenSeconds } from './timings.mjs'
 import { CACHE_DIR_NAME, VOICE_DIR_NAME, cacheKey, localCache, scriptLines, siteCache } from './voice.mjs'
@@ -206,9 +206,9 @@ function currentCommit(env) {
 /**
  * The site folder: every language's video, player page, poster, captions, manifest and masked frames, the style of the page, and the
  * voice cache. Throws when a file that a page needs is missing.
- * @param {{ langs: readonly string[], site: string, commit: string | null, outRoot?: string, siteDir?: string, outDir?: (lang: string) => string }} options
+ * @param {{ langs: readonly string[], site: string, commit: string | null, sources?: string | null, outRoot?: string, siteDir?: string, outDir?: (lang: string) => string }} options
  */
-export function buildSite({ langs, site, commit, outRoot = OUT_ROOT, siteDir = SITE_DIR, outDir = languageOutDir }) {
+export function buildSite({ langs, site, commit, sources = null, outRoot = OUT_ROOT, siteDir = SITE_DIR, outDir = languageOutDir }) {
   fs.rmSync(siteDir, { recursive: true, force: true })
   const videoDir = path.join(siteDir, 'video')
   fs.mkdirSync(videoDir, { recursive: true })
@@ -227,7 +227,7 @@ export function buildSite({ langs, site, commit, outRoot = OUT_ROOT, siteDir = S
     fs.copyFileSync(need(`provider-${lang}.mp4`), path.join(videoDir, `${lang}.mp4`))
     fs.copyFileSync(need(`provider-${lang}.jpg`), path.join(pageDir, 'poster.jpg'))
     fs.copyFileSync(need(`provider-${lang}.vtt`), path.join(pageDir, 'captions.vtt'))
-    const manifest = manifestOf(lang, scenes, { commit })
+    const manifest = manifestOf(lang, scenes, { commit, sources })
     for (const beat of scenes.scenes.flatMap((scene) => scene.beats)) {
       if (!ID.test(beat.id)) throw new Error(`scenes.json has a beat id that cannot name a file ("${beat.id}").`)
       fs.copyFileSync(need(path.basename(beat.masked)), path.join(pageDir, 'frames', `${beat.id}.masked.png`))
@@ -293,7 +293,8 @@ export async function main(argv, env, log = console.log, warn = console.error) {
     }
 
     if (steps.includes('site')) {
-      const built = buildSite({ langs: LANGUAGES, site, commit: currentCommit(env) })
+      // The fingerprint of the video's own sources goes into each manifest, for the gap check (D18).
+      const built = buildSite({ langs: LANGUAGES, site, commit: currentCommit(env), sources: sourcesFingerprint({ env }) })
       log(`site: ${path.relative(ROOT, built.siteDir)} (${LANGUAGES.join(', ')}, ${built.lines} line(s) of voice), for ${site}`)
       for (const lang of LANGUAGES) {
         const bytes = fs.statSync(path.join(built.siteDir, 'video', `${lang}.mp4`)).size

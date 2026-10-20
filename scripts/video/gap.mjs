@@ -17,6 +17,8 @@
 //   video, or empty), and a table goes to the step summary.
 // Node built-ins and the project's own modules only. Nothing here sends a credential anywhere.
 
+import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import fs from 'node:fs'
 import path from 'node:path'
 import { parseArgs } from 'node:util'
@@ -24,9 +26,10 @@ import { decodePng } from '../png.mjs'
 import { isMain } from '../ci-git.mjs'
 import { LANGUAGES, SCRIPTS } from '../../video/script/index.js'
 import { spokenLine } from './script.mjs'
-import { languageOutDir } from './settings.mjs'
+import { ROOT, languageOutDir } from './settings.mjs'
 import { PUBLISHED_VOICE_CACHE } from './voice.mjs'
 import { readCapped } from './voice-providers/http.mjs'
+import { elevenlabsSettings } from './voice-providers/elevenlabs.mjs'
 
 /** The published site of the video: the root of the repository's GitHub Pages, two folders above the voice cache. */
 export const PUBLISHED_SITE = new URL('../../', PUBLISHED_VOICE_CACHE).href
@@ -49,6 +52,27 @@ const MAX_FRAME_BYTES = 10 * 1024 * 1024
 const TIMEOUT_MS = 15_000
 
 /** The address of a language's manifest on the site. */
+/** The folders whose tracked files make the published video besides the app (decision D18): its editing, script, site and tools. */
+export const VIDEO_SOURCES = Object.freeze(['video', 'scripts/video'])
+const FINGERPRINT = /^[0-9a-f]{64}$/
+
+/**
+ * One hash of the video's own sources (decision D18, the owner, 19/10/2026): the blob id of every file that git tracks under
+ * VIDEO_SOURCES, read from the index (so an untracked or ignored file, such as video/out, never counts, and the line endings of a
+ * checkout do not matter), and the voice settings that a publish reads (the model and the voice). A publish writes it into the
+ * manifest, and the gap check compares it, so that a change of the video's own sources is behind even where no screen changed.
+ * @param {{ cwd?: string, env?: Record<string, string | undefined>, git?: (args: string[]) => { status: number | null, stdout: string } }} [options]
+ */
+export function sourcesFingerprint({ cwd = ROOT, env = process.env, git = (args) => spawnSync('git', args, { cwd, encoding: 'utf8' }) } = {}) {
+  const listed = git(['ls-files', '--stage', '-z', '--', ...VIDEO_SOURCES])
+  if (listed.status !== 0) throw new Error('git ls-files failed, so the sources of the video cannot be fingerprinted.')
+  const entries = String(listed.stdout).split('\0').filter(Boolean).sort()
+  if (!entries.length) throw new Error(`git tracks no file under ${VIDEO_SOURCES.join(' or ')}.`)
+  const hash = createHash('sha256')
+  for (const entry of entries) hash.update(`${entry}\n`)
+  hash.update(JSON.stringify(elevenlabsSettings(env)))
+  return hash.digest('hex')
+}
 export const manifestUrl = (site, lang) => new URL(`video/${lang}/manifest.json`, site.endsWith('/') ? site : `${site}/`).href
 
 /** The site from --site, VIDEO_SITE_URL or the published one: https, or http on this machine (for a local test server). */
@@ -66,13 +90,14 @@ export function siteUrl(value) {
  * @param {{ scenes: { id: string, beats: { id: string, masked: string, caption: string | null }[] }[] }} scenes  scenes.json
  * @param {{ commit?: string | null }} [about]
  */
-export function manifestOf(lang, scenes, { commit = null } = {}) {
+export function manifestOf(lang, scenes, { commit = null, sources = null } = {}) {
   const lines = SCRIPTS[lang]
   if (!lines) throw new Error(`The video script has no language "${lang}" (video/script/index.js has ${LANGUAGES.join(', ')}).`)
   return {
     version: MANIFEST_VERSION,
     lang,
     commit,
+    sources,
     beats: scenes.scenes.flatMap((scene) =>
       scene.beats.map((beat) => {
         if (!ID.test(scene.id) || !ID.test(beat.id)) throw new Error(`scenes.json has an id that cannot name a file ("${scene.id}", "${beat.id}").`)
@@ -92,6 +117,7 @@ export function manifestOf(lang, scenes, { commit = null } = {}) {
 function checkManifest(manifest, lang) {
   if (manifest?.version !== MANIFEST_VERSION) throw new Error(`The published manifest of "${lang}" is not of version ${MANIFEST_VERSION}: publish the video again to compare with it.`)
   if (manifest.lang !== lang || !Array.isArray(manifest.beats)) throw new Error(`The published manifest of "${lang}" is not a manifest of that language.`)
+  if (manifest.sources != null && !FINGERPRINT.test(manifest.sources)) throw new Error(`The published manifest of "${lang}" has a fingerprint of its sources that is not one.`)
   for (const beat of manifest.beats) {
     const text = (value) => value === null || typeof value === 'string'
     const id = (value) => typeof value === 'string' && ID.test(value) // (a regex reads undefined as the word "undefined")
@@ -255,7 +281,7 @@ export async function checkLanguage({ lang, current, readFrame, site, fetch = gl
   const raw = await fetchFile(url, MAX_MANIFEST_BYTES, fetch)
   if (raw === null) {
     log(`gap: ${lang}: the video was never published (no ${url}), so there is nothing to be behind`)
-    return { lang, published: false, commit: null, beats: [], frames: [] }
+    return { lang, published: false, commit: null, sources: null, beats: [], frames: [] }
   }
   let published
   try {
@@ -295,20 +321,21 @@ export async function checkLanguage({ lang, current, readFrame, site, fetch = gl
     if (changes.length) beats.push({ scene: beat.scene, beat: beat.id, changes, ...(pixels ? { pixels } : {}) })
   }
   for (const old of before.values()) beats.push({ scene: old.scene, beat: old.id, changes: ['removed'] })
-  return { lang, published: true, commit: COMMIT.test(published.commit ?? '') ? published.commit : null, beats, frames }
+  return { lang, published: true, commit: COMMIT.test(published.commit ?? '') ? published.commit : null, sources: published.sources ?? null, beats, frames }
 }
 
 /** The scene ids of a gap, in the order they were found, each once. */
 export const changedScenes = (results) => [...new Set(results.flatMap((result) => result.beats.map((beat) => beat.scene)))]
 
 /** The markdown table of a gap, for the step summary. Ids and change names only (both checked against fixed shapes). */
-export function summaryOf(results) {
+export function summaryOf(results, { sourcesChanged = false } = {}) {
   const rows = results.flatMap((result) =>
     result.beats.map((beat) => `| ${result.lang} | ${beat.scene} | ${beat.beat} | ${beat.changes.join(', ')}${beat.pixels ? ` (${beat.pixels} pixels)` : ''} |`),
   )
   const never = results.filter((result) => !result.published).map((result) => result.lang)
   const lines = ['## Is the tutorial video behind the app?', '']
   if (never.length) lines.push(`Never published: ${never.join(', ')} (nothing to compare with).`, '')
+  if (sourcesChanged) lines.push("The video's own sources changed since the last publish.", '')
   if (!rows.length) lines.push('No scene changed.')
   else lines.push('| Language | Scene | Beat | What changed |', '|---|---|---|---|', ...rows)
   return `${lines.join('\n')}\n`
@@ -318,9 +345,9 @@ export function summaryOf(results) {
  * The command. Returns the exit code.
  * @param {string[]} argv
  * @param {Record<string, string | undefined>} env
- * @param {{ fetch?: typeof globalThis.fetch, outDir?: (lang: string) => string, log?: (line: string) => void, print?: (text: string) => void }} [io]
+ * @param {{ fetch?: typeof globalThis.fetch, outDir?: (lang: string) => string, log?: (line: string) => void, print?: (text: string) => void, fingerprint?: () => string }} [io]
  */
-export async function main(argv, env, { fetch = globalThis.fetch, outDir = languageOutDir, log = (line) => console.error(line), print = (text) => console.log(text) } = {}) {
+export async function main(argv, env, { fetch = globalThis.fetch, outDir = languageOutDir, log = (line) => console.error(line), print = (text) => console.log(text), fingerprint = () => sourcesFingerprint({ env }) } = {}) {
   try {
     const { values, positionals } = parseArgs({ args: argv, allowPositionals: true, options: { site: { type: 'string' }, out: { type: 'string' } } })
     const langs = positionals.length ? positionals : [...LANGUAGES]
@@ -340,14 +367,19 @@ export async function main(argv, env, { fetch = globalThis.fetch, outDir = langu
     const languages = results.filter((result) => result.beats.length).map((result) => result.lang)
     // The commit of the published video (of the first language that names one), for a link to every change since it.
     const since = results.find((result) => result.commit)?.commit ?? null
+    // The video's own sources (D18): behind when the fingerprint differs from the published one (or the manifest has none).
+    const current = results.some((result) => result.published) ? fingerprint() : null
+    const sourcesChanged = results.some((result) => result.published && result.sources !== current)
     const gap = {
       published: results.some((result) => result.published),
       since,
       languages,
       scenes,
+      sources: sourcesChanged ? 'changed' : 'same',
       beats: results.flatMap((result) => result.beats.map((beat) => ({ lang: result.lang, ...beat }))),
     }
     log(scenes.length ? `gap: the video is behind the app in ${scenes.length} scene(s): ${scenes.join(', ')}` : 'gap: no scene changed')
+    if (sourcesChanged) log("gap: the video's own sources changed since the last publish")
     if (values.out) {
       const out = path.resolve(values.out)
       fs.mkdirSync(out, { recursive: true })
@@ -359,8 +391,8 @@ export async function main(argv, env, { fetch = globalThis.fetch, outDir = langu
         }
       }
     }
-    if (env.GITHUB_OUTPUT) fs.appendFileSync(env.GITHUB_OUTPUT, `scenes=${scenes.join(',')}\nlanguages=${languages.join(',')}\nsince=${since ?? ''}\n`)
-    if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY, summaryOf(results))
+    if (env.GITHUB_OUTPUT) fs.appendFileSync(env.GITHUB_OUTPUT, `scenes=${scenes.join(',')}\nlanguages=${languages.join(',')}\nsince=${since ?? ''}\nsources=${sourcesChanged ? 'changed' : 'same'}\n`)
+    if (env.GITHUB_STEP_SUMMARY) fs.appendFileSync(env.GITHUB_STEP_SUMMARY, summaryOf(results, { sourcesChanged }))
     print(JSON.stringify(gap))
     return 0
   } catch (err) {
