@@ -1,21 +1,25 @@
-// Writes video/src/assets/tap.wav, the soft tick that plays at every tap of the video (decision D10: no music, a narrator and a tap
-// sound). It is made here, from two sine waves with a fast decay, so that no third party's sound is in the repository. The file is
-// committed (8 KB); run this only to change the sound: `node video/src/make-tap-sound.mjs`.
+// Writes video/src/assets/tap.wav, the soft tick that plays at every tap of the video (decisions D10 and D16). It is made here, from a
+// sine with a short downward glide and its octave below, so that no third party's sound is in the repository: lower, rounder and
+// gentler than the first version (a pitch of 1500 Hz and a 1 ms attack). The file is committed (about 12 KB); run this only to change
+// the sound: `node video/src/make-tap-sound.mjs`. How loud it plays is TAP_VOLUME in timing.js.
 import { Buffer } from 'node:buffer'
 import { mkdirSync, writeFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
 
 const RATE = 44100
-const SECONDS = 0.09
+const SECONDS = 0.14
+const ATTACK_SECONDS = 0.006 // a gentle start, no click
 const samples = Math.round(RATE * SECONDS)
 const data = Buffer.alloc(samples * 2)
 for (let i = 0; i < samples; i += 1) {
   const t = i / RATE
-  const decay = Math.exp(-t * 60)
-  const attack = Math.min(1, i / 40) // no click at the very start
-  const tone = Math.sin(2 * Math.PI * 1500 * t) * 0.6 + Math.sin(2 * Math.PI * 750 * t) * 0.4
-  data.writeInt16LE(Math.round(tone * decay * attack * 0.45 * 32767), i * 2)
+  const decay = Math.exp(-t * 34)
+  const attack = 0.5 - 0.5 * Math.cos(Math.PI * Math.min(1, t / ATTACK_SECONDS))
+  // The pitch starts at 450 Hz and settles to 360 Hz within about 25 ms, like a finger on a soft surface; the phase is the integral.
+  const phase = 2 * Math.PI * (360 * t + (90 * (1 - Math.exp(-40 * t))) / 40)
+  const tone = Math.sin(phase) * 0.7 + Math.sin(phase / 2) * 0.3
+  data.writeInt16LE(Math.round(tone * decay * attack * 0.4 * 32767), i * 2)
 }
 
 const header = Buffer.alloc(44)

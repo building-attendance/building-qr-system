@@ -18,6 +18,38 @@ export const HEIGHT = 1280
 /** The seconds that one picture cross-fades into the next. */
 export const FADE_SECONDS = 0.35
 
+/** The longest that a change of scene may take (decision D16), and how far the new scene's picture rises while it fades in, in pixels. */
+export const MAX_TRANSITION_SECONDS = 0.4
+export const SCENE_PUSH_PX = 8
+
+/** How a caption comes in (decision D16): it rises this many pixels while it fades in over this many seconds. */
+export const CAPTION_RISE_PX = 8
+export const CAPTION_FADE_IN_SECONDS = 0.25
+const CAPTION_FADE_OUT_FRAMES = 6
+
+/** The volume of the tap sound (it was 0.35 before the softer sound of decision D16). */
+export const TAP_VOLUME = 0.22
+
+/** The music bed: the file that render.mjs writes to the staged public folder (make-music.mjs), and its levels (decision D15). */
+export const MUSIC_FILE = 'music.wav'
+export const MUSIC = Object.freeze({
+  /** The volume (0 to 1, of the pad at full scale, which is about -22 LUFS) while nobody speaks, and while the narrator does. */
+  level: 0.22,
+  duckedLevel: 0.1,
+  /** The pad dips this long before a line starts, rises this long after it ends, and takes `rampSeconds` to move between the two levels. */
+  leadSeconds: 0.3,
+  tailSeconds: 0.1,
+  rampSeconds: 0.5,
+  fadeInSeconds: 2.5,
+  fadeOutSeconds: 3,
+})
+
+/**
+ * The pause that the narrator step leaves after every line (PAUSE_SECONDS of scripts/video/timings.mjs, which a test pins to this
+ * number): a line's `seconds` is its audio plus this, so the music dips for the audio only and may rise in the pause.
+ */
+export const VOICE_PAUSE_SECONDS = 0.5
+
 /**
  * The QR code that the camera scene shows over the code of the printed sign: a sharp one made for the video at every render (the owner,
  * 19/10/2026, in place of the blurred picture of the real one). It holds plain text, never a link and never a point's token (a secret,
@@ -108,12 +140,114 @@ export function planBeats(scenesFile, timings = null, fps = FPS) {
  */
 export function captionGroups(plan) {
   const groups = []
-  for (const beat of plan.beats) {
+  plan.beats.forEach((beat, index) => {
     const last = groups[groups.length - 1]
     if (beat.continues && last) last.endFrame = beat.endFrame
-    else if (beat.caption) groups.push({ id: beat.id, text: beat.caption, startFrame: beat.startFrame, endFrame: beat.endFrame })
-  }
+    else if (beat.caption) groups.push({ id: beat.id, text: beat.caption, startFrame: beat.startFrame, endFrame: beat.endFrame, beatIndex: index })
+  })
   return groups
+}
+
+/**
+ * The captions with `rise`: whether a caption moves as it comes in, which it never does while a tap mark or an outline of its own beat
+ * comes in (see isCalm).
+ * @param {{ beats: readonly any[] }} plan
+ */
+export function risingCaptions(plan, fps = FPS) {
+  const frames = Math.ceil(CAPTION_FADE_IN_SECONDS * fps)
+  return captionGroups(plan).map((group) => ({ ...group, rise: isCalm(plan, group.beatIndex, frames, fps) }))
+}
+
+/**
+ * Whether the first `frames` frames of a beat show no tap mark and no outline, the only frames in which anything may move (decision
+ * D16, "no motion while a tap mark or a highlight is on the screen"). With `withPrevious`, an outline of the beat before, which still
+ * shows under the fade into this one, counts too: a picture that moves must not carry it along.
+ * @param {{ beats: readonly any[] }} plan
+ * @param {number} index
+ * @param {number} frames
+ */
+export function isCalm(plan, index, frames, fps = FPS, withPrevious = false) {
+  const beat = plan.beats[index]
+  const motion = beatMotion(beat, beat.frames, fps)
+  if (motion.taps.some((start) => start < frames)) return false
+  if (beat.highlight && motion.highlightFrame < frames) return false
+  return !(withPrevious && plan.beats[index - 1]?.highlight)
+}
+
+const clamp01 = (value) => Math.min(1, Math.max(0, value))
+const easeOut = (p) => 1 - (1 - clamp01(p)) ** 3
+
+/**
+ * How a caption looks at `frame`: it fades in over CAPTION_FADE_IN_SECONDS, rising CAPTION_RISE_PX when the group says so, and fades out
+ * over its last frames without moving.
+ * @param {{ startFrame: number, endFrame: number, rise?: boolean }} group
+ */
+export function captionAt(group, frame, fps = FPS) {
+  const into = clamp01((frame - group.startFrame) / (CAPTION_FADE_IN_SECONDS * fps))
+  const out = clamp01((group.endFrame - frame) / CAPTION_FADE_OUT_FRAMES)
+  return { opacity: Math.min(into, out), offsetY: group.rise ? CAPTION_RISE_PX * (1 - easeOut(into)) : 0 }
+}
+
+/**
+ * How the picture of a beat comes in: it fades in over `frames` frames (the first beat has no fade), and when the beat starts a new scene
+ * and nothing else moves then, it also rises `push` pixels. Between the beats inside one scene it is the plain fade of before.
+ * @param {{ beats: readonly any[] }} plan
+ * @param {number} index
+ */
+export function sceneEntrance(plan, index, fps = FPS) {
+  const frames = Math.round(FADE_SECONDS * fps)
+  if (index === 0) return { frames: 0, push: 0 }
+  const newScene = plan.beats[index].sceneId !== plan.beats[index - 1].sceneId
+  return { frames, push: newScene && isCalm(plan, index, frames, fps, true) ? SCENE_PUSH_PX : 0 }
+}
+
+/** The opacity and the rise (a pixel offset that goes to 0) of a picture `frame` frames into its beat. */
+export function entranceAt(entrance, frame) {
+  if (entrance.frames === 0) return { opacity: 1, offsetY: 0 }
+  const p = clamp01(frame / entrance.frames)
+  return { opacity: p, offsetY: entrance.push * (1 - easeOut(p)) }
+}
+
+/**
+ * The frames in which the narrator is heard: from the start of each voiced beat to the end of its audio (the end of the beat less the
+ * pause, and for a line that runs over the screens that continue it, the end of the last of them).
+ * @param {{ beats: readonly any[] }} plan
+ * @returns {{ startFrame: number, endFrame: number }[]}
+ */
+export function voicedSpans(plan, fps = FPS) {
+  const pause = Math.round(VOICE_PAUSE_SECONDS * fps)
+  const spans = []
+  plan.beats.forEach((beat, i) => {
+    if (!beat.audio) return
+    let last = i
+    if (SPEECH_OVER_CONTINUATIONS.has(beat.id)) while (plan.beats[last + 1]?.continues) last += 1
+    spans.push({ startFrame: beat.startFrame, endFrame: Math.max(beat.startFrame + 1, plan.beats[last].endFrame - pause) })
+  })
+  return spans
+}
+
+/**
+ * The volume of the music bed at `frame`: MUSIC.level, MUSIC.duckedLevel from a moment before each voiced line to a moment after it
+ * (moving between them over MUSIC.rampSeconds), faded in at the start and out at the end of the video. Pure, so a test can read it.
+ * @param {{ startFrame: number, endFrame: number }[]} spans  voicedSpans(plan)
+ * @param {number} frame
+ * @param {number} totalFrames
+ */
+export function musicVolumeAt(spans, frame, totalFrames, fps = FPS) {
+  const lead = MUSIC.leadSeconds * fps
+  const tail = MUSIC.tailSeconds * fps
+  const ramp = MUSIC.rampSeconds * fps
+  let duck = 0
+  for (const span of spans) {
+    const from = span.startFrame - lead
+    const to = span.endFrame + tail
+    const depth = frame < from ? clamp01(1 - (from - frame) / ramp) : frame > to ? clamp01(1 - (frame - to) / ramp) : 1
+    if (depth > duck) duck = depth
+  }
+  const level = MUSIC.level + (MUSIC.duckedLevel - MUSIC.level) * duck
+  const fadeIn = clamp01(frame / (MUSIC.fadeInSeconds * fps))
+  const fadeOut = clamp01((totalFrames - frame) / (MUSIC.fadeOutSeconds * fps))
+  return level * Math.min(fadeIn, fadeOut)
 }
 
 const pad = (value, width) => String(value).padStart(width, '0')
