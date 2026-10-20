@@ -59,7 +59,8 @@ individual, for a non-profit organisation, and for a for-profit company of up to
 company licence. A building committee is within the free terms. A copy of this repository that a management company with more
 than 3 employees runs needs that licence, or should leave this folder alone: the app, the CI jobs and Vercel never install
 it (it is not in the root `package.json`, and `video/` has its own lockfile), and the workflow that publishes the video runs
-only in the original repository (decision D4 of the topic).
+only in the original repository, or in a copy that sets the repository variable `VIDEO_ENABLED` to `true` (decision D4 of the
+topic; [docs/video.md](../docs/video.md), "In a copy of the repository").
 
 The versions are pinned to exact numbers in `package.json` (all the `remotion` and `@remotion/*` packages to the same one), at
 least two weeks old when they were chosen. Update them on purpose, all together, and render once to see the video.

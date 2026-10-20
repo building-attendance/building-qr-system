@@ -11,7 +11,7 @@ On this project's GitHub Pages, one page and one file per language:
 - The player page: https://building-attendance.github.io/building-qr-system/video/he/
 
 Today only Hebrew is published (narrated, with captions). The provider app's home screen has a link, "Watch the tutorial
-video", that opens the player page (`src/worker/tutorial.js`). A language that has no video of its own is sent to the
+video (a minute and a half)" in English, that opens the player page (`src/worker/tutorial.js`). A language that has no video of its own is sent to the
 Hebrew page, so the link never opens a 404. The link is a plain navigation: the app fetches nothing from the site.
 
 ## How it is made
