@@ -5,6 +5,7 @@ import { applyUpdate, isUpdateReady, subscribeUpdate } from './update.js'
 import { errorMessageKey, isKnownError } from './errors.js'
 import { providerLabel } from './checkIn.js'
 import { isSession } from './session.js'
+import { tutorialUrl } from './tutorial.js'
 import { DEVICE_LABEL_MAX_LENGTH } from '../../shared/contract.js'
 import { FLAG_LOCATION_OUTSIDE_RADIUS, FLAG_LOCATION_STALE, FLAG_LOCATION_UNVERIFIED } from '../../shared/flags.js'
 import ThemeSwitch from '../ui/ThemeSwitch.jsx'
@@ -236,7 +237,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
 /* ------------------------------------------------------------------- home */
 
 export function HomeView({ session, visits, pending, syncing, onSync, notice, onDismissNotice, onSwitch }) {
-  const { t, time } = useI18n()
+  const { t, time, lang } = useI18n()
   const name = session.provider.contact_name || session.provider.company
   const company = session.provider.contact_name ? session.provider.company : ''
   const updateReady = useSyncExternalStore(subscribeUpdate, isUpdateReady)
@@ -297,6 +298,9 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
           ))}
         </ol>
       </div>
+
+      {/* A quiet link, not a button: it leaves the app for the player page of the person's language (a navigation, nothing is loaded here). */}
+      <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
 
       <section className="w-card" aria-labelledby="w-today">
         <h2 id="w-today" className="w-section-title">{t('home.today')}</h2>
