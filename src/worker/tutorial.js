@@ -1,6 +1,6 @@
 /**
  * The tutorial video of the provider app: a page on GitHub Pages with a player, one per language, published by the video workflow
- * (docs/agent-loop.md and `video/`). The home screen links to it, and a link is a navigation: nothing here is fetched by the app, so the
+ * (.github/workflows/video.yml, from `video/`). The home screen links to it, and a link is a navigation: nothing here is fetched by the app, so the
  * Content-Security-Policy and the precache do not change.
  */
 
