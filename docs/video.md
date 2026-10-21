@@ -34,7 +34,7 @@ The workflow is `.github/workflows/video.yml` ("Tutorial video"). It does two se
 **The gap check, automatic.** On every push to the default branch (a change that is only Markdown or `docs/` is ignored,
 because it cannot change a frame or a line), the workflow records the app again and compares it with what was published:
 the caption and the spoken line of each beat, the picture of each beat (by the threshold of the visual tests), and a
-fingerprint of the video's own sources (`video/`, `scripts/video/` and the voice settings). The comparison decides, not a
+fingerprint of the video's own sources (`video/`, `scripts/video/`, Markdown files aside, and the voice settings). The comparison decides, not a
 list of watched files. When anything is behind, it opens one issue labelled `video-gap`, or quietly rewrites the
 description of the open one, so the owner hears once, when a gap first opens. When nothing is behind any more it closes the
 issue. It never publishes and never opens a pull request.
