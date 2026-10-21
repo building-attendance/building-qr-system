@@ -31,6 +31,7 @@ export default {
   'home.step3': 'يُسجَّل الحضور',
   'home.desktopHint': 'يتم تسجيل الحضور من الهاتف. افتح الكاميرا وامسح رمز QR.',
   'home.tutorial': 'شاهد الفيديو التعليمي (دقيقة ونصف)',
+  'home.tutorialAfterSignIn': 'شاهد الفيديو التعليمي (حوالي دقيقة)',
   'home.today': 'زياراتك اليوم',
   'home.empty': 'لم يُسجَّل أي حضور اليوم بعد.',
   'home.pending': 'بانتظار الإرسال',
