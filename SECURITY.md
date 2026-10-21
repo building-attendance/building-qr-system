@@ -69,6 +69,28 @@ treated as good faith.
 - If you reach personal data by accident, stop, do not copy or keep it, and tell us in your report.
 - Do not run load tests or anything that could slow the hosted instance down.
 
+## Guidelines for the automated security review
+
+Every pull request that touches a sensitive path also gets Codex's security review (`@codex security review`), which
+reads this section. The project's rules are in `AGENTS.md`: its "Code Review Rules" say what counts as P1, and its
+"Safety" section holds the rules behind them. Judge a pull request against the base branch's version of both. What
+matters most here:
+
+- **Personal data:** names, e-mails, phone numbers, attendance rows and positions never reach a log, an error record, a
+  URL, a test, a fixture or an answer that its role may not see.
+- **Secrets:** a point's QR token, provider and committee tokens, agent API keys and their prefixes, password hashes,
+  `CRON_SECRET` and `HEALTH_HEARTBEAT_URL` never appear in the diff, a log, an answer or a workflow's output.
+- **Authorization:** every route under `/api` is owned by one guard in `server/access.js`, and no code of a handler runs
+  before it; the agent API only reads, and builds every answer field by field.
+- **Production:** no local tool reaches a deployment's database but `npm run db:backup` (read-only) and
+  `npm run db:create-admin`; only the production build migrates.
+- **The browser:** what the Content-Security-Policy in `vercel.json` allows.
+- **Workflows:** actions pinned to a full commit SHA, the narrowest `permissions`, untrusted text only through `env`, and
+  each secret only in its environment.
+
+A finding names the file and the line, says who could exploit it and how, and says when the problem is in code that the
+pull request did not change (pre-existing), so that it does not hold back a change that did not cause it.
+
 ## Known and already handled
 
 An old Google API key from the project's earlier Firebase version is in the git history. It was revoked and the
