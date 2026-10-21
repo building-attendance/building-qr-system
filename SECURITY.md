@@ -71,9 +71,12 @@ treated as good faith.
 
 ## Guidelines for the automated security review
 
-Every pull request that touches a sensitive path also gets Codex's security review (`@codex security review`), which
-reads this section. The project's rules are in `AGENTS.md`: its "Code Review Rules" say what counts as P1, and its
-"Safety" section holds the rules behind them. Judge a pull request against the base branch's version of both. What
+Every pull request that touches a sensitive path also gets a security review by Codex, which reads this section. Here it
+runs through the local CLI (`codex review`, with this section and the Safety section of `AGENTS.md` as its instructions),
+and its result goes into the pull request's description, because Codex's security review on GitHub
+(`@codex security review`) is not available on every ChatGPT plan; a copy whose plan includes it can ask for it there.
+The project's rules are in `AGENTS.md`: its "Code Review Rules" say what counts as P1, and its "Safety" section holds
+the rules behind them. Judge a pull request against the base branch's version of both. What
 matters most here:
 
 - **Personal data:** names, e-mails, phone numbers, attendance rows and positions never reach a log, an error record, a
