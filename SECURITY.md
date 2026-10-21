@@ -71,12 +71,15 @@ treated as good faith.
 
 ## Guidelines for the automated security review
 
-Every pull request that changes anything beyond documentation and the text a person sees in the app (tests included,
-since a weakened test can hide a weakened protection) also gets a security review by Codex, of its final head: a push
-after the review gets a new one, and the pull request names the commit that was reviewed. Here it runs through the local
-CLI, in a checkout of that head. The CLI does not read this file by itself, so the command names it:
+Every pull request that changes anything beyond documentation and the text a person sees in the app also gets a
+security review by Codex, of its final head: a push after the review gets a new one, and the pull request names the
+commit that was reviewed. Tests count, since a weakened test can hide a weakened protection, and so do `AGENTS.md`,
+`CLAUDE.md` and `SECURITY.md`, which hold the rules. Here it runs through the local CLI, in a checkout of that head. The
+CLI loads `AGENTS.md` from the folder it starts in and does not read this file by itself, so the first line puts the
+base branch's rules in place (a pull request cannot soften its own review) and the second names them:
 
 ```
+git checkout origin/HEAD -- AGENTS.md SECURITY.md
 codex review "Security review of the changes on this branch against the default branch (git diff origin/HEAD...HEAD). Follow the section 'Guidelines for the automated security review' in SECURITY.md and the sections of AGENTS.md that it names. Report only security findings, each with a severity, a file and a line."
 ```
 
