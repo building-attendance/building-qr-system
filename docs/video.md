@@ -10,9 +10,9 @@ On this project's GitHub Pages, one page and one file per language:
 - The video: https://building-attendance.github.io/building-qr-system/video/he.mp4
 - The player page: https://building-attendance.github.io/building-qr-system/video/he/
 
-Today only Hebrew is published (narrated, with captions). The provider app's home screen has a link, "Watch the tutorial
-video (a minute and a half)" in English, that opens the player page (`src/worker/tutorial.js`). A language that has no video of its own is sent to the
-Hebrew page, so the link never opens a 404. The link is a plain navigation: the app fetches nothing from the site.
+Today only Hebrew is published (narrated, with captions). The provider app has a link, "Watch the tutorial
+video (a minute and a half)" in English, on the sign-in screen and on the home screen (`src/worker/tutorial.js`). A language that has no video of its own is sent to the
+Hebrew page, so the link never opens a 404. The link is a plain navigation: the app fetches nothing from the site. The sign-in screen's link opens the player page at the start. The home screen's link opens `video/<lang>/after-sign-in/`, the same video starting at the scene `locating` (the first after the sign-in), with a link back to the whole video: the site step writes that page and computes the start from the plan of the render, so it follows the video when a scene moves, and it starts at 0 when the scene is missing.
 
 ## How it is made
 

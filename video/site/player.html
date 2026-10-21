@@ -3,6 +3,9 @@
   The player page of the provider tutorial video, one per language, at /video/<lang>/ of the published site. scripts/video/render-all.mjs
   fills the fields in double braces (each value HTML-escaped) and writes it beside the poster, the captions and the manifest. No script at all:
   the policy below lets the page load only its own files, and the preview of a shared link (WhatsApp) reads the Open Graph tags.
+  The same file makes a second page per language, /video/<lang>/after-sign-in/, one folder deeper (the field "root" is the way back to the language
+  folder): it starts the video at the first scene after the sign-in (the field "start", a media fragment) and keeps the part between the
+  after-sign-in markers, a link back to the whole video. The home screen of the app links to it. The main page drops that part.
 -->
 <html lang="{{lang}}" dir="{{dir}}">
   <head>
@@ -26,17 +29,20 @@
     <meta property="og:video:type" content="video/mp4">
     <meta property="og:video:width" content="{{width}}">
     <meta property="og:video:height" content="{{height}}">
-    <link rel="stylesheet" href="../player.css">
+    <link rel="stylesheet" href="{{root}}../player.css">
   </head>
   <body>
     <main>
       <h1>{{title}}</h1>
       <p>{{description}}</p>
-      <video controls playsinline preload="metadata" width="{{width}}" height="{{height}}" poster="poster.jpg">
-        <source src="../{{lang}}.mp4" type="video/mp4">
-        <track kind="captions" src="captions.vtt" srclang="{{lang}}" label="{{languageName}}">
-        <a href="../{{lang}}.mp4">{{title}}</a>
+      <video controls playsinline preload="metadata" width="{{width}}" height="{{height}}" poster="{{root}}poster.jpg">
+        <source src="{{root}}../{{lang}}.mp4{{start}}" type="video/mp4">
+        <track kind="captions" src="{{root}}captions.vtt" srclang="{{lang}}" label="{{languageName}}">
+        <a href="{{root}}../{{lang}}.mp4">{{title}}</a>
       </video>
+      <!--after-sign-in-->
+      <p><a href="../">{{fromStartText}}</a></p>
+      <!--/after-sign-in-->
     </main>
   </body>
 </html>

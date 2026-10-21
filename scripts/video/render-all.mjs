@@ -13,7 +13,8 @@
 //               - `none`: every line silent.
 //  3. render  per language, `npm --prefix video run render -- <lang>` (it installs video/ first when video/node_modules is missing).
 //  4. site    video/out/site/, the folder that is published at the root of the site:
-//               video/<lang>.mp4, video/<lang>/index.html (the player page of video/site/), video/<lang>/poster.jpg,
+//               video/<lang>.mp4, video/<lang>/index.html (the player page of video/site/), video/<lang>/after-sign-in/index.html (the
+//               same page, starting at the first scene after the sign-in), video/<lang>/poster.jpg,
 //               video/<lang>/captions.vtt, video/<lang>/manifest.json and video/<lang>/frames/<beat>.masked.png (what the gap check
 //               of scripts/video/gap.mjs compares with), video/player.css, and video/voice-cache/<hash>.mp3 (every line's audio, so that
 //               the next run fetches it instead of synthesizing it again: PUBLISHED_VOICE_CACHE of voice.mjs).
@@ -29,7 +30,7 @@ import { isMain } from '../ci-git.mjs'
 import { LANGS } from '../../src/i18n/core.js'
 import { DRAWN } from '../../video/script/drawn.js'
 import { LANGUAGES } from '../../video/script/index.js'
-import { HEIGHT, WIDTH } from '../../video/src/timing.js'
+import { FPS, HEIGHT, WIDTH, planBeats } from '../../video/src/timing.js'
 import { manifestOf, siteUrl, sourcesFingerprint } from './gap.mjs'
 import { ROOT, VIDEO_OUT_DIR, languageOutDir } from './settings.mjs'
 import { buildTimings, mp3Seconds, spokenSeconds } from './timings.mjs'
@@ -167,29 +168,59 @@ function secondsOf(bytes) {
 const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c])
 
 /**
- * The player page of one language: video/site/player.html with its fields filled, each value escaped.
+ * The page that starts the video after the sign-in sits in this folder of the language's folder (/video/<lang>/after-sign-in/). The
+ * app's home screen links to it (AFTER_SIGN_IN_DIR of src/worker/tutorial.js; tests/video-after-sign-in.test.js pins the two names equal).
+ */
+export const AFTER_SIGN_IN_DIR = 'after-sign-in'
+
+/** The beat where the sign-in is over: the first scene of the video that a signed-in person has not just seen themselves. */
+export const AFTER_SIGN_IN_BEAT = 'locating'
+
+/**
+ * Where the page that starts after the sign-in starts the video, in seconds: the start of the beat AFTER_SIGN_IN_BEAT in the plan that
+ * the render used (planBeats of video/src/timing.js, from the scenes.json and the timings.json of the language, so it follows the
+ * video when a scene moves). Null when the beat is not in the video: the page then starts at 0.
+ * @param {{ scenes: readonly { id: string, beats: readonly any[] }[] }} scenesFile
+ * @param {{ beats?: Record<string, { seconds?: number, audio?: string | null }> } | null} [timings]
+ * @returns {number | null}
+ */
+export function afterSignInStart(scenesFile, timings = null) {
+  const beat = planBeats(scenesFile, timings).beats.find((entry) => entry.id === AFTER_SIGN_IN_BEAT)
+  return beat ? Math.round((beat.startFrame / FPS) * 1000) / 1000 : null
+}
+
+/**
+ * The player page of one language: video/site/player.html with its fields filled, each value escaped. With `afterSignIn` it is the page
+ * one folder deeper that starts the video at `start` seconds (none: at 0) and links back to the whole video; without it the part of the
+ * template between the markers <!--after-sign-in--> and <!--/after-sign-in--> is dropped.
  * @param {string} template
  * @param {string} lang
  * @param {string} site  the address of the published site, with its closing slash
+ * @param {{ start: number | null } | null} [afterSignIn]
  */
-export function playerPage(template, lang, site) {
+export function playerPage(template, lang, site, afterSignIn = null) {
   const words = DRAWN[lang]
   const language = LANGS.find((entry) => entry.code === lang)
   if (!words || !language) throw new Error(`The video has no words for the language "${lang}" (video/script/drawn.js, src/i18n/core.js).`)
+  const part = /[ \t]*<!--after-sign-in-->\n?([\s\S]*?)[ \t]*<!--\/after-sign-in-->\n?/g
+  const body = template.replace(part, (match, inner) => (afterSignIn ? inner : ''))
   const fields = {
+    root: afterSignIn ? '../' : '',
+    start: afterSignIn && afterSignIn.start != null ? `#t=${afterSignIn.start}` : '',
+    fromStartText: words.watchFromStart,
     lang,
     dir: language.dir,
     locale: { he: 'he_IL', en: 'en_US', ru: 'ru_RU', ar: 'ar_IL' }[lang] ?? lang,
     title: words.introTitle,
     description: words.introSubtitle,
     languageName: language.label,
-    pageUrl: new URL(`video/${lang}/`, site).href,
+    pageUrl: new URL(`video/${lang}/${afterSignIn ? `${AFTER_SIGN_IN_DIR}/` : ''}`, site).href,
     posterUrl: new URL(`video/${lang}/poster.jpg`, site).href,
     videoUrl: new URL(`video/${lang}.mp4`, site).href,
     width: String(VIDEO_SIZE.width),
     height: String(VIDEO_SIZE.height),
   }
-  return template.replace(/\{\{(\w+)\}\}/g, (match, name) => {
+  return body.replace(/\{\{(\w+)\}\}/g, (match, name) => {
     if (!Object.hasOwn(fields, name)) throw new Error(`video/site/player.html has the unknown field ${match}.`)
     return escapeHtml(fields[name])
   })
@@ -234,6 +265,12 @@ export function buildSite({ langs, site, commit, sources = null, outRoot = OUT_R
     }
     fs.writeFileSync(path.join(pageDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
     fs.writeFileSync(path.join(pageDir, 'index.html'), playerPage(template, lang, site))
+    // The same video from the first scene after the sign-in, in the plan that the render used (timings.json, when the narrator wrote it).
+    const timingsFile = path.join(from, 'timings.json')
+    const timings = fs.existsSync(timingsFile) ? JSON.parse(fs.readFileSync(timingsFile, 'utf8')) : null
+    const afterDir = path.join(pageDir, AFTER_SIGN_IN_DIR)
+    fs.mkdirSync(afterDir, { recursive: true })
+    fs.writeFileSync(path.join(afterDir, 'index.html'), playerPage(template, lang, site, { start: afterSignInStart(scenes, timings) }))
   }
   const cacheFrom = path.join(outRoot, CACHE_DIR_NAME)
   const cacheTo = path.join(videoDir, 'voice-cache')
