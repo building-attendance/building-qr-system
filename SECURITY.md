@@ -72,35 +72,26 @@ treated as good faith.
 ## Guidelines for the automated security review
 
 Every pull request that changes anything beyond documentation, tests and the text a person sees in the app also gets a
-security review by Codex. Here it runs through the local CLI, in a checkout of the pull request's head, and its result
-goes into the pull request's description. The CLI does not read this file by itself, so the command names it:
+security review by Codex. Here it runs through the local CLI, in a checkout of the pull request's head. The CLI does not
+read this file by itself, so the command names it:
 
 ```
-codex review "Security review of the changes on this branch against origin/master (git diff origin/master...HEAD). Follow the section 'Guidelines for the automated security review' in SECURITY.md and the Safety section of AGENTS.md. Report only security findings, each with a severity, a file and a line."
+codex review "Security review of the changes on this branch against the default branch (git diff origin/HEAD...HEAD). Follow the section 'Guidelines for the automated security review' in SECURITY.md and the sections of AGENTS.md that it names. Report only security findings, each with a severity, a file and a line."
 ```
 
 Codex's security review on GitHub (`@codex security review`) reads this section by itself, but it is not available on
-every ChatGPT plan; a copy whose plan includes it can ask for it there instead. The project's rules are in `AGENTS.md`:
-its "Code Review Rules" say what counts as P1, and its "Safety" section holds the rules behind them. Judge a pull request
-against the base branch's version of both. What matters most here:
+every ChatGPT plan; a copy whose plan includes it can ask for it there instead.
 
-- **Personal data:** names, e-mails, phone numbers, attendance rows and positions never reach a log, an error record, a
-  URL, a test, a fixture or an answer that its role may not see.
-- **Secrets:** the value of a point's QR token, a provider or committee token, an agent API key, a password hash,
-  `CRON_SECRET` or `HEALTH_HEARTBEAT_URL` never appears in the diff, a log, an answer or a workflow's output, and a key's
-  prefix never reaches an agent answer. The prefixes themselves are constants in `server/config.js` and
-  `shared/contract.js`, where the server checks a token's shape, not secrets.
-- **Authorization:** every route under `/api` is owned by exactly one rule of `server/access.js`: a public route is on its
-  `PUBLIC` list with the reason it answers without credentials, and every other route has a guard that runs before any
-  code of its handler. The agent API only reads, and builds every answer field by field.
-- **Production:** no local tool reaches a deployment's database but `npm run db:backup` (read-only) and
-  `npm run db:create-admin`; only the production build migrates.
-- **The browser:** what the Content-Security-Policy in `vercel.json` allows.
-- **Workflows:** actions pinned to a full commit SHA, the narrowest `permissions`, untrusted text only through `env`, and
-  each secret only in its environment.
+The rules are those of `AGENTS.md` on the base branch, and this section does not restate them: its "Code Review Rules"
+(what counts as P1), its "Safety" section, and the CSP rule in its "Rules for every change".
 
-A finding names the file and the line, says who could exploit it and how, and says when the problem is in code that the
-pull request did not change (pre-existing), so that its fix goes into its own pull request instead of this one.
+A finding names the file and the line, says who could exploit it and how, and says whether the problem is in code that
+this pull request adds or changes, or was already on the default branch (pre-existing). That decides where it goes:
+
+- In code that this pull request adds or changes: it is fixed in this pull request before it merges.
+- Pre-existing: it is a vulnerability of the app that is already deployed, so it never goes into a pull request, an
+  issue or a comment. It is reported privately, as "How to report a vulnerability" above says, and handled like any
+  other report.
 
 ## Known and already handled
 
