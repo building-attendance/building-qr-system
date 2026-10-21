@@ -1,0 +1,6 @@
+# AGENTS.md always checks out with LF, also where Git for Windows sets core.autocrlf=true. The Codex CLI loads it as its
+# instructions and reads only the first 32,768 bytes (project_doc_max_bytes), and a CRLF checkout adds one byte per line,
+# so a local Codex run in a Windows checkout would read a file cut off before its end. Named files only, on purpose: a
+# `* text=auto` line would renormalize the whole repository. SECURITY.md is not listed: Codex reads it only when a prompt
+# names it, as a whole file, so its line endings do not cut anything.
+AGENTS.md text eol=lf
