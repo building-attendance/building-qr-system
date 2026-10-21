@@ -89,7 +89,7 @@ matters most here:
   each secret only in its environment.
 
 A finding names the file and the line, says who could exploit it and how, and says when the problem is in code that the
-pull request did not change (pre-existing), so that it does not hold back a change that did not cause it.
+pull request did not change (pre-existing), so that its fix goes into its own pull request instead of this one.
 
 ## Known and already handled
 
