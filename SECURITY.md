@@ -69,6 +69,35 @@ treated as good faith.
 - If you reach personal data by accident, stop, do not copy or keep it, and tell us in your report.
 - Do not run load tests or anything that could slow the hosted instance down.
 
+## Guidelines for the automated security review
+
+Every pull request that changes anything beyond documentation and the text a person sees in the app also gets a
+security review by Codex, of its final head: a push after the review gets a new one, and the pull request names the
+commit that was reviewed. Tests count, since a weakened test can hide a weakened protection, and so do `AGENTS.md`,
+`CLAUDE.md` and `SECURITY.md`, which hold the rules. Here it runs through the local CLI, in a checkout of that head. The
+CLI loads `AGENTS.md` from the folder it starts in and does not read this file by itself, so the first line puts the
+base branch's rules in place (a pull request cannot soften its own review) and the second names them:
+
+```
+git checkout origin/HEAD -- AGENTS.md SECURITY.md
+codex review "Security review of the changes on this branch against the default branch (git diff origin/HEAD...HEAD). Follow the section 'Guidelines for the automated security review' in SECURITY.md and the sections of AGENTS.md that it names. Report only security findings, each with a severity, a file and a line."
+```
+
+Codex's security review on GitHub (`@codex security review`) reads this section by itself, but it is not available on
+every ChatGPT plan; a copy whose plan includes it can ask for it there instead.
+
+The rules are those of `AGENTS.md` on the base branch, and this section does not restate them: its "Code Review Rules"
+(what counts as P1), its "Safety" section, and the CSP rule in its "Rules for every change".
+
+A finding names the file and the line, says who could exploit it and how, and says whether the problem is in code that
+this pull request adds or changes, or was already on the default branch (pre-existing). That decides where it goes:
+
+- In code that this pull request adds or changes: it is fixed in this pull request before it merges, or, when it is
+  wrong, answered there with the evidence.
+- Pre-existing: it is a vulnerability of the app that is already deployed, so it never goes into a pull request, an
+  issue or a comment. It is reported privately, as "How to report a vulnerability" above says, and handled like any
+  other report.
+
 ## Known and already handled
 
 An old Google API key from the project's earlier Firebase version is in the git history. It was revoked and the
