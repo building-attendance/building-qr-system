@@ -54,17 +54,20 @@ const TIMEOUT_MS = 15_000
 /** The address of a language's manifest on the site. */
 /** The folders whose tracked files make the published video besides the app (decision D18): its editing, script, site and tools. */
 export const VIDEO_SOURCES = Object.freeze(['video', 'scripts/video'])
+/** The files under VIDEO_SOURCES that never count: a Markdown file cannot change a frame or a line (the push trigger of video.yml ignores them too). */
+const FINGERPRINT_EXCLUDED = Object.freeze([':(exclude)*.md'])
 const FINGERPRINT = /^[0-9a-f]{64}$/
 
 /**
  * One hash of the video's own sources (decision D18, the owner, 19/10/2026): the blob id of every file that git tracks under
- * VIDEO_SOURCES, read from the index (so an untracked or ignored file, such as video/out, never counts, and the line endings of a
- * checkout do not matter), and the voice settings that a publish reads (the model and the voice). A publish writes it into the
- * manifest, and the gap check compares it, so that a change of the video's own sources is behind even where no screen changed.
+ * VIDEO_SOURCES except the Markdown ones (video/README.md, video/ASSETS.md: documents, not inputs of the video), read from the
+ * index (so an untracked or ignored file, such as video/out, never counts, and the line endings of a checkout do not matter), and
+ * the voice settings that a publish reads (the model and the voice). A publish writes it into the manifest, and the gap check
+ * compares it, so that a change of the video's own sources is behind even where no screen changed.
  * @param {{ cwd?: string, env?: Record<string, string | undefined>, git?: (args: string[]) => { status: number | null, stdout: string } }} [options]
  */
 export function sourcesFingerprint({ cwd = ROOT, env = process.env, git = (args) => spawnSync('git', args, { cwd, encoding: 'utf8' }) } = {}) {
-  const listed = git(['ls-files', '--stage', '-z', '--', ...VIDEO_SOURCES])
+  const listed = git(['ls-files', '--stage', '-z', '--', ...VIDEO_SOURCES, ...FINGERPRINT_EXCLUDED])
   if (listed.status !== 0) throw new Error('git ls-files failed, so the sources of the video cannot be fingerprinted.')
   const entries = String(listed.stdout).split('\0').filter(Boolean).sort()
   if (!entries.length) throw new Error(`git tracks no file under ${VIDEO_SOURCES.join(' or ')}.`)

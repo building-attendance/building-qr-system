@@ -593,7 +593,7 @@ describe("the fingerprint of the video's own sources", () => {
     fs.rmSync(repo, { recursive: true, force: true })
   })
 
-  it('is one hash of every tracked file under video/ and scripts/video/, and the voice settings', () => {
+  it('is one hash of every tracked file under video/ and scripts/video/ (Markdown aside), and the voice settings', () => {
     expect(VIDEO_SOURCES).toEqual(['video', 'scripts/video'])
     expect(fingerprint()).toMatch(/^[0-9a-f]{64}$/)
     expect(fingerprint()).toBe(fingerprint())
@@ -614,6 +614,28 @@ describe("the fingerprint of the video's own sources", () => {
     const before = fingerprint()
     expect(fingerprint({ ELEVENLABS_MODEL: 'eleven_v3' })).not.toBe(before)
     expect(fingerprint({ ELEVENLABS_VOICE_ID: 'another_voice' })).not.toBe(before)
+  })
+
+  it('ignores every Markdown file under the two folders, and still counts any other file', () => {
+    const before = fingerprint()
+    write('video/README.md', 'how to work on the video')
+    write('video/ASSETS.md', 'where the assets come from')
+    write('video/script/NOTES.md', 'a note in a nested folder')
+    write('scripts/video/NOTES.md', 'a note beside the tools')
+    commitAll()
+    expect(fingerprint()).toBe(before)
+    write('video/README.md', 'how to work on the video, rewritten')
+    write('video/ASSETS.md', 'where the assets come from, rewritten')
+    commitAll()
+    expect(fingerprint()).toBe(before)
+    // A file that only contains ".md" in its name is not a Markdown file, and a code file still changes the fingerprint.
+    write('video/src/notes.md.js', 'export default 1')
+    commitAll()
+    const withNotes = fingerprint()
+    expect(withNotes).not.toBe(before)
+    write('video/script/he.js', 'export default { changed: true }')
+    commitAll()
+    expect(fingerprint()).not.toBe(withNotes)
   })
 
   it('ignores untracked and ignored files (video/out), and files outside the two folders', () => {
