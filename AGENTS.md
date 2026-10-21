@@ -136,16 +136,14 @@ Soft GPS: a scan is refused only for an accurate position that is clearly far fr
 append-only.
 
 `CONTRIBUTING.md` has the structure of the repository, `README.md` the architecture, `docs/agent-api.md` the agent API
-(its routes are registered in `server/agentEndpoints.js`, which also builds `/schema` and `/openapi.json`); `docs/`
-starts at `testing.md`, `agent-loop.md` and `design.md`.
+(its routes are registered in `server/agentEndpoints.js`, which also builds `/schema` and `/openapi.json`).
 
 ## Commands
 
 The scripts are in `package.json`, and `CONTRIBUTING.md` says what each is for. What neither shows:
 
-- The owner fills `.env.local` from `.env.example` with the non-production database; an agent never opens it.
-- `npm run db:create-admin -- <google-email> [name]` and `npm run db:backup` are the only sanctioned local accesses to a
-  deployment's database (Safety). `scripts/vercel-build.mjs` is Vercel's build command, never run by hand.
+- The owner fills `.env.local` from `.env.example` with the non-production database.
+- `scripts/vercel-build.mjs` is Vercel's build command, never run by hand.
 
 ## Rules for every change
 
@@ -203,8 +201,7 @@ change a rule there, not in a copy.
 
 ## Testing
 
-Both layers run against the non-production database of `.env.local`, in a throwaway schema dropped at the end; the
-tooling refuses a production database.
+Both layers run against the non-production database of `.env.local`, in a throwaway schema dropped at the end.
 
 - `npm run test:unit` (Vitest, `tests/components` included): after every logic change.
 - `npm run test:e2e` (Playwright, `android-chrome` and `iphone-webkit`): before every commit that touches `src/`,
@@ -267,8 +264,7 @@ refuses a route that no rule or more than one owns, and `tests/route-auth.test.j
 - After three review rounds on one pull request, stop fixing and bring the owner a different approach. A finding that
   comes back a second time becomes a check (a test, a lint rule, a hook) in the pull request that fixes it, or a rule in
   its own `docs(rules):` pull request.
-- The title is a Conventional Commit (`type(scope): description` or `type: description`, `!` for a breaking change, the
-  types in `CONTRIBUTING.md`); squash merge makes it the commit on `master`.
+- The title is a Conventional Commit (the types in `CONTRIBUTING.md`); squash merge makes it the commit on `master`.
 - `master` is protected by rulesets (`.github/rulesets/README.md`): a pull request, the four checks green and up to
   date, and a code-owner approval. With no merge queue, the next pull request is brought up to date after each merge.
 - Agents never merge or approve a pull request, never push to `master`, never force-push or rewrite history, and never
@@ -281,16 +277,15 @@ refuses a route that no rule or more than one owns, and `tests/route-auth.test.j
   `CONTRIBUTING.md`, apart from the files that `scripts/check-auto-merge.mjs` keeps out (the rules, `docs/privacy.md`,
   `docs/adr/`, `docs/runbooks/`, the design rules, the visual baselines, the test files every test depends on). Clean:
   no `allow-test-removal` label, the four checks green on the head, every conversation resolved, and a Codex review of
-  that exact head with no finding. Agents never merge, approve or turn on auto-merge, and never shape a pull request to
-  fit the class.
+  that exact head with no finding. Agents never turn on auto-merge, and never shape a pull request to fit the class.
 - The reviewer is always from the other vendor: Codex reviews what Claude wrote and Claude what Codex wrote (ADR 0003).
   A review is advice: check every finding against the code; a finding that is wrong gets a short reply that says why,
   not a change.
 - A change under `.github/` or to `scripts/check-*` needs the owner's careful look (green checks do not prove a pull
   request's own checks were not weakened): say so at the top of the description.
 - The rules (`AGENTS.md`, `CLAUDE.md`) change only in their own `docs(rules):` pull request, which the owner asked for
-  and which says so at its top. A feature pull request never changes them, whoever wrote it, and the agent loop never
-  does; a feature that needs a new rule waits for that pull request to merge first.
+  and which says so at its top. A feature pull request never changes them, whoever wrote it; a feature that needs a new
+  rule waits for that pull request to merge first.
 
 ## Releases
 
