@@ -12,7 +12,7 @@ On this project's GitHub Pages, one page and one file per language:
 
 Today only Hebrew is published (narrated, with captions). The provider app has a link, "Watch the tutorial
 video (a minute and a half)" in English, on the sign-in screen and on the home screen (`src/worker/tutorial.js`). A language that has no video of its own is sent to the
-Hebrew page, so the link never opens a 404. The link is a plain navigation: the app fetches nothing from the site. The sign-in screen's link opens the player page at the start. The home screen's link opens `video/<lang>/after-sign-in/`, the same video starting at the scene `locating` (the first after the sign-in), with a link back to the whole video: the site step writes that page and computes the start from the plan of the render, so it follows the video when a scene moves, and it starts at 0 when the scene is missing.
+Hebrew page, so the link never opens a 404. The link is a plain navigation: the app fetches nothing from the site. The sign-in screen's link opens the player page at the start. Each publish also writes `video/<lang>/after-sign-in/`, the same video starting at the scene `locating` (the first after the sign-in), with a link back to the whole video, for the home screen's link once that page is on the site: the site step writes that page and computes the start from the plan of the render, so it follows the video when a scene moves, and it starts at 0 when the scene is missing.
 
 ## How it is made
 

@@ -271,9 +271,9 @@ describe('HomeView', () => {
     expect([...document.querySelectorAll('.w-hero .w-step')].map((el) => el.textContent)).toEqual(stepsOf(he))
   })
 
-  it('links to the tutorial video from the first scene after the sign-in, in the language of the person, in a new tab, and falls back to Hebrew where a language has no video yet', () => {
+  it('links to the tutorial video in the language of the person, in a new tab, and falls back to Hebrew where a language has no video yet', () => {
     // The addresses are written out, so that publishing another language is a deliberate edit here too (src/worker/tutorial.js).
-    const HEBREW_PAGE = 'https://building-attendance.github.io/building-qr-system/video/he/after-sign-in/'
+    const HEBREW_PAGE = 'https://building-attendance.github.io/building-qr-system/video/he/'
     const pages = { he: HEBREW_PAGE, en: HEBREW_PAGE, ru: HEBREW_PAGE, ar: HEBREW_PAGE }
     expect(Object.keys(pages)).toEqual(LANGS.map((l) => l.code))
     for (const lang of LANGS.map((l) => l.code)) {

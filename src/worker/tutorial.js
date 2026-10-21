@@ -14,7 +14,8 @@ const FALLBACK_LANG = 'he'
 
 /**
  * The folder of the page that starts the same video after the sign-in (at the scene `locating`). The site step writes it
- * (AFTER_SIGN_IN_DIR in scripts/video/render-all.mjs); tests/video-after-sign-in.test.js pins the two names equal.
+ * (AFTER_SIGN_IN_DIR in scripts/video/render-all.mjs); tests/video-after-sign-in.test.js pins the two names equal. The home screen
+ * switches to it only once a publish has put the page on the site (a link must never open a 404).
  */
 export const AFTER_SIGN_IN_DIR = 'after-sign-in'
 

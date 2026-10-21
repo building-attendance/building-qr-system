@@ -197,7 +197,7 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
         <p className="w-lead">{t('login.subtitle')}</p>
       </div>
 
-      {/* The video teaches this very sign-in, so its link is here too, from the start (the home screen's link starts after the sign-in). */}
+      {/* The video teaches this very sign-in, so its link is here too, from the start. */}
       <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
 
       {providers.status === 'loading' && (
@@ -303,7 +303,7 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
       </div>
 
       {/* A quiet link, not a button: it leaves the app for the player page of the person's language (a navigation, nothing is loaded here). */}
-      <a className="w-link" href={tutorialUrl(lang, { afterSignIn: true })} target="_blank" rel="noopener">{t('home.tutorial')}</a>
+      <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
 
       <section className="w-card" aria-labelledby="w-today">
         <h2 id="w-today" className="w-section-title">{t('home.today')}</h2>

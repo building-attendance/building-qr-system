@@ -169,7 +169,7 @@ const escapeHtml = (text) => String(text).replace(/[&<>"']/g, (c) => ({ '&': '&a
 
 /**
  * The page that starts the video after the sign-in sits in this folder of the language's folder (/video/<lang>/after-sign-in/). The
- * app's home screen links to it (AFTER_SIGN_IN_DIR of src/worker/tutorial.js; tests/video-after-sign-in.test.js pins the two names equal).
+ * app's home screen is to link to it, once a publish has written it (AFTER_SIGN_IN_DIR of src/worker/tutorial.js; tests/video-after-sign-in.test.js pins the two names equal).
  */
 export const AFTER_SIGN_IN_DIR = 'after-sign-in'
 
