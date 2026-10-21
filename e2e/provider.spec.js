@@ -18,6 +18,30 @@ test('a scan link opens the sign-in list, in Hebrew, naming the point', async ({
   await expect(page.getByText(he['login.privacy'])).toBeVisible()
 })
 
+test('the sign-in list links to the tutorial video from its start, and its first accounts stay above the fold of a 390 x 844 phone in every language', async ({ page }) => {
+  // The video teaches this very sign-in. Only Hebrew is published, so every language opens the Hebrew player page from the start
+  // (src/worker/tutorial.js). The link sits between the sentence under the title and the list: it must not push the list down.
+  const FROM_START = 'https://building-attendance.github.io/building-qr-system/video/he/'
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(scanLink(POINTS.lobby))
+  let now = he
+  for (const [code, words] of [['he', he], ['en', en], ['ru', ru], ['ar', ar]]) {
+    await page.getByLabel(now['lang.label']).selectOption(code)
+    now = words
+    await expect(page.getByRole('heading', { name: words['login.title'] })).toBeVisible()
+    const link = page.getByRole('link', { name: words['home.tutorial'] })
+    await expect(link).toHaveAttribute('href', FROM_START)
+    await expect(link).toHaveAttribute('target', '_blank')
+    await page.evaluate(() => document.fonts.ready) // the letters of a language that was not on the screen yet change the line breaks
+    const rows = page.getByRole('list').getByRole('button')
+    await expect(rows).toHaveCount(5)
+    for (const index of [0, 1]) {
+      const box = await rows.nth(index).boundingBox()
+      expect(box.y + box.height, `${code}: the bottom of account ${index + 1} of the list, in a screen 844 px high`).toBeLessThanOrEqual(844)
+    }
+  }
+})
+
 test('the privacy note under the list gets the padding that its class declares', async ({ page }) => {
   // The reset of paragraphs (`.w-app p`) once outranked the class and cancelled this padding: the shield touched the edge of the box and
   // the text touched its top and bottom. tests/design-css.test.js holds the reset at no specificity; this is what the browser lays out.

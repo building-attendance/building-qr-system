@@ -36,6 +36,33 @@ describe('LoginView', () => {
     expect(screen.getByText(/נקודת סריקה/).textContent).toContain('לובי')
   })
 
+  it('links to the tutorial video from the start on the account list, in every language, between the title and the first account', () => {
+    // Written out, so that publishing another language is a deliberate edit here too (src/worker/tutorial.js).
+    const FROM_START = 'https://building-attendance.github.io/building-qr-system/video/he/'
+    for (const { code } of LANGS) {
+      window.localStorage.setItem(LANG_STORAGE_KEY, code)
+      const { unmount } = withI18n(view())
+      try {
+        const link = screen.getByRole('link', { name: DICTS[code]['home.tutorial'] })
+        expect(link.getAttribute('href'), code).toBe(FROM_START)
+        expect(link.getAttribute('target')).toBe('_blank')
+        expect(link.getAttribute('rel')).toContain('noopener')
+        const title = screen.getByRole('heading', { name: DICTS[code]['login.title'] })
+        const first = screen.getByRole('button', { name: new RegExp(ploni.contact_name) })
+        expect(title.compareDocumentPosition(link) & Node.DOCUMENT_POSITION_FOLLOWING, `${code}: after the title`).toBeTruthy()
+        expect(link.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING, `${code}: before the first account`).toBeTruthy()
+      } finally {
+        unmount()
+      }
+    }
+  })
+
+  it('leaves the link off the password screen', () => {
+    withI18n(view())
+    fireEvent.click(screen.getByRole('button', { name: new RegExp(ploni.contact_name) }))
+    expect(screen.queryByRole('link', { name: he['home.tutorial'] })).toBeNull()
+  })
+
   it("starts the privacy note with the account's name in every language: a scan keeps the name of the account, not the person's own (owner decision of 15/10/2026)", () => {
     // The sentences are written out here and not read from the dictionaries, which are what this test checks.
     const firstSentence = {

@@ -73,7 +73,7 @@ export function TopBar({ name = '', address = '' }) {
 /* ---------------------------------------------------------------- sign in */
 
 export function LoginView({ providers, pointName, notice, onSignedIn }) {
-  const { t } = useI18n()
+  const { t, lang } = useI18n()
   const [selected, setSelected] = useState(null)
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
@@ -196,6 +196,9 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
         <h1 className="w-h1">{t('login.title')}</h1>
         <p className="w-lead">{t('login.subtitle')}</p>
       </div>
+
+      {/* The video teaches this very sign-in, so its link is here too, from the start. */}
+      <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
 
       {providers.status === 'loading' && (
         <div className="w-list" role="status" aria-busy="true" aria-label={t('common.loading')}>
