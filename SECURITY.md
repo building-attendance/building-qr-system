@@ -71,9 +71,10 @@ treated as good faith.
 
 ## Guidelines for the automated security review
 
-Every pull request that changes anything beyond documentation, tests and the text a person sees in the app also gets a
-security review by Codex. Here it runs through the local CLI, in a checkout of the pull request's head. The CLI does not
-read this file by itself, so the command names it:
+Every pull request that changes anything beyond documentation and the text a person sees in the app (tests included,
+since a weakened test can hide a weakened protection) also gets a security review by Codex, of its final head: a push
+after the review gets a new one, and the pull request names the commit that was reviewed. Here it runs through the local
+CLI, in a checkout of that head. The CLI does not read this file by itself, so the command names it:
 
 ```
 codex review "Security review of the changes on this branch against the default branch (git diff origin/HEAD...HEAD). Follow the section 'Guidelines for the automated security review' in SECURITY.md and the sections of AGENTS.md that it names. Report only security findings, each with a severity, a file and a line."
@@ -88,7 +89,8 @@ The rules are those of `AGENTS.md` on the base branch, and this section does not
 A finding names the file and the line, says who could exploit it and how, and says whether the problem is in code that
 this pull request adds or changes, or was already on the default branch (pre-existing). That decides where it goes:
 
-- In code that this pull request adds or changes: it is fixed in this pull request before it merges.
+- In code that this pull request adds or changes: it is fixed in this pull request before it merges, or, when it is
+  wrong, answered there with the evidence.
 - Pre-existing: it is a vulnerability of the app that is already deployed, so it never goes into a pull request, an
   issue or a comment. It is reported privately, as "How to report a vulnerability" above says, and handled like any
   other report.
