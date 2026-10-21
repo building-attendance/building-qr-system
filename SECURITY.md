@@ -71,20 +71,28 @@ treated as good faith.
 
 ## Guidelines for the automated security review
 
-Every pull request that touches a sensitive path also gets a security review by Codex, which reads this section. Here it
-runs through the local CLI (`codex review`, with this section and the Safety section of `AGENTS.md` as its instructions),
-and its result goes into the pull request's description, because Codex's security review on GitHub
-(`@codex security review`) is not available on every ChatGPT plan; a copy whose plan includes it can ask for it there.
-The project's rules are in `AGENTS.md`: its "Code Review Rules" say what counts as P1, and its "Safety" section holds
-the rules behind them. Judge a pull request against the base branch's version of both. What
-matters most here:
+Every pull request that changes anything beyond documentation, tests and the text a person sees in the app also gets a
+security review by Codex. Here it runs through the local CLI, in a checkout of the pull request's head, and its result
+goes into the pull request's description. The CLI does not read this file by itself, so the command names it:
+
+```
+codex review "Security review of the changes on this branch against origin/master (git diff origin/master...HEAD). Follow the section 'Guidelines for the automated security review' in SECURITY.md and the Safety section of AGENTS.md. Report only security findings, each with a severity, a file and a line."
+```
+
+Codex's security review on GitHub (`@codex security review`) reads this section by itself, but it is not available on
+every ChatGPT plan; a copy whose plan includes it can ask for it there instead. The project's rules are in `AGENTS.md`:
+its "Code Review Rules" say what counts as P1, and its "Safety" section holds the rules behind them. Judge a pull request
+against the base branch's version of both. What matters most here:
 
 - **Personal data:** names, e-mails, phone numbers, attendance rows and positions never reach a log, an error record, a
   URL, a test, a fixture or an answer that its role may not see.
-- **Secrets:** a point's QR token, provider and committee tokens, agent API keys and their prefixes, password hashes,
-  `CRON_SECRET` and `HEALTH_HEARTBEAT_URL` never appear in the diff, a log, an answer or a workflow's output.
-- **Authorization:** every route under `/api` is owned by one guard in `server/access.js`, and no code of a handler runs
-  before it; the agent API only reads, and builds every answer field by field.
+- **Secrets:** the value of a point's QR token, a provider or committee token, an agent API key, a password hash,
+  `CRON_SECRET` or `HEALTH_HEARTBEAT_URL` never appears in the diff, a log, an answer or a workflow's output, and a key's
+  prefix never reaches an agent answer. The prefixes themselves are constants in `server/config.js` and
+  `shared/contract.js`, where the server checks a token's shape, not secrets.
+- **Authorization:** every route under `/api` is owned by exactly one rule of `server/access.js`: a public route is on its
+  `PUBLIC` list with the reason it answers without credentials, and every other route has a guard that runs before any
+  code of its handler. The agent API only reads, and builds every answer field by field.
 - **Production:** no local tool reaches a deployment's database but `npm run db:backup` (read-only) and
   `npm run db:create-admin`; only the production build migrates.
 - **The browser:** what the Content-Security-Policy in `vercel.json` allows.
