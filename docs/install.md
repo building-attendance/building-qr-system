@@ -451,6 +451,12 @@ and off any folder that a service synchronises to the internet. Choose the compu
 one) is in [restore.md](runbooks/restore.md), "Daily backups". The command needs the `production` marker that your first
 deploy wrote. Without a backup your safety net is Neon's 6 hours.
 
+**The tutorial video.** The provider app's home screen links to a short tutorial video that this project publishes. It
+shows only the made-up sample building, so a copy needs to do nothing. The workflow that rebuilds the video is off in a
+copy. A copy that wants its own video sets the repository variable `VIDEO_ENABLED` to `true`, and first needs Remotion's
+licence if the company that runs it has more than 3 employees (a committee, a non-profit and an individual are free).
+[video.md](video.md), "In a copy of the repository", has the steps.
+
 **The agent API.** The committee's AI agent reads the data through a read-only API ([agent-api.md](agent-api.md)).
 In the Agent tab ("אייג׳נט") make a key (shown once; keep it in the vault of the agent platform, never in a chat).
 [agent-prompt.md](agent-prompt.md) has ready texts. Fill in its "Two values to fill in": `<your-domain>` (the host only,

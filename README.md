@@ -48,6 +48,7 @@ The committee app is in Hebrew. Every screen above shows invented sample data. M
 - **Daily jobs.** One deletes personal data when its retention period ends. One sends a short health summary, if you set
   that up.
 - **A smoke test after every deploy** that checks the live site and opens an issue if it is broken.
+- **A tutorial video for service providers**, made from the real app and linked from its home screen: [docs/video.md](docs/video.md).
 - **Releases with notes for installers:** what changed, and what you must do when you update.
 
 ## What it needs, and the limits
