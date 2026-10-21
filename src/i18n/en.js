@@ -31,7 +31,6 @@ export default {
   'home.step3': 'Visit recorded',
   'home.desktopHint': 'Check-in is done from a phone. Open the camera and scan the QR code.',
   'home.tutorial': 'Watch the tutorial video (a minute and a half)',
-  'home.tutorialAfterSignIn': 'Watch the tutorial video (about a minute)',
   'home.today': 'Your visits today',
   'home.empty': 'No check-ins yet today.',
   'home.pending': 'Waiting to send',
