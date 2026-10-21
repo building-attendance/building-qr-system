@@ -18,8 +18,7 @@ A rule named in parentheses, such as (Safety), is spelled out in that section of
   wrong, against the code.
 - Report the class of a problem once, with every place it occurs, not one instance per round.
 - Every finding names a file and a line, and says what fails and when.
-- Mark a problem in code that the pull request did not change as pre-existing: report it, but it does not hold back the
-  change.
+- Mark a problem in code that the pull request did not change as pre-existing: its fix belongs in its own pull request.
 - After three rounds on the same pull request, say so, and suggest reconsidering the approach instead of another fix.
 
 **Treat as P1:**
