@@ -4,7 +4,6 @@
 //
 // - `link` is the address that the camera offers over the QR code of the sign: the production domain that is printed on every sign.
 // - `voiceCredit` is the credit of a voice that a service made (decision D2): the closing card shows it under the title.
-// - `watchFromStart` is the link of the player page that starts after the sign-in (video/site/player.html), back to the whole video.
 // - The question is neutral on purpose: it does not copy the dialog of Android or of iOS, which differ between phones and versions.
 export const DRAWN = Object.freeze({
   he: {
@@ -18,7 +17,6 @@ export const DRAWN = Object.freeze({
     locationAllow: 'לאפשר',
     locationDeny: 'לא לאפשר',
     voiceCredit: 'קול: ElevenLabs',
-    watchFromStart: 'לצפות מההתחלה',
   },
   en: {
     introTitle: 'Checking in at the building',
@@ -31,7 +29,6 @@ export const DRAWN = Object.freeze({
     locationAllow: 'Allow',
     locationDeny: 'Do not allow',
     voiceCredit: 'Voice: ElevenLabs',
-    watchFromStart: 'Watch from the start',
   },
   ru: {
     introTitle: 'Отметка о посещении здания',
@@ -44,7 +41,6 @@ export const DRAWN = Object.freeze({
     locationAllow: 'Разрешить',
     locationDeny: 'Не разрешать',
     voiceCredit: 'Голос: ElevenLabs',
-    watchFromStart: 'Смотреть с начала',
   },
   ar: {
     introTitle: 'تسجيل الحضور في المبنى',
@@ -57,6 +53,5 @@ export const DRAWN = Object.freeze({
     locationAllow: 'السماح',
     locationDeny: 'عدم السماح',
     voiceCredit: 'الصوت: ElevenLabs',
-    watchFromStart: 'المشاهدة من البداية',
   },
 })

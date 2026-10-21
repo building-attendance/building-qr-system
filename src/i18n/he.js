@@ -33,7 +33,6 @@ export default {
   'home.step3': 'הנוכחות נרשמת',
   'home.desktopHint': 'רישום נוכחות נעשה מהטלפון. פתחו את המצלמה וסרקו את קוד ה-QR.',
   'home.tutorial': 'צפו בסרטון ההדרכה (דקה וחצי)',
-  'home.tutorialAfterSignIn': 'צפו בסרטון ההדרכה (בערך דקה)',
   'home.today': 'הביקורים שלכם היום',
   'home.empty': 'עוד לא נרשמה נוכחות היום.',
   'home.pending': 'ממתין לשליחה',

@@ -126,11 +126,10 @@ test('signing in checks in at the point, names who signed in, and lists the visi
   await expect(page.getByRole('list').getByText('לובי')).toBeVisible()
   await expect(page.getByRole('list').getByText(/^\d{2}:\d{2}$/)).toBeVisible() // the time of the visit: HH:MM
 
-  // The link to the tutorial video: an ordinary link that opens the player page in a new tab, starting after the sign-in (the person has
-  // just signed in; the sign-in screen links to the whole video). Only Hebrew is published, so English falls back to the Hebrew page for
-  // now (src/worker/tutorial.js).
-  const TUTORIAL_PAGE = 'https://building-attendance.github.io/building-qr-system/video/he/after-sign-in/'
-  const tutorial = page.getByRole('link', { name: he['home.tutorialAfterSignIn'] })
+  // The link to the tutorial video: an ordinary link that opens the player page in a new tab, the whole video like the sign-in screen's.
+  // Only Hebrew is published, so English falls back to the Hebrew page for now (src/worker/tutorial.js).
+  const TUTORIAL_PAGE = 'https://building-attendance.github.io/building-qr-system/video/he/'
+  const tutorial = page.getByRole('link', { name: he['home.tutorial'] })
   await expect(tutorial).toHaveAttribute('href', TUTORIAL_PAGE)
   await expect(tutorial).toHaveAttribute('target', '_blank')
 
@@ -144,7 +143,7 @@ test('signing in checks in at the point, names who signed in, and lists the visi
     now = words
     const visits = page.getByRole('region', { name: words['home.today'] })
     await expect(visits).toBeVisible()
-    await expect(page.getByRole('link', { name: words['home.tutorialAfterSignIn'] })).toHaveAttribute('href', TUTORIAL_PAGE)
+    await expect(page.getByRole('link', { name: words['home.tutorial'] })).toHaveAttribute('href', TUTORIAL_PAGE)
     await page.evaluate(() => document.fonts.ready) // the letters of a language that was not on the screen yet change the line breaks
     const box = await visits.boundingBox()
     expect(box.y + box.height, `${code}: the bottom of today's visits, in a screen 844 px high`).toBeLessThanOrEqual(844)
