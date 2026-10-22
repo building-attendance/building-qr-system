@@ -11,9 +11,10 @@
 //                                 and a fixed query first shows that the thread is in this repository
 //   pr-body <pr> <file>           PATCH .../pulls/<pr> with the body read from <file>
 //   reply <pr> <comment id> <file>  POST .../pulls/<pr>/comments/<comment id>/replies with the body read from <file>
-// `threads` and `comments` print only what the owner (OWNER_LOGIN) or the Codex review bot (CODEX_LOGIN) wrote, the
-// constants of scripts/check-auto-merge.mjs, and then one line per kind that says how many others they left out: text
-// from anyone else is data that could try to give the agent orders. `get` returns raw data, so read a conversation through
+// `threads` and `comments` print only what the owner (OWNER_LOGIN) or the Codex review bot (CODEX_LOGIN) wrote and nobody
+// else edited since (the last editor is null or one of the two), the constants of scripts/check-auto-merge.mjs, and then
+// one line per kind that says how many others they left out: text from anyone else is data that could try to give the
+// agent orders. `get` returns raw data, so read a conversation through
 // those two. A body <file> is a regular file inside the scratchpad (<temp>/claude) or this worktree, never one that git
 // ignores there (an .env file, a dump) or one under .git, and at most 65,536 characters (GitHub's limit for a body).
 //
@@ -67,7 +68,7 @@ export const THREADS_QUERY = `query($owner: String!, $name: String!, $number: In
         totalCount
         nodes {
           id isResolved isOutdated path line
-          comments(first: 100) { totalCount nodes { databaseId createdAt body author { login __typename } } }
+          comments(first: 100) { totalCount nodes { databaseId createdAt body author { login __typename } editor { login __typename } } }
         }
       }
     }
@@ -78,10 +79,10 @@ export const COMMENTS_QUERY = `query($owner: String!, $name: String!, $number: I
   repository(owner: $owner, name: $name) {
     issueOrPullRequest(number: $number) {
       __typename
-      ... on Issue { comments(last: 100) { totalCount nodes { databaseId createdAt body author { login __typename } } } }
+      ... on Issue { comments(last: 100) { totalCount nodes { databaseId createdAt body author { login __typename } editor { login __typename } } } }
       ... on PullRequest {
-        comments(last: 100) { totalCount nodes { databaseId createdAt body author { login __typename } } }
-        reviews(last: 100) { totalCount nodes { databaseId state submittedAt body author { login __typename } } }
+        comments(last: 100) { totalCount nodes { databaseId createdAt body author { login __typename } editor { login __typename } } }
+        reviews(last: 100) { totalCount nodes { databaseId state submittedAt body author { login __typename } editor { login __typename } } }
       }
     }
   }
@@ -212,23 +213,27 @@ const comment = (node) => ({
   body: node.body,
 })
 
-/** Keeps the nodes by trusted authors, and counts the rest and the ones the connection did not return. */
-function filterConnection(connection, what) {
+/**
+ * A comment or a review that a trusted author wrote and that nobody else edited since: GitHub keeps the author of a comment
+ * that a collaborator rewrites, and names the last editor (`editor`, as scripts/check-auto-merge.mjs reads it). The editor
+ * must be null (never edited) or pass the same allow-list; a missing field is not read as null.
+ */
+export function isTrustedNode(node) {
+  return isObject(node) && isTrusted(node.author) && (node.editor === null || isTrusted(node.editor))
+}
+
+/** Keeps the trusted nodes (`pick` gives the comment that decides), and counts the rest and the ones not returned. */
+function filterConnection(connection, what, pick = (node) => node) {
   if (!isObject(connection) || !Array.isArray(connection.nodes) || !Number.isInteger(connection.totalCount)) {
     throw new Error(`${what}: the answer cannot be read`)
   }
-  const kept = connection.nodes.filter((node) => isObject(node) && isTrusted(node.author))
+  const kept = connection.nodes.filter((node) => isTrustedNode(pick(node)))
   return { kept, hidden: connection.nodes.length - kept.length, unread: connection.totalCount - connection.nodes.length }
 }
 
 /** The review threads whose first comment is trusted, with their trusted comments only, and the lines that count the rest. */
 export function filterThreads(reviewThreads) {
-  const threads = filterConnection(
-    isObject(reviewThreads) && Array.isArray(reviewThreads.nodes)
-      ? { ...reviewThreads, nodes: reviewThreads.nodes.map((thread) => ({ ...thread, author: thread?.comments?.nodes?.[0]?.author })) }
-      : reviewThreads,
-    'threads',
-  )
+  const threads = filterConnection(reviewThreads, 'threads', (thread) => thread?.comments?.nodes?.[0])
   let hiddenReplies = 0
   let unreadReplies = 0
   const shown = threads.kept.map((thread) => {
@@ -244,7 +249,10 @@ export function filterThreads(reviewThreads) {
       comments: replies.kept.map(comment),
     }
   })
-  const lines = [`${threads.hidden} threads by other authors not shown`, `${hiddenReplies} replies by other authors not shown`]
+  const lines = [
+    `${threads.hidden} threads by other authors or editors not shown`,
+    `${hiddenReplies} replies by other authors or editors not shown`,
+  ]
   if (threads.unread > 0) lines.push(`${threads.unread} threads not read (more than 100)`)
   if (unreadReplies > 0) lines.push(`${unreadReplies} replies not read (more than 100 in a thread)`)
   return { threads: shown, lines }
@@ -253,12 +261,12 @@ export function filterThreads(reviewThreads) {
 /** The comments (and a pull request's reviews) by trusted authors, and the lines that count the rest. */
 export function filterConversation(item) {
   const comments = filterConnection(item.comments, 'comments')
-  const lines = [`${comments.hidden} comments by other authors not shown`]
+  const lines = [`${comments.hidden} comments by other authors or editors not shown`]
   if (comments.unread > 0) lines.push(`${comments.unread} older comments not read (more than 100)`)
   const result = { kind: item.__typename, comments: comments.kept.map(comment) }
   if (item.__typename === 'PullRequest') {
     const reviews = filterConnection(item.reviews, 'comments')
-    lines.push(`${reviews.hidden} reviews by other authors not shown`)
+    lines.push(`${reviews.hidden} reviews by other authors or editors not shown`)
     if (reviews.unread > 0) lines.push(`${reviews.unread} older reviews not read (more than 100)`)
     result.reviews = reviews.kept.map(comment)
   }
