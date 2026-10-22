@@ -9,6 +9,11 @@
   `upload`, `gh workflow run release.yml` and `gh workflow run Release`, `git tag` and pushing tags (`git push --tags`,
   `git push origin v*`). This is a guardrail against the usual command, not a security boundary (ADR 0003): when a deny
   rule blocks something, do not look for another way to do it (`gh api` included), ask the owner.
+- The same file denies `gh api`: the GitHub API goes through `node scripts/gh-agent.mjs` and its fixed commands, listed in
+  its header. Read the conversation of a pull request or an issue with its `threads` and `comments`, which show only the
+  owner's and Codex's text and count the rest; `get` returns raw data. The local agent's GitHub token cannot change
+  settings, rulesets or secrets, push a workflow file or re-run CI, but it can still merge a green pull request through the
+  owner's bypass: that is why `gh pr merge` is denied.
 - The same file wires an edit hook: after every Edit, Write or MultiEdit, `scripts/hooks/check-edit.mjs` checks the file
   for an em dash or an en dash and, in `src/`, `server/` and `shared/`, for a date that `shared/datetime.js` did not write. The rules
   are in `scripts/text-rules.mjs`. If the hook reports a problem, fix it before moving on: the edit is already saved.
