@@ -29,11 +29,11 @@ const memberByEmail = (email) => one('select * from admins where email = $1', [e
 /** Runs `fn` while every new row of audit_log with this action is refused by the database. The constraint is dropped after. */
 async function refusingAudit(action, fn) {
   const name = `refuse_${action.replace(/\W/g, '_')}`
-  await q(`alter table audit_log add constraint ${name} check (action <> '${action}') not valid`)
+  await db.ownerPool.query(`alter table audit_log add constraint ${name} check (action <> '${action}') not valid`)
   try {
     return await fn()
   } finally {
-    await q(`alter table audit_log drop constraint ${name}`)
+    await db.ownerPool.query(`alter table audit_log drop constraint ${name}`)
   }
 }
 

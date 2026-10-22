@@ -213,12 +213,12 @@ describe('a photo that is missing or refused never stops a sign-in', () => {
     await signIn(SECOND)
     googleGives(NEW_PHOTO)
     vi.spyOn(console, 'error').mockImplementation(() => {})
-    await db.pool.query('alter table admin_sessions add constraint refuse_session check (false) not valid')
+    await db.ownerPool.query('alter table admin_sessions add constraint refuse_session check (false) not valid')
     let answer
     try {
       answer = await signIn(SECOND)
     } finally {
-      await db.pool.query('alter table admin_sessions drop constraint refuse_session')
+      await db.ownerPool.query('alter table admin_sessions drop constraint refuse_session')
     }
     expect(answer.status).toBe(500)
     expect(await storedPhoto(SECOND)).toBeNull()
@@ -301,11 +301,11 @@ describe('the photo never reaches the agent or a log', () => {
     }
     googleGives(NEW_PHOTO)
     expect((await signIn(SECOND)).status).toBe(200)
-    await db.pool.query('alter table admin_sessions add constraint refuse_session check (false) not valid')
+    await db.ownerPool.query('alter table admin_sessions add constraint refuse_session check (false) not valid')
     try {
       expect((await signIn(SECOND)).status).toBe(500)
     } finally {
-      await db.pool.query('alter table admin_sessions drop constraint refuse_session')
+      await db.ownerPool.query('alter table admin_sessions drop constraint refuse_session')
     }
     expect(lines.length, 'the failed sign-in was logged').toBeGreaterThan(0)
     expect(lines.join('\n')).not.toContain('googleusercontent')

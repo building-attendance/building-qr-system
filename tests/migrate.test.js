@@ -38,7 +38,7 @@ async function waitUntilRunning(pool, token) {
 
 let db
 let other
-const mine = async (pool = db.pool) =>
+const mine = async (pool = db.ownerPool) =>
   (await pool.query("select name from schema_migrations where name like 'm\\_%' order by name")).rows.map((r) => r.name)
 
 beforeAll(async () => {
@@ -60,7 +60,7 @@ describe('the migration lock', () => {
       'm_001_first.sql': 'create table m_first (id int primary key); select pg_sleep(1.5);',
       'm_002_second.sql': 'create table m_second (id int primary key);',
     })
-    const [a, b] = await Promise.all([migrate(db.pool, dir), migrate(db.pool, dir)])
+    const [a, b] = await Promise.all([migrate(db.ownerPool, dir), migrate(db.ownerPool, dir)])
     expect([...a, ...b].sort()).toEqual(['m_001_first.sql', 'm_002_second.sql'])
     expect([a.length, b.length].sort()).toEqual([0, 2])
     expect(await mine()).toEqual(['m_001_first.sql', 'm_002_second.sql'])
@@ -69,25 +69,25 @@ describe('the migration lock', () => {
   it('gives up with a clear error when another run keeps the lock, and the lock is free afterwards', async () => {
     const slow = folder({ 'm_010_slow.sql': "create table m_slow (id int); select 'token_hold_1', pg_sleep(3);" })
     const later = folder({ 'm_011_later.sql': 'create table m_later (id int);' })
-    const holder = migrate(db.pool, slow)
-    await waitUntilRunning(db.pool, 'token_hold_1')
-    await expect(migrate(db.pool, later, { lockWaitMs: 1200, lockRetryMs: 300 })).rejects.toThrow(
+    const holder = migrate(db.ownerPool, slow)
+    await waitUntilRunning(db.ownerPool, 'token_hold_1')
+    await expect(migrate(db.ownerPool, later, { lockWaitMs: 1200, lockRetryMs: 300 })).rejects.toThrow(
       /another migration run holds the lock/i,
     )
     expect(await holder).toEqual(['m_010_slow.sql'])
     // It is free now (a leaked lock would make this wait and fail), and the file that was refused was not applied.
     expect(await mine()).not.toContain('m_011_later.sql')
-    await expect(migrate(db.pool, later, { lockWaitMs: 3000 })).resolves.toEqual(['m_011_later.sql'])
+    await expect(migrate(db.ownerPool, later, { lockWaitMs: 3000 })).resolves.toEqual(['m_011_later.sql'])
   })
 
   it('does not make a run in another schema wait: the key depends on the schema', async () => {
     const slow = folder({ 'm_020_slow.sql': "select 'token_hold_2', pg_sleep(3);" })
     const quick = folder({ 'm_021_quick.sql': 'create table m_quick (id int);' })
-    const holder = migrate(db.pool, slow)
-    await waitUntilRunning(db.pool, 'token_hold_2')
-    await expect(migrate(other.pool, quick, { lockWaitMs: 500 })).resolves.toEqual(['m_021_quick.sql'])
+    const holder = migrate(db.ownerPool, slow)
+    await waitUntilRunning(db.ownerPool, 'token_hold_2')
+    await expect(migrate(other.ownerPool, quick, { lockWaitMs: 500 })).resolves.toEqual(['m_021_quick.sql'])
     await holder
-    expect(await mine(other.pool)).toEqual(['m_021_quick.sql'])
+    expect(await mine(other.ownerPool)).toEqual(['m_021_quick.sql'])
   })
 })
 
@@ -98,10 +98,10 @@ describe('the timeouts of a migration', () => {
         "create table m_settings as select current_setting('lock_timeout') as lock_timeout, current_setting('statement_timeout') as statement_timeout;",
     })
     const setting = async () =>
-      (await db.pool.query("select current_setting('statement_timeout') as st, current_setting('lock_timeout') as lt")).rows[0]
+      (await db.ownerPool.query("select current_setting('statement_timeout') as st, current_setting('lock_timeout') as lt")).rows[0]
     const before = await setting()
-    await migrate(db.pool, dir)
-    const { rows } = await db.pool.query('select lock_timeout, statement_timeout from m_settings')
+    await migrate(db.ownerPool, dir)
+    const { rows } = await db.ownerPool.query('select lock_timeout, statement_timeout from m_settings')
     expect(rows).toEqual([{ lock_timeout: '5s', statement_timeout: '5min' }])
     // The settings are local to the migration's transaction: the connection goes back to the pool as it was.
     expect(await setting()).toEqual(before)
@@ -109,20 +109,20 @@ describe('the timeouts of a migration', () => {
 
   it('fails fast when a migration has to wait for a lock that someone else holds, and frees its own lock', async () => {
     const first = folder({ 'm_040_table.sql': 'create table m_locked (id int);' })
-    await migrate(db.pool, first)
+    await migrate(db.ownerPool, first)
     const dir = folder({
       'm_040_table.sql': 'create table m_locked (id int);',
       'm_041_alter.sql': 'alter table m_locked add column extra int;',
     })
 
     // What live traffic does: a transaction that holds the table.
-    const traffic = await db.pool.connect()
+    const traffic = await db.ownerPool.connect()
     try {
       await traffic.query('begin')
       await traffic.query('lock table m_locked in access exclusive mode')
 
       const started = Date.now()
-      const err = await migrate(db.pool, dir).catch((e) => e)
+      const err = await migrate(db.ownerPool, dir).catch((e) => e)
       const took = Date.now() - started
       // The message says the file and the SQLSTATE with its name; the database's text is apart, and not in the message.
       expect(err).toBeInstanceOf(MigrationError)
@@ -140,8 +140,8 @@ describe('the timeouts of a migration', () => {
 
     // Nothing was recorded for the failed file, and a later run applies it (so the migration lock was released).
     expect(await mine()).not.toContain('m_041_alter.sql')
-    await expect(migrate(db.pool, dir, { lockWaitMs: 3000 })).resolves.toEqual(['m_041_alter.sql'])
-    const column = await db.pool.query(
+    await expect(migrate(db.ownerPool, dir, { lockWaitMs: 3000 })).resolves.toEqual(['m_041_alter.sql'])
+    const column = await db.ownerPool.query(
       "select 1 from information_schema.columns where table_schema = $1 and table_name = 'm_locked' and column_name = 'extra'",
       [db.schema],
     )
@@ -156,7 +156,7 @@ describe('a failing migration', () => {
       'm_051_broken.sql': 'create table m_half (id int); select * from m_does_not_exist;',
       'm_052_after.sql': 'create table m_after (id int);',
     })
-    const err = await migrate(db.pool, dir).catch((e) => e)
+    const err = await migrate(db.ownerPool, dir).catch((e) => e)
     expect(err).toBeInstanceOf(MigrationError)
     expect(err.message).toBe('Migration m_051_broken.sql failed: 42P01 (undefined_table)')
     expect(err.file).toBe('m_051_broken.sql')
@@ -171,7 +171,7 @@ describe('a failing migration', () => {
     expect(await mine()).toContain('m_050_ok.sql')
     expect(await mine()).not.toContain('m_051_broken.sql')
     expect(await mine()).not.toContain('m_052_after.sql')
-    const tables = await db.pool.query(
+    const tables = await db.ownerPool.query(
       "select to_regclass($1) is not null as half, to_regclass($2) is not null as after",
       [`${db.schema}.m_half`, `${db.schema}.m_after`],
     )
@@ -241,7 +241,7 @@ describe('MigrationError never carries the text of the database', () => {
 
   it('holds for a real failure on the database: a value that does not cast', async () => {
     const dir = folder({ 'm_060_cast.sql': `create table m_cast (n int); insert into m_cast values ('${PERSONAL}'::int);` })
-    const err = await migrate(db.pool, dir).catch((e) => e)
+    const err = await migrate(db.ownerPool, dir).catch((e) => e)
     expect(err).toBeInstanceOf(MigrationError)
     expect(err.message).toBe('Migration m_060_cast.sql failed: 22P02 (invalid_text_representation)')
     // The database really did quote the value, and only databaseMessage has it.
@@ -252,9 +252,9 @@ describe('MigrationError never carries the text of the database', () => {
   it('keeps the lock error as it was, and it too is an error that may be printed as it is', async () => {
     const slow = folder({ 'm_061_slow.sql': "create table m_slow2 (id int); select 'token_hold_3', pg_sleep(2);" })
     const later = folder({ 'm_062_later.sql': 'create table m_later2 (id int);' })
-    const holder = migrate(db.pool, slow)
-    await waitUntilRunning(db.pool, 'token_hold_3')
-    const err = await migrate(db.pool, later, { lockWaitMs: 1000, lockRetryMs: 300 }).catch((e) => e)
+    const holder = migrate(db.ownerPool, slow)
+    await waitUntilRunning(db.ownerPool, 'token_hold_3')
+    const err = await migrate(db.ownerPool, later, { lockWaitMs: 1000, lockRetryMs: 300 }).catch((e) => e)
     await holder
     expect(err).toBeInstanceOf(SafeMessageError)
     expect(err).not.toBeInstanceOf(MigrationError)

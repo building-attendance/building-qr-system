@@ -564,7 +564,7 @@ describe('GET /counts: the key, the validation and what must not come out', () =
   it('shows nothing secret: no QR code, password, hash, key, phone, address or label, in any grouping', async () => {
     const marker = 'secret-marker-9921'
     // A column that is added to `scans` later does not reach the answer: it is added now, with a value on every row.
-    await w.db.pool.query(`alter table scans add column later_column text not null default '${marker}'`)
+    await w.db.ownerPool.query(`alter table scans add column later_column text not null default '${marker}'`)
     // The three visits of the seed were recorded just now: a range around today holds them.
     const dayOf = (offsetDays) => new Date(Date.now() + offsetDays * 86_400_000).toISOString().slice(0, 10)
     const around = `from=${dayOf(-30)}&to=${dayOf(2)}`

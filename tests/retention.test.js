@@ -97,7 +97,7 @@ const CLEARED = { label: '', app_build: null, status_at: null, waiting_count: nu
  * log and the other tables are only ever added to: a test compares them before and after a run.
  */
 async function seed() {
-  const q = (text, params) => db.pool.query(text, params)
+  const q = (text, params) => db.ownerPool.query(text, params) // the owner: the seed empties provider_devices, which the app never deletes from
   // One statement for each kind of row (a statement is several round trips to the database, and the schema is remote).
   await q(
     `with a as (delete from admin_sessions), b as (delete from auth_attempts), c as (delete from provider_devices),
@@ -442,12 +442,12 @@ describe('runRetention', () => {
   })
 
   it('does nothing to a database where nothing is due', async () => {
-    await db.pool.query('delete from admin_sessions')
-    await db.pool.query('delete from auth_attempts')
-    await db.pool.query('delete from provider_devices')
-    await db.pool.query('delete from app_errors')
-    await db.pool.query('delete from alert_pings')
-    await db.pool.query('delete from api_key_usage')
+    await db.ownerPool.query('delete from admin_sessions')
+    await db.ownerPool.query('delete from auth_attempts')
+    await db.ownerPool.query('delete from provider_devices')
+    await db.ownerPool.query('delete from app_errors')
+    await db.ownerPool.query('delete from alert_pings')
+    await db.ownerPool.query('delete from api_key_usage')
     expect(await runRetention()).toEqual(NOTHING_DUE)
   })
 
@@ -546,12 +546,12 @@ describe('runRetention', () => {
   it('is all or nothing: when its audit row cannot be written, no session, attempt or label is touched', async () => {
     const { devices } = await seed()
     const before = await snapshot()
-    await db.pool.query(`alter table audit_log add constraint no_retention_row check (action <> 'retention.run' or id < 0) not valid`)
+    await db.ownerPool.query(`alter table audit_log add constraint no_retention_row check (action <> 'retention.run' or id < 0) not valid`)
     try {
       // NOT VALID: the 'retention.run' rows that are already there are left alone, and every new one is refused.
       await expect(runRetention()).rejects.toMatchObject({ code: '23514' })
     } finally {
-      await db.pool.query('alter table audit_log drop constraint no_retention_row')
+      await db.ownerPool.query('alter table audit_log drop constraint no_retention_row')
     }
     const after = await snapshot()
     expect(after).toEqual(before)
@@ -702,7 +702,7 @@ describe('GET /api/cron/retention', () => {
   it('answers 500 without detail and changes nothing but the one record of the error when the job fails, and logs no row value', async () => {
     const { devices } = await seed()
     const before = await snapshot()
-    await db.pool.query(`alter table audit_log add constraint no_retention_row check (action <> 'retention.run' or id < 0) not valid`)
+    await db.ownerPool.query(`alter table audit_log add constraint no_retention_row check (action <> 'retention.run' or id < 0) not valid`)
     const error = vi.spyOn(console, 'error').mockImplementation(() => {})
     let res
     let logged
@@ -711,7 +711,7 @@ describe('GET /api/cron/retention', () => {
     } finally {
       logged = [...error.mock.calls]
       error.mockRestore()
-      await db.pool.query('alter table audit_log drop constraint no_retention_row')
+      await db.ownerPool.query('alter table audit_log drop constraint no_retention_row')
     }
     expect(res.status).toBe(500)
     expect(res.json).toEqual({ error: { code: 'server_error', message: 'Something went wrong' } })

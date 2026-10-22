@@ -1102,7 +1102,7 @@ describe('the documents fit the real answers', () => {
 
 describe('a column added to the table later does not reach the agent', () => {
   it('stays out of every page, and the statement does not change', async () => {
-    await db.pool.query("alter table audit_log add column fake_secret text default 'fake-secret-marker-9921'")
+    await db.ownerPool.query("alter table audit_log add column fake_secret text default 'fake-secret-marker-9921'")
     const { texts } = await walk(agent, '', 200)
     for (const text of texts) {
       expect(text).not.toContain('fake_secret')
