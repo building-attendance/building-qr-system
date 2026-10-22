@@ -30,10 +30,12 @@
 select pg_advisory_xact_lock(hashtext('building-qr-system:runtime-roles'));
 
 -- Created only when missing (a second schema of the same cluster finds them). NOLOGIN, and none of CREATEROLE, CREATEDB,
--- REPLICATION, BYPASSRLS or SUPERUSER: those are the defaults of `create role`, and tests/db-privileges.test.js checks them.
+-- REPLICATION, BYPASSRLS or SUPERUSER: those are the defaults of `create role`. The role that is created is marked at once, in
+-- the same block, with a comment of its own; a role that was already there is not marked again (the handler skips both).
 do $$
 begin
   create role app_runtime nologin;
+  comment on role app_runtime is 'building-qr-system: the app''s own role, only what the server''s code does to each table (migration 016)';
 exception when duplicate_object then
   null;
 end $$;
@@ -41,9 +43,42 @@ end $$;
 do $$
 begin
   create role backup_reader nologin;
+  comment on role backup_reader is 'building-qr-system: reads every table for a backup and writes nothing (migration 016)';
 exception when duplicate_object then
   null;
 end $$;
+
+-- A role with one of these names that this migration did not make (one that can log in, a superuser, anything someone created
+-- by hand) must never receive the grants below: the migration stops instead, before the first grant. The check:
+--   - the marker: the comment above, exactly. Only a role that holds ADMIN OPTION on a role (or a superuser) may set its
+--     comment, and the migration sets it in the transaction that creates the role, so a marked role is one this file made (or
+--     one that somebody who already administers the cluster marked on purpose: the check does not stop that person, who can
+--     grant anything anyway).
+--   - none of LOGIN, SUPERUSER, CREATEROLE, CREATEDB, REPLICATION or BYPASSRLS, whoever set them later.
+-- Members are not checked: the owner's login role for the app (a later step) becomes a member of app_runtime on purpose.
+-- The message names the role and the reason only. EXECUTE is revoked from PUBLIC: the migration runs it as the owner, and
+-- nobody else needs it (tests/db-privileges.test.js pins that).
+create function assert_app_role(role_name text, marker text) returns void
+language plpgsql security invoker as $$
+declare
+  r record;
+begin
+  select oid, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb, rolreplication, rolbypassrls
+    into r from pg_catalog.pg_roles where rolname = role_name;
+  if not found then
+    raise exception 'role % does not exist', role_name;
+  end if;
+  if pg_catalog.shobj_description(r.oid, 'pg_authid') is distinct from marker then
+    raise exception 'role % was not made by this migration (it does not carry its marker): refused', role_name;
+  end if;
+  if r.rolcanlogin or r.rolsuper or r.rolcreaterole or r.rolcreatedb or r.rolreplication or r.rolbypassrls then
+    raise exception 'role % may log in or holds an elevated attribute: refused', role_name;
+  end if;
+end $$;
+revoke execute on function assert_app_role(text, text) from public;
+
+select assert_app_role('app_runtime', 'building-qr-system: the app''s own role, only what the server''s code does to each table (migration 016)');
+select assert_app_role('backup_reader', 'building-qr-system: reads every table for a backup and writes nothing (migration 016)');
 
 -- The schema these tables live in (public in a real database, the throwaway schema of a test).
 do $$

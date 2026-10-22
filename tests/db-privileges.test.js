@@ -9,6 +9,7 @@
 // The privileges are read with has_table_privilege, has_any_column_privilege (so a grant on one column counts too) and
 // has_sequence_privilege, for the role itself: the test runs as the owner, which holds everything. No row is read or written.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
+import { randomBytes } from 'node:crypto'
 import { setupDb, RUNTIME_ROLE } from './helpers.js'
 
 const BACKUP_ROLE = 'backup_reader'
@@ -51,6 +52,25 @@ const SEQUENCES = {
   audit_log_id_seq: [['USAGE'], READ],
   auth_attempts_id_seq: [['USAGE'], READ],
   scan_refusals_id_seq: [['USAGE'], READ],
+}
+
+// Every function of the schema, with whether each role may EXECUTE it: [app_runtime, backup_reader]. The trigger functions keep
+// the EXECUTE that PUBLIC has by default (a trigger runs without it anyway); assert_app_role (016) is the owner's alone.
+const RUN = ['EXECUTE']
+const FUNCTIONS = {
+  assert_app_role: [NONE, NONE],
+  audit_log_block_truncate: [RUN, RUN],
+  audit_log_guard: [RUN, RUN],
+  scan_refusals_block_truncate: [RUN, RUN],
+  scan_refusals_guard: [RUN, RUN],
+  scans_block_truncate: [RUN, RUN],
+  scans_guard: [RUN, RUN],
+}
+
+// The marker that 016 puts on each role it creates, and checks before it grants anything (assert_app_role).
+const MARKERS = {
+  [RUNTIME_ROLE]: "building-qr-system: the app's own role, only what the server's code does to each table (migration 016)",
+  [BACKUP_ROLE]: 'building-qr-system: reads every table for a backup and writes nothing (migration 016)',
 }
 
 let db
@@ -107,6 +127,24 @@ describe('the privileges of app_runtime and backup_reader, table by table', () =
     expect(found).toEqual(ordered(SEQUENCES, SEQUENCE_PRIVILEGES))
   })
 
+  it('are exactly the map for every function of the schema: nobody but the owner runs assert_app_role', async () => {
+    const { rows } = await db.ownerPool.query(
+      `select f.proname as name, r.role, has_function_privilege(r.role, f.oid, 'EXECUTE') as held
+         from pg_proc f
+         cross join unnest($1::text[]) with ordinality as r(role, n)
+        where f.pronamespace = current_schema()::regnamespace
+        order by f.proname, r.n`,
+      [ROLES],
+    )
+    const found = {}
+    for (const { name, role, held } of rows) {
+      found[name] ??= ROLES.map(() => [])
+      if (held) found[name][ROLES.indexOf(role)].push('EXECUTE')
+    }
+    expect(Object.keys(found).sort(), 'a function that the map does not name').toEqual(Object.keys(FUNCTIONS).sort())
+    expect(found).toEqual(FUNCTIONS)
+  })
+
   it('give backup_reader no write on any table: no INSERT, UPDATE, DELETE or TRUNCATE', () => {
     for (const [name, [, backup]] of Object.entries(TABLES)) expect(backup, name).toEqual(READ)
     for (const [name, [, backup]] of Object.entries(SEQUENCES)) expect(backup, name).toEqual(READ)
@@ -137,6 +175,17 @@ describe('the two roles', () => {
     expect(rows).toEqual([
       { rolname: RUNTIME_ROLE, ...off },
       { rolname: BACKUP_ROLE, ...off },
+    ])
+  })
+
+  it('carry the marker of 016, which says the migration made them', async () => {
+    const { rows } = await db.ownerPool.query(
+      `select rolname, shobj_description(oid, 'pg_authid') as marker from pg_roles where rolname = any($1::text[]) order by rolname`,
+      [ROLES],
+    )
+    expect(rows).toEqual([
+      { rolname: RUNTIME_ROLE, marker: MARKERS[RUNTIME_ROLE] },
+      { rolname: BACKUP_ROLE, marker: MARKERS[BACKUP_ROLE] },
     ])
   })
 
@@ -223,5 +272,53 @@ describe('what app_runtime is refused, as the app would be', () => {
   it('may not create a table, nor a role', async () => {
     expect((await refused('create table t_new (id int)'))?.code).toBe('42501')
     expect((await refused('create role t_new_role'))?.code).toBe('42501')
+  })
+})
+
+// assert_app_role is what keeps 016 from granting anything to a role of the same name that it did not make. It is tried here on
+// roles that this file creates under names of its own (roles belong to the whole cluster, and the real two are in use by
+// the other test files at the same time), and they are dropped at the end. The test runs as the owner of the test database,
+// a superuser, which may give a role any attribute.
+describe('assert_app_role: a role of the same name that 016 did not make gets no grant', () => {
+  const MARKER = 'building-qr-system: a fake role of tests/db-privileges.test.js'
+  const prefix = `t_role_${randomBytes(4).toString('hex')}`
+  const made = []
+
+  /** Creates a role named `<prefix>_<suffix>` with `attributes`, and the comment `comment` when it is given; returns the name. */
+  async function role(suffix, attributes = 'nologin', comment = undefined) {
+    const name = `${prefix}_${suffix}`
+    await db.ownerPool.query(`create role ${name} ${attributes}`)
+    made.push(name)
+    if (comment !== undefined) await db.ownerPool.query(`comment on role ${name} is '${comment.replace(/'/g, "''")}'`)
+    return name
+  }
+  const check = (name, marker = MARKER) => db.ownerPool.query('select assert_app_role($1, $2)', [name, marker])
+
+  afterAll(async () => {
+    for (const name of made) await db.ownerPool.query(`drop role if exists ${name}`)
+  })
+
+  it('lets a NOLOGIN role through that carries the marker exactly', async () => {
+    await expect(check(await role('ok', 'nologin', MARKER))).resolves.toBeDefined()
+  })
+
+  it('refuses a role with no marker, or another one, and says only the role and the reason', async () => {
+    const bare = await role('bare')
+    await expect(check(bare)).rejects.toThrow(`role ${bare} was not made by this migration (it does not carry its marker): refused`)
+    const other = await role('other', 'nologin', 'made by hand')
+    await expect(check(other)).rejects.toThrow(`role ${other} was not made by this migration (it does not carry its marker): refused`)
+    const close = await role('close', 'nologin', `${MARKER} `)
+    await expect(check(close)).rejects.toThrow(/does not carry its marker/)
+  })
+
+  it('refuses a marked role that may log in, or holds any elevated attribute', async () => {
+    for (const attribute of ['login', 'superuser', 'createrole', 'createdb', 'replication', 'bypassrls']) {
+      const name = await role(attribute, attribute === 'login' ? 'login' : `nologin ${attribute}`, MARKER)
+      await expect(check(name), attribute).rejects.toThrow(`role ${name} may log in or holds an elevated attribute: refused`)
+    }
+  })
+
+  it('refuses a role that does not exist', async () => {
+    await expect(check(`${prefix}_missing`)).rejects.toThrow(`role ${prefix}_missing does not exist`)
   })
 })
