@@ -14,7 +14,7 @@
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { EventEmitter } from 'node:events'
 import pg from 'pg'
-import { setupDb } from './helpers.js'
+import { setupDb, RUNTIME_ROLE } from './helpers.js'
 import { createPool, poolConfig, beginSql, getPool, setPool, query, tx, guardPool, spareClients, QUERY_LIMITS } from '../server/db.js'
 import { assertNotProduction } from '../server/dbGuard.js'
 import { STATEMENT_TIMEOUT_MS, IDLE_IN_TRANSACTION_TIMEOUT_MS } from '../server/config.js'
@@ -166,7 +166,9 @@ describe('the limits, on a live database', () => {
     expect(idle_in_transaction_session_timeout).toBe(IDLE_IN_TRANSACTION_TIMEOUT_MS)
     limited = createPool({ ...bare, max: 4 }, SHORT)
     await assertNotProduction(limited)
-    await db.pool.query('create table limit_rows (id int primary key, note text)')
+    // The owner makes the table (db.pool runs as app_runtime, which may create nothing) and lets db.pool read and write it. The
+    // pool of these tests, `limited`, connects as the owner like `bare`: they are about the limits, not the grants.
+    await db.ownerPool.query(`create table limit_rows (id int primary key, note text); grant select, insert, update, delete on limit_rows to ${RUNTIME_ROLE}`)
     setPool(limited)
   })
 

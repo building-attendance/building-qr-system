@@ -735,9 +735,9 @@ describe('migrateProduction against a throwaway schema', () => {
   const write = (name, sql) => fs.writeFileSync(path.join(tmpDir, name), sql)
   const publish = (...names) => names.forEach((name) => (master[name] = fs.readFileSync(path.join(tmpDir, name))))
   const migrationRows = async () =>
-    (await db.pool.query("select name from schema_migrations where name like 'pm\\_%' order by name")).rows.map((r) => r.name)
-  const markerRows = async () => (await db.pool.query(`select environment from ${markerTable}`)).rows.map((r) => r.environment)
-  const present = async (table) => (await db.pool.query('select to_regclass($1) is not null as present', [table])).rows[0].present
+    (await db.ownerPool.query("select name from schema_migrations where name like 'pm\\_%' order by name")).rows.map((r) => r.name)
+  const markerRows = async () => (await db.ownerPool.query(`select environment from ${markerTable}`)).rows.map((r) => r.environment)
+  const present = async (table) => (await db.ownerPool.query('select to_regclass($1) is not null as present', [table])).rows[0].present
   const rawUrl = (name) => `https://raw.githubusercontent.com/test-owner/test-repo/refs/heads/master/db/migrations/${name}`
 
   /**
@@ -795,8 +795,8 @@ describe('migrateProduction against a throwaway schema', () => {
     defaultBranch = 'master'
     calls = []
     discoveries = []
-    await db.pool.query(`drop table if exists pm_first, pm_second, pm_extra, ${markerTable}`)
-    await db.pool.query("delete from schema_migrations where name like 'pm\\_%'")
+    await db.ownerPool.query(`drop table if exists pm_first, pm_second, pm_extra, ${markerTable}`)
+    await db.ownerPool.query("delete from schema_migrations where name like 'pm\\_%'")
   })
   afterEach(() => fs.rmSync(tmpDir, { recursive: true, force: true }))
 
@@ -838,21 +838,21 @@ describe('migrateProduction against a throwaway schema', () => {
   })
 
   it('migrates a database that is already marked production and leaves the marker alone', async () => {
-    await db.pool.query(`create table ${markerTable} (environment text primary key check (environment in ('production', 'nonprod')))`)
-    await db.pool.query(`insert into ${markerTable} values ('production')`)
+    await db.ownerPool.query(`create table ${markerTable} (environment text primary key check (environment in ('production', 'nonprod')))`)
+    await db.ownerPool.query(`insert into ${markerTable} values ('production')`)
     await expect(run().promise).resolves.toHaveLength(2)
     expect(await markerRows()).toEqual(['production'])
   })
 
   it('marks a database whose marker table exists but has no row', async () => {
-    await db.pool.query(`create table ${markerTable} (environment text primary key check (environment in ('production', 'nonprod')))`)
+    await db.ownerPool.query(`create table ${markerTable} (environment text primary key check (environment in ('production', 'nonprod')))`)
     await run().promise
     expect(await markerRows()).toEqual(['production'])
   })
 
   it('throws on a nonprod marker before it applies any migration and before it asks GitHub for any migration file', async () => {
-    await db.pool.query(`create table ${markerTable} (environment text primary key check (environment in ('production', 'nonprod')))`)
-    await db.pool.query(`insert into ${markerTable} values ('nonprod')`)
+    await db.ownerPool.query(`create table ${markerTable} (environment text primary key check (environment in ('production', 'nonprod')))`)
+    await db.ownerPool.query(`insert into ${markerTable} values ('nonprod')`)
     await expect(run().promise).rejects.toThrow(/non-production database: check the Production environment variables in Vercel/)
     expect(await migrationRows()).toEqual([])
     expect(await present(`${db.schema}.pm_first`)).toBe(false)
@@ -905,10 +905,10 @@ describe('migrateProduction against a throwaway schema', () => {
       )
 
       publish('pm_001_first.sql')
-      await db.pool.query(
+      await db.ownerPool.query(
         `create table ${markerTable} (environment text primary key check (environment in ('production', 'nonprod')))`,
       )
-      await db.pool.query(`insert into ${markerTable} values ('nonprod')`)
+      await db.ownerPool.query(`insert into ${markerTable} values ('nonprod')`)
       const nonprod = await run().promise.catch((e) => e)
       expect(buildFailureText(nonprod)).toMatch(/non-production database: check the Production environment variables in Vercel/)
     })
@@ -1001,8 +1001,8 @@ describe('migrateProduction against a throwaway schema', () => {
       }
       await expect(run({ fetch: discoveryOr(shaky), retryDelaysMs: [1, 1, 1] }).promise).resolves.toHaveLength(2)
 
-      await db.pool.query(`drop table if exists pm_first, pm_second, ${markerTable}`)
-      await db.pool.query("delete from schema_migrations where name like 'pm\\_%'")
+      await db.ownerPool.query(`drop table if exists pm_first, pm_second, ${markerTable}`)
+      await db.ownerPool.query("delete from schema_migrations where name like 'pm\\_%'")
       const down = async () => {
         throw new TypeError('fetch failed')
       }
@@ -1033,8 +1033,8 @@ describe('migrateProduction against a throwaway schema', () => {
       expect(lines.join('\n')).not.toContain(TOKEN)
 
       // And on a failure: a missing file with the token set.
-      await db.pool.query(`drop table if exists pm_first, pm_second, ${markerTable}`)
-      await db.pool.query("delete from schema_migrations where name like 'pm\\_%'")
+      await db.ownerPool.query(`drop table if exists pm_first, pm_second, ${markerTable}`)
+      await db.ownerPool.query("delete from schema_migrations where name like 'pm\\_%'")
       delete master['pm_001_first.sql']
       const failing = run({ githubToken: TOKEN })
       const error = await failing.promise.catch((err) => err)

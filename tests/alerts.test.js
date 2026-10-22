@@ -397,13 +397,13 @@ describe('when the database is the failure', () => {
 
   it('uses the throttle in memory, with its own words, when the insert fails for another reason (the table is not there, say)', async () => {
     at(NOON)
-    await db.pool.query('alter table alert_pings rename to alert_pings_away')
+    await db.ownerPool.query('alter table alert_pings rename to alert_pings_away')
     try {
       await noteServerError(EVENT)
       await noteServerError(EVENT)
       await noteServerError({ ...EVENT, place: '/admin/points' })
     } finally {
-      await db.pool.query('alter table alert_pings_away rename to alert_pings')
+      await db.ownerPool.query('alter table alert_pings_away rename to alert_pings')
     }
     expect(bodies()).toEqual(['Server error, alert record failed, 05/10/2026 14:03: POST /scans/sync 57014'])
     expect(loggedAnything()).toEqual([])

@@ -12,7 +12,7 @@ let db, cookie, adminId
 
 /** Adds one audit row the way the code does (the new shape), and returns its id. `at` and `actorName` are optional. */
 async function addRow({ at, actorName = 'Fake Person' } = {}) {
-  const { rows } = await db.pool.query(
+  const { rows } = await db.ownerPool.query(
     `insert into audit_log (at, actor_type, actor_id, actor_name, action, entity, entity_id, detail)
      values (coalesce($1::timestamptz, now()), 'admin', 'fake-actor', $2, 'test.guard', 'point', $3, '{"name":"Fake point"}')
      returning id`,
@@ -20,19 +20,19 @@ async function addRow({ at, actorName = 'Fake Person' } = {}) {
   )
   return rows[0].id
 }
-const stored = async (id) => (await db.pool.query('select * from audit_log where id = $1', [id])).rows
+const stored = async (id) => (await db.ownerPool.query('select * from audit_log where id = $1', [id])).rows
 const flag = async (c) => (await c.query("select coalesce(current_setting('app.audit_retention', true), '') as v")).rows[0].v
 const addMember = async (email, name) =>
   (await call('POST', '/api/admin/admins', { cookie, body: { email, name } })).json.admin
 const lastAuditRow = async (action, actorId) =>
-  (await db.pool.query('select * from audit_log where action = $1 and actor_id = $2 order by id desc limit 1', [action, actorId])).rows[0]
+  (await db.ownerPool.query('select * from audit_log where action = $1 and actor_id = $2 order by id desc limit 1', [action, actorId])).rows[0]
 const saveAddress = (address, asCookie = cookie) => call('PUT', '/api/admin/building', { cookie: asCookie, body: { address } })
 
 beforeAll(async () => {
   db = await setupDb()
-  await seedAdmin(db.pool)
+  await seedAdmin(db.ownerPool)
   cookie = await adminCookie()
-  adminId = (await db.pool.query("select id from admins where email = 'admin@test.local'")).rows[0].id
+  adminId = (await db.ownerPool.query("select id from admins where email = 'admin@test.local'")).rows[0].id
 })
 afterAll(async () => db?.teardown())
 
@@ -40,29 +40,29 @@ describe('the database refuses to change the audit log', () => {
   it('refuses an update of any column, and the row stays as it was', async () => {
     const id = await addRow()
     const before = (await stored(id))[0]
-    await expect(db.pool.query("update audit_log set action = 'changed' where id = $1", [id])).rejects.toThrow(
+    await expect(db.ownerPool.query("update audit_log set action = 'changed' where id = $1", [id])).rejects.toThrow(
       /audit_log is append-only: update is not allowed/,
     )
-    await expect(db.pool.query("update audit_log set actor_name = 'Someone Else' where id = $1", [id])).rejects.toThrow(/append-only/)
-    await expect(db.pool.query("update audit_log set detail = '{}'")).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query("update audit_log set actor_name = 'Someone Else' where id = $1", [id])).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query("update audit_log set detail = '{}'")).rejects.toThrow(/append-only/)
     expect((await stored(id))[0]).toEqual(before)
   })
 
   it('refuses a delete, of one row or of all of them, and the row stays', async () => {
     const id = await addRow()
-    await expect(db.pool.query('delete from audit_log where id = $1', [id])).rejects.toThrow(
+    await expect(db.ownerPool.query('delete from audit_log where id = $1', [id])).rejects.toThrow(
       /audit_log is append-only: delete is not allowed/,
     )
-    await expect(db.pool.query('delete from audit_log')).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query('delete from audit_log')).rejects.toThrow(/append-only/)
     expect(await stored(id)).toHaveLength(1)
   })
 
   it('refuses a truncate, with and without the retention setting, and the row stays', async () => {
     const id = await addRow()
-    await expect(db.pool.query('truncate audit_log')).rejects.toThrow(/audit_log is append-only: truncate is not allowed/)
-    await expect(db.pool.query('truncate audit_log restart identity cascade')).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query('truncate audit_log')).rejects.toThrow(/audit_log is append-only: truncate is not allowed/)
+    await expect(db.ownerPool.query('truncate audit_log restart identity cascade')).rejects.toThrow(/append-only/)
     // The retention exception is for a delete of the rows that are due: it never lets the table be emptied.
-    const c = await db.pool.connect()
+    const c = await db.ownerPool.connect()
     try {
       await c.query('begin')
       await c.query("select set_config('app.audit_retention', 'on', true)")
@@ -78,7 +78,7 @@ describe('the database refuses to change the audit log', () => {
 describe('the one exception: a delete inside a transaction that says so', () => {
   it('lets that delete through, and nothing else, and the setting does not leak to the next transaction', async () => {
     const [due, kept] = [await addRow(), await addRow()]
-    const c = await db.pool.connect()
+    const c = await db.ownerPool.connect()
     try {
       await c.query('begin')
       await c.query("select set_config('app.audit_retention', 'on', true)")
@@ -116,7 +116,7 @@ describe('the one exception: a delete inside a transaction that says so', () => 
 
   it('is not opened by anything else: a value other than "on" does not count', async () => {
     const id = await addRow()
-    const c = await db.pool.connect()
+    const c = await db.ownerPool.connect()
     try {
       for (const value of ['off', 'ON ', 'true', '1']) {
         await c.query('begin')
@@ -139,7 +139,7 @@ describe('what the code that is already running does keeps working (expand only)
   })
 
   it('inserts a row in the old shape, with no actor_name: the name is empty', async () => {
-    const { rows } = await db.pool.query(
+    const { rows } = await db.ownerPool.query(
       `insert into audit_log (actor_type, actor_id, action, entity, entity_id, detail)
        values ('admin', 'fake-actor', 'test.old_shape', 'point', 'p-1', null) returning *`,
     )
@@ -147,7 +147,7 @@ describe('what the code that is already running does keeps working (expand only)
   })
 
   it('has no foreign key in or out, so deleting a committee member never reaches the log', async () => {
-    const { rows } = await db.pool.query(
+    const { rows } = await db.ownerPool.query(
       `select conname from pg_constraint
         where contype = 'f' and (conrelid = 'audit_log'::regclass or confrelid = 'audit_log'::regclass)`,
     )
@@ -177,7 +177,7 @@ describe('actor_name', () => {
   it('is the e-mail when the member has no name', async () => {
     const member = await addMember('no-name@test.local', '')
     const memberCookie = await adminCookie('no-name@test.local')
-    await db.pool.query("update admins set name = '' where id = $1", [member.id])
+    await db.ownerPool.query("update admins set name = '' where id = $1", [member.id])
     expect((await saveAddress('Fake street 2', memberCookie)).status).toBe(200)
     expect(await lastAuditRow('building.update', member.id)).toMatchObject({ actor_name: 'no-name@test.local' })
   })
@@ -191,7 +191,7 @@ describe('actor_name', () => {
 
     const gone = await call('DELETE', `/api/admin/admins/${member.id}`, { cookie })
     expect(gone.status).toBe(200)
-    expect((await db.pool.query('select 1 from admins where id = $1', [member.id])).rows).toEqual([])
+    expect((await db.ownerPool.query('select 1 from admins where id = $1', [member.id])).rows).toEqual([])
     // The row is exactly as it was, and still says who did it. The delete itself was recorded under the other member.
     expect((await stored(row.id))[0]).toEqual(row)
     expect(await lastAuditRow('admin.delete', adminId)).toMatchObject({ actor_name: 'Test Admin', entity_id: member.id })
@@ -202,7 +202,7 @@ describe('actor_name', () => {
     const memberCookie = await adminCookie('long-name@test.local')
     // Two UTF-16 units per character: a cut by units would keep 100 of them and could split one in two.
     const name = '😀'.repeat(AUDIT_ACTOR_NAME_MAX_LENGTH + 50)
-    await db.pool.query('update admins set name = $2 where id = $1', [member.id, name])
+    await db.ownerPool.query('update admins set name = $2 where id = $1', [member.id, name])
     expect((await saveAddress('Fake street 4', memberCookie)).status).toBe(200)
     const { actor_name } = await lastAuditRow('building.update', member.id)
     expect(Array.from(actor_name)).toHaveLength(AUDIT_ACTOR_NAME_MAX_LENGTH)
@@ -212,7 +212,7 @@ describe('actor_name', () => {
 
 describe('the indexes of the audit screen', () => {
   it('has one on (at desc, id desc) and one on (entity, entity_id, at desc)', async () => {
-    const { rows } = await db.pool.query(
+    const { rows } = await db.ownerPool.query(
       "select indexname, indexdef from pg_indexes where schemaname = current_schema() and tablename = 'audit_log' order by indexname",
     )
     const byName = Object.fromEntries(rows.map((r) => [r.indexname, r.indexdef]))

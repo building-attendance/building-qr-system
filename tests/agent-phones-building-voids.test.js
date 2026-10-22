@@ -602,11 +602,11 @@ describe('no secret reaches /building, /providers or /scans (JSON and CSV)', () 
 
   it('the answers are built from named fields: a column added to a table later does not reach them', async () => {
     // A column that the agent must not see is added to the three tables the answers read, and filled; none of it comes out.
-    await db.pool.query("alter table scans add column fake_secret text")
-    await db.pool.query("alter table providers add column fake_secret text default 'fake-secret-marker-9921'")
-    await db.pool.query("alter table provider_devices add column fake_secret text default 'fake-secret-marker-9921'")
-    await db.pool.query("alter table building_settings add column fake_secret text default 'fake-secret-marker-9921'")
-    await db.pool.query("alter table audit_log add column fake_secret text default 'fake-secret-marker-9921'")
+    await db.ownerPool.query("alter table scans add column fake_secret text")
+    await db.ownerPool.query("alter table providers add column fake_secret text default 'fake-secret-marker-9921'")
+    await db.ownerPool.query("alter table provider_devices add column fake_secret text default 'fake-secret-marker-9921'")
+    await db.ownerPool.query("alter table building_settings add column fake_secret text default 'fake-secret-marker-9921'")
+    await db.ownerPool.query("alter table audit_log add column fake_secret text default 'fake-secret-marker-9921'")
     for (const path of ['/building', '/providers', `/scans?${FILTER_ALL}`, `/scans?${FILTER_ALL}&format=csv`]) {
       const r = await agent(path)
       expect(r.status, path).toBe(200)
