@@ -148,8 +148,9 @@ new one builds, and installed apps keep running old code for days, so the databa
   why, how it was checked, which tool helped, and a checklist.
 - **Four CI checks must be green** on every pull request, and the branch must be up to date with `master`. CI runs against
   a Postgres 18 container:
-  - `guards`: migrations only move forward, tests are not removed, the pull request title, ESLint, the type check, a
-    dependency audit, and the size of the built app against its budget (`npm run size`)
+  - `guards`: migrations only move forward, tests are not removed, `AGENTS.md` fits in the 32,768 bytes that Codex
+    reads and is the only instruction file, the pull request title, ESLint, the type check, a dependency audit, and the
+    size of the built app against its budget (`npm run size`)
   - `unit`, `e2e (android-chrome)` and `e2e (iphone-webkit)`: each passes when every one of its parts passed (the parts
     run side by side, see [`docs/testing.md`](docs/testing.md), "CI")
 - **A pull request, then an approval:** `master` is protected by rulesets
