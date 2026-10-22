@@ -9,10 +9,11 @@
 // guard fails such a pull request and prints, on every passing run, how many bytes are left.
 //
 // What it counts: bytes, not characters (a Hebrew letter is two bytes in UTF-8), read from the file on disk.
-// .gitattributes checks the root AGENTS.md out with LF, so on every machine these are the bytes git holds; another file
-// is counted as it is checked out, and a CRLF checkout only counts more than CI does, never less. Codex also reads an
-// AGENTS.md (or an AGENTS.override.md) in each folder between the repository's root and the folder it works in, and
-// the limit is for all of them together, so every nested one is summed with those of the folders above it.
+// .gitattributes checks AGENTS.md and AGENTS.override.md out with LF, so on every machine these are the bytes git holds.
+// How Codex reads them (its page "Custom instructions with AGENTS.md", learn.chatgpt.com/docs/agent-configuration/
+// agents-md, read 22/10/2026, the page carries no date): from the project's root down to the folder it works in, it
+// checks each folder for AGENTS.override.md, then AGENTS.md, takes at most one file per folder, skips empty files, and
+// stops adding once the files together reach the limit. So each folder's file is summed with those of the folders above.
 //
 // It fails closed: a root AGENTS.md that is missing or cannot be read, a file that git lists but that cannot be read,
 // or a git that cannot list the files, exits 1. It takes no input from the event and needs Node built-ins only.
@@ -55,42 +56,73 @@ function foldersAbove(folder) {
   return out
 }
 
+/** True when a path names an AGENTS.override.md (without regard to case). */
+function isOverride(file) {
+  return (file.split('/').pop() ?? '').toLowerCase() === 'agents.override.md'
+}
+
+/**
+ * @typedef {{ file: string, bytes: number, blank: boolean }} Doc
+ * @param {Doc[]} list
+ * @returns {Doc | undefined} the largest of the list
+ */
+function largestOf(list) {
+  return list.reduce((best, doc) => (best === undefined || doc.bytes > best.bytes ? doc : best), /** @type {Doc | undefined} */ (undefined))
+}
+
+/**
+ * The file that Codex reads in one folder: AGENTS.override.md when there is one, otherwise AGENTS.md. Where the folder
+ * holds two names that differ only in case (possible on Linux), the larger is taken.
+ *
+ * Codex skips an empty file, and its page does not say whether it then falls back to the AGENTS.md of the same folder.
+ * So for an override that is empty (or only whitespace) the side that counts more is taken: the larger of the two.
+ * @param {Doc[]} docs the readable files of the folder
+ */
+function readInFolder(docs) {
+  const override = largestOf(docs.filter((doc) => isOverride(doc.file)))
+  const agents = largestOf(docs.filter((doc) => !isOverride(doc.file)))
+  if (override && !override.blank) return override
+  return largestOf([override, agents].filter((doc) => doc !== undefined))
+}
+
 /**
  * Measures the AGENTS.md files of a checkout. `root` is the folder of the checkout; `docs` are the repository-relative
  * paths (with / separators) of the other AGENTS.md and AGENTS.override.md files (git's list; the root AGENTS.md is
- * always measured, listed or not).
+ * always read, listed or not, and must be there).
  *
- * Every file is a chain: the file itself plus, for each folder above it up to the root, the largest of that folder's
- * files. Codex takes AGENTS.override.md over AGENTS.md when a folder holds both, so the largest is never less than what
- * it reads. Returns { chains: [{ file, above, bytes }], problems: [text] }; a problem is a file that could not be read,
- * and the chains are those of the files that could (any problem fails the check, but the other sizes are still shown).
+ * Every folder with a file is a chain: the file Codex reads there plus, for each folder above it up to the root, the
+ * file Codex reads in that folder. Returns { chains: [{ file, above, bytes }], problems: [text] }; a problem is a file
+ * that could not be read, and the chains are those of the files that could (any problem fails the check, but the other
+ * sizes are still shown).
  */
 export function measureAgentsDocs(root, docs = []) {
   const problems = []
-  const sizes = new Map()
+  /** @type {Map<string, Doc[]>} the readable files of each folder */
+  const byFolder = new Map()
   for (const file of new Set([ROOT_DOC, ...docs.map((doc) => doc.replace(/\\/g, '/'))])) {
     try {
-      sizes.set(file, fs.readFileSync(path.join(root, file)).length)
+      const buffer = fs.readFileSync(path.join(root, file))
+      const folder = folderOf(file)
+      byFolder.set(folder, [...(byFolder.get(folder) ?? []), { file, bytes: buffer.length, blank: buffer.toString('utf8').trim() === '' }])
     } catch (error) {
       const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'an error'
       problems.push(`${file}: cannot be read (${code}), so its size is unknown.`)
     }
   }
-  /** @type {Map<string, string>} the largest file of each folder */
-  const largest = new Map()
-  for (const [file, bytes] of sizes) {
-    const folder = folderOf(file)
-    const current = largest.get(folder)
-    if (current === undefined || bytes > (sizes.get(current) ?? 0)) largest.set(folder, file)
+  /** @type {Map<string, Doc>} the file Codex reads in each folder */
+  const read = new Map()
+  for (const [folder, list] of byFolder) {
+    const doc = readInFolder(list)
+    if (doc) read.set(folder, doc)
   }
 
   const chains = []
-  for (const [file, own] of sizes) {
-    const above = foldersAbove(folderOf(file))
-      .map((folder) => largest.get(folder))
+  for (const [folder, own] of read) {
+    const above = foldersAbove(folder)
+      .map((parent) => read.get(parent))
       .filter((doc) => doc !== undefined)
-    const bytes = above.reduce((total, doc) => total + (sizes.get(doc) ?? 0), own)
-    chains.push({ file, above, bytes })
+    const bytes = above.reduce((total, doc) => total + doc.bytes, own.bytes)
+    chains.push({ file: own.file, above: above.map((doc) => doc.file), bytes })
   }
   return { chains, problems }
 }

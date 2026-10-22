@@ -103,10 +103,38 @@ describe('check-agents-md: nested files', () => {
     expect(chains.find((chain) => chain.file === 'a/b/c/AGENTS.md')).toEqual({ file: 'a/b/c/AGENTS.md', above: ['a/AGENTS.md', 'AGENTS.md'], bytes: 60 })
   })
 
-  it('counts an AGENTS.override.md, and the larger of the two files of a folder above', () => {
-    const dir = makeDir({ 'AGENTS.md': 100, 'AGENTS.override.md': 300, 'web/AGENTS.override.md': 5 })
-    const chains = measureAgentsDocs(dir, ['AGENTS.override.md', 'web/AGENTS.override.md']).chains
-    expect(chains.find((chain) => chain.file === 'web/AGENTS.override.md')).toEqual({ file: 'web/AGENTS.override.md', above: ['AGENTS.override.md'], bytes: 305 })
+  it("passes Codex's own example: a root override of 1,000 bytes replaces a root AGENTS.md of 30,000", () => {
+    const dir = makeDir({ 'AGENTS.md': 30000, 'AGENTS.override.md': 1000, 'services/payments/AGENTS.md': 3000 })
+    const result = checkAgentsDocs(dir, ['AGENTS.override.md', 'services/payments/AGENTS.md'])
+    expect(result.ok).toBe(true)
+    expect(result.lines).toEqual([
+      'AGENTS.override.md: 1000 of 32768 bytes, 31768 left',
+      'services/payments/AGENTS.md (with AGENTS.override.md): 4000 of 32768 bytes, 28768 left',
+    ])
+  })
+
+  it('counts the override instead of the AGENTS.md of the same folder, even when the override is the larger', () => {
+    const dir = makeDir({ 'AGENTS.md': 100, 'web/AGENTS.md': 20000, 'web/AGENTS.override.md': 32669 })
+    const result = checkAgentsDocs(dir, ['web/AGENTS.md', 'web/AGENTS.override.md'])
+    expect(result.ok).toBe(false)
+    expect(result.lines).toEqual(['AGENTS.md: 100 of 32768 bytes, 32668 left'])
+    // 32,669 + 100, never 20,000 + 32,669 + 100: at most one file per folder
+    expect(result.errors).toEqual([expect.stringMatching(/^web\/AGENTS\.override\.md \(with AGENTS\.md\): 32769 bytes, over the limit of 32768 bytes by 1\./)])
+  })
+
+  it('counts the larger of the two files of a folder whose override is empty, as Codex may fall back to AGENTS.md', () => {
+    const dir = makeDir({ 'AGENTS.md': 100, 'AGENTS.override.md': ' \n', 'a/AGENTS.md': 10 })
+    const chains = measureAgentsDocs(dir, ['AGENTS.override.md', 'a/AGENTS.md']).chains
+    expect(chains).toEqual([
+      { file: 'AGENTS.md', above: [], bytes: 100 },
+      { file: 'a/AGENTS.md', above: ['AGENTS.md'], bytes: 110 },
+    ])
+  })
+
+  it('counts a nested agents.md in lower case, which Codex finds on Windows and macOS', () => {
+    const dir = makeDir({ 'AGENTS.md': 100, 'x/AGENTS.md': 10, 'x/sub/agents.md': 7 })
+    const chains = measureAgentsDocs(dir, ['x/AGENTS.md', 'x/sub/agents.md']).chains
+    expect(chains.find((chain) => chain.file === 'x/sub/agents.md')).toEqual({ file: 'x/sub/agents.md', above: ['x/AGENTS.md', 'AGENTS.md'], bytes: 117 })
   })
 
   it('accepts Windows separators in the list', () => {
