@@ -42,6 +42,7 @@ const TABLES = {
   providers: [ALL, READ],
   scan_refusals: [['SELECT', 'INSERT'], READ],
   scans: [ALL, READ],
+  runtime_grants: [NONE, READ],
   schema_migrations: [READ, READ],
   v_attendance: [NONE, READ],
 }
@@ -55,13 +56,14 @@ const SEQUENCES = {
 }
 
 // Every function of the schema, with whether each role may EXECUTE it: [app_runtime, backup_reader]. The trigger functions keep
-// the EXECUTE that PUBLIC has by default (a trigger runs without it anyway); the two role checks of 016 are the owner's alone.
+// the EXECUTE that PUBLIC has by default (a trigger runs without it anyway); the three functions of 016 are the owner's alone.
 const RUN = ['EXECUTE']
 const FUNCTIONS = {
   app_role_problem: [NONE, NONE],
   assert_app_role: [NONE, NONE],
   audit_log_block_truncate: [RUN, RUN],
   audit_log_guard: [RUN, RUN],
+  ensure_runtime_roles: [NONE, NONE],
   scan_refusals_block_truncate: [RUN, RUN],
   scan_refusals_guard: [RUN, RUN],
   scans_block_truncate: [RUN, RUN],
@@ -107,15 +109,55 @@ async function granted(kinds, privileges, check) {
 const ordered = (map, privileges) =>
   Object.fromEntries(Object.entries(map).map(([name, lists]) => [name, lists.map((list) => privileges.filter((p) => list.includes(p)))]))
 
+/** What the two roles hold now on every table and view of the schema. */
+const tablesNow = () =>
+  granted(
+    ['r', 'p', 'v', 'm', 'f'],
+    tablePrivileges,
+    `case when p.privilege in (${COLUMN_PRIVILEGES.map((p) => `'${p}'`).join(', ')})
+          then has_any_column_privilege(r.role, c.oid, p.privilege)
+          else has_table_privilege(r.role, c.oid, p.privilege) end`,
+  )
+
+/** What the two roles hold now on every sequence of the schema. */
+const sequencesNow = () => granted(['S'], SEQUENCE_PRIVILEGES, 'has_sequence_privilege(r.role, c.oid, p.privilege)')
+
+/** Whether each of the two roles may run each function of the schema now. */
+async function functionsNow() {
+  const { rows } = await db.ownerPool.query(
+    `select f.proname as name, r.role, has_function_privilege(r.role, f.oid, 'EXECUTE') as held
+       from pg_proc f
+       cross join unnest($1::text[]) with ordinality as r(role, n)
+      where f.pronamespace = current_schema()::regnamespace
+      order by f.proname, r.n`,
+    [ROLES],
+  )
+  const found = {}
+  for (const { name, role, held } of rows) {
+    found[name] ??= ROLES.map(() => [])
+    if (held) found[name][ROLES.indexOf(role)].push('EXECUTE')
+  }
+  return found
+}
+
+/** What the two roles may do with the schema itself now. */
+const schemaNow = async () =>
+  (
+    await db.ownerPool.query(
+      `select r.role, has_schema_privilege(r.role, current_schema(), 'USAGE') as usage,
+              has_schema_privilege(r.role, current_schema(), 'CREATE') as create
+         from unnest($1::text[]) as r(role) order by r.role`,
+      [ROLES],
+    )
+  ).rows
+const SCHEMA = [
+  { role: RUNTIME_ROLE, usage: true, create: false },
+  { role: BACKUP_ROLE, usage: true, create: false },
+]
+
 describe('the privileges of app_runtime and backup_reader, table by table', () => {
   it('are exactly the map for every table and view of the schema, and the map names every one of them', async () => {
-    const found = await granted(
-      ['r', 'p', 'v', 'm', 'f'],
-      tablePrivileges,
-      `case when p.privilege in (${COLUMN_PRIVILEGES.map((p) => `'${p}'`).join(', ')})
-            then has_any_column_privilege(r.role, c.oid, p.privilege)
-            else has_table_privilege(r.role, c.oid, p.privilege) end`,
-    )
+    const found = await tablesNow()
     expect(Object.keys(found).sort(), 'a table or view that the map does not name, or one the map names that is gone').toEqual(
       Object.keys(TABLES).sort(),
     )
@@ -123,25 +165,13 @@ describe('the privileges of app_runtime and backup_reader, table by table', () =
   })
 
   it('are exactly the map for every sequence of the schema', async () => {
-    const found = await granted(['S'], SEQUENCE_PRIVILEGES, 'has_sequence_privilege(r.role, c.oid, p.privilege)')
+    const found = await sequencesNow()
     expect(Object.keys(found).sort(), 'a sequence that the map does not name').toEqual(Object.keys(SEQUENCES).sort())
     expect(found).toEqual(ordered(SEQUENCES, SEQUENCE_PRIVILEGES))
   })
 
-  it('are exactly the map for every function of the schema: nobody but the owner runs assert_app_role', async () => {
-    const { rows } = await db.ownerPool.query(
-      `select f.proname as name, r.role, has_function_privilege(r.role, f.oid, 'EXECUTE') as held
-         from pg_proc f
-         cross join unnest($1::text[]) with ordinality as r(role, n)
-        where f.pronamespace = current_schema()::regnamespace
-        order by f.proname, r.n`,
-      [ROLES],
-    )
-    const found = {}
-    for (const { name, role, held } of rows) {
-      found[name] ??= ROLES.map(() => [])
-      if (held) found[name][ROLES.indexOf(role)].push('EXECUTE')
-    }
+  it('are exactly the map for every function of the schema: nobody but the owner runs the three functions of 016', async () => {
+    const found = await functionsNow()
     expect(Object.keys(found).sort(), 'a function that the map does not name').toEqual(Object.keys(FUNCTIONS).sort())
     expect(found).toEqual(FUNCTIONS)
   })
@@ -152,16 +182,54 @@ describe('the privileges of app_runtime and backup_reader, table by table', () =
   })
 
   it('let both roles use the schema and create nothing in it', async () => {
-    const { rows } = await db.ownerPool.query(
-      `select r.role, has_schema_privilege(r.role, current_schema(), 'USAGE') as usage,
-              has_schema_privilege(r.role, current_schema(), 'CREATE') as create
-         from unnest($1::text[]) as r(role) order by r.role`,
-      [ROLES],
+    expect(await schemaNow()).toEqual(SCHEMA)
+  })
+
+  it('are written in runtime_grants exactly as in the map, which ensure_runtime_roles() applies', async () => {
+    const { rows } = await db.ownerPool.query('select object_name, object_kind, privileges from runtime_grants order by object_name')
+    const expected = [
+      ...Object.entries(TABLES)
+        .filter(([, [runtime]]) => runtime.length)
+        .map(([name, [runtime]]) => ({ object_name: name, object_kind: 'table', privileges: runtime })),
+      ...Object.entries(SEQUENCES).map(([name, [runtime]]) => ({ object_name: name, object_kind: 'sequence', privileges: runtime })),
+    ].sort((a, b) => (a.object_name < b.object_name ? -1 : 1))
+    expect(rows).toEqual(expected)
+  })
+})
+
+// A backup is dumped and restored without privileges (scripts/backup-db.mjs, docs/runbooks/restore.md): the tables and the
+// rows of runtime_grants come back, the grants do not, and every function gets back the EXECUTE of PUBLIC. Here that is done to
+// this file's own schema (nothing outside it changes), and ensure_runtime_roles(), run by the owner as the runbook says, must
+// bring back the whole matrix.
+describe('after a restore without privileges', () => {
+  it('ensure_runtime_roles() brings back every grant of the map, and takes EXECUTE on its functions away from PUBLIC again', async () => {
+    await db.ownerPool.query(
+      `do $$
+       begin
+         execute format('revoke all on all tables in schema %I from app_runtime, backup_reader', current_schema());
+         execute format('revoke all on all sequences in schema %I from app_runtime, backup_reader', current_schema());
+         execute format('revoke all on schema %I from app_runtime, backup_reader', current_schema());
+         execute format('grant execute on all functions in schema %I to public', current_schema());
+       end $$`,
     )
-    expect(rows).toEqual([
-      { role: RUNTIME_ROLE, usage: true, create: false },
-      { role: BACKUP_ROLE, usage: true, create: false },
-    ])
+    // What the restore leaves: app_runtime holds nothing, and anyone may run the functions of 016.
+    for (const [name, [runtime]] of Object.entries(await tablesNow())) expect(runtime, name).toEqual([])
+    for (const [name, [runtime]] of Object.entries(await sequencesNow())) expect(runtime, name).toEqual([])
+    expect((await functionsNow()).ensure_runtime_roles).toEqual([RUN, RUN])
+
+    await db.ownerPool.query('select ensure_runtime_roles()')
+
+    expect(await tablesNow()).toEqual(ordered(TABLES, tablePrivileges))
+    expect(await sequencesNow()).toEqual(ordered(SEQUENCES, SEQUENCE_PRIVILEGES))
+    expect(await functionsNow()).toEqual(FUNCTIONS)
+    expect(await schemaNow()).toEqual(SCHEMA)
+  })
+
+  it('is safe to run again: a second call changes nothing', async () => {
+    await db.ownerPool.query('select ensure_runtime_roles()')
+    expect(await tablesNow()).toEqual(ordered(TABLES, tablePrivileges))
+    expect(await sequencesNow()).toEqual(ordered(SEQUENCES, SEQUENCE_PRIVILEGES))
+    expect(await functionsNow()).toEqual(FUNCTIONS)
   })
 })
 
