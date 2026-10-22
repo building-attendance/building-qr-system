@@ -370,6 +370,19 @@ The steps:
    required: without it `pg_restore` prints the SQL to the screen and restores nothing. When all is well it prints nothing and
    exits with 0 (the drill below took about 16 seconds for a small database, most of it the network). Do not pass the whole
    connection string to `--dbname`: it would be a command with the password in it, in the history and in the arguments.
+
+   Then put back the app's roles and grants, as the same role, in the same window:
+
+   ```
+   psql --dbname restore_check --command "select ensure_runtime_roles();"
+   ```
+
+   `--no-privileges` leaves out every grant, and roles belong to the Neon project, not to the dump. The function (migration
+   016) makes the roles `app_runtime` and `backup_reader` where they are missing and grants again what the table
+   `runtime_grants` lists. Once the app connects with a login of its own (`DATABASE_URL_RUNTIME`), a copy that will serve
+   needs that login too: make it in the Neon SQL Editor with `create role <name> login password '<new password>' in role
+   app_runtime` (never with the console's "Add role", which gives the role `neon_superuser`), and point
+   `DATABASE_URL_RUNTIME` of the deployment at it.
 4. Check the copy with the queries of step 2 above (the counts of `scans`, `points` and `providers`, and `max(received_at)` of
    `scans`, which tells you how far the dump goes). Compare them with what you expect and with production now. The copy
    carries the marker of `public.environment_marker` with it (`production` for a dump of production), so the local tools of

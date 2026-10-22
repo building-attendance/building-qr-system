@@ -366,14 +366,14 @@ describe('when the database is the failure', () => {
   })
 
   it('does not record, and does not throw, when the table is not there', async () => {
-    await db.pool.query('alter table app_errors rename to app_errors_away')
+    await db.ownerPool.query('alter table app_errors rename to app_errors_away')
     try {
       const { r, calls } = await boom('/api/test/boom')
       expect(r.status).toBe(500)
       expect(r.json).toEqual(PLAIN_500)
       expect(calls).toHaveLength(1)
     } finally {
-      await db.pool.query('alter table app_errors_away rename to app_errors')
+      await db.ownerPool.query('alter table app_errors_away rename to app_errors')
     }
   })
 })
@@ -490,10 +490,10 @@ describe('recording never queues behind other work, and the database bounds the 
     await recordEvent(event) // the row exists, with a count of 1
     const before = shape()
     expect(before).toEqual({ total: 1, idle: 1 }) // the one client of the pool, idle
-    await db.pool.query(
+    await db.ownerPool.query(
       `create function slow_app_errors() returns trigger language plpgsql as $$ begin perform pg_sleep(8); return new; end $$`,
     )
-    await db.pool.query('create trigger slow_app_errors before insert or update on app_errors for each row execute function slow_app_errors()')
+    await db.ownerPool.query('create trigger slow_app_errors before insert or update on app_errors for each row execute function slow_app_errors()')
     try {
       const seen = watch()
       const started = Date.now()
@@ -508,8 +508,8 @@ describe('recording never queues behind other work, and the database bounds the 
       await until(() => checkedOut() === 0, 3000)
       expect(shape()).toEqual(before) // the connection is back, and it is the same one
     } finally {
-      await db.pool.query('drop trigger slow_app_errors on app_errors')
-      await db.pool.query('drop function slow_app_errors()')
+      await db.ownerPool.query('drop trigger slow_app_errors on app_errors')
+      await db.ownerPool.query('drop function slow_app_errors()')
     }
     const found = await rows()
     expect(found).toHaveLength(1)
@@ -563,7 +563,7 @@ describe('recording never queues behind other work, and the database bounds the 
   })
 
   it('gives the client back when the insert fails', async () => {
-    await db.pool.query('alter table app_errors rename to app_errors_away')
+    await db.ownerPool.query('alter table app_errors rename to app_errors_away')
     try {
       const before = shape()
       const seen = watch()
@@ -572,7 +572,7 @@ describe('recording never queues behind other work, and the database bounds the 
       expect(checkedOut()).toBe(0)
       expect(shape()).toEqual(before)
     } finally {
-      await db.pool.query('alter table app_errors_away rename to app_errors')
+      await db.ownerPool.query('alter table app_errors_away rename to app_errors')
     }
   })
 
@@ -589,18 +589,18 @@ describe('recording never queues behind other work, and the database bounds the 
     expect(own.limits).toEqual(QUERY_LIMITS)
 
     // A trigger writes down the limits that the insert ran with.
-    await db.pool.query('create table seen_limits (statement_timeout text, lock_timeout text, idle text)')
-    await db.pool.query(
+    await db.ownerPool.query('create table seen_limits (statement_timeout text, lock_timeout text, idle text)')
+    await db.ownerPool.query(
       `create function note_limits() returns trigger language plpgsql as $$
          begin
            insert into seen_limits values (current_setting('statement_timeout'), current_setting('lock_timeout'), current_setting('idle_in_transaction_session_timeout'));
            return new;
          end $$`,
     )
-    await db.pool.query('create trigger note_limits before insert on app_errors for each row execute function note_limits()')
+    await db.ownerPool.query('create trigger note_limits before insert on app_errors for each row execute function note_limits()')
     try {
       await recordEvent(event)
-      const { rows: seen } = await db.pool.query('select * from seen_limits')
+      const { rows: seen } = await db.ownerPool.query('select * from seen_limits')
       expect(seen).toEqual([{ statement_timeout: '1500ms', lock_timeout: '500ms', idle: '1500ms' }])
       // Straight after it, on the same pool and the same connection, nothing has changed for anybody else.
       const others = { statement_timeout: '15s', lock_timeout: '0', idle: '20s' }
@@ -614,9 +614,9 @@ describe('recording never queues behind other work, and the database bounds the 
         client.release()
       }
     } finally {
-      await db.pool.query('drop trigger note_limits on app_errors')
-      await db.pool.query('drop function note_limits()')
-      await db.pool.query('drop table seen_limits')
+      await db.ownerPool.query('drop trigger note_limits on app_errors')
+      await db.ownerPool.query('drop function note_limits()')
+      await db.ownerPool.query('drop table seen_limits')
     }
   })
 })
