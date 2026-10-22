@@ -1,7 +1,7 @@
 # Continuous integration. Four checks, and branch protection (.github/rulesets/) requires all of them to merge:
-#   guards                 migrations only move forward, tests are not removed, the PR title, ESLint, the type check,
-#                          the size budget of the built app, an audit of the production dependencies (and a warning,
-#                          never a failure, for the development ones)
+#   guards                 migrations only move forward, tests are not removed, AGENTS.md fits what Codex reads, the
+#                          PR title, ESLint, the type check, the size budget of the built app, an audit of the
+#                          production dependencies (and a warning, never a failure, for the development ones)
 #   unit                   Vitest, against a Postgres 18 container (production runs Postgres 18 on Neon), in 2 parts
 #   e2e (android-chrome)   Playwright, Chromium as a Pixel 7, in 3 parts (e2e.yml)
 #   e2e (iphone-webkit)    Playwright, WebKit as an iPhone 14, in 4 parts (e2e.yml)
@@ -126,6 +126,12 @@ jobs:
           BASE: ${{ steps.base.outputs.base }}
           PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
         run: node scripts/check-tests.mjs --base "$BASE"
+
+      # Codex reads only the first 32,768 bytes of the project's AGENTS.md files and drops the rest without a warning, so a
+      # rules change that makes them longer would cut off their end. On every event, with no input from it: the script
+      # reads the files of the checkout and prints how many bytes are left.
+      - name: AGENTS.md fits in what Codex reads
+        run: node scripts/check-agents-md.mjs
 
       - name: Pull request title is a Conventional Commit
         if: github.event_name == 'pull_request'
