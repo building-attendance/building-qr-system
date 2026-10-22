@@ -128,8 +128,9 @@ jobs:
         run: node scripts/check-tests.mjs --base "$BASE"
 
       # Codex reads only the first 32,768 bytes of the project's AGENTS.md files and drops the rest without a warning, so a
-      # rules change that makes them longer would cut off their end. On every event, with no input from it: the script
-      # reads the files of the checkout and prints how many bytes are left.
+      # rules change that makes AGENTS.md longer would cut off its end; any other AGENTS.md or AGENTS.override.md would
+      # change the rules, and is refused. On every event, with no input from it: the script reads the files of the
+      # checkout and prints how many bytes are left.
       - name: AGENTS.md fits in what Codex reads
         run: node scripts/check-agents-md.mjs
 
