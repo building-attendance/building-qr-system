@@ -186,7 +186,7 @@ describe('the privileges of app_runtime and backup_reader, table by table', () =
   })
 
   it('are written in runtime_grants exactly as in the map, which ensure_runtime_roles() applies', async () => {
-    const { rows } = await db.ownerPool.query('select object_name, object_kind, privileges from runtime_grants order by object_name')
+    const { rows } = await db.ownerPool.query('select object_name, object_kind, privileges from runtime_grants order by object_name collate "C"')
     const expected = [
       ...Object.entries(TABLES)
         .filter(([, [runtime]]) => runtime.length)
