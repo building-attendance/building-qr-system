@@ -55,9 +55,10 @@ const SEQUENCES = {
 }
 
 // Every function of the schema, with whether each role may EXECUTE it: [app_runtime, backup_reader]. The trigger functions keep
-// the EXECUTE that PUBLIC has by default (a trigger runs without it anyway); assert_app_role (016) is the owner's alone.
+// the EXECUTE that PUBLIC has by default (a trigger runs without it anyway); the two role checks of 016 are the owner's alone.
 const RUN = ['EXECUTE']
 const FUNCTIONS = {
+  app_role_problem: [NONE, NONE],
   assert_app_role: [NONE, NONE],
   audit_log_block_truncate: [RUN, RUN],
   audit_log_guard: [RUN, RUN],
@@ -275,12 +276,44 @@ describe('what app_runtime is refused, as the app would be', () => {
   })
 })
 
-// assert_app_role is what keeps 016 from granting anything to a role of the same name that it did not make. It is tried here on
-// roles that this file creates under names of its own (roles belong to the whole cluster, and the real two are in use by
-// the other test files at the same time), and they are dropped at the end. The test runs as the owner of the test database,
-// a superuser, which may give a role any attribute.
+// assert_app_role is what keeps 016 from granting anything to a role of the same name that it did not make. Its decision,
+// app_role_problem, is tried with plain values, every reason of it; assert_app_role itself is tried on roles that this file
+// creates under names of its own (roles belong to the whole cluster, and the real two are in use by the other test files at
+// the same time), dropped at the end. Those roles have only what the owner of a Neon database may give (CREATEROLE, not
+// SUPERUSER): NOLOGIN or LOGIN, and a comment.
+const MARKER = 'building-qr-system: a fake role of tests/db-privileges.test.js'
+
+describe('app_role_problem: the decision of assert_app_role, for every attribute and comment', () => {
+  const ATTRIBUTES = ['can_login', 'is_super', 'create_role', 'create_db', 'replication', 'bypass_rls']
+  const NOT_MARKED = 'was not made by this migration (it does not carry its marker): refused'
+  const ELEVATED = 'may log in or holds an elevated attribute: refused'
+  /** The answer for a role with the attributes in `on` set, and the comment `comment`. */
+  const problem = async (on, comment) =>
+    (
+      await db.ownerPool.query('select app_role_problem($1, $2, $3, $4, $5, $6, $7, $8) as problem', [
+        ...ATTRIBUTES.map((a) => on.includes(a)),
+        comment,
+        MARKER,
+      ])
+    ).rows[0].problem
+
+  it('has nothing against a role with none of the attributes and the marker exactly', async () => {
+    expect(await problem([], MARKER)).toBeNull()
+  })
+
+  it('refuses a role with no comment, another comment, or the marker with anything added', async () => {
+    for (const comment of [null, '', 'made by hand', `${MARKER} `, ` ${MARKER}`, MARKER.toUpperCase()]) {
+      expect(await problem([], comment), String(comment)).toBe(NOT_MARKED)
+    }
+  })
+
+  it('refuses a marked role with any one of the attributes, and with all of them', async () => {
+    for (const attribute of ATTRIBUTES) expect(await problem([attribute], MARKER), attribute).toBe(ELEVATED)
+    expect(await problem(ATTRIBUTES, MARKER)).toBe(ELEVATED)
+  })
+})
+
 describe('assert_app_role: a role of the same name that 016 did not make gets no grant', () => {
-  const MARKER = 'building-qr-system: a fake role of tests/db-privileges.test.js'
   const prefix = `t_role_${randomBytes(4).toString('hex')}`
   const made = []
 
@@ -311,11 +344,9 @@ describe('assert_app_role: a role of the same name that 016 did not make gets no
     await expect(check(close)).rejects.toThrow(/does not carry its marker/)
   })
 
-  it('refuses a marked role that may log in, or holds any elevated attribute', async () => {
-    for (const attribute of ['login', 'superuser', 'createrole', 'createdb', 'replication', 'bypassrls']) {
-      const name = await role(attribute, attribute === 'login' ? 'login' : `nologin ${attribute}`, MARKER)
-      await expect(check(name), attribute).rejects.toThrow(`role ${name} may log in or holds an elevated attribute: refused`)
-    }
+  it('refuses a marked role that may log in', async () => {
+    const name = await role('login', 'login', MARKER)
+    await expect(check(name)).rejects.toThrow(`role ${name} may log in or holds an elevated attribute: refused`)
   })
 
   it('refuses a role that does not exist', async () => {

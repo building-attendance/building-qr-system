@@ -56,23 +56,36 @@ end $$;
 --     grant anything anyway).
 --   - none of LOGIN, SUPERUSER, CREATEROLE, CREATEDB, REPLICATION or BYPASSRLS, whoever set them later.
 -- Members are not checked: the owner's login role for the app (a later step) becomes a member of app_runtime on purpose.
--- The message names the role and the reason only. EXECUTE is revoked from PUBLIC: the migration runs it as the owner, and
--- nobody else needs it (tests/db-privileges.test.js pins that).
+-- The message names the role and the reason only. The decision is a pure function of the attributes and the comment
+-- (app_role_problem), so that every reason can be tested with plain values, without making a superuser role; assert_app_role
+-- reads the role and raises. EXECUTE on both is revoked from PUBLIC: the migration runs them as the owner, and nobody else
+-- needs them (tests/db-privileges.test.js pins that).
+create function app_role_problem(can_login boolean, is_super boolean, create_role boolean, create_db boolean,
+                                 replication boolean, bypass_rls boolean, role_comment text, marker text) returns text
+language sql immutable as $$
+  select case
+    when role_comment is distinct from marker then 'was not made by this migration (it does not carry its marker): refused'
+    when can_login or is_super or create_role or create_db or replication or bypass_rls
+      then 'may log in or holds an elevated attribute: refused'
+  end
+$$;
+revoke execute on function app_role_problem(boolean, boolean, boolean, boolean, boolean, boolean, text, text) from public;
+
 create function assert_app_role(role_name text, marker text) returns void
 language plpgsql security invoker as $$
 declare
   r record;
+  problem text;
 begin
   select oid, rolcanlogin, rolsuper, rolcreaterole, rolcreatedb, rolreplication, rolbypassrls
     into r from pg_catalog.pg_roles where rolname = role_name;
   if not found then
     raise exception 'role % does not exist', role_name;
   end if;
-  if pg_catalog.shobj_description(r.oid, 'pg_authid') is distinct from marker then
-    raise exception 'role % was not made by this migration (it does not carry its marker): refused', role_name;
-  end if;
-  if r.rolcanlogin or r.rolsuper or r.rolcreaterole or r.rolcreatedb or r.rolreplication or r.rolbypassrls then
-    raise exception 'role % may log in or holds an elevated attribute: refused', role_name;
+  problem := app_role_problem(r.rolcanlogin, r.rolsuper, r.rolcreaterole, r.rolcreatedb, r.rolreplication, r.rolbypassrls,
+                              pg_catalog.shobj_description(r.oid, 'pg_authid'), marker);
+  if problem is not null then
+    raise exception 'role % %', role_name, problem;
   end if;
 end $$;
 revoke execute on function assert_app_role(text, text) from public;
