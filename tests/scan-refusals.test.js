@@ -490,10 +490,10 @@ describe('when the record cannot be written', () => {
 
   describe('a refusal of the data by the database', () => {
     beforeAll(async () => {
-      await db.pool.query(`alter table scan_refusals add constraint test_no_inactive check (code <> 'point_inactive') not valid`)
+      await db.ownerPool.query(`alter table scan_refusals add constraint test_no_inactive check (code <> 'point_inactive') not valid`)
     })
     afterAll(async () => {
-      await db.pool.query('alter table scan_refusals drop constraint test_no_inactive')
+      await db.ownerPool.query('alter table scan_refusals drop constraint test_no_inactive')
     })
 
     it('never breaks the answer of a sync: the batch is answered as usual, nothing is recorded, and one line says so with the code only', async () => {
@@ -608,30 +608,30 @@ describe('the snapshots', () => {
 })
 
 describe('the table is append-only', () => {
-  const stored = async (id) => (await db.pool.query('select * from scan_refusals where id = $1', [id])).rows
+  const stored = async (id) => (await db.ownerPool.query('select * from scan_refusals where id = $1', [id])).rows
   const flag = async (c, name = 'app.refusal_retention') => (await c.query("select coalesce(current_setting($1, true), '') as v", [name])).rows[0].v
 
   it('refuses an update of any column, and the row stays as it was', async () => {
     const id = await addRow()
     const before = (await stored(id))[0]
-    await expect(db.pool.query("update scan_refusals set code = 'changed' where id = $1", [id])).rejects.toThrow(/scan_refusals is append-only: update is not allowed/)
-    await expect(db.pool.query("update scan_refusals set provider_name = 'Someone Else' where id = $1", [id])).rejects.toThrow(/append-only/)
-    await expect(db.pool.query("update scan_refusals set point_name = 'x'")).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query("update scan_refusals set code = 'changed' where id = $1", [id])).rejects.toThrow(/scan_refusals is append-only: update is not allowed/)
+    await expect(db.ownerPool.query("update scan_refusals set provider_name = 'Someone Else' where id = $1", [id])).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query("update scan_refusals set point_name = 'x'")).rejects.toThrow(/append-only/)
     expect((await stored(id))[0]).toEqual(before)
   })
 
   it('refuses a delete, of one row or of all of them, and the row stays', async () => {
     const id = await addRow()
-    await expect(db.pool.query('delete from scan_refusals where id = $1', [id])).rejects.toThrow(/scan_refusals is append-only: delete is not allowed/)
-    await expect(db.pool.query('delete from scan_refusals')).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query('delete from scan_refusals where id = $1', [id])).rejects.toThrow(/scan_refusals is append-only: delete is not allowed/)
+    await expect(db.ownerPool.query('delete from scan_refusals')).rejects.toThrow(/append-only/)
     expect(await stored(id)).toHaveLength(1)
   })
 
   it('refuses a truncate, with and without the retention setting, and the row stays', async () => {
     const id = await addRow()
-    await expect(db.pool.query('truncate scan_refusals')).rejects.toThrow(/scan_refusals is append-only: truncate is not allowed/)
-    await expect(db.pool.query('truncate scan_refusals restart identity cascade')).rejects.toThrow(/append-only/)
-    const c = await db.pool.connect()
+    await expect(db.ownerPool.query('truncate scan_refusals')).rejects.toThrow(/scan_refusals is append-only: truncate is not allowed/)
+    await expect(db.ownerPool.query('truncate scan_refusals restart identity cascade')).rejects.toThrow(/append-only/)
+    const c = await db.ownerPool.connect()
     try {
       await c.query('begin')
       await c.query("select set_config('app.refusal_retention', 'on', true)")
@@ -645,7 +645,7 @@ describe('the table is append-only', () => {
 
   it('lets a delete through only inside a transaction that says so, and the setting does not leak to the next transaction', async () => {
     const [due, kept] = [await addRow(), await addRow()]
-    const c = await db.pool.connect()
+    const c = await db.ownerPool.connect()
     try {
       await c.query('begin')
       await c.query("select set_config('app.refusal_retention', 'on', true)")
@@ -681,7 +681,7 @@ describe('the table is append-only', () => {
 
   it('is not opened by anything else: another value, or the setting of the audit log or of the scans, does not count', async () => {
     const id = await addRow()
-    const c = await db.pool.connect()
+    const c = await db.ownerPool.connect()
     try {
       for (const [name, value] of [['app.refusal_retention', 'off'], ['app.refusal_retention', 'ON '], ['app.refusal_retention', 'true'], ['app.refusal_retention', '1'], ['app.audit_retention', 'on'], ['app.allow_scan_delete', 'on']]) {
         await c.query('begin')
@@ -697,7 +697,7 @@ describe('the table is append-only', () => {
   })
 
   it('has both triggers on the table, and no code of the project sets the setting (it needs a legal decision and a rules change first)', async () => {
-    const { rows } = await db.pool.query(
+    const { rows } = await db.ownerPool.query(
       `select tgname from pg_trigger where tgrelid = 'scan_refusals'::regclass and not tgisinternal order by tgname`,
     )
     expect(rows.map((r) => r.tgname)).toEqual(['scan_refusals_guard_trg', 'scan_refusals_no_truncate'])

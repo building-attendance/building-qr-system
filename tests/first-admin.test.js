@@ -154,7 +154,7 @@ async function openTransaction() {
 
 beforeAll(async () => {
   db = await setupDb()
-  helper = await db.pool.connect()
+  helper = await db.ownerPool.connect() // the owner: refusingAudit alters audit_log, and waitingFor reads the query of every session
   savedVariable = process.env.FIRST_ADMIN_EMAIL
 })
 afterAll(async () => {

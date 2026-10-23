@@ -594,7 +594,7 @@ describe('GET /api/agent/v1/refusals: the size of a page', () => {
   })
 
   it('does not let a column added to the table later reach the answer', async () => {
-    await db.pool.query("alter table scan_refusals add column fake_secret text default 'fake-secret-marker-9921'")
+    await db.ownerPool.query("alter table scan_refusals add column fake_secret text default 'fake-secret-marker-9921'")
     const r = await refusals('limit=5')
     expect(r.status).toBe(200)
     expect(r.json.refusals.length).toBeGreaterThan(0)

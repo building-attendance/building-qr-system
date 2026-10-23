@@ -81,7 +81,7 @@ beforeEach(async () => {
   }
   delete process.env.VERCEL_GIT_COMMIT_SHA
   // The two tables that a test may empty. (audit_log and scan_refusals are append-only: see the header.)
-  await q('with a as (delete from app_errors), b as (delete from provider_devices) select 1')
+  await db.ownerPool.query('with a as (delete from app_errors), b as (delete from provider_devices) select 1') // the owner: the app never deletes a phone
 })
 afterEach(() => {
   for (const [name, value] of Object.entries(savedEnv)) {

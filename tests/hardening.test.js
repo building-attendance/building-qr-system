@@ -173,7 +173,7 @@ describe('committee input validation', () => {
   })
 
   it('history cannot be truncated either', async () => {
-    await expect(db.pool.query('truncate scans')).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query('truncate scans')).rejects.toThrow(/append-only/)
   })
 })
 
@@ -270,7 +270,7 @@ describe('demo account', () => {
     const shown = (await call('GET', `/api/agent/v1/scans?point_id=${p.id}&include_demo=true`, { token: key })).json
     expect(shown.count).toBe(1)
     expect((await call('GET', `/api/admin/scans?point_id=${p.id}`, { cookie })).json.scans).toHaveLength(0)
-    const view = await db.pool.query('select count(*)::int n from v_attendance where point_id = $1', [p.id])
+    const view = await db.ownerPool.query('select count(*)::int n from v_attendance where point_id = $1', [p.id])
     expect(view.rows[0].n).toBe(0)
     const providers = (await call('GET', '/api/agent/v1/providers', { token: key })).json.providers
     expect(providers.find((x) => x.id === demo.id).is_demo).toBe(true)

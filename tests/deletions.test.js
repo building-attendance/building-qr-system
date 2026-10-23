@@ -273,9 +273,9 @@ describe('the history is still protected from accidents', () => {
     const p = await point()
     const s = (await scan(p.qr_token)).json.scan
     await call('DELETE', `/api/admin/scans/${(await scan((await point()).qr_token)).json.scan.id}`, { cookie }) // an allowed delete first
-    await expect(db.pool.query('delete from scans where id = $1', [s.id])).rejects.toThrow(/append-only/)
-    await expect(db.pool.query('delete from scans')).rejects.toThrow(/append-only/)
-    await expect(db.pool.query('truncate scans')).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query('delete from scans where id = $1', [s.id])).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query('delete from scans')).rejects.toThrow(/append-only/)
+    await expect(db.ownerPool.query('truncate scans')).rejects.toThrow(/append-only/)
     await expect(db.pool.query("update scans set point_name = 'x' where id = $1", [s.id])).rejects.toThrow(/append-only/)
     expect((await allScans()).find((x) => x.id === s.id)).toBeDefined()
   })
