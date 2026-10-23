@@ -1,4 +1,4 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { adminApi, errorText } from '../api.js'
 import { useLoad, setLoadCache, LOAD_KEY, formatDateTime } from '../hooks.js'
 import { Modal, Field, Badge, EmptyState, Spinner, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
@@ -61,6 +61,17 @@ function BuildingCard() {
   const [nameText, setNameText] = useState(stored.name)
   const [contactText, setContactText] = useState(stored.privacy_contact)
   const [errors, setErrors] = useState({ address: '', name: '', privacy_contact: '' })
+  // A refused save moves the focus to the first field it refused (docs/design.md F2), as the filters of the history do: on a phone
+  // the field can be off the screen, and the save button keeps the focus otherwise.
+  const formRef = useRef(null)
+  const [refusals, setRefusals] = useState(0)
+  useEffect(() => {
+    if (refusals > 0) formRef.current?.querySelector('[aria-invalid="true"]')?.focus()
+  }, [refusals])
+  const refuse = (next) => {
+    setErrors(next)
+    setRefusals((n) => n + 1)
+  }
 
   // Takes what the server has (a load, a save) into the fields and the brand. With `keepEdits` a field that the person has changed
   // since the last answer keeps what they typed (an answer that arrives while a card drawn from the cache is already being edited);
@@ -91,16 +102,19 @@ function BuildingCard() {
       name: CONTROL_RE.test(name) ? 'השם מכיל תווים שאי אפשר לשמור, למשל ירידת שורה.' : '',
       privacy_contact: CONTROL_RE.test(contact) ? 'פרטי הקשר מכילים תווים שאי אפשר לשמור, למשל ירידת שורה.' : '',
     }
-    if (next.address || next.name || next.privacy_contact) return setErrors(next)
+    if (next.address || next.name || next.privacy_contact) return refuse(next)
     // The server says which field it refused (`invalid_field` with `field`): that one shows under its own field, and nothing else
     // is said. Any other failure is the usual toast.
     const res = await run(async () => {
       try {
-        return await adminApi('/building', { method: 'PUT', body: { address, name, privacy_contact: contact } })
+        // The contact goes only when it changed: the server keeps the saved one when it is not sent, so a save of the address or the
+        // name from a card that was opened earlier never brings back a contact that another member has replaced since.
+        const body = contactChanged ? { address, name, privacy_contact: contact } : { address, name }
+        return await adminApi('/building', { method: 'PUT', body })
       } catch (err) {
         const field = err?.code === 'invalid_field' ? err.extra?.field : undefined
         if (field !== 'address' && field !== 'name' && field !== 'privacy_contact') throw err
-        setErrors({ address: '', name: '', privacy_contact: '', [field]: FIELD_REFUSED[field] })
+        refuse({ address: '', name: '', privacy_contact: '', [field]: FIELD_REFUSED[field] })
         return null
       }
     })
@@ -128,7 +142,7 @@ function BuildingCard() {
           </>
         )}
         {loaded.data && (
-          <form className="a-form" onSubmit={submit} noValidate>
+          <form className="a-form" onSubmit={submit} noValidate ref={formRef}>
             <Field label="שם הבניין" error={errors.name}
               hint="השם מופיע בראש שתי האפליקציות, מעל הכתובת. בלי שם, הכותרת בוועד היא נוכחות בבניין.">
               {/* dir="auto": the name is typed in any language, and each one should read the right way round */}

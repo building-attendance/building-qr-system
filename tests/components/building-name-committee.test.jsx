@@ -115,7 +115,7 @@ describe('the card in the settings screen', () => {
     type(addressField(c), 'רחוב הבדיקה 2, עיר אחרת')
     save(c)
     expect(await screen.findByText('פרטי הבניין נשמרו')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 2, עיר אחרת', name: 'מגדל הבדיקה', privacy_contact: '' }]) // one request, all fields, trimmed
+    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 2, עיר אחרת', name: 'מגדל הבדיקה' }]) // one request, both fields, trimmed (the contact did not change)
     expect(nameField(c).value).toBe('מגדל הבדיקה')
     expect(addressField(c).value).toBe('רחוב הבדיקה 2, עיר אחרת')
     expect(c.getByRole('button', { name: 'שמירה' }).disabled).toBe(true)
@@ -129,7 +129,21 @@ describe('the card in the settings screen', () => {
     type(addressField(c), 'רחוב הבדיקה 3')
     save(c)
     expect(await screen.findByText('כתובת הבניין נשמרה')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 3', name: NAME, privacy_contact: '' }])
+    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 3', name: NAME }])
+  })
+
+  it('does not send a contact that did not change, so a save of the address keeps one that another member saved since', async () => {
+    answerLikeTheServer()
+    start()
+    const c = await card()
+    await waitFor(() => expect(nameField(c).value).toBe(NAME))
+    server.stored = { ...server.stored, privacy_contact: 'newer@example.test' } // another member saved a contact after this card opened
+    type(addressField(c), 'רחוב הבדיקה 4')
+    save(c)
+    expect(await screen.findByText('כתובת הבניין נשמרה')).toBeTruthy()
+    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 4', name: NAME }])
+    expect(server.stored.privacy_contact).toBe('newer@example.test')
+    expect(contactField(c).value).toBe('newer@example.test') // and the card shows what the server now has
   })
 
   it('saves a name alone, and clearing it says the name is removed (the address is kept)', async () => {
@@ -140,12 +154,12 @@ describe('the card in the settings screen', () => {
     type(nameField(c), 'מגדל הבדיקה')
     save(c)
     expect(await screen.findByText('שם הבניין נשמר')).toBeTruthy()
-    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: 'מגדל הבדיקה', privacy_contact: '' })
+    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: 'מגדל הבדיקה' })
 
     type(nameField(c), '')
     save(c)
     expect(await screen.findByText('שם הבניין הוסר')).toBeTruthy()
-    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: '', privacy_contact: '' })
+    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: '' })
     expect(nameField(c).value).toBe('')
   })
 
@@ -157,7 +171,7 @@ describe('the card in the settings screen', () => {
     type(addressField(c), '')
     save(c)
     expect(await screen.findByText('כתובת הבניין הוסרה')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: '', name: NAME, privacy_contact: '' }])
+    expect(server.puts).toEqual([{ address: '', name: NAME }])
   })
 
   it('shows a refusal of the name by the server under the name field, with no toast, and keeps what was typed', async () => {
@@ -172,6 +186,7 @@ describe('the card in the settings screen', () => {
     expect(alert.textContent).toContain('השם לא נשמר')
     expect(nameField(c).getAttribute('aria-invalid')).toBe('true')
     expect(nameField(c).getAttribute('aria-describedby')).toContain(alert.id)
+    await waitFor(() => expect(document.activeElement).toBe(nameField(c))) // the focus goes to the field it refused (F2)
     expect(addressField(c).getAttribute('aria-invalid')).toBeNull() // the address is not blamed
     expect(nameField(c).value).toBe('שם שהשרת לא מקבל')
     expect(screen.queryByText('אחד הערכים לא תקין.')).toBeNull() // the usual toast is not added on top
@@ -272,7 +287,7 @@ describe('the card in the settings screen', () => {
     start()
     const c = await card()
     await waitFor(() => expect(nameField(c).value).toBe(NAME))
-    type(contactField(c), '03-5550100')
+    type(contactField(c), '000-0000000')
     type(addressField(c), 'רחוב הבדיקה 4')
     save(c)
     expect(await screen.findByText('פרטי הבניין נשמרו')).toBeTruthy()
@@ -283,13 +298,14 @@ describe('the card in the settings screen', () => {
     start()
     const c = await card()
     await waitFor(() => expect(nameField(c).value).toBe(NAME))
-    type(contactField(c), '03-5550100\tוועד')
+    type(contactField(c), '000-0000000\tוועד')
     save(c)
     expect((await c.findByRole('alert')).textContent).toContain('פרטי הקשר מכילים תווים שאי אפשר לשמור')
     expect(contactField(c).getAttribute('aria-invalid')).toBe('true')
+    await waitFor(() => expect(document.activeElement).toBe(contactField(c))) // the focus goes to the field it refused (F2)
     expect(nameField(c).getAttribute('aria-invalid')).toBeNull()
     expect(server.puts).toEqual([])
-    type(contactField(c), '03-5550100')
+    type(contactField(c), '000-0000000')
     expect(c.queryByRole('alert')).toBeNull()
   })
 
@@ -305,6 +321,7 @@ describe('the card in the settings screen', () => {
     expect(alert.textContent).toContain('פרטי הקשר לא נשמרו')
     expect(contactField(c).getAttribute('aria-invalid')).toBe('true')
     expect(contactField(c).getAttribute('aria-describedby')).toContain(alert.id)
+    await waitFor(() => expect(document.activeElement).toBe(contactField(c))) // the focus goes to the field it refused (F2)
     expect(nameField(c).getAttribute('aria-invalid')).toBeNull()
     expect(contactField(c).value).toBe('פרטים שהשרת לא מקבל')
     expect(screen.queryByText('אחד הערכים לא תקין.')).toBeNull()
