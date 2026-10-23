@@ -1,7 +1,8 @@
 // @vitest-environment jsdom
 // The building's name and address in the header of the provider app: the name is a line of its own above the address, each is
 // shown when the committee set it and absent (no empty line) when not, and both are kept on the phone so that they are there on
-// the first paint and with no signal. A value that an older version of the app saved (the address alone) is still read.
+// the first paint and with no signal. A value that an older version of the app saved (the address alone, or the address and the
+// name) is still read. The phone keeps the committee's contact for privacy requests with them, for the privacy notice (/privacy).
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, waitFor, cleanup, act } from '@testing-library/react'
 import { I18nProvider } from '../../src/i18n/index.jsx'
@@ -17,6 +18,7 @@ vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
 const KEY = 'qr.building.v1'
 const ADDRESS = 'רחוב הדוגמה 1, עיר לדוגמה'
 const NAME = 'בניין הדוגמה'
+const CONTACT = 'ועד הבית, vaad@example.test'
 
 afterEach(() => {
   cleanup()
@@ -148,12 +150,12 @@ describe('the name and the address on the phone', () => {
     answer({ building: { address: ADDRESS, name: NAME } })
     expect(await screen.findByText(NAME)).toBeTruthy()
     expect(lines().map((p) => p.textContent)).toEqual([NAME, ADDRESS])
-    expect(saved()).toEqual({ address: ADDRESS, name: NAME })
+    expect(saved()).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
   })
 
   it('reads a value that an older version saved (the address alone) as an address with no name, and keeps showing it', () => {
     window.localStorage.setItem(KEY, JSON.stringify({ address: ADDRESS }))
-    expect(getCachedBuilding()).toEqual({ address: ADDRESS, name: '' })
+    expect(getCachedBuilding()).toEqual({ address: ADDRESS, name: '', privacy_contact: '' })
     api.mockReturnValue(never())
     bar(<Header />)
     expect(lines().map((p) => p.textContent)).toEqual([ADDRESS]) // no name line, and no crash
@@ -165,7 +167,7 @@ describe('the name and the address on the phone', () => {
     bar(<Header />)
     expect(await screen.findByText(NAME)).toBeTruthy()
     expect(lines().map((p) => p.textContent)).toEqual([NAME, ADDRESS])
-    expect(saved()).toEqual({ address: ADDRESS, name: NAME })
+    expect(saved()).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
   })
 
   it('replaces the saved name and address with the new ones', async () => {
@@ -175,7 +177,7 @@ describe('the name and the address on the phone', () => {
     expect(await screen.findByText(NAME)).toBeTruthy()
     expect(screen.queryByText('כתובת ישנה 1')).toBeNull()
     expect(screen.queryByText('שם ישן')).toBeNull()
-    expect(getCachedBuilding()).toEqual({ address: ADDRESS, name: NAME })
+    expect(getCachedBuilding()).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
   })
 
   it('removes the address line, and forgets the address, when the committee has cleared it, and the name stays', async () => {
@@ -185,7 +187,7 @@ describe('the name and the address on the phone', () => {
     expect(screen.getByText(ADDRESS)).toBeTruthy() // the saved one first
     await waitFor(() => expect(screen.queryByText(ADDRESS)).toBeNull())
     expect(lines().map((p) => p.textContent)).toEqual([NAME])
-    expect(saved()).toEqual({ address: '', name: NAME })
+    expect(saved()).toEqual({ address: '', name: NAME, privacy_contact: '' })
   })
 
   it('removes the name line, and forgets the name, when the committee has cleared it, and the address is the title again', async () => {
@@ -195,7 +197,7 @@ describe('the name and the address on the phone', () => {
     expect(screen.getByText(NAME)).toBeTruthy()
     await waitFor(() => expect(screen.queryByText(NAME)).toBeNull())
     expect(lines().map((p) => p.className)).toEqual(['w-brand w-brand--address'])
-    expect(saved()).toEqual({ address: ADDRESS, name: '' })
+    expect(saved()).toEqual({ address: ADDRESS, name: '', privacy_contact: '' })
   })
 
   it('treats an answer with no name at all (a server from before names existed) as no name', async () => {
@@ -204,7 +206,7 @@ describe('the name and the address on the phone', () => {
     bar(<Header />)
     await waitFor(() => expect(screen.queryByText(NAME)).toBeNull())
     expect(lines().map((p) => p.textContent)).toEqual([ADDRESS])
-    expect(saved()).toEqual({ address: ADDRESS, name: '' })
+    expect(saved()).toEqual({ address: ADDRESS, name: '', privacy_contact: '' })
   })
 
   it('keeps the saved name and address when there is no signal or the server hiccups', async () => {
@@ -218,7 +220,7 @@ describe('the name and the address on the phone', () => {
       await waitFor(() => expect(api).toHaveBeenCalled())
       await settled()
       expect(lines().map((p) => p.textContent), failure.code).toEqual([NAME, ADDRESS])
-      expect(getCachedBuilding(), failure.code).toEqual({ address: ADDRESS, name: NAME })
+      expect(getCachedBuilding(), failure.code).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
       cleanup()
       api.mockClear()
     }
@@ -236,7 +238,7 @@ describe('the name and the address on the phone', () => {
       await waitFor(() => expect(api).toHaveBeenCalled())
       await settled()
       expect(lines().map((p) => p.textContent), JSON.stringify(answer)).toEqual([NAME, ADDRESS])
-      expect(getCachedBuilding(), JSON.stringify(answer)).toEqual({ address: ADDRESS, name: NAME })
+      expect(getCachedBuilding(), JSON.stringify(answer)).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
       cleanup()
       api.mockClear()
     }
@@ -260,38 +262,46 @@ describe('the saved building', () => {
     }
   }
 
-  it('is stored under the same key with a version as before, as { address, name }', () => {
+  it('is stored under the same key with a version as before, as { address, name, privacy_contact }', () => {
     const storage = fake()
-    setCachedBuilding({ address: ADDRESS, name: NAME }, storage)
-    expect(JSON.parse(storage.getItem('qr.building.v1'))).toEqual({ address: ADDRESS, name: NAME })
-    expect(getCachedBuilding(storage)).toEqual({ address: ADDRESS, name: NAME })
+    setCachedBuilding({ address: ADDRESS, name: NAME, privacy_contact: CONTACT }, storage)
+    expect(JSON.parse(storage.getItem('qr.building.v1'))).toEqual({ address: ADDRESS, name: NAME, privacy_contact: CONTACT })
+    expect(getCachedBuilding(storage)).toEqual({ address: ADDRESS, name: NAME, privacy_contact: CONTACT })
   })
 
-  it('stores an empty name and an empty address too: the phone must follow a committee that cleared them', () => {
+  it('stores an empty name, address and contact too: the phone must follow a committee that cleared them', () => {
     const storage = fake()
-    setCachedBuilding({ address: '', name: '' }, storage)
-    expect(JSON.parse(storage.getItem('qr.building.v1'))).toEqual({ address: '', name: '' })
+    setCachedBuilding({ address: '', name: '', privacy_contact: '' }, storage)
+    expect(JSON.parse(storage.getItem('qr.building.v1'))).toEqual({ address: '', name: '', privacy_contact: '' })
+  })
+
+  it("reads a value saved before the contact existed (the address and the name) with the contact ''", () => {
+    const storage = fake()
+    storage.setItem('qr.building.v1', JSON.stringify({ address: ADDRESS, name: NAME }))
+    expect(getCachedBuilding(storage)).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
+    storage.setItem('qr.building.v1', JSON.stringify({ address: ADDRESS, name: NAME, privacy_contact: 5 }))
+    expect(getCachedBuilding(storage)).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
   })
 
   it("reads a value saved before names existed (the address alone) as an address with the name ''", () => {
     const storage = fake()
     storage.setItem('qr.building.v1', JSON.stringify({ address: ADDRESS }))
-    expect(getCachedBuilding(storage)).toEqual({ address: ADDRESS, name: '' })
+    expect(getCachedBuilding(storage)).toEqual({ address: ADDRESS, name: '', privacy_contact: '' })
   })
 
   it('is empty when nothing was saved, or what was saved is not ours', () => {
-    expect(getCachedBuilding(fake())).toEqual({ address: '', name: '' })
+    expect(getCachedBuilding(fake())).toEqual({ address: '', name: '', privacy_contact: '' })
     for (const junk of ['not json', '{', 'null', '[]', '{"address":5}', '{"address":null}', '"text"', '{}', '{"name":5}', '{"name":null,"address":null}']) {
       const storage = fake()
       storage.setItem('qr.building.v1', junk)
-      expect(getCachedBuilding(storage), junk).toEqual({ address: '', name: '' })
+      expect(getCachedBuilding(storage), junk).toEqual({ address: '', name: '', privacy_contact: '' })
     }
   })
 
   it('keeps the half that is text when the other half is not', () => {
     for (const [value, expected] of [
-      ['{"address":"A","name":5}', { address: 'A', name: '' }],
-      ['{"address":5,"name":"N"}', { address: '', name: 'N' }],
+      ['{"address":"A","name":5}', { address: 'A', name: '', privacy_contact: '' }],
+      ['{"address":5,"name":"N"}', { address: '', name: 'N', privacy_contact: '' }],
     ]) {
       const storage = fake()
       storage.setItem('qr.building.v1', value)
@@ -301,18 +311,26 @@ describe('the saved building', () => {
 
   it('is read with no error when the phone refuses to store things', () => {
     const refusing = { getItem: () => { throw new Error('blocked') }, setItem: () => { throw new Error('blocked') } }
-    expect(getCachedBuilding(refusing)).toEqual({ address: '', name: '' })
+    expect(getCachedBuilding(refusing)).toEqual({ address: '', name: '', privacy_contact: '' })
   })
 })
 
 describe('what the server answered', () => {
   it('is the address and the name, when both are text', () => {
-    expect(parseBuilding({ address: ADDRESS, name: NAME })).toEqual({ address: ADDRESS, name: NAME })
-    expect(parseBuilding({ address: '', name: '' })).toEqual({ address: '', name: '' })
+    expect(parseBuilding({ address: ADDRESS, name: NAME })).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
+    expect(parseBuilding({ address: '', name: '' })).toEqual({ address: '', name: '', privacy_contact: '' })
+  })
+
+  it('carries the contact when the server sends it, and is no contact when it does not (a server from before the contact)', () => {
+    expect(parseBuilding({ address: ADDRESS, name: NAME, privacy_contact: CONTACT })).toEqual({ address: ADDRESS, name: NAME, privacy_contact: CONTACT })
+    expect(parseBuilding({ address: ADDRESS, name: NAME })).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
+    for (const bad of [5, null, ['x'], { contact: 'x' }]) {
+      expect(parseBuilding({ address: ADDRESS, name: NAME, privacy_contact: bad }), JSON.stringify(bad)).toBeNull()
+    }
   })
 
   it('is no name when the answer has none, and is not ours when a text is not text', () => {
-    expect(parseBuilding({ address: ADDRESS })).toEqual({ address: ADDRESS, name: '' })
+    expect(parseBuilding({ address: ADDRESS })).toEqual({ address: ADDRESS, name: '', privacy_contact: '' })
     for (const bad of [undefined, null, 'text', 5, {}, { name: NAME }, { address: 5 }, { address: ADDRESS, name: 5 }, { address: ADDRESS, name: null }]) {
       expect(parseBuilding(bad), JSON.stringify(bad)).toBeNull()
     }

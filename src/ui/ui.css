@@ -407,6 +407,13 @@ a.w-link { display: inline-flex; align-items: center; text-align: center; }
 .w-spinner { width: 56px; height: 56px; border-radius: 50%; border: 5px solid var(--w-surface-2); border-top-color: var(--w-focus); animation: w-spin 0.9s linear infinite; }
 @keyframes w-spin { to { transform: rotate(360deg); } }
 
+/* ----- the privacy notice (src/worker/PrivacyView.jsx) ----- */
+/* Long text on a small screen: the bullets of the lists stay (the reset above touches headings and paragraphs only), each item and
+   paragraph breaks a long word (a contact of one long e-mail address, T2), and the lines are as open as the privacy note's. */
+.w-notice__list { margin: 0; padding-inline-start: var(--w-space-5); display: grid; gap: var(--w-space-2-5); line-height: 1.55; overflow-wrap: anywhere; }
+.w-notice__p { line-height: 1.55; overflow-wrap: anywhere; }
+.w-notice__list + .w-notice__p, .w-notice__p + .w-notice__p { margin-block-start: var(--w-space-3); }
+
 /* ----- skeleton ----- */
 .w-skel { height: 68px; border-radius: var(--w-radius-3xl); background: linear-gradient(90deg, var(--w-surface) 25%, var(--w-surface-2) 50%, var(--w-surface) 75%); background-size: 200% 100%; animation: w-shimmer 1.4s ease-in-out infinite; }
 @keyframes w-shimmer { to { background-position: -200% 0; } }
