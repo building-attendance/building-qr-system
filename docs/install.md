@@ -470,8 +470,9 @@ a new database, the login has to be made again ([restore.md](runbooks/restore.md
 ([incident.md](runbooks/incident.md), "UptimeRobot: what it sees and what it does not").
 
 **Backups.** Neon restores only to the last 6 hours on the free plan. The command
-`npm run db:backup -- --out <dir> --encrypt-to <public key file> --encrypt-fingerprint <fingerprint> --neon-project <project id>`
-makes a dump on a computer that you choose, encrypted to your public key, and a scheduled task runs it daily; the newest 30
+`npm run db:backup -- --out <dir> --encrypt-to <public key file> --encrypt-fingerprint <fingerprint> --neon-project <project id> --neon-role <role>`
+makes a dump on a computer that you choose (`<role>` is the role that owns the tables, `neondb_owner` in a project that
+Vercel or Neon made; the session is read-only whatever the role), encrypted to your public key, and a scheduled task runs it daily; the newest 30
 dumps are kept. Make the key pair first, once ([restore.md](runbooks/restore.md), "Encrypted backups"): the public key file
 and its fingerprint go into the command, the private key only into your password manager, and without the two options the
 command stops before it dumps anything. It runs on Windows or Linux only, needs the PostgreSQL 18 client tools (`pg_dump`,

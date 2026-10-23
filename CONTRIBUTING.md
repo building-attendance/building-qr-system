@@ -69,7 +69,7 @@ The other scripts (the full list is the `scripts` of `package.json`):
 ```bash
 npm run db:migrate                   # applies the new migrations to the database in DATABASE_URL (refuses production)
 npm run db:create-admin -- <google-email> [name]   # adds a committee member to the database in DATABASE_URL, and prints which one
-npm run db:backup -- --out <dir> --encrypt-to <public key file> --encrypt-fingerprint <fingerprint> --neon-project <id>   # dumps the database to <dir>, encrypted to the owner's key (kept 30 days, never in the repository); make the key pair first, see "Encrypted backups" in docs/runbooks/restore.md
+npm run db:backup -- --out <dir> --encrypt-to <public key file> --encrypt-fingerprint <fingerprint> --neon-project <id> --neon-role <role>   # dumps the database to <dir>, encrypted to the owner's key (kept 30 days, never in the repository); make the key pair first, see "Encrypted backups" in docs/runbooks/restore.md
 npm run icons                        # makes the PNG icons in public/ from public/pwa-512x512.svg
 npm run size                         # builds the app and checks it against the size budget (scripts/check-bundle-size.json); CI runs it in the guards check
 ```
