@@ -443,10 +443,13 @@ with a summary of the last 24 hours (`server/alerts.js`, `server/summary.js`). W
 ([incident.md](runbooks/incident.md), "UptimeRobot: what it sees and what it does not").
 
 **Backups.** Neon restores only to the last 6 hours on the free plan. The command
-`npm run db:backup -- --out <dir> --neon-project <project id>` makes a dump on a computer that you choose, and a
-scheduled task runs it daily; the newest 30 dumps are kept. It runs on Windows or Linux only, needs the PostgreSQL 18
-client tools (`pg_dump`, `pg_restore`) and the Neon CLI signed in, and the dumps hold personal data: keep them off GitHub
-and off any folder that a service synchronises to the internet. Choose the computer, and the person who looks at its
+`npm run db:backup -- --out <dir> --encrypt-to <public key file> --encrypt-fingerprint <fingerprint> --neon-project <project id>`
+makes a dump on a computer that you choose, encrypted to your public key, and a scheduled task runs it daily; the newest 30
+dumps are kept. Make the key pair first, once ([restore.md](runbooks/restore.md), "Encrypted backups"): the public key file
+and its fingerprint go into the command, the private key only into your password manager, and without the two options the
+command stops before it dumps anything. It runs on Windows or Linux only, needs the PostgreSQL 18 client tools (`pg_dump`,
+`pg_restore`), `gpg` (Git for Windows has it) and the Neon CLI signed in, and the dumps hold personal data: keep them off
+GitHub and off any folder that a service synchronises to the internet. Choose the computer, and the person who looks at its
 `backup.log`, before you set it up. Everything (the Task Scheduler and cron lines, how to check a dump, how to restore
 one) is in [restore.md](runbooks/restore.md), "Daily backups". The command needs the `production` marker that your first
 deploy wrote. Without a backup your safety net is Neon's 6 hours.

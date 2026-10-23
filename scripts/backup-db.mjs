@@ -1,14 +1,34 @@
 // Daily backup of the database to a folder on this machine (see docs/runbooks/restore.md, section "Daily backups").
 //
 // Usage:
-//   npm run db:backup -- --out <dir> --neon-project <project id> [--neon-branch main] [--keep 30]
-//                        [--report-issue <owner/repo>] [--pg-bin <dir>]
-//   npm run db:backup -- --out <dir>   (with BACKUP_DATABASE_URL set from a prompt that is not recorded, not typed in the
+//   npm run db:backup -- --out <dir> --encrypt-to <public key file> --encrypt-fingerprint <40 hex>
+//                        --neon-project <project id> [--neon-branch main] [--keep 30]
+//                        [--report-issue <owner/repo>] [--pg-bin <dir>] [--gpg <gpg program>]
+//   npm run db:backup -- --out <dir> --encrypt-to <file> --encrypt-fingerprint <40 hex>
+//                                      (with BACKUP_DATABASE_URL set from a prompt that is not recorded, not typed in the
 //                                        command: see "Daily backups" in docs/runbooks/restore.md)
 //
 // Why this exists: on the free Neon plan the database can only be restored to a point in the last 6 hours. A dump on the
 // owner's own computer reaches back as far as the files are kept, and it holds personal data, so it never goes to GitHub:
 // the folder is outside the repository, `*.dump` is in .gitignore, and nothing here prints or stores the connection string.
+//
+// Encrypted only (docs/runbooks/restore.md, "Encrypted backups"): a dump is kept only as ciphertext for the owner's public key,
+// `building-qr-<UTC time>.dump.gpg`, and these conditions hold:
+//   - --encrypt-to (the public key file) and --encrypt-fingerprint (its 40 hex characters) are required: without them the
+//     command line is refused, and nothing is made, asked for or dumped.
+//   - The fingerprint is checked before the connection string is asked for: the key file is read once, copied into the private
+//     work directory, and `gpg --show-keys` must find in that copy exactly one key, a public one (no private key), whose
+//     fingerprint is the one given. A swapped key file stops the run before it connects. gpg then encrypts to that same copy
+//     (`--recipient-file`, which takes exactly one key), so the key that was checked is the key that is used.
+//   - gpg runs with the work directory as its home (`--homedir .`, `--no-options`, `--no-autostart`): no keyring, setting or
+//     agent of the owner is read or touched, and no daemon is left running. Like every tool here, it gets an argument array and
+//     no shell, and fixed relative file names.
+//   - The plaintext dump never leaves the work directory. It is deleted as soon as gpg exits, whatever gpg did, and again in a
+//     `finally` with the whole work directory; a plaintext that is still there after that fails the run. Only the ciphertext,
+//     after gpg exited with 0 and wrote a file that is not empty, is renamed into the output folder, and only then is the run
+//     a success (and the heartbeat told so).
+//   - Retention counts and deletes only `.dump.gpg` files: a plaintext `.dump` that is in the folder already is never
+//     counted, rotated or deleted (the owner deals with those, docs/runbooks/restore.md).
 //
 // What one run does:
 //   1. Gets the DIRECT connection string (never the pooled one: pg_dump needs a session) from BACKUP_DATABASE_URL, or from
@@ -43,6 +63,8 @@
 //      needs write access to the folder, which step 2 refused. On Windows the directory then also gets an owner-only access list
 //      (icacls) and the list is READ BACK (`icacls <dir>`): the run refuses unless it is exactly one entry, the user's, full
 //      control inherited by files and folders. On Linux the mode is read back. A second net.
+//      The public key is checked in it right away, before step 1 asks for the connection string (see "Encrypted only" above):
+//      steps 1 and 3 run in the order 3, then 1.
 //      The work directory is on the same volume as the finished file, so the last step is a rename. It is a directory, and
 //      retention only touches FILES with the exact name of a backup, so it is never counted, rotated or deleted by retention.
 //      A run that was killed leaves its work directory behind: at the start of the next run (after the checks) every directory
@@ -60,10 +82,11 @@
 //      data of the tables `scans` and `points`; but it does not read the data blocks, so a dump that was cut off after its
 //      table of contents would pass. A full read (`pg_restore --file=<the null device>`) writes the SQL of the whole archive
 //      to nowhere, which reads and decompresses every data block, and must exit with 0. Then the mode is set and read back
-//      (Linux). Only then is the verified, owner-only file renamed from the work directory to
-//      building-qr-<UTC time>.dump in the output folder; a file of the same name from a run of the same minute is replaced
-//      by this verified one. A rename keeps the mode and the access list of the file. The work directory is removed at the
-//      end, whatever happened, and nothing in it survives.
+//      (Linux). Then gpg encrypts it into a second file of the work directory, the plaintext is deleted, and the mode of the
+//      ciphertext is set and read back (Linux). Only then is the verified, owner-only, encrypted file renamed from the work
+//      directory to building-qr-<UTC time>.dump.gpg in the output folder; a file of the same name from a run of the same minute
+//      is replaced by this verified one. A rename keeps the mode and the access list of the file. The work directory is removed
+//      at the end, whatever happened, and nothing in it survives.
 //      A third check reads the marker out of the dump: the table public.environment_marker (server/dbGuard.js) must hold a row
 //      `production`. A dump of a database that does not say so (the wrong project or branch, a stale BACKUP_DATABASE_URL) is not
 //      kept, and nothing is rotated, because it would pass the two checks above and could push the real dumps out. Every
@@ -73,7 +96,8 @@
 //      by the UTC time in their names, so a run that started earlier and finishes later than a newer one never deletes the
 //      newer dump: when its own file is older than the kept ones, its own file is removed (the run still ends with 0, with
 //      the warning `own-dump-older-than-kept`, because a newer verified dump exists). A name with a time in the future (a
-//      clock that was wrong) is not counted and not deleted. Any other file in the folder is left alone, and nothing is
+//      clock that was wrong) is not counted and not deleted. Any other file in the folder is left alone (a plaintext `.dump`
+//      too), and nothing is
 //      rotated after a failed backup.
 //   6. An existing backup.log must be a regular file with one name (lstat: not a symbolic link, nlink 1), checked before
 //      anything is dumped and again right before the append: a link that another account planted in a folder it can write in
@@ -131,7 +155,8 @@
 // code 1 on any failure, 0 on success. Node built-ins only, so there is no install step for a machine that only runs this.
 //
 // pg_dump must not be older than the server (Neon runs Postgres 18). --pg-bin, then PG_BIN, then on Windows the usual
-// install folder of Postgres 18, then PATH, in that order.
+// install folder of Postgres 18, then PATH, in that order. gpg (GnuPG 2.2.8 or later, for --show-keys): --gpg, then on Windows
+// the gpg of Git for Windows (C:\Program Files\Git\usr\bin\gpg.exe) when it is there, then PATH.
 //
 // A computer that sleeps or hibernates in the middle of a run goes on with it when it wakes: the time limit of each tool (the
 // Neon CLI, pg_dump, pg_restore, gh, whoami, icacls, PowerShell) counts only the time that the machine is awake (see awakeDeadline).
@@ -156,9 +181,33 @@ export const ISSUE_TITLE = 'Daily database backup failed'
 export const REQUIRED_TABLES = ['scans', 'points']
 // The exact name of a finished backup. Retention only ever touches files that match all of it, so a note, a copy or a
 // folder that somebody put next to the backups is safe. The time is in the name (and sorts) on purpose: it is a machine
-// name, not a date that a person reads.
-export const BACKUP_NAME = /^building-qr-\d{8}T\d{4}Z\.dump$/
+// name, not a date that a person reads. Only an encrypted dump has it: a plaintext `.dump` of before is not a backup to retention.
+export const BACKUP_NAME = /^building-qr-\d{8}T\d{4}Z\.dump\.gpg$/
 export const WINDOWS_PG_BIN = 'C:\\Program Files\\PostgreSQL\\18\\bin'
+// The gpg that Git for Windows installs (GnuPG 2.4 on 22/10/2026), the default on Windows when it is there.
+export const WINDOWS_GPG = 'C:\\Program Files\\Git\\usr\\bin\\gpg.exe'
+// A fingerprint of an OpenPGP v4 key, as `gpg --with-colons` writes it: 40 hex characters, upper case.
+export const FINGERPRINT = /^[0-9A-F]{40}$/
+// The options that every call of gpg gets: the work directory of the run is its home (no keyring, setting or agent of the owner),
+// no option file, never a question, and no agent or other daemon started. The names after them are relative to the work directory.
+export const GPG_BASE_ARGS = ['--homedir', '.', '--batch', '--no-tty', '--no-options', '--no-autostart', '--no-permission-warning']
+// The copy of the public key file in the work directory (the file that is checked is the file that is used), and the ciphertext.
+export const KEY_COPY_NAME = 'recipient.key'
+export const ENCRYPTED_PARTIAL_NAME = 'partial.dump.gpg'
+// A public key file is a few KB; anything above this is not one.
+const MAX_KEY_FILE = 1024 * 1024
+// The public key file could not be read (the message names no path: it holds a person's name).
+export const KEY_FILE_ERROR = 'the public key file of --encrypt-to could not be read (or is larger than 1 MB), so nothing was dumped'
+// What is wrong with the key in the key file (see keyProblem). Nothing in them repeats the fingerprint or the path.
+export const KEY_MISMATCH_ERROR =
+  'the key in the --encrypt-to file is not the key of --encrypt-fingerprint, so nothing was dumped: has the key file been replaced? Check it against the fingerprint in the password manager'
+export const KEY_SECRET_ERROR =
+  'the --encrypt-to file holds a private key, so nothing was dumped: give the public key file only, and keep the private key only in the password manager'
+export const KEY_COUNT_ERROR = 'the --encrypt-to file must hold exactly one public key, so nothing was dumped'
+export const ENCRYPTION_REQUIRED_ERROR = 'nothing was dumped, because a dump is kept only encrypted: give --encrypt-to and --encrypt-fingerprint'
+// The plaintext dump is still in the work directory after the run (its deletion failed): the run fails, so that somebody looks.
+export const PLAINTEXT_LEFT_ERROR =
+  'the plaintext dump could not be deleted from the work directory (.bqr-work-...) in the backup folder: delete that folder by hand'
 // The line that backup.log and the screen get when the backup folder was there already and other users can read it.
 export const FOLDER_WARNING =
   'the backup folder can be read by other users (the files in it are owner-only, so they see only the names): tighten it (on Linux run chmod 700 on the folder)'
@@ -217,6 +266,9 @@ const LIST_TIMEOUT_MS = 5 * 60_000
 // Reading a dump to the end takes about as long as it takes to decompress it, so it gets as long as the dump itself.
 const READ_TIMEOUT_MS = 30 * 60_000
 const GH_TIMEOUT_MS = 60_000
+// Reading the key file takes a moment; encrypting the dump takes about as long as reading it to the end.
+const GPG_KEY_TIMEOUT_MS = 2 * 60_000
+const ENCRYPT_TIMEOUT_MS = 30 * 60_000
 // A work folder that a crashed run left behind is removed by the next run once it is older than this (by its modification time).
 // Younger ones are left alone, because another run may be using one.
 export const STALE_WORK_MS = 24 * 60 * 60 * 1000
@@ -236,13 +288,16 @@ const CHANNEL_BINDINGS = new Set(['disable', 'prefer', 'require'])
 export const READ_ONLY_OPTION = '-c default_transaction_read_only=on'
 
 export const USAGE = [
-  'Usage: node scripts/backup-db.mjs --out <dir> [--neon-project <id>] [options]',
+  'Usage: node scripts/backup-db.mjs --out <dir> --encrypt-to <file> --encrypt-fingerprint <40 hex> [--neon-project <id>] [options]',
   '  --out <dir>             the folder for the backups and backup.log (required, created when missing)',
+  '  --encrypt-to <file>     the public key file of the owner: every dump is kept only encrypted to it (required)',
+  '  --encrypt-fingerprint <40 hex>  the fingerprint of that key, without spaces: another key is refused (required)',
   `  --keep <n>              how many backups to keep (default ${DEFAULT_KEEP}, at least 1)`,
   '  --neon-project <id>     get the direct connection string from the Neon CLI, for this project',
   `  --neon-branch <name>    the Neon branch (default ${DEFAULT_NEON_BRANCH})`,
   '  --report-issue <o/r>    on a failure, open an issue in this GitHub repository with the gh CLI',
   '  --pg-bin <dir>          the folder of pg_dump and pg_restore (else PG_BIN, else the Windows install, else PATH)',
+  '  --gpg <file>            the gpg program (else, on Windows, the gpg of Git for Windows, else PATH)',
   'Without --neon-project the connection string is read from BACKUP_DATABASE_URL (the direct one, not -pooler). Give only one of them.',
   'With BACKUP_HEARTBEAT_URL set (an https address, from the environment only) each run pings it once: the address itself when the backup worked, <address>/fail when not.',
 ].join('\n')
@@ -256,6 +311,9 @@ const VALUE_OPTIONS = {
   '--neon-branch': 'neonBranch',
   '--report-issue': 'reportIssue',
   '--pg-bin': 'pgBin',
+  '--encrypt-to': 'encryptTo',
+  '--encrypt-fingerprint': 'encryptFingerprint',
+  '--gpg': 'gpg',
 }
 // The project id and the branch name go into a command line (through cmd.exe on Windows), so they are checked against a
 // short list of safe characters and cannot start with a hyphen (an option) or hold a space, a quote or a shell character.
@@ -265,8 +323,8 @@ const REPO_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 
 /**
  * Reads the command line (`--name value` or `--name=value`) into { out, keep, neonProject, neonBranch, reportIssue, pgBin,
- * help }. Throws an Error whose message is safe to print: it names an option, and never repeats a value (a person may have
- * pasted a connection string in the wrong place).
+ * encryptTo, encryptFingerprint (upper case), gpg, help }. Throws an Error whose message is safe to print: it names an option,
+ * and never repeats a value (a person may have pasted a connection string in the wrong place).
  */
 export function parseArgs(argv) {
   const raw = {}
@@ -295,6 +353,13 @@ export function parseArgs(argv) {
   if (help) return { help: true }
 
   if (!raw.out) throw new Error('--out <dir> is required: the folder where the backups are kept')
+  // Encryption is not optional: without the key and its fingerprint nothing is asked for and nothing is dumped.
+  if (!raw.encryptTo) throw new Error('--encrypt-to <public key file> is required: every dump is kept only encrypted to the public key of the owner')
+  const encryptFingerprint = String(raw.encryptFingerprint ?? '').toUpperCase()
+  if (!FINGERPRINT.test(encryptFingerprint)) {
+    throw new Error('--encrypt-fingerprint is required: the 40 hex characters of the fingerprint of that key, without spaces')
+  }
+  if (raw.gpg !== undefined && !raw.gpg) throw new Error('--gpg needs the gpg program')
   let keep = DEFAULT_KEEP
   if (raw.keep !== undefined) {
     if (!/^\d{1,6}$/.test(raw.keep) || Number(raw.keep) < 1) throw new Error('--keep must be a whole number, 1 or more')
@@ -317,6 +382,9 @@ export function parseArgs(argv) {
     neonBranch,
     reportIssue: raw.reportIssue ?? null,
     pgBin: raw.pgBin ?? null,
+    encryptTo: raw.encryptTo,
+    encryptFingerprint,
+    gpg: raw.gpg ?? null,
   }
 }
 
@@ -341,6 +409,94 @@ export function pgTool(dir, name, platform = process.platform) {
 /** Where output goes to nowhere: NUL on Windows, /dev/null everywhere else. */
 export function nullDevice(platform = process.platform) {
   return platform === 'win32' ? 'NUL' : '/dev/null'
+}
+
+// ---- the encryption ------------------------------------------------------------------------------------------------------
+
+/** The gpg program: --gpg, then on Windows the gpg of Git for Windows when it is there, then the bare name (a PATH lookup). */
+export function resolveGpg({ option, platform = process.platform, exists = fs.existsSync } = {}) {
+  if (option) return option
+  if (platform === 'win32') return exists(WINDOWS_GPG) ? WINDOWS_GPG : 'gpg.exe'
+  return 'gpg'
+}
+
+/**
+ * The keys in what `gpg --with-colons --show-keys` printed: { primaries (the fingerprint of each primary key, in order),
+ * secret (true when a private key or subkey is among them) }. A primary key is a `pub` record (`sec` for a private one), and
+ * its fingerprint is the `fpr` record right after it; the `fpr` records of the subkeys (after `sub` and `ssb`) are not counted.
+ */
+export function parseShownKeys(stdout) {
+  const primaries = []
+  let secret = false
+  let last = null
+  for (const line of String(stdout ?? '').split(/\r?\n/)) {
+    const fields = line.split(':')
+    const type = fields[0]
+    if (type === 'sec' || type === 'ssb') secret = true
+    if (type === 'fpr') {
+      if (last === 'pub' || last === 'sec') primaries.push(String(fields[9] ?? '').toUpperCase())
+    }
+    if (['pub', 'sec', 'sub', 'ssb', 'fpr', 'uid', 'uat'].includes(type)) last = type
+  }
+  return { primaries, secret }
+}
+
+/**
+ * What is wrong with the key file, from what `gpg --with-colons --show-keys` printed, as a message that is safe to print, or
+ * null when it holds exactly one key, a public one, and its fingerprint is `fingerprint`. --recipient-file takes exactly one key,
+ * so the key that is checked here is the key that the dump is encrypted to.
+ */
+export function keyProblem(stdout, fingerprint) {
+  const { primaries, secret } = parseShownKeys(stdout)
+  if (secret) return KEY_SECRET_ERROR
+  if (primaries.length !== 1) return KEY_COUNT_ERROR
+  if (primaries[0] !== String(fingerprint ?? '').toUpperCase()) return KEY_MISMATCH_ERROR
+  return null
+}
+
+/**
+ * The bytes of the public key file, read once (the copy in the work directory is what gpg checks and uses). Throws an Error whose
+ * message names no path when the file cannot be read or is larger than MAX_KEY_FILE.
+ */
+function readKeyFile(file, files) {
+  let bytes
+  try {
+    // the size first, so that a large file is never read into memory
+    if (files.statSync(file).size > MAX_KEY_FILE) throw new Error('too large')
+    bytes = files.readFileSync(file)
+  } catch {
+    throw new Error(KEY_FILE_ERROR)
+  }
+  if (!bytes.length) throw new Error(KEY_FILE_ERROR)
+  return bytes
+}
+
+/**
+ * The last line that gpg wrote to stderr, as ': text', or '' for none. gpg says what went wrong last (`gpg: partial.dump:
+ * encryption failed: ...`), and its first lines can be notes about its home (`keybox ... created`).
+ */
+function lastLine(stderr) {
+  const line = String(stderr ?? '')
+    .split(/\r?\n/)
+    .map((text) => text.trim())
+    .filter(Boolean)
+    .at(-1)
+  return line ? `: ${line}` : ''
+}
+
+function gpgProblem(problem) {
+  if (problem === 'ENOENT') return 'gpg was not found: install Git for Windows (or GnuPG), or pass --gpg <the gpg program>'
+  if (problem === 'TIMEOUT') return 'gpg did not finish in time'
+  return `gpg could not be started (${problem})`
+}
+
+/**
+ * A Windows path as the programs of Git for Windows (MSYS) write it in a message: C:\Users\x becomes /c/Users/x. The scrubber gets
+ * this form too, so that a message of gpg does not show the folder (which holds a person's name).
+ */
+export function msysPath(folder) {
+  const match = /^([A-Za-z]):[\\/](.*)$/.exec(String(folder ?? ''))
+  return match ? `/${match[1].toLowerCase()}/${match[2].replaceAll('\\', '/')}` : null
 }
 
 // ---- owner-only access lists on Windows -------------------------------------------------------------------------------
@@ -828,10 +984,10 @@ export function parseNeonOutput(stdout) {
 
 // ---- file names and retention --------------------------------------------------------------------------------------
 
-/** building-qr-20261003T0715Z.dump: the UTC minute that the backup started in. */
+/** building-qr-20261003T0715Z.dump.gpg: the UTC minute that the backup started in, and the encryption. */
 export function backupFileName(date) {
   const iso = date.toISOString()
-  return `building-qr-${iso.slice(0, 4)}${iso.slice(5, 7)}${iso.slice(8, 10)}T${iso.slice(11, 13)}${iso.slice(14, 16)}Z.dump`
+  return `building-qr-${iso.slice(0, 4)}${iso.slice(5, 7)}${iso.slice(8, 10)}T${iso.slice(11, 13)}${iso.slice(14, 16)}Z.dump.gpg`
 }
 
 /**
@@ -923,7 +1079,7 @@ export function notProductionMessage(values) {
  * and the time in it must be a real one (month 13 is not).
  */
 export function backupTime(name) {
-  const match = /^building-qr-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z\.dump$/.exec(String(name))
+  const match = /^building-qr-(\d{4})(\d{2})(\d{2})T(\d{2})(\d{2})Z\.dump\.gpg$/.exec(String(name))
   if (!match) return null
   const [year, month, day, hour, minute] = match.slice(1).map(Number)
   const time = new Date(Date.UTC(year, month - 1, day, hour, minute))
@@ -1426,6 +1582,9 @@ export async function runBackup(options, deps = {}) {
     [outDir, '<out dir>'],
     [lexicalOut, '<out dir>'],
     [home, '~'],
+    // the same folders as the gpg of Git for Windows writes them (/c/Users/...)
+    [msysPath(outDir), '<out dir>'],
+    [msysPath(home), '~'],
   ]
   let scrub = makeScrubber(undefined, hiddenFolders)
   // The user that owns the files, for icacls on Windows: asked once, when the first file needs it.
@@ -1452,6 +1611,11 @@ export async function runBackup(options, deps = {}) {
     if (!supported) {
       logSkipped = '' // nothing is made, so there is no place for a log, and the message says it all
       throw new Error(UNSUPPORTED_PLATFORM_ERROR)
+    }
+    // parseArgs requires both; this is for a caller that did not go through it. A dump is never kept in plaintext.
+    if (!options.encryptTo || !FINGERPRINT.test(String(options.encryptFingerprint ?? ''))) {
+      logSkipped = '' // nothing is made, and the message says it all
+      throw new Error(ENCRYPTION_REQUIRED_ERROR)
     }
     if (!outResolved) {
       logSkipped = '' // a folder that cannot be resolved is not known, so no log is written in it, and the message says it all
@@ -1554,12 +1718,9 @@ export async function runBackup(options, deps = {}) {
     staleRemoved = stale.removed
     if (stale.failed) earlyWarnings.push(`${stale.failed}-stale-work-folders-not-removed`)
     if (!stale.checked) earlyWarnings.push('stale-work-folders-not-checked')
-    const connectionString = await connectionStringFor({ options, env, platform, runner, network })
-    scrub = makeScrubber(connectionString, hiddenFolders)
-    host = maskDatabaseHost(connectionString)
-    const pgEnv = connectionEnv(connectionString)
-    const pgBin = resolvePgBin({ option: options.pgBin, env, platform, exists })
-    const pgRestore = pgTool(pgBin, 'pg_restore', platform)
+    // The public key file is read once, here: the copy in the work directory is what gpg checks and what it encrypts to.
+    const keyBytes = readKeyFile(path.resolve(options.encryptTo), files)
+    const gpg = resolveGpg({ option: options.gpg, platform, exists })
 
     // THE WORK DIRECTORY. Everything that holds data happens in a private directory that this run makes with fs.mkdtemp INSIDE the
     // output folder, after that folder (and every folder above it) was found not to be changeable by another account, and after
@@ -1570,8 +1731,9 @@ export async function runBackup(options, deps = {}) {
     // refused above. As a second net, on Windows the directory gets an owner-only list and it is read back before anything is
     // written into it, and on Linux its mode is read back. It is removed at the end in every case (and one that a
     // crashed run left is removed by the next run, see removeStaleWorkFolders). The temporary file is made, dumped into, checked
-    // and closed there; the verified file is then renamed into the output folder, on the same volume. It is a directory and
-    // not a file with a dump name, so retention (which only touches files with the exact name of a backup) never sees it.
+    // and closed there, and encrypted; only the verified ciphertext is then renamed into the output folder, on the same volume.
+    // It is a directory and not a file with a dump name, so retention (which only touches files with the exact name of a backup)
+    // never sees it.
     const owner = windows ? await ownerOf() : undefined
     workDir = files.mkdtempSync(path.join(outDir, WORK_PREFIX))
     workCreated = true
@@ -1590,6 +1752,24 @@ export async function runBackup(options, deps = {}) {
       })
       if (!workIsPrivate) throw new Error('the work directory could not be made owner-only (does this file system ignore modes?), so nothing was dumped')
     }
+
+    // THE KEY, before the connection string is asked for (see "Encrypted only" in the header). The work directory is gpg's home
+    // (GPG_BASE_ARGS), so nothing of the owner's own GnuPG is read or changed. The copy of the key file holds exactly one key, a
+    // public one, with the fingerprint of the command line, or nothing is asked for and nothing is dumped.
+    const gpgCall = (args, timeoutMs) => runner(gpg, [...GPG_BASE_ARGS, ...args], { env: cleanEnv(env), cwd: workDir, timeoutMs })
+    files.writeFileSync(path.join(workDir, KEY_COPY_NAME), keyBytes, { flag: 'wx', mode: PRIVATE_FILE })
+    const shown = await gpgCall(['--with-colons', '--show-keys', KEY_COPY_NAME], GPG_KEY_TIMEOUT_MS)
+    if (shown.problem) throw new Error(gpgProblem(shown.problem))
+    if (shown.status !== 0) throw new Error(`gpg could not read the --encrypt-to file as a key (exit code ${shown.status})${lastLine(shown.stderr)}`)
+    const wrongKey = keyProblem(shown.stdout, options.encryptFingerprint)
+    if (wrongKey) throw new Error(wrongKey)
+
+    const connectionString = await connectionStringFor({ options, env, platform, runner, network })
+    scrub = makeScrubber(connectionString, hiddenFolders)
+    host = maskDatabaseHost(connectionString)
+    const pgEnv = connectionEnv(connectionString)
+    const pgBin = resolvePgBin({ option: options.pgBin, env, platform, exists })
+    const pgRestore = pgTool(pgBin, 'pg_restore', platform)
 
     // The empty temporary file is made in it, exclusively (`wx`), BEFORE pg_dump writes to it. On Windows it is also given an
     // explicit owner-only list (the directory's list would reach it anyway): pg_dump opens the existing file and overwrites it
@@ -1657,26 +1837,47 @@ export async function runBackup(options, deps = {}) {
     const markerValues = parseMarkerValues(marker.stdout)
     if (!markerValues?.includes('production')) throw new Error(notProductionMessage(markerValues))
 
-    if (posix) {
-      // Already 600 through the umask and the mode of the empty file: this makes sure. Then the mode is READ BACK: a failed
-      // chmod, or a file system that ignores modes (some network and exFAT volumes), must not leave a readable dump. All of
-      // it happens in the work directory, before the file is moved to where others might look.
-      attempt(() => files.chmodSync(partialPath, PRIVATE_FILE))
+    // Already 600 through the umask and the mode of the empty file: this makes sure. Then the mode is READ BACK: a failed
+    // chmod, or a file system that ignores modes (some network and exFAT volumes), must not leave a readable dump. All of
+    // it happens in the work directory, before the file is moved to where others might look. (Linux; on Windows the files
+    // have the owner-only list of the work directory.) It is done for the plaintext and for the ciphertext.
+    const closeFile = (file) => {
+      if (!posix) return
+      attempt(() => files.chmodSync(file, PRIVATE_FILE))
       let closed = false
       attempt(() => {
-        closed = (files.statSync(partialPath).mode & 0o077) === 0
+        closed = (files.statSync(file).mode & 0o077) === 0
       })
       if (!closed) {
         throw new Error('the dump could not be made owner-only (chmod failed, or this file system ignores file modes), so it was deleted')
       }
     }
+    closeFile(partialPath)
 
-    // Only now, verified and owner-only, after pg_dump has exited and all the checks passed, the file is moved to its final name
-    // in the output folder. The work directory is inside that folder, so this is a rename on one volume, which keeps the mode
-    // and the access list of the file. When the final name exists (a second run in the same minute) the rename replaces it
-    // with this verified dump, which is as good.
+    // THE ENCRYPTION, to the key that was checked above (the same copy: --recipient-file takes exactly one key, and gpg takes it
+    // as valid), into a second file of the work directory. The dump is a compressed archive already, so gpg does not compress it
+    // again. The plaintext is deleted as soon as gpg exits, whatever gpg did (and again with the work directory, below).
+    const encryptedPath = path.join(workDir, ENCRYPTED_PARTIAL_NAME)
+    const encrypted = await gpgCall(
+      ['--compress-algo', 'none', '--recipient-file', KEY_COPY_NAME, '--output', ENCRYPTED_PARTIAL_NAME, '--encrypt', partialName],
+      ENCRYPT_TIMEOUT_MS,
+    )
+    attempt(() => files.rmSync(partialPath, { force: true }))
+    if (encrypted.problem) throw new Error(gpgProblem(encrypted.problem))
+    if (encrypted.status !== 0) throw new Error(`gpg could not encrypt the dump (exit code ${encrypted.status})${lastLine(encrypted.stderr)}`)
+    let encryptedSize = 0
+    attempt(() => {
+      encryptedSize = files.statSync(encryptedPath).size
+    })
+    if (!(encryptedSize > 0)) throw new Error('gpg exited with 0 but wrote no encrypted dump, so nothing was kept')
+    closeFile(encryptedPath)
+
+    // Only now, verified, encrypted and owner-only, after pg_dump and gpg have exited and all the checks passed, the ciphertext is
+    // moved to its final name in the output folder. The work directory is inside that folder, so this is a rename on one volume,
+    // which keeps the mode and the access list of the file. When the final name exists (a second run in the same minute) the
+    // rename replaces it with this verified dump, which is as good.
     const finalPath = path.join(outDir, finalName)
-    files.renameSync(partialPath, finalPath)
+    files.renameSync(encryptedPath, finalPath)
     const warnings = []
     const size = files.statSync(finalPath).size
 
@@ -1695,12 +1896,25 @@ export async function runBackup(options, deps = {}) {
     result = { ok: true, file: finalName, size, removed, warning: warnings.join(',') || undefined }
   } catch (error) {
     result = { ok: false, message: scrub(error instanceof Error ? error.message : 'unexpected error') }
-  }
-  // The work directory goes in every case, with everything in it (a failed run's partial dump too). Only a directory that this
-  // run created is removed: one that was there already is not ours. A cleanup never throws; when it fails the directory is
-  // owner-only, and a warning says that it is still there.
-  if (workCreated && !attempt(() => files.rmSync(workDir, { recursive: true, force: true }))) {
-    result.warning = [result.warning, 'work-directory-not-removed'].filter(Boolean).join(',')
+  } finally {
+    // The work directory goes in every case, with everything in it (a failed run's partial dump too). Only a directory that this
+    // run created is removed: one that was there already is not ours. A cleanup never throws; when it fails the directory is
+    // owner-only, and a warning says that it is still there. The PLAINTEXT dump goes first, on its own, so that a directory
+    // that cannot be removed as a whole (a file of gpg's home that is still open) does not keep it; and a plaintext that is
+    // still there after both fails a run that had worked (a run that failed already keeps its reason, and gets a warning), so
+    // that the heartbeat and the issue make somebody look.
+    if (workCreated) {
+      attempt(() => files.rmSync(partialPath, { force: true }))
+      if (!attempt(() => files.rmSync(workDir, { recursive: true, force: true }))) {
+        result.warning = [result.warning, 'work-directory-not-removed'].filter(Boolean).join(',')
+      }
+      let plaintextLeft = true
+      attempt(() => {
+        plaintextLeft = files.existsSync(partialPath)
+      })
+      if (plaintextLeft && result.ok) result = { ...result, ok: false, message: PLAINTEXT_LEFT_ERROR }
+      else if (plaintextLeft) result.warning = [result.warning, 'plaintext-dump-not-removed'].filter(Boolean).join(',')
+    }
   }
   if (earlyWarnings.length) result.warning = [result.warning, ...earlyWarnings].filter(Boolean).join(',')
 
