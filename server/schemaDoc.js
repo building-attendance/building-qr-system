@@ -238,8 +238,8 @@ export const schemaDoc = {
     },
     'building.update': {
       entity: 'building',
-      meaning: "The building's address or name was saved with a new value.",
-      detail: { changes: CHANGES('address and name') },
+      meaning: "The building's address, its name or the committee's contact for privacy requests was saved with a new value.",
+      detail: { changes: CHANGES('address, name and privacy_contact (how to reach the committee about personal data)') },
     },
     'point.create': {
       entity: 'point',

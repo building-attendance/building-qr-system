@@ -8,7 +8,7 @@ import {
 import { requireAdmin, isAdminToken, guardLogin } from '../auth.js'
 import { verifyGoogleCredential, googlePhotoUrl } from '../google.js'
 import { firstCommitteeMember } from '../firstAdmin.js'
-import { readBuilding, saveBuilding, parseAddress, parseName } from '../building.js'
+import { readBuilding, saveBuilding, parseAddress, parseName, parsePrivacyContact } from '../building.js'
 import { listScans, listAllScans, scanJson, COMMITTEE_CSV_COLUMNS, committeeCsvRow } from '../scans.js'
 import { readProviderName } from '../../shared/providerName.js'
 import { audit, adminActor, changesOf, idsChanged } from '../audit.js'
@@ -301,22 +301,24 @@ route('DELETE', '/admin/admins/:id', async ({ req, params }) => {
 
 // ---------- the building ----------
 
-// The building's address, which the service providers' app shows at the top, and its name. Either may be empty: then the app
-// shows nothing for it.
+// The building's address, which the service providers' app shows at the top, its name, and the committee's contact for privacy
+// requests, which the providers' privacy notice shows. Each may be empty: then the app shows nothing for it (the notice tells the
+// providers to ask the committee's members).
 route('GET', '/admin/building', async ({ req }) => {
   await requireAdmin(req)
   return { building: await readBuilding() }
 })
 
-// The address is required (it can be empty). The name is optional: a screen that was installed before the name existed sends
-// the address only, and its save leaves the saved name as it is.
+// The address is required (it can be empty). The name and the contact are optional: a screen that was installed before one of
+// them existed does not send it, and its save leaves the saved one as it is.
 route('PUT', '/admin/building', async ({ req, body }) => {
   const { admin } = await requireAdmin(req)
   const address = parseAddress(body.address)
   const name = parseName(body.name)
+  const privacy_contact = parsePrivacyContact(body.privacy_contact)
   const building = await tx(async (c) => {
-    const { changed, before, after } = await saveBuilding(c, admin.id, { address, name })
-    if (!changed) return after // a save that changes neither text has nothing to record
+    const { changed, before, after } = await saveBuilding(c, admin.id, { address, name, privacy_contact })
+    if (!changed) return after // a save that changes none of the texts has nothing to record
     await audit(c, adminActor(admin), 'building.update', {
       entity: 'building',
       detail: { changes: changesOf(before, after) },

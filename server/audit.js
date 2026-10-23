@@ -38,8 +38,9 @@
 //   admin.delete              admin     member      { email, name }                              what the member was
 //   session.sign_in           admin     member      { method }                                   `google`, or `dev` (the local shortcut); the member is the actor
 //   session.sign_out          admin     member      null                                         ended by the member who owned the session (the actor)
-//   building.update           building  (null)      { changes: { address, name } }               only the field(s) that changed: a save of the address alone
-//                                                                                                  (a screen from before the name existed) leaves the name out
+//   building.update           building  (null)      { changes: { address, name, privacy_contact } }  only the field(s) that changed: a save from a
+//                                                                                                  screen from before the name or the contact existed
+//                                                                                                  leaves that field out
 //   point.create              point     point       { name, description?, service_type?, gps_mode?, lat?, lng?, radius_m?, is_active?,
 //                                                     provider_ids }   the fields that were sent, and the providers who may scan
 //                                                                      there (a list of ids: the real ones, never the demo account)
@@ -147,7 +148,7 @@ export const AUDIT_DETAIL_ALLOW = Object.freeze({
   'admin.delete': Object.freeze({ email: 'text', name: 'text' }),
   'session.sign_in': Object.freeze({ method: oneOf(AUDIT_SIGN_IN_METHODS) }),
   'session.sign_out': Object.freeze({}),
-  'building.update': Object.freeze({ changes: changes({ address: 'text', name: 'text' }) }),
+  'building.update': Object.freeze({ changes: changes({ address: 'text', name: 'text', privacy_contact: 'text' }) }),
   'point.create': Object.freeze({ ...POINT_FIELDS, provider_ids: 'uuids' }),
   'point.update': Object.freeze({ ...POINT_FIELDS, changes: changes(POINT_FIELDS), provider_ids: 'ids_or_change' }),
   'point.delete': Object.freeze({ name: 'text', scans_kept: 'count' }),

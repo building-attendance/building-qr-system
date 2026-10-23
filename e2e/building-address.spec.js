@@ -195,8 +195,9 @@ test('the public route answers to anyone, and the committee routes only to a com
   try {
     const open = await anonymous.get('/api/public/building')
     expect(open.ok()).toBe(true)
-    // the two public fields of the building and nothing else (its name joined the address in migration 012)
-    expect(Object.keys((await open.json()).building)).toEqual(['address', 'name'])
+    // the three public texts of the building and nothing else (its name joined the address in migration 012, and the committee's
+    // contact for privacy requests, which the providers' privacy notice shows before sign-in, in migration 017)
+    expect(Object.keys((await open.json()).building)).toEqual(['address', 'name', 'privacy_contact'])
     for (const response of [await anonymous.get('/api/admin/building'), await anonymous.put('/api/admin/building', { data: { address: 'x' } })]) {
       expect(response.status()).toBe(401)
     }
