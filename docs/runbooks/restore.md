@@ -369,28 +369,32 @@ The steps:
    bash `read -rs -p 'Password: ' PGPASSWORD; export PGPASSWORD` (in zsh `read -rs 'PGPASSWORD?Password: '; export PGPASSWORD`),
    in PowerShell `$env:PGPASSWORD = [System.Net.NetworkCredential]::new('', (Read-Host -AsSecureString 'Password')).Password`.
    The secure string is turned into text only in memory, for the variable.
-3. Decrypt the dump into a temporary folder, with the private key from the password manager. The key goes into a throwaway
-   GnuPG home of its own (never your own keyring), and both go when the restore is done. In PowerShell (the gpg of Git for
-   Windows takes no `C:\...` path on its command line, and its agent wants a short folder, so the lines work in `$env:TEMP`
-   with names relative to it; `<file>` is the `.dump.gpg` to restore):
+3. Decrypt the dump into a new folder of its own, with the private key from the password manager. The folder is also the
+   GnuPG home of the key (never your own keyring), and it goes, with the key and the plaintext, when the restore is done. It
+   is made fresh, with a name nobody can guess, as in [Encrypted backups](#encrypted-backups) ("A new folder for gpg"). In
+   the PowerShell window of step 2 (`<file>` is the `.dump.gpg` to restore):
 
    ```
+   $ErrorActionPreference = 'Stop'
    $gpg = 'C:\Program Files\Git\usr\bin\gpg.exe'
-   Set-Location $env:TEMP
-   New-Item -ItemType Directory bqr-restore-key, bqr-restore | Out-Null
-   Copy-Item '<file>' bqr-restore\backup.dump.gpg
+   Set-Location $env:LOCALAPPDATA
+   $h = 'bqr-r-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+   New-Item -ItemType Directory $h -ErrorAction Stop | Out-Null
+   if (Get-ChildItem -Force $h) { throw 'the new folder is not empty: stop' }
+   Copy-Item '<file>' "$h\backup.dump.gpg"
+   $h
    ```
 
-   Save the private key file of the password manager (`backup-private-key.asc`, see [Encrypted backups](#encrypted-backups))
-   as `bqr-restore-key\key.asc` in `$env:TEMP`, then:
+   The last line prints the name of the folder (in `$env:LOCALAPPDATA`). Save the private key file of the password manager
+   (`backup-private-key.asc`) into that folder as `key.asc`, then:
 
    ```
-   & $gpg --homedir bqr-restore-key --batch --import bqr-restore-key\key.asc
-   & $gpg --homedir bqr-restore-key --batch --output bqr-restore\backup.dump --decrypt bqr-restore\backup.dump.gpg
+   & $gpg --homedir $h --no-options --batch --import "$h\key.asc"
+   & $gpg --homedir $h --no-options --batch --output "$h\backup.dump" --decrypt "$h\backup.dump.gpg"
    ```
 
-   `bqr-restore\backup.dump` is the plaintext: the `<file>` of the next step. On Linux the same, with `gpg` and a folder made
-   with `mktemp -d`.
+   `$h\backup.dump` is the plaintext: the `<file>` of the next step. On Linux the same, with `gpg` and a folder made with
+   `mktemp -d` (which makes a new folder with a name nobody can guess, owner-only).
 4. Restore the dump into it with the same version of the tools (18 or newer), giving `pg_restore` only the name of the
    database (this is how the drill below ran, and it keeps the password out of the arguments of the program):
 
@@ -401,8 +405,8 @@ The steps:
    Then delete the plaintext and the key at once, whatever the restore did:
 
    ```
-   & 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir bqr-restore-key --kill all
-   Remove-Item -Recurse -Force bqr-restore-key, bqr-restore
+   & 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir $h --kill all
+   Remove-Item -Recurse -Force $h
    ```
 
    Close the window afterwards: the variables go with it. `--exit-on-error` stops at the first error instead of leaving a half
@@ -484,44 +488,59 @@ dump" above), into a folder that is deleted right after.
   cut) can leave a plaintext in its work directory: the next run removes work folders that are older than 24 hours (see "Who
   can read them").
 
-**Make the key pair, once.** On Windows, in PowerShell, with the gpg of Git for Windows. It works in a throwaway folder of
-`$env:TEMP` (that gpg takes no `C:\...` path on its command line, and its agent wants a short folder), never in your own
-keyring. No line passes an empty argument (`''`), because Windows PowerShell 5.1 drops one before gpg sees it:
-`--passphrase=` is one argument.
+**A new folder for gpg.** Every snippet below that gives gpg a home (and every one above, in "How to restore from a dump")
+makes a NEW folder for it, with a name nobody can guess, and stops when it cannot: `New-Item` refuses a name that exists
+already, `-ErrorAction Stop` and `$ErrorActionPreference = 'Stop'` end the snippet there, before gpg runs, and the folder
+must be empty right after it is made. Every gpg call gets `--no-options`, so no `gpg.conf` is read even if one appears. A
+folder with a fixed name, or one that is there already, could hold a `gpg.conf` of somebody else that makes gpg start a
+program of theirs as you. The folder is in `$env:LOCALAPPDATA` (your own profile; the one that encrypts the old dumps, which
+needs no agent, is in the backup folder), and its name is given to gpg relative to it: the gpg of Git for Windows takes no `C:\...` path for its home, and its agent needs a short path. The name is
+`bqr-`, a letter, and 12 characters of a new GUID (`[guid]::NewGuid()`): Windows PowerShell 5.1 runs on the .NET
+Framework, which has no `[System.IO.Directory]::CreateTempSubdirectory` (.NET 7 and later). A file that a snippet writes
+(a key file, a decrypted dump) goes into that folder, never under a fixed name. Run the lines of one snippet, and the ones
+after it that use `$h`, in the same PowerShell window. No line passes an empty argument (`''`), because Windows
+PowerShell 5.1 drops one before gpg sees it: `--passphrase=` is one argument.
+
+**Make the key pair, once.** On Windows, in PowerShell, with the gpg of Git for Windows, in a new folder (above), never in
+your own keyring:
 
 1. Make the key pair and read its fingerprint:
 
    ```
+   $ErrorActionPreference = 'Stop'
    $gpg = 'C:\Program Files\Git\usr\bin\gpg.exe'
-   Set-Location $env:TEMP
-   New-Item -ItemType Directory bqr-key | Out-Null
-   & $gpg --homedir bqr-key --batch --pinentry-mode loopback --passphrase= --quick-generate-key 'Building QR backups' default default never
-   & $gpg --homedir bqr-key --batch --with-colons --list-keys | Select-String '^fpr:' | Select-Object -First 1
+   Set-Location $env:LOCALAPPDATA
+   $h = 'bqr-k-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+   New-Item -ItemType Directory $h -ErrorAction Stop | Out-Null
+   if (Get-ChildItem -Force $h) { throw 'the new folder is not empty: stop' }
+   & $gpg --homedir $h --no-options --batch --pinentry-mode loopback --passphrase= --quick-generate-key 'Building QR backups' default default never
+   & $gpg --homedir $h --no-options --batch --with-colons --list-keys | Select-String '^fpr:' | Select-Object -First 1
    ```
 
    The 40 characters between the colons of that `fpr` line are the fingerprint (`<fingerprint>` below).
 2. Put the public key file next to the backups:
 
    ```
-   & $gpg --homedir bqr-key --batch --armor --output bqr-public.asc --export <fingerprint>
-   Move-Item bqr-public.asc '<out dir>\backup-public-key.asc'
+   & $gpg --homedir $h --no-options --batch --armor --output "$h\bqr-public.asc" --export <fingerprint>
+   Move-Item "$h\bqr-public.asc" '<out dir>\backup-public-key.asc'
    ```
 
 3. Put the private key in the password manager, and nowhere else:
 
    ```
-   & $gpg --homedir bqr-key --batch --armor --output bqr-key\backup-private-key.asc --export-secret-keys <fingerprint>
+   & $gpg --homedir $h --no-options --batch --armor --output "$h\backup-private-key.asc" --export-secret-keys <fingerprint>
+   $h
    ```
 
-   Attach `bqr-key\backup-private-key.asc` (in `$env:TEMP`) as a file to a new entry of the password manager ("Building QR
+   Attach `backup-private-key.asc` from that folder (its name is what the last line printed, in `$env:LOCALAPPDATA`) as a file to a new entry of the password manager ("Building QR
    backup private key", with the fingerprint in the same entry). If the password manager takes no files, open the file in
    Notepad and copy its whole text into a secure note; then clear the clipboard history too (Win+V, Clear all), because
    Windows keeps what was copied there, and turn off its sync if it is on.
 4. Delete the key pair from the disk:
 
    ```
-   & 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir bqr-key --kill all
-   Remove-Item -Recurse -Force bqr-key
+   & 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir $h --kill all
+   Remove-Item -Recurse -Force $h
    ```
 
 5. Add `--encrypt-to` and `--encrypt-fingerprint` to the task ("How to set the task on Windows" above), run it once by hand,
@@ -530,43 +549,52 @@ keyring. No line passes an empty argument (`''`), because Windows PowerShell 5.1
 
 The key has no passphrase on purpose: the password manager is what protects it, and a restore in a hurry should not wait for a
 second secret. It does not expire (`never`), so the daily backup does not stop one day on an expired key. On Linux the steps
-are the same with `gpg` and `gpgconf` from `PATH`, in a folder made with `mktemp -d`.
+are the same with `gpg` and `gpgconf` from `PATH`, in a folder made with `mktemp -d` (new, owner-only, a name nobody can
+guess), and `--no-options` on every gpg call.
 
 **The plaintext dumps of before.** The script never counts, rotates or deletes a `.dump`. After the restore of step 5 above
 has worked, encrypt the old ones with the same key, in the backup folder (which holds `backup-public-key.asc`). First check
 the key file:
 
 ```
+$ErrorActionPreference = 'Stop'
 $gpg = 'C:\Program Files\Git\usr\bin\gpg.exe'
 Set-Location '<out dir>'
-New-Item -ItemType Directory bqr-encrypt-home | Out-Null
-& $gpg --homedir bqr-encrypt-home --batch --no-options --no-autostart --with-colons --show-keys backup-public-key.asc | Select-String '^fpr:' | Select-Object -First 1
+$e = 'bqr-e-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+New-Item -ItemType Directory $e -ErrorAction Stop | Out-Null
+if (Get-ChildItem -Force $e) { throw 'the new folder is not empty: stop' }
+& $gpg --homedir $e --batch --no-options --no-autostart --with-colons --show-keys backup-public-key.asc | Select-String '^fpr:' | Select-Object -First 1
 ```
 
 The `fpr` line must hold the fingerprint of the password manager; if it does not, stop there. Then encrypt each one (a file
 that gpg could not finish is removed again, and its name is printed):
 
 ```
-Get-ChildItem | Where-Object { $_.Name -match '^building-qr-\d{8}T\d{4}Z\.dump$' } | ForEach-Object { & $gpg --homedir bqr-encrypt-home --batch --no-options --no-autostart --compress-algo none --recipient-file backup-public-key.asc --output "$($_.Name).gpg" --encrypt $_.Name; if ($LASTEXITCODE) { Remove-Item -ErrorAction SilentlyContinue "$($_.Name).gpg"; "not encrypted: $($_.Name)" } }
-Remove-Item -Recurse -Force bqr-encrypt-home
+Get-ChildItem | Where-Object { $_.Name -match '^building-qr-\d{8}T\d{4}Z\.dump$' } | ForEach-Object { & $gpg --homedir $e --batch --no-options --no-autostart --compress-algo none --recipient-file backup-public-key.asc --output "$($_.Name).gpg" --encrypt $_.Name; if ($LASTEXITCODE) { Remove-Item -ErrorAction SilentlyContinue "$($_.Name).gpg"; "not encrypted: $($_.Name)" } }
+Remove-Item -Recurse -Force $e
 ```
 
-A plaintext dump is deleted only when its encrypted copy gives the same bytes back. The private key goes into a throwaway home
-in `$env:TEMP` for these lines only:
+A plaintext dump is deleted only when its encrypted copy gives the same bytes back. The private key goes into a new folder
+for these lines only, and the decrypted copy of each dump goes into the same folder:
 
 ```
-Set-Location $env:TEMP
-New-Item -ItemType Directory bqr-check-key | Out-Null
+$ErrorActionPreference = 'Stop'
+Set-Location $env:LOCALAPPDATA
+$h = 'bqr-c-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+New-Item -ItemType Directory $h -ErrorAction Stop | Out-Null
+if (Get-ChildItem -Force $h) { throw 'the new folder is not empty: stop' }
+$h
 ```
 
-Save the private key file of the password manager as `bqr-check-key\key.asc` (in `$env:TEMP`), then:
+Save the private key file of the password manager into that folder (the name that the last line printed, in
+`$env:LOCALAPPDATA`) as `key.asc`, then:
 
 ```
-& $gpg --homedir bqr-check-key --batch --import bqr-check-key\key.asc
-$copy = Join-Path $env:TEMP 'bqr-check.dump'
-Get-ChildItem '<out dir>' | Where-Object { $_.Name -match '^building-qr-\d{8}T\d{4}Z\.dump$' -and (Test-Path "$($_.FullName).gpg") } | ForEach-Object { & $gpg --homedir bqr-check-key --batch --yes --output $copy --decrypt "$($_.FullName).gpg"; if ($LASTEXITCODE -eq 0 -and (Get-FileHash $copy).Hash -eq (Get-FileHash $_.FullName).Hash) { Remove-Item $_.FullName } else { "kept: $($_.Name)" }; Remove-Item -ErrorAction SilentlyContinue $copy }
-& 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir bqr-check-key --kill all
-Remove-Item -Recurse -Force bqr-check-key
+& $gpg --homedir $h --no-options --batch --import "$h\key.asc"
+$copy = Join-Path (Join-Path $env:LOCALAPPDATA $h) 'check.dump'
+Get-ChildItem '<out dir>' | Where-Object { $_.Name -match '^building-qr-\d{8}T\d{4}Z\.dump$' -and (Test-Path "$($_.FullName).gpg") } | ForEach-Object { & $gpg --homedir $h --no-options --batch --yes --output $copy --decrypt "$($_.FullName).gpg"; if ($LASTEXITCODE -eq 0 -and (Get-FileHash $copy).Hash -eq (Get-FileHash $_.FullName).Hash) { Remove-Item $_.FullName } else { "kept: $($_.Name)" }; Remove-Item -ErrorAction SilentlyContinue $copy }
+& 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir $h --kill all
+Remove-Item -Recurse -Force $h
 ```
 
 A cut or damaged `.gpg` does not decrypt (gpg exits with an error), so its plaintext is kept and named. An encrypted old dump
