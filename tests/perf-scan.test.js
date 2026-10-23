@@ -87,7 +87,7 @@ describe('the config of the timing', () => {
     const build = `node_modules/.cache/bqr-e2e/${PERF_SCHEMA}/dist`
     expect(config.use.baseURL).toBe(`http://localhost:${PERF_APP_PORT}`)
     expect(api.command).toBe(
-      `node scripts/dev-seed.mjs ${PERF_SCHEMA} --drop && node scripts/dev-seed.mjs ${PERF_SCHEMA} && node server/dev.mjs --schema=${PERF_SCHEMA}`,
+      `node scripts/dev-seed.mjs ${PERF_SCHEMA} --drop && node scripts/dev-seed.mjs ${PERF_SCHEMA} && node server/dev.mjs --schema=${PERF_SCHEMA} --runtime-role`,
     )
     expect(api.url).toBe(`http://localhost:${PERF_API_PORT}/api/public/providers`)
     expect(preview.command).toBe(`npm run build -- --outDir ${build} && npx vite preview --port ${PERF_APP_PORT} --strictPort --outDir ${build}`)

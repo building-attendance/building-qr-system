@@ -69,7 +69,9 @@ export default defineConfig({
     {
       // A fresh scratch schema with the sample data (see scripts/dev-seed.mjs), then the API on top of it.
       // The schema name is safe to put in a command: e2eSettings accepts only [a-z][a-z0-9_]{0,30}.
-      command: `node scripts/dev-seed.mjs ${SCHEMA} --drop && node scripts/dev-seed.mjs ${SCHEMA} && node server/dev.mjs --schema=${SCHEMA}`,
+      // The seed migrates as the owner; the API runs as app_runtime (`--runtime-role`, server/dev.mjs), the role a deployment
+      // takes with DATABASE_URL_RUNTIME, so that both projects exercise the grants of db/migrations/016_runtime_roles.sql.
+      command: `node scripts/dev-seed.mjs ${SCHEMA} --drop && node scripts/dev-seed.mjs ${SCHEMA} && node server/dev.mjs --schema=${SCHEMA} --runtime-role`,
       url: `http://localhost:${API_PORT}/api/public/providers`,
       // GOOGLE_CLIENT_ID is blanked on purpose: with the real one the committee sign-in screen would load Google's script
       // from the internet and log "origin not allowed" for localhost. The tests use the local-only dev sign-in instead.

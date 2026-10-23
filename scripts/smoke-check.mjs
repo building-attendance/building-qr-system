@@ -16,7 +16,10 @@
 //   2. GET / returns the app page with its root element, and sends the Content-Security-Policy of vercel.json of the
 //      checked-out commit, exactly (enforcing or report-only, whichever vercel.json sets).
 //   3. GET /api/health/db with the agent key: the database answers, and its newest migration is the newest file in
-//      db/migrations of the checked-out commit. Without a key this step is a warning, not a failure.
+//      db/migrations of the checked-out commit. Without a key this step is a warning, not a failure. When the answer says
+//      that the app owns its tables (`owns_tables: true`: it connects with the owner's DATABASE_URL, not with the runtime
+//      login of DATABASE_URL_RUNTIME), that is a warning too and never a failure, so a copy that never set the variable keeps
+//      passing; an answer without the field (a deployment from before it) says nothing.
 // Steps 2 and 3 only run when the domain serves the expected commit itself, because otherwise they would test a
 // different deployment.
 //
@@ -261,7 +264,14 @@ export async function checkHome({ baseUrl, fetch: fetchFn, now, policy = null })
   return { ok: true, line: `GET / returns the app page (HTTP 200, root element found, ${policy.name} as in vercel.json)` }
 }
 
-/** Step 3. The database and its newest migration, with the agent key. Returns { ok, line }. */
+export const OWNER_HELP =
+  'the app connects to its database as the owner of its tables, which can switch off the append-only guard of the audit log. ' +
+  'Give it a login of the role app_runtime: docs/install.md, section 3.9, "The app as a role that owns nothing"'
+
+/**
+ * Step 3. The database and its newest migration, with the agent key. Returns { ok, line, warning }: `warning` (OWNER_HELP)
+ * only when the answer says `owns_tables: true`, and the step still passes then.
+ */
 export async function checkDatabase({ baseUrl, key, expected, fetch: fetchFn, sleep, now }) {
   if (!expected) return { ok: false, line: 'there is no migration file in db/migrations to compare with' }
   let answer
@@ -296,7 +306,8 @@ export async function checkDatabase({ baseUrl, key, expected, fetch: fetchFn, sl
       line: `the database is at ${printable(body.migration, 80)}, the code expects ${printable(expected, 80)}: the deployment skipped a migration`,
     }
   }
-  return { ok: true, line: `database reachable, newest migration is ${printable(expected, 80)}` }
+  const line = `database reachable, newest migration is ${printable(expected, 80)}`
+  return body.owns_tables === true ? { ok: true, line, warning: OWNER_HELP } : { ok: true, line }
 }
 
 export const KEY_HELP =
@@ -352,6 +363,10 @@ export async function runSmoke({
     if (key) {
       const database = await checkDatabase({ baseUrl, key, expected: newestMigration(migrationsDir), fetch: fetchFn, sleep, now })
       report(database.ok ? 'ok  ' : 'FAIL', 3, database)
+      if (database.warning) {
+        warnings.push(database.warning)
+        warn(`warn 3/3 ${database.warning}`)
+      }
     } else {
       warnings.push(KEY_HELP)
       warn(`warn 3/3 ${KEY_HELP}`)
