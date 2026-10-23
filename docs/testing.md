@@ -219,6 +219,16 @@ part on your machine. Their timings are the artifacts `timings-unit-part-<n>` (V
 are written the same way: `gh run download <run id> --pattern "timings-unit-*" --dir timings-unit`, then
 `node e2e/parts.js --weights --project=unit --report=timings-unit`.
 
+Each E2E part installs its browser with `npx playwright install --with-deps`, and the browser's system packages come
+from the runner's Ubuntu mirror, which on a slow day took longer than the three attempts of 5 minutes in `e2e.yml`. So the
+package files that apt-get downloaded are kept in a GitHub Actions cache, one per browser and week (the key starts with
+`playwright-packages-`), and the next run hands them back to apt-get (`scripts/ci-browser-packages.mjs`, whose header has
+the evidence and the details). It hands over only a file whose SHA256 is the one of the signed Ubuntu index, so the cache
+saves time and never changes what is installed, and the step "Hand apt-get the cached packages that match the index" says
+how many matched. The browsers themselves are not cached, as Playwright advises. To start again from nothing, delete the
+caches whose key starts with `playwright-packages-` (the repository's Actions tab, Caches): the next run downloads the
+packages and saves them again.
+
 On CI, Playwright retries a failed test once and then fails the run anyway (`failOnFlakyTests` in `playwright.config.js`).
 The retry only tells the two cases apart in the report: a test that failed twice is broken, and a test that passed on its
 retry is flaky. A flaky test is fixed, not rerun until it is green: a check that is allowed to fail now and then teaches
