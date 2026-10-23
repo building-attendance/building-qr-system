@@ -302,7 +302,7 @@ describe('the config of the recorder', () => {
     const build = `node_modules/.cache/bqr-e2e/${VIDEO_SCHEMA}/dist`
     expect(config.use.baseURL).toBe(`http://localhost:${VIDEO_APP_PORT}`)
     expect(api.command).toBe(
-      `node scripts/dev-seed.mjs ${VIDEO_SCHEMA} --drop && node scripts/dev-seed.mjs ${VIDEO_SCHEMA} && node server/dev.mjs --schema=${VIDEO_SCHEMA}`,
+      `node scripts/dev-seed.mjs ${VIDEO_SCHEMA} --drop && node scripts/dev-seed.mjs ${VIDEO_SCHEMA} && node server/dev.mjs --schema=${VIDEO_SCHEMA} --runtime-role`,
     )
     expect(api.url).toBe(`http://localhost:${VIDEO_API_PORT}/api/public/providers`)
     expect(preview.command).toBe(`npm run build -- --outDir ${build} && npx vite preview --port ${VIDEO_APP_PORT} --strictPort --outDir ${build}`)
