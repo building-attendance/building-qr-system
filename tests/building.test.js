@@ -1,7 +1,8 @@
-// The building's address and name: the two settings that the committee saves in the committee app and the provider app reads
-// (migrations 006 and 012, GET /api/public/building, GET and PUT /api/admin/building). Both start empty. The agent reads them at
-// GET /api/agent/v1/building (owner decision of 08/10/2026) and in no other agent answer. The name is optional in a save: a
-// committee screen that sends the address only leaves the saved name alone.
+// The building's address and name, and the committee's contact for privacy requests: the three settings that the committee
+// saves in the committee app and the provider app reads (migrations 006, 012 and 017, GET /api/public/building, GET and PUT
+// /api/admin/building). All three start empty. The agent reads the name and the address at GET /api/agent/v1/building (owner
+// decision of 08/10/2026) and in no other agent answer, and never the contact there. The name and the contact are optional in a
+// save: a committee screen that does not send one leaves the saved one alone.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { setupDb, call, seedAdmin, adminCookie } from './helpers.js'
 
@@ -11,6 +12,7 @@ const save = (address, extra = {}) => call('PUT', '/api/admin/building', { cooki
 const put = (body, extra = {}) => call('PUT', '/api/admin/building', { cookie, body, ...extra })
 const publicAddress = async () => (await call('GET', '/api/public/building')).json.building.address
 const publicName = async () => (await call('GET', '/api/public/building')).json.building.name
+const publicContact = async () => (await call('GET', '/api/public/building')).json.building.privacy_contact
 const auditCount = async () => (await db.pool.query("select count(*)::int n from audit_log where action = 'building.update'")).rows[0].n
 const lastAudit = async () => (await db.pool.query("select detail from audit_log where action = 'building.update' order by id desc limit 1")).rows[0].detail
 const stored = async () => (await db.pool.query('select * from building_settings')).rows
@@ -38,6 +40,10 @@ describe('the table', () => {
     await expect(db.pool.query('update building_settings set name = null')).rejects.toThrow(/not-null/)
     await db.pool.query("update building_settings set name = repeat('x', 80)") // exactly the limit is stored
     await db.pool.query("update building_settings set name = ''")
+    await expect(db.pool.query("update building_settings set privacy_contact = repeat('x', 121)")).rejects.toThrow(/check constraint/)
+    await expect(db.pool.query('update building_settings set privacy_contact = null')).rejects.toThrow(/not-null/)
+    await db.pool.query("update building_settings set privacy_contact = repeat('x', 120)")
+    await db.pool.query("update building_settings set privacy_contact = ''")
     expect(await stored()).toHaveLength(1)
   })
 
@@ -48,7 +54,7 @@ describe('the table', () => {
          left join pg_description d on d.objoid = a.attrelid and d.objsubid = a.attnum
         where a.attrelid = 'building_settings'::regclass and a.attnum > 0 and not a.attisdropped`,
     )
-    expect(rows.map((r) => r.attname).sort()).toEqual(['address', 'id', 'name', 'updated_at', 'updated_by'])
+    expect(rows.map((r) => r.attname).sort()).toEqual(['address', 'id', 'name', 'privacy_contact', 'updated_at', 'updated_by'])
     for (const row of rows) expect(row.description, row.attname).toBeTruthy()
     const table = await db.pool.query("select obj_description('building_settings'::regclass, 'pg_class') as description")
     expect(table.rows[0].description).toBeTruthy()
@@ -59,7 +65,7 @@ describe('GET /api/public/building', () => {
   it('answers with the empty address and the empty name and nothing else, with no sign-in', async () => {
     const r = await call('GET', '/api/public/building')
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ building: { address: '', name: '' } })
+    expect(r.json).toEqual({ building: { address: '', name: '', privacy_contact: '' } })
   })
 
   it('may be kept by the CDN for a short while, and never by the browser without asking', async () => {
@@ -99,13 +105,13 @@ describe('the committee routes', () => {
   it('show the empty address and the empty name first', async () => {
     const r = await call('GET', '/api/admin/building', { cookie })
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ building: { address: '', name: '' } })
+    expect(r.json).toEqual({ building: { address: '', name: '', privacy_contact: '' } })
   })
 
   it('save the address, and the public route and the committee read it back', async () => {
     const r = await save('רחוב הבדיקה 7, עיר לדוגמה')
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ building: { address: 'רחוב הבדיקה 7, עיר לדוגמה', name: '' } })
+    expect(r.json).toEqual({ building: { address: 'רחוב הבדיקה 7, עיר לדוגמה', name: '', privacy_contact: '' } })
     expect(await publicAddress()).toBe('רחוב הבדיקה 7, עיר לדוגמה')
     expect((await call('GET', '/api/admin/building', { cookie })).json.building.address).toBe('רחוב הבדיקה 7, עיר לדוגמה')
     // still one row: a save is an update
@@ -134,10 +140,10 @@ describe('the committee routes', () => {
 
   it('accept an empty address (it means show nothing), and a blank one is empty too', async () => {
     await save('רחוב לפני הניקוי 1')
-    expect((await save('')).json).toEqual({ building: { address: '', name: '' } })
+    expect((await save('')).json).toEqual({ building: { address: '', name: '', privacy_contact: '' } })
     expect(await publicAddress()).toBe('')
     await save('רחוב לפני הניקוי 2')
-    expect((await save('   ')).json).toEqual({ building: { address: '', name: '' } })
+    expect((await save('   ')).json).toEqual({ building: { address: '', name: '', privacy_contact: '' } })
     expect(await publicAddress()).toBe('')
   })
 
@@ -176,7 +182,7 @@ describe('the committee routes', () => {
   it('ignore fields they do not know, and refuse other methods', async () => {
     const r = await call('PUT', '/api/admin/building', { cookie, body: { address: 'רחוב עם תוספת 3', updated_by: 'someone', id: 2, future_field: true } })
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ building: { address: 'רחוב עם תוספת 3', name: '' } })
+    expect(r.json).toEqual({ building: { address: 'רחוב עם תוספת 3', name: '', privacy_contact: '' } })
     expect((await stored())[0]).toMatchObject({ id: 1, updated_by: adminId })
     expect((await call('DELETE', '/api/admin/building', { cookie, body: {} })).status).toBe(405)
     expect((await call('POST', '/api/admin/building', { cookie, body: { address: 'x' } })).status).toBe(405)
@@ -200,9 +206,9 @@ describe("the building's name", () => {
   it('is saved with the address, and the public route and the committee read both back', async () => {
     const r = await put({ address: ADDRESS, name: 'בניין הדוגמה' })
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ building: { address: ADDRESS, name: 'בניין הדוגמה' } })
-    expect((await call('GET', '/api/public/building')).json).toEqual({ building: { address: ADDRESS, name: 'בניין הדוגמה' } })
-    expect((await call('GET', '/api/admin/building', { cookie })).json).toEqual({ building: { address: ADDRESS, name: 'בניין הדוגמה' } })
+    expect(r.json).toEqual({ building: { address: ADDRESS, name: 'בניין הדוגמה', privacy_contact: '' } })
+    expect((await call('GET', '/api/public/building')).json).toEqual({ building: { address: ADDRESS, name: 'בניין הדוגמה', privacy_contact: '' } })
+    expect((await call('GET', '/api/admin/building', { cookie })).json).toEqual({ building: { address: ADDRESS, name: 'בניין הדוגמה', privacy_contact: '' } })
     expect(await stored()).toHaveLength(1) // a save is an update
   })
 
@@ -211,7 +217,7 @@ describe("the building's name", () => {
     const r = await call('GET', '/api/public/building') // no cookie, no token
     expect(r.status).toBe(200)
     expect(Object.keys(r.json)).toEqual(['building'])
-    expect(Object.keys(r.json.building)).toEqual(['address', 'name'])
+    expect(Object.keys(r.json.building)).toEqual(['address', 'name', 'privacy_contact'])
     expect(r.json.building.name).toBe('בניין פתוח')
     expect(r.headers['cache-control']).toBe('public, max-age=0, s-maxage=60')
   })
@@ -227,7 +233,7 @@ describe("the building's name", () => {
     await put({ address: ADDRESS, name: 'שם שנשמר' })
     const r = await put({ address: 'רחוב חדש מהמסך הישן 2' }) // exactly what that screen sends
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ building: { address: 'רחוב חדש מהמסך הישן 2', name: 'שם שנשמר' } })
+    expect(r.json).toEqual({ building: { address: 'רחוב חדש מהמסך הישן 2', name: 'שם שנשמר', privacy_contact: '' } })
     expect(await publicAddress()).toBe('רחוב חדש מהמסך הישן 2')
     expect(await publicName()).toBe('שם שנשמר')
     expect((await stored())[0]).toMatchObject({ address: 'רחוב חדש מהמסך הישן 2', name: 'שם שנשמר', updated_by: adminId })
@@ -304,8 +310,8 @@ describe("the building's name", () => {
 
   it('is read as an empty name when the row is gone, and a save of the name makes the row again', async () => {
     await db.ownerPool.query('delete from building_settings')
-    expect((await call('GET', '/api/public/building')).json).toEqual({ building: { address: '', name: '' } })
-    expect((await call('GET', '/api/admin/building', { cookie })).json).toEqual({ building: { address: '', name: '' } })
+    expect((await call('GET', '/api/public/building')).json).toEqual({ building: { address: '', name: '', privacy_contact: '' } })
+    expect((await call('GET', '/api/admin/building', { cookie })).json).toEqual({ building: { address: '', name: '', privacy_contact: '' } })
     expect((await put({ address: ADDRESS, name: 'שם אחרי מחיקת השורה' })).status).toBe(200)
     expect(await publicName()).toBe('שם אחרי מחיקת השורה')
     expect(await stored()).toHaveLength(1)
@@ -326,6 +332,120 @@ describe("the building's name", () => {
     await db.ownerPool.query('delete from building_settings')
     await oldSave('רחוב מהקוד הישן 5')
     expect((await stored())[0]).toMatchObject({ address: 'רחוב מהקוד הישן 5', name: '' })
+  })
+})
+
+describe("the committee's contact for privacy requests", () => {
+  const ADDRESS = 'רחוב הפרטיות 1'
+  const CONTACT = 'ועד הבית, vaad@example.test'
+  // The tests below leave the contact and the name as they found them (empty), which the rest of the file expects.
+  afterAll(async () => db.pool.query("update building_settings set privacy_contact = '', name = ''"))
+
+  it('refuses null, a value that is not text, and 121 characters, and a refusal changes nothing, not even the address', async () => {
+    await put({ address: ADDRESS, privacy_contact: CONTACT })
+    for (const privacy_contact of [null, 12, true, ['vaad@example.test'], { email: 'x' }, 'א'.repeat(121)]) {
+      const r = await put({ address: 'רחוב שלא יישמר 9', privacy_contact })
+      expect(r.status, JSON.stringify(privacy_contact)).toBe(400)
+      expect(r.json.error, JSON.stringify(privacy_contact)).toMatchObject({ code: 'invalid_field', field: 'privacy_contact' })
+    }
+    expect(await publicContact()).toBe(CONTACT)
+    expect(await publicAddress()).toBe(ADDRESS)
+  })
+
+  it('refuses control characters: a line break, a tab, a NUL, the line separator and a stray escape', async () => {
+    await put({ address: ADDRESS, privacy_contact: CONTACT })
+    for (const privacy_contact of ['ועד\nהבית', 'ועד\r\nהבית', 'ועד\tהבית', 'ועד\u0000הבית', 'ועד\u2028הבית', 'ועד\u2029הבית', 'ועד\u001bהבית', 'ועד\u0085הבית']) {
+      const r = await put({ address: ADDRESS, privacy_contact })
+      expect(r.status, JSON.stringify(privacy_contact)).toBe(400)
+      expect(r.json.error, JSON.stringify(privacy_contact)).toMatchObject({ code: 'invalid_field', field: 'privacy_contact' })
+    }
+    expect(await publicContact()).toBe(CONTACT)
+  })
+
+  it('is saved with the others, trimmed, accepts exactly 120 characters, and the public route and the committee read it back', async () => {
+    const r = await put({ address: ADDRESS, name: 'בניין הקשר', privacy_contact: `  ${CONTACT} ` })
+    expect(r.status).toBe(200)
+    expect(r.json).toEqual({ building: { address: ADDRESS, name: 'בניין הקשר', privacy_contact: CONTACT } })
+    expect((await call('GET', '/api/public/building')).json).toEqual(r.json) // no cookie, no token
+    expect((await call('GET', '/api/admin/building', { cookie })).json).toEqual(r.json)
+    const longest = 'א'.repeat(120)
+    expect((await put({ address: ADDRESS, privacy_contact: longest })).json.building.privacy_contact).toBe(longest)
+    expect(await publicContact()).toBe(longest)
+    expect(await stored()).toHaveLength(1) // a save is an update
+  })
+
+  it('is saved as typed in any language, with digits, punctuation and the invisible direction marks', async () => {
+    for (const privacy_contact of ['vaad@example.test', 'Комитет: vaad@example.test', 'لجنة البيت vaad@example.test', 'ועד הבית, טלפון 000-0000000', 'ועד \u200fהבית\u200f, vaad@example.test']) {
+      expect((await put({ address: ADDRESS, privacy_contact })).json.building.privacy_contact, privacy_contact).toBe(privacy_contact)
+      expect(await publicContact(), privacy_contact).toBe(privacy_contact)
+    }
+  })
+
+  it('can be cleared: an empty contact means not set, and a blank one is empty too', async () => {
+    await put({ address: ADDRESS, privacy_contact: CONTACT })
+    expect((await put({ address: ADDRESS, privacy_contact: '' })).json.building.privacy_contact).toBe('')
+    await put({ address: ADDRESS, privacy_contact: CONTACT })
+    expect((await put({ address: ADDRESS, privacy_contact: '   ' })).json.building.privacy_contact).toBe('')
+    expect(await publicContact()).toBe('')
+  })
+
+  it('is kept by a save that has no contact: the committee screens from before it existed send the address, or the address and the name', async () => {
+    await put({ address: ADDRESS, name: 'שם לפני', privacy_contact: CONTACT })
+    expect((await put({ address: 'רחוב המסך הישן 7', name: 'שם אחרי' })).json).toEqual({
+      building: { address: 'רחוב המסך הישן 7', name: 'שם אחרי', privacy_contact: CONTACT },
+    })
+    expect((await put({ address: 'רחוב המסך הישן 8' })).json).toEqual({
+      building: { address: 'רחוב המסך הישן 8', name: 'שם אחרי', privacy_contact: CONTACT },
+    })
+    expect(await publicContact()).toBe(CONTACT)
+  })
+
+  it('is refused for a bad address or a bad name too, as one save: the contact is not kept either', async () => {
+    await put({ address: ADDRESS, privacy_contact: CONTACT })
+    const badAddress = await put({ address: 'רחוב\nפסול', privacy_contact: 'other@example.test' })
+    expect(badAddress.json.error).toMatchObject({ code: 'invalid_field', field: 'address' })
+    const badName = await put({ address: ADDRESS, name: 'א'.repeat(81), privacy_contact: 'other@example.test' })
+    expect(badName.json.error).toMatchObject({ code: 'invalid_field', field: 'name' })
+    expect(await publicContact()).toBe(CONTACT)
+  })
+
+  it('is left alone by the save of the deployment before it existed (migration 017 is an expand step)', async () => {
+    // The statement of the previous release (saveBuilding), word for word: it names no `privacy_contact` column.
+    const oldSave = (address, name) => db.pool.query(
+      `insert into building_settings (id, address, name, updated_at, updated_by) values (1, $1, $2, now(), $3)
+       on conflict (id) do update
+         set address = excluded.address, name = excluded.name, updated_at = excluded.updated_at, updated_by = excluded.updated_by`,
+      [address, name, adminId],
+    )
+    await put({ address: ADDRESS, privacy_contact: 'קשר שהקוד הישן לא מכיר' })
+    await oldSave('רחוב מהקוד הישן 6', 'שם מהקוד הישן')
+    expect((await stored())[0]).toMatchObject({ address: 'רחוב מהקוד הישן 6', name: 'שם מהקוד הישן', privacy_contact: 'קשר שהקוד הישן לא מכיר' })
+    // and when the row is missing, the old insert gets the default
+    await db.ownerPool.query('delete from building_settings')
+    await oldSave('רחוב מהקוד הישן 7', '')
+    expect((await stored())[0]).toMatchObject({ address: 'רחוב מהקוד הישן 7', name: '', privacy_contact: '' })
+  })
+
+  it('writes one audit entry with only the contact when only the contact changed, and none for a save that changes nothing', async () => {
+    await put({ address: ADDRESS, name: '', privacy_contact: '' })
+    const before = await auditCount()
+    expect((await put({ address: ADDRESS, privacy_contact: CONTACT })).status).toBe(200)
+    expect(await auditCount()).toBe(before + 1)
+    expect(await lastAudit()).toEqual({ changes: { privacy_contact: { from: '', to: CONTACT } } })
+    expect((await stored())[0]).toMatchObject({ privacy_contact: CONTACT, updated_by: adminId })
+    expect((await put({ address: ADDRESS, privacy_contact: ` ${CONTACT}` })).status).toBe(200) // the same, once trimmed
+    expect((await put({ address: ADDRESS })).status).toBe(200) // a screen that does not send it
+    expect(await auditCount()).toBe(before + 1)
+    expect((await put({ address: ADDRESS, privacy_contact: 'א'.repeat(121) })).status).toBe(400)
+    expect(await auditCount()).toBe(before + 1) // nor for a refused one
+  })
+
+  it('is not in the answer of the agent at /building: the name and the address only', async () => {
+    await put({ address: ADDRESS, name: 'בניין לסוכן', privacy_contact: 'contact-for-providers@example.test' })
+    const key = (await call('POST', '/api/admin/api-keys', { cookie, body: { name: 'בדיקת פרטי קשר' } })).json.key
+    const r = await call('GET', '/api/agent/v1/building', { token: key })
+    expect(r.json).toEqual({ building: { name: 'בניין לסוכן', address: ADDRESS } })
+    expect(r.text).not.toContain('contact-for-providers')
   })
 })
 
@@ -355,7 +475,7 @@ describe('who changed it, and when', () => {
     const before = await count()
     const again = await save('  רחוב שלא משתנה 5 ')
     expect(again.status).toBe(200)
-    expect(again.json).toEqual({ building: { address: 'רחוב שלא משתנה 5', name: '' } })
+    expect(again.json).toEqual({ building: { address: 'רחוב שלא משתנה 5', name: '', privacy_contact: '' } })
     expect(await count()).toBe(before)
     expect((await stored())[0]).toEqual(row)
   })
@@ -400,7 +520,7 @@ describe('who changed it, and when', () => {
     ]) {
       const again = await put(body)
       expect(again.status).toBe(200)
-      expect(again.json).toEqual({ building: { address: 'רחוב שלא משתנה 6', name: 'שם שלא משתנה' } })
+      expect(again.json).toEqual({ building: { address: 'רחוב שלא משתנה 6', name: 'שם שלא משתנה', privacy_contact: '' } })
     }
     expect(await auditCount()).toBe(before)
     expect((await stored())[0]).toEqual(row)

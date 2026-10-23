@@ -83,7 +83,7 @@ const PINNED = {
 const PINNED_CHANGES = {
   'admin.enable': ['is_active'],
   'admin.disable': ['is_active'],
-  'building.update': ['address', 'name'],
+  'building.update': ['address', 'name', 'privacy_contact'],
   'point.update': POINT_FIELDS,
   'provider.update': PROVIDER_FIELDS,
 }
@@ -181,6 +181,7 @@ beforeAll(async () => {
 
   await must('PUT', '/api/admin/building', { address: 'Fake street 1', name: 'Fake Building' })
   await must('PUT', '/api/admin/building', { address: 'Fake street 2', name: 'Fake Building' }, cookie2) // by the second member
+  await must('PUT', '/api/admin/building', { address: 'Fake street 2', name: 'Fake Building', privacy_contact: 'committee@example.test' })
 
   // Providers: one that is changed and scans, one that is deleted, one with no contact.
   const provider = async (body) => (await must('POST', '/api/admin/providers', { password: PASSWORD, ...body })).provider
@@ -499,7 +500,9 @@ describe('the detail goes out only through the allow-list of its action', () => 
     ])
     expect(entries.find((e) => e.action === 'admin.enable' && e.actor_type === 'script').detail).toEqual({ email: 'script-added@test.local', changes: { is_active: { from: false, to: true } } })
     expect(entries.filter((e) => e.action === 'session.sign_in').map((e) => e.detail.method).sort()).toContain('google')
-    expect(one('building.update').detail).toEqual({ changes: { address: { from: 'Fake street 1', to: 'Fake street 2' } } })
+    const buildingUpdates = entries.filter((e) => e.action === 'building.update').map((e) => e.detail)
+    expect(buildingUpdates).toContainEqual({ changes: { address: { from: 'Fake street 1', to: 'Fake street 2' } } })
+    expect(buildingUpdates).toContainEqual({ changes: { privacy_contact: { from: '', to: 'committee@example.test' } } })
     expect(one('point.create', world.p1.id).detail).toEqual({
       name: 'Lobby', description: 'Main entrance', service_type: 'cleaning', gps_mode: 'none', lat: 31.5, lng: 34.8, radius_m: 60, provider_ids: [world.v1.id],
     })

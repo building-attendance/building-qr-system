@@ -122,6 +122,7 @@ export const DEVICE_LABEL_MAX_LENGTH = 80 // a phone, as the provider's app name
 export const EMAIL_MAX_LENGTH = 200 // a committee member
 export const ADDRESS_MAX_LENGTH = 200 // the building (also the limit of the column, see db/migrations/006_building_settings.sql)
 export const BUILDING_NAME_MAX_LENGTH = 80 // the building's name (also the limit of the column, see db/migrations/012_building_name.sql)
+export const PRIVACY_CONTACT_MAX_LENGTH = 120 // the committee's contact for privacy requests (the column's limit too, db/migrations/017_building_privacy_contact.sql)
 
 // ---- 5. The QR token ---------------------------------------------------------------------------------------------
 
@@ -289,3 +290,18 @@ export const BUILDING_TZ = 'Asia/Jerusalem'
  * it refuses is a row that cannot be asked for.
  */
 export const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
+// ---- 12. The periods that the providers' privacy notice states ------------------------------------------------
+// The provider app tells the service providers how long the server keeps what it records about them (Section 11 of the
+// Protection of Privacy Law, docs/privacy.md). The daily job (server/retention.js) applies these periods, and the notice
+// states them, so both read the one number: a period changed here changes the job and the notice together. The owner
+// decided them on 04/10/2026; changing one is the owner's decision, with docs/privacy.md (server/config.js re-exports both).
+
+/** A login attempt (the network address of the request, and the provider's id) is deleted after this many days. */
+export const RETENTION_LOGIN_ATTEMPT_DAYS = 1
+
+/**
+ * The label of a phone (the browser string it sent at sign-in) and everything the phone reported about itself are cleared
+ * this many days after the phone was revoked.
+ */
+export const RETENTION_DEVICE_LABEL_DAYS = 90

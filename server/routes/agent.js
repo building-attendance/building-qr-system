@@ -54,7 +54,8 @@ async function listPoints({ req }) {
 
 async function getBuilding({ req }) {
   await requireApiKey(req)
-  // The two texts the committee typed, and nothing of the row (not who saved it, not when).
+  // The name and the address the committee typed, and nothing else of the row (not who saved it, not when, and not the contact
+  // for privacy requests, which is there for the providers' privacy notice: the agent reads its changes in the audit log).
   const { name, address } = await readBuilding()
   return { building: { name, address } }
 }

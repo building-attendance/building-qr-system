@@ -137,6 +137,13 @@ describe('the offline sync contract: the phone and the server', () => {
   })
 })
 
+describe("the periods that the providers' privacy notice states: one number for the notice and the daily job", () => {
+  it('are the very values that the server config gives the daily job (one value, two names)', () => {
+    expect(config.RETENTION_LOGIN_ATTEMPT_DAYS).toBe(contract.RETENTION_LOGIN_ATTEMPT_DAYS)
+    expect(config.RETENTION_DEVICE_LABEL_DAYS).toBe(contract.RETENTION_DEVICE_LABEL_DAYS)
+  })
+})
+
 describe('the codes of a sync item: the server attaches them, the phone classifies them', () => {
   it('every code is permanent (the phone drops the item) or retryable (the item stays), never both and never neither', () => {
     const both = SYNC_PERMANENT_ERROR_CODES.filter((c) => SYNC_RETRYABLE_ERROR_CODES.includes(c))
@@ -454,6 +461,10 @@ describe('the vocabularies and limits: the same as the database that stores them
     expect(migrations).toContain(`char_length(name) <= ${contract.BUILDING_NAME_MAX_LENGTH}`)
   })
 
+  it("the limit of the committee's contact for privacy requests is that of building_settings.privacy_contact", () => {
+    expect(migrations).toContain(`char_length(privacy_contact) <= ${contract.PRIVACY_CONTACT_MAX_LENGTH}`)
+  })
+
   it('the default GPS mode is that of points.gps_mode', () => {
     expect(migrations).toMatch(new RegExp(`gps_mode\\s+text\\s+not null\\s+default\\s+'${contract.DEFAULT_GPS_MODE}'`, 'i'))
   })
@@ -531,6 +542,7 @@ const PINNED = [
   ['EMAIL_MAX_LENGTH', contract.EMAIL_MAX_LENGTH, 200, OLD_FORM],
   ['ADDRESS_MAX_LENGTH', contract.ADDRESS_MAX_LENGTH, 200, `${OLD_FORM} It is also the check constraint of building_settings.address.`],
   ['BUILDING_NAME_MAX_LENGTH', contract.BUILDING_NAME_MAX_LENGTH, 80, `${OLD_FORM} It is also the check constraint of building_settings.name.`],
+  ['PRIVACY_CONTACT_MAX_LENGTH', contract.PRIVACY_CONTACT_MAX_LENGTH, 120, `${OLD_FORM} It is also the check constraint of building_settings.privacy_contact.`],
   ['QR_TOKEN_PREFIX', contract.QR_TOKEN_PREFIX, 'BQR-', 'Every QR code that was ever printed starts with it (the old system printed the same prefix). A different prefix stops them all.'],
   ['QR_TOKEN_RE (its source)', contract.QR_TOKEN_RE.source, '^BQR-[A-Za-z0-9-]{6,80}$', 'It has to accept every QR code that was ever printed, including the old system\'s, so it is never narrowed: a narrower pattern turns a printed code into "not one of ours".'],
   ['PROVIDER_TOKEN_PREFIX', contract.PROVIDER_TOKEN_PREFIX, 'qrp_', `Every device token that the server minted starts with it, and the phone drops a stored session whose token does not (src/worker/session.js), so a different prefix signs out every installed phone the next time it starts. The server also refuses a token without it. ${OLD_PHONES}`],
@@ -551,6 +563,8 @@ const PINNED = [
   ['CLIENT_ERROR_CODE_RE (its flags)', contract.CLIENT_ERROR_CODE_RE.flags, '', 'A global or sticky flag makes test() remember where it stopped, and the next code that is checked fails.'],
   ['MAX_CLIENT_ERROR_EVENTS', contract.MAX_CLIENT_ERROR_EVENTS, 20, `The most events that the server takes from one report (it ignores the rest, and answers 200 as always). A lower value drops events that an installed app sends in one report. ${OLD_PHONES}`],
   ['CLIENT_ERROR_MAX_COUNT', contract.CLIENT_ERROR_MAX_COUNT, 1000, `The largest count of one event (a larger whole number is cut to it, and anything else is taken as 1). It is also the most that one call of recordEvent adds to a row. A lower value cuts the honest count of an app that was offline for a while. ${OLD_PHONES}`],
+  ['RETENTION_LOGIN_ATTEMPT_DAYS', contract.RETENTION_LOGIN_ATTEMPT_DAYS, 1, `The daily job deletes a login attempt (an IP address) after this many days, and the provider app's privacy notice tells the providers so (Section 11 of the Protection of Privacy Law). It is the owner's decision of 04/10/2026 (docs/privacy.md): a change is his, and it changes what an installed phone tells its providers only when that phone is updated. ${OLD_PHONES}`],
+  ['RETENTION_DEVICE_LABEL_DAYS', contract.RETENTION_DEVICE_LABEL_DAYS, 90, `The daily job clears the label of a revoked phone and what it reported after this many days, and the provider app's privacy notice tells the providers so. It is the owner's decision of 04/10/2026 (docs/privacy.md): a change is his, and it changes what an installed phone tells its providers only when that phone is updated. ${OLD_PHONES}`],
   ['BUILDING_TZ', contract.BUILDING_TZ, 'Asia/Jerusalem', `The zone in which scans.local_date is stored (every stored day was computed in it) and in which every installed phone writes its dates and its "today" (shared/datetime.js). A different zone splits the stored days from the new ones, and an old phone would keep showing days in the old zone for as long as it is not updated. It is not a setting of an installation: changing it is the owner's decision, with a plan for the stored dates. ${OLD_PHONES}`],
 ]
 

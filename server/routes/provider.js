@@ -39,9 +39,10 @@ route('GET', '/public/providers', async () => {
   return { providers: rows }
 })
 
-// The building's address and name for the header of the app: only those two, nothing else about the building. One single-row
-// select by primary key. Every phone asks once per app start, so the CDN may keep the answer for a minute (the browser always
-// revalidates, max-age=0); a change by the committee shows up within that minute.
+// The building's address and name for the header of the app, and the committee's contact for its privacy notice: only those
+// three texts, nothing else about the building. One single-row select by primary key. Every phone asks once per app start, so
+// the CDN may keep the answer for a minute (the browser always revalidates, max-age=0); a change by the committee shows up
+// within that minute.
 route('GET', '/public/building', async () => ({
   json: { building: await readBuilding() },
   headers: { 'Cache-Control': 'public, max-age=0, s-maxage=60' },

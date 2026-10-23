@@ -718,10 +718,11 @@ describe('a change that changes nothing writes no audit row, and the route answe
     expect((await put('/api/admin/building', { address })).status).toBe(200)
     const after = await lastAuditId()
     const before = await snapshot() // holds the time and the member of the last save too
-    const { name } = await one('select name from building_settings where id = 1') // the answer carries it since migration 012
+    // the answer carries the name since migration 012 and the contact since migration 017
+    const { name, privacy_contact } = await one('select name, privacy_contact from building_settings where id = 1')
     for (const typed of [address, `  ${address} `]) {
       const answer = await put('/api/admin/building', { address: typed })
-      expect([answer.status, answer.json]).toEqual([200, { building: { address, name } }])
+      expect([answer.status, answer.json]).toEqual([200, { building: { address, name, privacy_contact } }])
     }
     await expectNothingWritten(after, before)
   })
@@ -732,9 +733,25 @@ describe('a change that changes nothing writes no audit row, and the route answe
     expect((await put('/api/admin/building', { address, name })).status).toBe(200)
     const after = await lastAuditId()
     const before = await snapshot()
+    const { privacy_contact } = await one('select privacy_contact from building_settings where id = 1')
     for (const body of [{ address, name }, { address: ` ${address}`, name: `  ${name} ` }, { address }]) {
       const answer = await put('/api/admin/building', body)
-      expect([answer.status, answer.json], JSON.stringify(body)).toEqual([200, { building: { address, name } }])
+      expect([answer.status, answer.json], JSON.stringify(body)).toEqual([200, { building: { address, name, privacy_contact } }])
+    }
+    await expectNothingWritten(after, before)
+  })
+
+  it('PUT /admin/building: the contact that is saved already, alone or with the others, and a save with no contact (also with spaces around)', async () => {
+    const address = uniq('Fake street')
+    const name = uniq('Fake building')
+    const privacy_contact = uniq('Fake contact')
+    expect((await put('/api/admin/building', { address, name, privacy_contact })).status).toBe(200)
+    const after = await lastAuditId()
+    const before = await snapshot()
+    const bodies = [{ address, name, privacy_contact }, { address, privacy_contact: `  ${privacy_contact} ` }, { address, name }, { address }]
+    for (const body of bodies) {
+      const answer = await put('/api/admin/building', body)
+      expect([answer.status, answer.json], JSON.stringify(body)).toEqual([200, { building: { address, name, privacy_contact } }])
     }
     await expectNothingWritten(after, before)
   })
@@ -754,14 +771,16 @@ describe('a change that changes nothing writes no audit row, and the route answe
     await expectOnlyTheRecordOfTheRefusals(before, names.map(() => ({ method: 'PUT', place: '/admin/building', status: 400, code: 'invalid_field' })))
   })
 
-  it('PUT /admin/building: the name is as atomic as the address: refused audit row, nothing changed, then it works', async () => {
+  it('PUT /admin/building: the name and the contact are as atomic as the address: refused audit row, nothing changed, then it works', async () => {
     const name = uniq('Fake building')
-    const body = { address: uniq('Fake street'), name }
+    const privacy_contact = uniq('Fake contact')
+    const body = { address: uniq('Fake street'), name, privacy_contact }
     const before = await snapshot()
     const { result: refused } = await quietly(() => refusingAudit('building.update', () => put('/api/admin/building', body)))
     expect(refused.status, refused.text).toBe(500)
     await expectOnlyTheRecordOfTheFailure(before, 'PUT /admin/building')
     expect(await one('select name from building_settings where id = 1')).not.toEqual({ name })
+    expect(await one('select privacy_contact from building_settings where id = 1')).not.toEqual({ privacy_contact })
     const retry = await put('/api/admin/building', body)
     expect([retry.status, retry.json]).toEqual([200, { building: body }])
   })

@@ -2,8 +2,9 @@
 //
 // A value that the phone must agree on is NOT written here but in shared/contract.js, and re-exported below so that the
 // server code keeps importing it from here: MAX_SYNC_BATCH, GPS_MAX_USABLE_ACCURACY_M, GPS_MAX_STALE_AGE_S,
-// PASSWORD_MIN_LENGTH, PROVIDER_TOKEN_PREFIX, MAX_TOKEN_LENGTH and the building's time zone (BUILDING_TZ, here TIMEZONE). This
-// file holds what only the server uses.
+// PASSWORD_MIN_LENGTH, PROVIDER_TOKEN_PREFIX, MAX_TOKEN_LENGTH, the building's time zone (BUILDING_TZ, here TIMEZONE) and
+// the two retention periods that the providers' privacy notice states (RETENTION_LOGIN_ATTEMPT_DAYS,
+// RETENTION_DEVICE_LABEL_DAYS). This file holds what only the server uses.
 export {
   MAX_SYNC_BATCH,
   GPS_MAX_USABLE_ACCURACY_M,
@@ -79,9 +80,10 @@ export const ADMIN_PICTURE_URL_MAX_LENGTH = 512
 //  - a day of the alert throttle (alert_pings: one date, no personal data) is deleted this many days after that day,
 //  - a minute of an agent key's usage (api_key_usage: a key, a minute, two counts, no personal data) is deleted this many days
 //    after that minute (owner decision of 08/10/2026).
+// The login attempt's and the phone label's periods are written in shared/contract.js, because the provider app's privacy
+// notice states them; they are re-exported here, so the job and its tests import them from this file as before.
 export const RETENTION_SESSION_DAYS = 30
-export const RETENTION_LOGIN_ATTEMPT_DAYS = 1
-export const RETENTION_DEVICE_LABEL_DAYS = 90
+export { RETENTION_LOGIN_ATTEMPT_DAYS, RETENTION_DEVICE_LABEL_DAYS } from '../shared/contract.js'
 export const RETENTION_APP_ERROR_DAYS = 90
 export const RETENTION_ALERT_PING_DAYS = 30
 export const RETENTION_API_KEY_USAGE_DAYS = 90
