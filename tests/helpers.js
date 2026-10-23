@@ -9,7 +9,19 @@ import { AGENT_KEY_MAX_PER_MINUTE } from '../server/config.js'
 
 loadEnv()
 
-/** Creates a throwaway schema on the real database, migrates it, and points the server at it. */
+/**
+ * The role that the server's pool of the tests runs as (db/migrations/016_runtime_roles.sql): it owns nothing and holds only the
+ * privileges that the code needs, so a route that needs a grant the migration does not give fails here, not in production.
+ */
+export const RUNTIME_ROLE = 'app_runtime'
+
+/**
+ * Creates a throwaway schema on the real database, migrates it, and points the server at it.
+ *  - `pool` is the server's pool (setPool): every connection of it does `set role app_runtime` when it opens, so the routes,
+ *    the jobs and whatever a test runs through it have exactly the grants of 016 and are not the owner of any table.
+ *  - `ownerPool` connects as the owner, which ran the migrations: for a test of what the owner can do (the append-only
+ *    triggers are the guard against the owner) and for setup that the app itself never does.
+ */
 export async function setupDb() {
   // The pooled URL (pgbouncer) does not support per-connection search_path, so use the direct one.
   const raw = process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL
@@ -24,25 +36,44 @@ export async function setupDb() {
     throw err
   }
   await control.query(`create schema ${schema}`)
-  // The app's own kind of pool (server/db.js), so that every test also runs through the query limits of every statement.
-  const pool = createPool({ ...poolConfig(raw, schema), max: 6 })
-  setPool(pool)
+  // The app's own kind of pool (server/db.js), so that every test also runs through the query limits of every statement. The
+  // owner's pool migrates, as the production build does.
+  const ownerPool = createPool({ ...poolConfig(raw, schema), max: 3 })
   try {
-    await migrate(pool)
+    await migrate(ownerPool)
   } catch (err) {
     // A MigrationError says the file and the SQLSTATE only (server/migrate.js). A test database holds fake data, so say why too,
     // or a broken new migration would fail every test file with no reason.
     if (err instanceof MigrationError) console.error(`${err.message}. Database message: ${err.databaseMessage}`)
     throw err
   }
+  // `set role app_runtime` as the session starts: a startup option of the connection, after the search_path, so that it holds
+  // before the first statement of every connection the pool opens, and a connection that cannot take the role is refused
+  // instead of running as the owner. `reset role` in a test goes back to app_runtime, the session's own default.
+  const { options, ...runtime } = poolConfig(raw, schema)
+  const pool = createPool({ ...runtime, options: `${options} -c role=${RUNTIME_ROLE}`, max: 6 })
+  try {
+    const { rows: who } = await pool.query('select current_user as role')
+    if (who[0].role !== RUNTIME_ROLE) throw new Error(`The server's pool of the tests runs as ${who[0].role}, not ${RUNTIME_ROLE}`)
+  } catch (err) {
+    // No test runs on a pool that is not the role: leave nothing behind and fail the file.
+    await pool.end()
+    await ownerPool.end()
+    await control.query(`drop schema ${schema} cascade`)
+    await control.end()
+    throw err
+  }
+  setPool(pool)
   // Tests sign in "with Google" by presenting the e-mail as the credential.
   setGoogleVerifier(async (credential) => ({ email: String(credential).toLowerCase(), name: 'Test Admin', sub: 'sub-' + String(credential).toLowerCase() }))
   return {
     pool,
+    ownerPool,
     schema,
     async teardown() {
       setGoogleVerifier(null)
       await pool.end()
+      await ownerPool.end()
       await control.query(`drop schema ${schema} cascade`)
       await control.end()
     },

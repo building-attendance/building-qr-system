@@ -46,7 +46,7 @@
 // Random UUIDs stand in for path parameters, so even a route that was left open would find nothing to change.
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest'
 import { randomBytes, randomUUID } from 'node:crypto'
-import { setupDb, call, seedAdmin, adminCookie, putKeyAtMinuteLimit } from './helpers.js'
+import { setupDb, call, seedAdmin, adminCookie, putKeyAtMinuteLimit, RUNTIME_ROLE } from './helpers.js'
 import '../server/index.js' // importing it registers every route file with the router
 import { route, routeTable } from '../server/router.js'
 import { PUBLIC, accessFor } from '../server/access.js'
@@ -748,7 +748,7 @@ describe('the checks themselves, on routes that are open on purpose (the mock at
   })
 
   it('catch a route that writes before it checks authorization, which an unauthenticated caller could then trigger', async () => {
-    await db.pool.query('create table canary_writes_first (n int not null)')
+    await db.ownerPool.query(`create table canary_writes_first (n int not null); grant select, insert on canary_writes_first to ${RUNTIME_ROLE}`)
     try {
       route('POST', '/canary-open/writes-first', async ({ req }) => {
         await query('insert into canary_writes_first (n) values (1)')
@@ -762,7 +762,7 @@ describe('the checks themselves, on routes that are open on purpose (the mock at
       const { rows } = await db.pool.query('select count(*)::int as n from canary_writes_first')
       expect(rows[0].n).toBeGreaterThanOrEqual(1)
     } finally {
-      await db.pool.query('drop table canary_writes_first')
+      await db.ownerPool.query('drop table canary_writes_first')
     }
   })
 
@@ -815,7 +815,7 @@ describe('the checks themselves, on routes that are open on purpose (the mock at
   })
 
   it('catch a route that writes before its guard only when a bearer token with the agent key prefix is present', async () => {
-    await db.pool.query('create table canary_writes_on_key (n int not null)')
+    await db.ownerPool.query(`create table canary_writes_on_key (n int not null); grant select, insert on canary_writes_on_key to ${RUNTIME_ROLE}`)
     try {
       route('POST', '/canary-open/writes-first-with-agent-key', async ({ req }) => {
         if (String(req.headers.authorization ?? '').startsWith(`Bearer ${API_KEY_PREFIX}`)) {
@@ -837,7 +837,7 @@ describe('the checks themselves, on routes that are open on purpose (the mock at
       const { rows } = await db.pool.query('select count(*)::int as n from canary_writes_on_key')
       expect(rows[0].n).toBe(2)
     } finally {
-      await db.pool.query('drop table canary_writes_on_key')
+      await db.ownerPool.query('drop table canary_writes_on_key')
     }
   })
 
@@ -1131,7 +1131,7 @@ describe('the router guards every route before the handler runs', () => {
   })
 
   it('does not run a handler that writes before it calls its own guard: nothing is written for a refused request', async () => {
-    await db.pool.query('create table router_writes_first (n int not null)')
+    await db.ownerPool.query(`create table router_writes_first (n int not null); grant select, insert on router_writes_first to ${RUNTIME_ROLE}`)
     try {
       const c = canary('agent', 'writes-first', 'POST', async ({ req }) => {
         await query('insert into router_writes_first (n) values (1)')
@@ -1145,7 +1145,7 @@ describe('the router guards every route before the handler runs', () => {
       expect((await signedIn(c, 'agent')).status).toBe(200)
       expect(await count()).toBe(1)
     } finally {
-      await db.pool.query('drop table router_writes_first')
+      await db.ownerPool.query('drop table router_writes_first')
     }
   })
 

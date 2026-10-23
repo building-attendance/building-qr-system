@@ -155,7 +155,7 @@ async function quietly(fn) {
 
 beforeAll(async () => {
   db = await setupDb()
-  helper = await db.pool.connect()
+  helper = await db.ownerPool.connect() // the owner: refusingAudit adds and drops a constraint of audit_log
   await seedAdmin(db.pool)
   cookie = await adminCookie()
   admin = await one("select id, email, name from admins where email = 'admin@test.local'")

@@ -183,7 +183,7 @@ describe('the committee routes', () => {
   })
 
   it('save a missing row again (an upsert), so a save never fails because the row was removed', async () => {
-    await db.pool.query('delete from building_settings')
+    await db.ownerPool.query('delete from building_settings')
     expect(await publicAddress()).toBe('')
     expect((await call('GET', '/api/admin/building', { cookie })).json.building.address).toBe('')
     expect((await save('רחוב אחרי מחיקת השורה 4')).status).toBe(200)
@@ -303,7 +303,7 @@ describe("the building's name", () => {
   })
 
   it('is read as an empty name when the row is gone, and a save of the name makes the row again', async () => {
-    await db.pool.query('delete from building_settings')
+    await db.ownerPool.query('delete from building_settings')
     expect((await call('GET', '/api/public/building')).json).toEqual({ building: { address: '', name: '' } })
     expect((await call('GET', '/api/admin/building', { cookie })).json).toEqual({ building: { address: '', name: '' } })
     expect((await put({ address: ADDRESS, name: 'שם אחרי מחיקת השורה' })).status).toBe(200)
@@ -323,7 +323,7 @@ describe("the building's name", () => {
     await oldSave('רחוב מהקוד הישן 4')
     expect((await stored())[0]).toMatchObject({ address: 'רחוב מהקוד הישן 4', name: 'שם שהקוד הישן לא מכיר' })
     // and when the row is missing, the old insert gets the default
-    await db.pool.query('delete from building_settings')
+    await db.ownerPool.query('delete from building_settings')
     await oldSave('רחוב מהקוד הישן 5')
     expect((await stored())[0]).toMatchObject({ address: 'רחוב מהקוד הישן 5', name: '' })
   })
