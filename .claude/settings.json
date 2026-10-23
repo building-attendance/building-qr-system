@@ -8,6 +8,7 @@
       "Read(./.env.production)",
       "Read(./.vercel/**)",
       "Bash(gh pr merge *)",
+      "Bash(gh api *)",
       "Bash(vercel --prod *)",
       "Bash(vercel deploy --prod *)",
       "Bash(vercel env pull *)",
