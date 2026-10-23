@@ -2,7 +2,8 @@
 // process runner is a stub that records every call and writes the files that pg_dump would write, and the folder of the
 // backups is a real temporary folder, so that the file handling (the temporary file, the rename, the retention) is real.
 // Fake values only: the connection string below does not exist.
-import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
+import { describe, it, expect, beforeAll, afterAll, beforeEach, afterEach, vi } from 'vitest'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -68,6 +69,21 @@ import {
   sharedAclProblem,
   sharedFoldersMessage,
   windowsTool,
+  ENCRYPTED_PARTIAL_NAME,
+  ENCRYPTION_REQUIRED_ERROR,
+  FINGERPRINT,
+  GPG_BASE_ARGS,
+  KEY_COPY_NAME,
+  KEY_COUNT_ERROR,
+  KEY_FILE_ERROR,
+  KEY_MISMATCH_ERROR,
+  KEY_SECRET_ERROR,
+  PLAINTEXT_LEFT_ERROR,
+  WINDOWS_GPG,
+  keyProblem,
+  msysPath,
+  parseShownKeys,
+  resolveGpg,
 } from '../scripts/backup-db.mjs'
 
 const USER = 'backup_user'
@@ -83,9 +99,32 @@ const UID = 1000
 const OTHER_UID = 1001
 const ROOT_UID = 0
 const NOW = new Date('2026-10-03T07:15:42Z')
-const FINAL = 'building-qr-20261003T0715Z.dump'
+const FINAL = 'building-qr-20261003T0715Z.dump.gpg'
 // the temporary file, inside the private work directory (.bqr-work-<random>) that each run makes inside the output folder
 const PARTIAL = 'partial.dump'
+// the ciphertext that gpg writes next to it, and the copy of the key file that gpg checks and encrypts to
+const ENCRYPTED = 'partial.dump.gpg'
+const KEY_COPY = 'recipient.key'
+// A fake fingerprint (the stub of gpg says the key file holds a key with it), another one, and a fake key file.
+const FPR = '0123456789ABCDEF0123456789ABCDEF01234567'
+const OTHER_FPR = 'FEDCBA9876543210FEDCBA9876543210FEDCBA98'
+const KEY_TEXT = '-----BEGIN PGP PUBLIC KEY BLOCK-----\nfake test key\n-----END PGP PUBLIC KEY BLOCK-----\n'
+/** What `gpg --with-colons --show-keys` prints for a file with these keys (primary fingerprints); `secret` for a private key. */
+const shownKeys = (fprs = [FPR], { secret = false } = {}) =>
+  fprs
+    .map((fpr, i) =>
+      [
+        `${secret ? 'sec' : 'pub'}:-:255:22:${fpr.slice(-16)}:1792673706:::-:::scESC:::::ed25519:::0:`,
+        `fpr:::::::::${fpr}:`,
+        `uid:-::::1792673706::0F43F26255D597F50EDCB93FBA71290E526BB731::Test Key ${i} <test${i}@example.invalid>::::::::::0:`,
+        `${secret ? 'ssb' : 'sub'}:-:255:18:5E04B03393750919:1792673706::::::e:::::cv25519::`,
+        'fpr:::::::::FDA498B36306A2DF6CC1249B5E04B03393750919:',
+      ].join('\n'),
+    )
+    .join('\n') + '\n'
+// What the stub of gpg writes for the fake dump: a marker in front of the plaintext, so that a test can tell the two apart.
+const ENCRYPTED_FAKE = 'GPG:PGDMP fake dump'
+const isShowKeys = (call) => call.args.includes('--show-keys')
 const LISTING = [
   ';',
   '; Archive created at 2026-10-03 10:15:40',
@@ -157,6 +196,14 @@ const defaults = {
       : { status: 0, stdout: 'Successfully processed 1 files; Failed processing 0 files\r\n', stderr: '' },
   // list: no open issue yet; comment and create: done
   gh: ({ args }) => ({ status: 0, stdout: args[1] === 'list' ? '[]' : 'https://github.com/owner/repo/issues/1\n', stderr: '' }),
+  // --show-keys: the key file holds one public key, with the fingerprint of the command line; --encrypt: the input with a marker
+  gpg: (call) => {
+    const { args, options } = call
+    if (isShowKeys(call)) return { status: 0, stdout: shownKeys(), stderr: '' }
+    const input = fs.readFileSync(path.join(options.cwd, args.at(-1)))
+    fs.writeFileSync(path.join(options.cwd, args[args.indexOf('--output') + 1]), Buffer.concat([Buffer.from('GPG:'), input]))
+    return { status: 0, stdout: '', stderr: '' }
+  },
 }
 
 /** A runner that records { tool, command, args, options } of every call and answers with a handler per tool. */
@@ -177,15 +224,22 @@ function makeRunner(handlers = {}) {
 
 let tmp
 let dir
+// The public key file of a run: a fake one, in a folder of its own (the stub of gpg answers for it).
+let keyDir
+let keyFile
 
 beforeEach(() => {
   // the real path of the folder of the test (a short 8.3 name on Windows is an alias for it): the script works on real paths
   tmp = fs.realpathSync.native(fs.mkdtempSync(path.join(os.tmpdir(), 'bqr-backup-test-')))
   dir = path.join(tmp, 'backups')
+  keyDir = fs.mkdtempSync(path.join(os.tmpdir(), 'bqr-key-test-'))
+  keyFile = path.join(keyDir, 'backup-public-key.asc')
+  fs.writeFileSync(keyFile, KEY_TEXT)
 })
 
 afterEach(() => {
   fs.rmSync(tmp, { recursive: true, force: true })
+  fs.rmSync(keyDir, { recursive: true, force: true })
 })
 
 /**
@@ -236,7 +290,18 @@ async function go({ options = {}, deps = {}, runner = makeRunner() } = {}) {
   const errs = []
   const masks = []
   const result = await runBackup(
-    { out: dir, keep: 30, neonProject: null, neonBranch: 'main', reportIssue: null, pgBin: null, ...options },
+    {
+      out: dir,
+      keep: 30,
+      neonProject: null,
+      neonBranch: 'main',
+      reportIssue: null,
+      pgBin: null,
+      encryptTo: keyFile,
+      encryptFingerprint: FPR,
+      gpg: null,
+      ...options,
+    },
     {
       env: { BACKUP_DATABASE_URL: URL_FAKE, PATH: '/usr/bin', ...deps.env },
       platform: 'linux',
@@ -284,19 +349,22 @@ function seed(names) {
 }
 
 const oldBackups = [
-  'building-qr-20260901T0000Z.dump',
-  'building-qr-20260902T0000Z.dump',
-  'building-qr-20260903T0000Z.dump',
-  'building-qr-20260904T0000Z.dump',
-  'building-qr-20260905T0000Z.dump',
+  'building-qr-20260901T0000Z.dump.gpg',
+  'building-qr-20260902T0000Z.dump.gpg',
+  'building-qr-20260903T0000Z.dump.gpg',
+  'building-qr-20260904T0000Z.dump.gpg',
+  'building-qr-20260905T0000Z.dump.gpg',
 ]
 
 // ---- the command line ---------------------------------------------------------------------------------------------------
 
 describe('the command line', () => {
-  it('has the defaults: keep 30, the main branch, nothing else', () => {
+  // the two options that every run needs from now on: the public key file and its fingerprint
+  const ENC = ['--encrypt-to', 'owner-key.asc', '--encrypt-fingerprint', FPR]
+
+  it('has the defaults: keep 30, the main branch, the gpg of the system, nothing else', () => {
     expect(DEFAULT_KEEP).toBe(30)
-    expect(parseArgs(['--out', 'backups'])).toEqual({
+    expect(parseArgs(['--out', 'backups', ...ENC])).toEqual({
       help: false,
       out: 'backups',
       keep: 30,
@@ -304,6 +372,9 @@ describe('the command line', () => {
       neonBranch: 'main',
       reportIssue: null,
       pgBin: null,
+      encryptTo: 'owner-key.asc',
+      encryptFingerprint: FPR,
+      gpg: null,
     })
   })
 
@@ -316,43 +387,75 @@ describe('the command line', () => {
       neonBranch: 'release/one',
       reportIssue: 'owner/repo.name',
       pgBin: '/opt/pg18/bin',
+      encryptTo: 'keys/owner key.asc',
+      encryptFingerprint: FPR,
+      gpg: '/usr/local/bin/gpg',
     }
     expect(
       parseArgs([
         '--out', 'some dir/backups', '--keep', '7', '--neon-project', 'square-term-12345678', '--neon-branch', 'release/one',
-        '--report-issue', 'owner/repo.name', '--pg-bin', '/opt/pg18/bin',
+        '--report-issue', 'owner/repo.name', '--pg-bin', '/opt/pg18/bin', '--encrypt-to', 'keys/owner key.asc',
+        '--encrypt-fingerprint', FPR, '--gpg', '/usr/local/bin/gpg',
       ]),
     ).toEqual(wanted)
     expect(
       parseArgs([
         '--out=some dir/backups', '--keep=7', '--neon-project=square-term-12345678', '--neon-branch=release/one',
-        '--report-issue=owner/repo.name', '--pg-bin=/opt/pg18/bin',
+        '--report-issue=owner/repo.name', '--pg-bin=/opt/pg18/bin', '--encrypt-to=keys/owner key.asc',
+        `--encrypt-fingerprint=${FPR}`, '--gpg=/usr/local/bin/gpg',
       ]),
     ).toEqual(wanted)
   })
 
   it('needs --out', () => {
     expect(() => parseArgs([])).toThrow(/--out/)
-    expect(() => parseArgs(['--out='])).toThrow(/--out/)
-    expect(() => parseArgs(['--keep', '3'])).toThrow(/--out/)
+    expect(() => parseArgs(['--out=', ...ENC])).toThrow(/--out/)
+    expect(() => parseArgs(['--keep', '3', ...ENC])).toThrow(/--out/)
+  })
+
+  it('needs --encrypt-to and --encrypt-fingerprint: a run without them is refused before anything is asked for', () => {
+    expect(() => parseArgs(['--out', 'x'])).toThrow(/--encrypt-to/)
+    expect(() => parseArgs(['--out', 'x', '--encrypt-fingerprint', FPR])).toThrow(/--encrypt-to/)
+    expect(() => parseArgs(['--out', 'x', '--encrypt-to=', '--encrypt-fingerprint', FPR])).toThrow(/--encrypt-to/)
+    expect(() => parseArgs(['--out', 'x', '--encrypt-to', 'k.asc'])).toThrow(/--encrypt-fingerprint/)
+    expect(() => parseArgs(['--out', 'x', '--encrypt-to', 'k.asc', '--encrypt-fingerprint='])).toThrow(/--encrypt-fingerprint/)
+  })
+
+  it('takes a fingerprint of exactly 40 hex characters, in upper case, and never repeats what it was given', () => {
+    expect(parseArgs(['--out', 'x', '--encrypt-to', 'k.asc', '--encrypt-fingerprint', FPR.toLowerCase()]).encryptFingerprint).toBe(FPR)
+    const spaced = FPR.match(/.{4}/g).join(' ') // as `gpg --fingerprint` prints it
+    for (const bad of [FPR.slice(1), `${FPR}0`, `${FPR.slice(1)}G`, spaced, FPR.slice(-16), '0x' + FPR.slice(2), 'a&b']) {
+      let message = ''
+      try {
+        parseArgs(['--out', 'x', '--encrypt-to', 'k.asc', `--encrypt-fingerprint=${bad}`])
+      } catch (err) {
+        message = err.message
+      }
+      expect(message, bad).toMatch(/--encrypt-fingerprint/)
+      expect(message, bad).not.toContain(bad)
+    }
+  })
+
+  it('refuses an empty --gpg', () => {
+    expect(() => parseArgs(['--out', 'x', ...ENC, '--gpg='])).toThrow(/--gpg/)
   })
 
   it('keeps at least one backup: --keep is a whole number of 1 or more', () => {
     for (const bad of ['0', '-1', '1.5', 'abc', '', '1e3', ' ', '9999999']) {
-      expect(() => parseArgs(['--out', 'x', `--keep=${bad}`]), `--keep=${bad}`).toThrow(/--keep/)
+      expect(() => parseArgs(['--out', 'x', ...ENC, `--keep=${bad}`]), `--keep=${bad}`).toThrow(/--keep/)
     }
-    expect(parseArgs(['--out', 'x', '--keep', '1']).keep).toBe(1)
+    expect(parseArgs(['--out', 'x', ...ENC, '--keep', '1']).keep).toBe(1)
   })
 
   it('refuses a project id, a branch or a repository with a character that a command line could misread', () => {
     for (const bad of ['a&b', 'a b', '-x', 'a;b', 'a"b', '$(x)', 'a|b', '']) {
-      expect(() => parseArgs(['--out', 'x', `--neon-project=${bad}`]), bad).toThrow(/--neon-project/)
+      expect(() => parseArgs(['--out', 'x', ...ENC, `--neon-project=${bad}`]), bad).toThrow(/--neon-project/)
     }
     for (const bad of ['a&b', 'a b', '-x', 'a;b', 'a"b', '$(x)', 'a@2024-01-01']) {
-      expect(() => parseArgs(['--out', 'x', `--neon-branch=${bad}`]), bad).toThrow(/--neon-branch/)
+      expect(() => parseArgs(['--out', 'x', ...ENC, `--neon-branch=${bad}`]), bad).toThrow(/--neon-branch/)
     }
     for (const bad of ['owner', 'owner/', '/repo', 'a b/c', 'a/b/c', '-x/y;z']) {
-      expect(() => parseArgs(['--out', 'x', `--report-issue=${bad}`]), bad).toThrow(/--report-issue/)
+      expect(() => parseArgs(['--out', 'x', ...ENC, `--report-issue=${bad}`]), bad).toThrow(/--report-issue/)
     }
   })
 
@@ -517,11 +620,11 @@ describe('the Neon CLI', () => {
 describe('the name of a backup', () => {
   it('is building-qr-<UTC time to the minute>.dump', () => {
     expect(backupFileName(NOW)).toBe(FINAL)
-    expect(backupFileName(new Date('2026-01-02T23:59:59.999Z'))).toBe('building-qr-20260102T2359Z.dump')
+    expect(backupFileName(new Date('2026-01-02T23:59:59.999Z'))).toBe('building-qr-20260102T2359Z.dump.gpg')
   })
 
   it('is in UTC, whatever the time zone of the date text', () => {
-    expect(backupFileName(new Date('2026-10-03T00:30:00+03:00'))).toBe('building-qr-20261002T2130Z.dump')
+    expect(backupFileName(new Date('2026-10-03T00:30:00+03:00'))).toBe('building-qr-20261002T2130Z.dump.gpg')
   })
 
   it('matches the pattern that retention uses, and the names sort by time', () => {
@@ -543,12 +646,12 @@ describe('which backups to delete', () => {
 
   it('knows the time that a backup name says, and a name that is not a backup has none', () => {
     expect(backupTime(FINAL)).toEqual(new Date('2026-10-03T07:15:00Z'))
-    expect(backupTime('building-qr-20260101T2359Z.dump')).toEqual(new Date('2026-01-01T23:59:00Z'))
+    expect(backupTime('building-qr-20260101T2359Z.dump.gpg')).toEqual(new Date('2026-01-01T23:59:00Z'))
     expect(backupFileName(backupTime(FINAL))).toBe(FINAL)
     for (const bad of [
-      'building-qr-20261301T0000Z.dump', // month 13
-      'building-qr-20260230T0000Z.dump', // 30 February
-      'building-qr-20261003T2460Z.dump', // minute 60, hour 24
+      'building-qr-20261301T0000Z.dump.gpg', // month 13
+      'building-qr-20260230T0000Z.dump.gpg', // 30 February
+      'building-qr-20261003T2460Z.dump.gpg', // minute 60, hour 24
       'building-qr-latest.dump',
       'building-qr-20261003T0715Z.dump.bak',
       'notes.txt',
@@ -559,7 +662,7 @@ describe('which backups to delete', () => {
   })
 
   it('sorts all the backups together by their time and keeps the newest ones: whichever file is new on disk is just one of them', () => {
-    expect(picked([...names, FINAL], 3)).toEqual(['building-qr-20260903T0000Z.dump', 'building-qr-20260902T0000Z.dump', 'building-qr-20260901T0000Z.dump'])
+    expect(picked([...names, FINAL], 3)).toEqual(['building-qr-20260903T0000Z.dump.gpg', 'building-qr-20260902T0000Z.dump.gpg', 'building-qr-20260901T0000Z.dump.gpg'])
     expect(picked([...names, FINAL], 1)).toEqual([...oldBackups].reverse())
     expect(picked([...names, FINAL], 30)).toEqual([])
     expect(picked([FINAL], 3)).toEqual([])
@@ -567,7 +670,7 @@ describe('which backups to delete', () => {
   })
 
   it('picks the file of a run that is older than the ones that are kept, however it came to be there last', () => {
-    const newer = ['building-qr-20261003T0717Z.dump', 'building-qr-20261003T0718Z.dump']
+    const newer = ['building-qr-20261003T0717Z.dump.gpg', 'building-qr-20261003T0718Z.dump.gpg']
     expect(picked([FINAL, ...newer], 2)).toEqual([FINAL]) // the run of 07:15, finishing after those of 07:17 and 07:18
     expect(picked([FINAL, ...newer], 3)).toEqual([])
     expect(picked([FINAL, newer[1]], 1)).toEqual([FINAL])
@@ -581,27 +684,27 @@ describe('which backups to delete', () => {
       'building-qr-latest.dump',
       'Building-QR-20250101T0000Z.dump',
       'building-qr-2025T0000Z.dump',
-      'xbuilding-qr-20250101T0000Z.dump',
+      'xbuilding-qr-20250101T0000Z.dump.gpg',
       'building-qr-20250101T0000Z.partial.dump',
-      'my building-qr-20250101T0000Z.dump',
-      'building-qr-20261301T0000Z.dump', // matches the pattern, but its time is not a real one
-      'building-qr-20260230T0000Z.dump',
+      'my building-qr-20250101T0000Z.dump.gpg',
+      'building-qr-20261301T0000Z.dump.gpg', // matches the pattern, but its time is not a real one
+      'building-qr-20260230T0000Z.dump.gpg',
     ]
     expect(picked([...others, ...names, FINAL], 1)).toEqual([...oldBackups].reverse())
     expect(picked(others, 1)).toEqual([])
   })
 
   it('does not count a name that says a time later than now, and does not pick it: it came from a wrong clock', () => {
-    const future = ['building-qr-20990101T0000Z.dump', 'building-qr-20980101T0000Z.dump']
+    const future = ['building-qr-20990101T0000Z.dump.gpg', 'building-qr-20980101T0000Z.dump.gpg']
     const now = new Date('2026-10-03T08:00:00Z')
     expect(selectOld([...names, ...future, FINAL], 2, now)).toEqual({
-      old: ['building-qr-20260904T0000Z.dump', 'building-qr-20260903T0000Z.dump', 'building-qr-20260902T0000Z.dump', 'building-qr-20260901T0000Z.dump'],
+      old: ['building-qr-20260904T0000Z.dump.gpg', 'building-qr-20260903T0000Z.dump.gpg', 'building-qr-20260902T0000Z.dump.gpg', 'building-qr-20260901T0000Z.dump.gpg'],
       future: 2,
     })
     // with keep 1 the new backup is the one that stays, not a file from the future
     expect(selectOld([...future, FINAL], 1, now)).toEqual({ old: [], future: 2 })
     // without a time for now (a caller that has no clock) the names count like any other
-    expect(selectOld([...future, FINAL], 1).old).toEqual(['building-qr-20980101T0000Z.dump', FINAL])
+    expect(selectOld([...future, FINAL], 1).old).toEqual(['building-qr-20980101T0000Z.dump.gpg', FINAL])
   })
 })
 
@@ -625,13 +728,13 @@ describe('a good backup', () => {
     expect(r.exitCode).toBe(0)
     expect(r.ok).toBe(true)
     expect(during).toEqual([path.basename(cwd)]) // only the work directory is in the output folder while the dump is made
-    expect(inside).toEqual([PARTIAL]) // and the temporary file is in it
+    expect(inside.sort()).toEqual([PARTIAL, KEY_COPY]) // and the temporary file is in it, next to the copy of the key file
     expect(r.files).toEqual(['backup.log', FINAL])
-    expect(fs.readFileSync(path.join(dir, FINAL), 'utf8')).toBe('PGDMP fake dump')
-    expect(r.out).toEqual([`backup ok: ${FINAL}, 15 B, removed 0 old files`])
+    expect(fs.readFileSync(path.join(dir, FINAL), 'utf8')).toBe(ENCRYPTED_FAKE)
+    expect(r.out).toEqual([`backup ok: ${FINAL}, 19 B, removed 0 old files`])
     expect(r.errs).toEqual([])
     expect(r.file).toBe(FINAL)
-    expect(r.size).toBe(15)
+    expect(r.size).toBe(19)
   })
 
   it('runs pg_dump in the custom format, with no owner and no privileges, with the file name relative to the folder', async () => {
@@ -648,7 +751,7 @@ describe('a good backup', () => {
     expect(list.command).toBe('pg_restore')
     expect(list.args).toEqual(['--list', PARTIAL])
     expectWorkCwd(list.options.cwd)
-    expect(r.runner.calls.map((c) => c.tool)).toEqual(['pg_dump', 'pg_restore', 'pg_restore', 'pg_restore'])
+    expect(r.runner.calls.map((c) => c.tool)).toEqual(['gpg', 'pg_dump', 'pg_restore', 'pg_restore', 'pg_restore', 'gpg'])
   })
 
   it('creates the folder when it is missing, also a nested one', async () => {
@@ -839,7 +942,7 @@ describe('where the connection string comes from', () => {
     const r = await go({ options: { neonProject: 'square-term-1', keep: 1 } })
     expect(r.exitCode).toBe(1)
     expect(r.message).toBe(AMBIGUOUS_SOURCE_ERROR)
-    expect(r.runner.calls).toEqual([]) // not the Neon CLI, not pg_dump
+    expect(r.runner.calls.map((c) => c.tool)).toEqual(['gpg']) // only the check of the key (before anything is asked for): not the Neon CLI, not pg_dump
     expect(workDirsNow()).toEqual([])
     expect(r.files).toEqual(['backup.log', ...oldBackups]) // nothing was rotated
     expect(r.log).toBe(`03/10/2026 10:15 failed host=- error=${AMBIGUOUS_SOURCE_ERROR}\n`)
@@ -886,7 +989,7 @@ describe('where the connection string comes from', () => {
     const r = await go({ deps: { env: { BACKUP_DATABASE_URL: '  ' } } })
     expect(r.exitCode).toBe(1)
     expect(r.message).toMatch(/BACKUP_DATABASE_URL.*--neon-project/)
-    expect(r.runner.calls).toEqual([])
+    expect(r.runner.calls.map((c) => c.tool)).toEqual(['gpg']) // only the check of the key, which comes first
     expect(r.log).toMatch(/ failed host=- error=there is no database to back up/)
   })
 
@@ -931,7 +1034,7 @@ describe('where the connection string comes from', () => {
   it('refuses an address that is not a postgres address, without repeating it', async () => {
     const r = await go({ deps: { env: { BACKUP_DATABASE_URL: 'https://user:hunter2@example.com/db' } } })
     expect(r.exitCode).toBe(1)
-    expect(r.runner.calls).toEqual([])
+    expect(r.runner.calls.map((c) => c.tool)).toEqual(['gpg']) // only the check of the key, which comes first
     expect(visible(r)).not.toContain('hunter2')
   })
 })
@@ -1053,7 +1156,7 @@ describe('a network that is not back yet (right after a wake)', () => {
     expect(new Set(r.runner.of('neon').map((call) => JSON.stringify(call.args))).size).toBe(1)
     expect(r.runner.of('pg_dump')).toHaveLength(1)
     expect(r.files).toEqual(['backup.log', FINAL])
-    expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0 warning=${NETWORK_RETRY_WARNING}\n`)
+    expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0 warning=${NETWORK_RETRY_WARNING}\n`)
     expect(r.errs).toEqual([`backup: warning, ${NETWORK_RETRY_WARNING}`])
     expect(r.runner.of('gh')).toEqual([]) // no issue
     expect(visible(r)).not.toMatch(/Could not reach|neonstatus/)
@@ -1129,7 +1232,7 @@ describe('a network that is not back yet (right after a wake)', () => {
     expectWorkCwd(seen[0].cwd)
     expect(seen.map((try_) => try_.options)).toEqual([READ_ONLY_OPTION, READ_ONLY_OPTION])
     expect(r.files).toEqual(['backup.log', FINAL])
-    expect(fs.readFileSync(path.join(dir, FINAL), 'utf8')).toBe('PGDMP fake dump')
+    expect(fs.readFileSync(path.join(dir, FINAL), 'utf8')).toBe(ENCRYPTED_FAKE)
     expect(r.log).toContain(` warning=${NETWORK_RETRY_WARNING}\n`)
     expect(visible(r)).not.toMatch(/translate host name|Name or service/)
   })
@@ -1244,15 +1347,15 @@ describe('retention', () => {
       'building-qr-20250101T0000Z.partial.dump',
     ]
     seed([...oldBackups, ...others])
-    fs.mkdirSync(path.join(dir, 'building-qr-20250102T0000Z.dump')) // a folder with a matching name is not a backup
+    fs.mkdirSync(path.join(dir, 'building-qr-20250102T0000Z.dump.gpg')) // a folder with a matching name is not a backup
     const r = await go({ options: { keep: 3 } })
     expect(r.exitCode).toBe(0)
     expect(r.files).toEqual(
-      [FINAL, 'backup.log', 'building-qr-20250102T0000Z.dump', 'building-qr-20260904T0000Z.dump', 'building-qr-20260905T0000Z.dump', ...others].sort(),
+      [FINAL, 'backup.log', 'building-qr-20250102T0000Z.dump.gpg', 'building-qr-20260904T0000Z.dump.gpg', 'building-qr-20260905T0000Z.dump.gpg', ...others].sort(),
     )
-    expect(r.out).toEqual([`backup ok: ${FINAL}, 15 B, removed 3 old files`])
+    expect(r.out).toEqual([`backup ok: ${FINAL}, 19 B, removed 3 old files`])
     expect(r.log).toContain(' removed=3')
-    expect(fs.statSync(path.join(dir, 'building-qr-20250102T0000Z.dump')).isDirectory()).toBe(true)
+    expect(fs.statSync(path.join(dir, 'building-qr-20250102T0000Z.dump.gpg')).isDirectory()).toBe(true)
   })
 
   it('with --keep 1 leaves only the new backup', async () => {
@@ -1269,12 +1372,12 @@ describe('retention', () => {
   })
 
   it('does not count a backup dated in the future, and does not delete it: the new dump is kept, with a warning', async () => {
-    seed(['building-qr-20990101T0000Z.dump', 'building-qr-20980101T0000Z.dump', ...oldBackups.slice(0, 2)])
+    seed(['building-qr-20990101T0000Z.dump.gpg', 'building-qr-20980101T0000Z.dump.gpg', ...oldBackups.slice(0, 2)])
     const r = await go({ options: { keep: 2 } })
     expect(r.exitCode).toBe(0)
     // the newest two of [the new dump, 02 September, 01 September] are kept; the two from the future are left as they are
     expect(r.files).toEqual(
-      ['backup.log', FINAL, 'building-qr-20260902T0000Z.dump', 'building-qr-20980101T0000Z.dump', 'building-qr-20990101T0000Z.dump'].sort(),
+      ['backup.log', FINAL, 'building-qr-20260902T0000Z.dump.gpg', 'building-qr-20980101T0000Z.dump.gpg', 'building-qr-20990101T0000Z.dump.gpg'].sort(),
     )
     expect(r.removed).toBe(1)
     expect(r.warning).toBe('2-backups-dated-in-the-future-ignored')
@@ -1294,8 +1397,8 @@ describe('retention when a run that started earlier finishes later', () => {
   const T0715 = new Date('2026-10-03T07:15:42Z')
   const T0716 = new Date('2026-10-03T07:16:10Z')
   const END = new Date('2026-10-03T07:20:00Z')
-  const A = 'building-qr-20261003T0715Z.dump' // the older run
-  const B = 'building-qr-20261003T0716Z.dump' // the newer run
+  const A = 'building-qr-20261003T0715Z.dump.gpg' // the older run
+  const B = 'building-qr-20261003T0716Z.dump.gpg' // the newer run
   /** The clock of a run: its start the first time it is asked, and a later time (the end of the run) after that. */
   const clockOf = (start, end = END) => {
     let first = true
@@ -1330,8 +1433,8 @@ describe('retention when a run that started earlier finishes later', () => {
     expect(a.removed).toBe(1)
     expect(a.warning).toBe('own-dump-older-than-kept')
     expect(backupsLeft()).toEqual([B])
-    expect(a.log.split('\n').filter(Boolean).at(-1)).toContain(`file=${A} size=15 removed=1 warning=own-dump-older-than-kept`)
-    expect(a.out).toEqual([`backup ok: ${A}, 15 B, removed 1 old file`])
+    expect(a.log.split('\n').filter(Boolean).at(-1)).toContain(`file=${A} size=19 removed=1 warning=own-dump-older-than-kept`)
+    expect(a.out).toEqual([`backup ok: ${A}, 19 B, removed 1 old file`])
     expect(a.errs).toEqual(['backup: warning, own-dump-older-than-kept'])
     expect(b.errs).toEqual([])
   })
@@ -1346,7 +1449,7 @@ describe('retention when a run that started earlier finishes later', () => {
   })
 
   it('with --keep 2 and two newer dumps already there, a late older run cannot push one of them out', async () => {
-    const newer = ['building-qr-20261003T0717Z.dump', 'building-qr-20261003T0718Z.dump']
+    const newer = ['building-qr-20261003T0717Z.dump.gpg', 'building-qr-20261003T0718Z.dump.gpg']
     seed([...newer, ...oldBackups.slice(0, 2)])
     const r = await go({ options: { keep: 2 }, deps: { now: clockOf(T0715) } })
     expect(r.exitCode).toBe(0)
@@ -1358,7 +1461,7 @@ describe('retention when a run that started earlier finishes later', () => {
   it('in the normal case (the new dump is the newest) nothing changes: the newest --keep are kept, no warning', async () => {
     seed(oldBackups)
     const r = await go({ options: { keep: 3 } })
-    expect(backupsLeft()).toEqual([FINAL, 'building-qr-20260904T0000Z.dump', 'building-qr-20260905T0000Z.dump'].sort())
+    expect(backupsLeft()).toEqual([FINAL, 'building-qr-20260904T0000Z.dump.gpg', 'building-qr-20260905T0000Z.dump.gpg'].sort())
     expect(r.removed).toBe(3)
     expect(r.warning).toBeUndefined()
   })
@@ -1539,12 +1642,12 @@ describe('the marker of the dump', () => {
 describe('backup.log', () => {
   it('gets one line per run: the UTC time, ok, the masked host, the file and its size', async () => {
     const first = await go()
-    expect(first.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0\n`)
+    expect(first.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0\n`)
     const later = new Date('2026-10-04T07:15:03Z')
     const second = await go({ deps: { now: () => later } })
     expect(second.log.split('\n').filter(Boolean)).toEqual([
-      `03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0`,
-      `04/10/2026 10:15 ok host=${MASKED_HOST} file=building-qr-20261004T0715Z.dump size=15 removed=0`,
+      `03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0`,
+      `04/10/2026 10:15 ok host=${MASKED_HOST} file=building-qr-20261004T0715Z.dump.gpg size=19 removed=0`,
     ])
   })
 
@@ -1784,7 +1887,8 @@ describe('the issue after a failure', () => {
     }
     const r = await go({ options: { reportIssue: 'owner/repo' }, runner: failing({ gh: ghBy() }), deps: { fs: files } })
     expect(r.issue).toBe('opened')
-    expect(written).toEqual([`mkdtemp ${WORK_PREFIX}`, `write ${PARTIAL}`]) // the work directory and its file, and nothing for the issue
+    // the work directory, the copy of the key file and the dump file in it, and nothing for the issue
+    expect(written).toEqual([`mkdtemp ${WORK_PREFIX}`, `write ${KEY_COPY}`, `write ${PARTIAL}`])
   })
 
   it('is built from the time alone, so an error text cannot get into it', () => {
@@ -1922,10 +2026,12 @@ describe('the full read of the dump', () => {
     expect(Object.keys(full.options.env).filter((key) => /^PG[A-Z]/.test(key))).toEqual([])
     expect('BACKUP_DATABASE_URL' in full.options.env).toBe(false)
     expect(r.runner.calls.map((c) => `${c.tool}${c.tool === 'pg_restore' ? ` ${c.args[0].split('=')[0]}` : ''}`)).toEqual([
+      'gpg', // the check of the key, before anything is asked for
       'pg_dump',
       'pg_restore --list',
       'pg_restore --file',
       'pg_restore --data-only',
+      'gpg', // the encryption, after every check
     ])
   })
 
@@ -2027,11 +2133,12 @@ describe('files for the owner only', () => {
     expect(rec.mkdtemps).toEqual([path.join(path.resolve(dir), '.bqr-work-')]) // mkdtemp itself makes it with mode 700, with a name nobody can guess
   })
 
-  it('sets mode 600 on the dump (in the work directory, before it moves) and on backup.log, and creates the log with mode 600', async () => {
+  it('sets mode 600 on the dump and on the encrypted dump (in the work directory, before it moves) and on backup.log, and creates the log with mode 600', async () => {
     const rec = recordingFs()
     const r = await go({ deps: { fs: rec.fs } })
     expect(rec.chmods).toEqual([
       { name: PARTIAL, folder: false, mode: 0o600 },
+      { name: ENCRYPTED, folder: false, mode: 0o600 },
       { name: 'backup.log', folder: false, mode: 0o600 },
     ])
     expect(rec.appends).toEqual([{ name: 'backup.log', options: { encoding: 'utf8', mode: 0o600 } }])
@@ -2061,7 +2168,7 @@ describe('files for the owner only', () => {
     expect(rec.chmods.filter((c) => c.folder)).toEqual([])
     expect(r.log.split('\n').filter(Boolean)).toEqual([
       `03/10/2026 10:15 warning ${FOLDER_WARNING}`,
-      `03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0`,
+      `03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0`,
     ])
     expect(r.errs).toEqual([`backup: warning, ${FOLDER_WARNING}`])
     expect(FOLDER_WARNING).toMatch(/tighten it/)
@@ -2128,9 +2235,11 @@ describe('a cleanup that fails', () => {
     const r = await go({ deps: { fs: files }, runner })
     expect(r.exitCode).toBe(1)
     expect(r.message).toBe('pg_dump failed (exit code 1): pg_dump: error: boom ***')
-    // the work directory cannot be removed either (rmSync throws for everything here): a warning says that it is still there
-    expect(r.log).toBe(`03/10/2026 10:15 failed host=${MASKED_HOST} warning=work-directory-not-removed error=${r.message}\n`)
-    expect(r.errs).toEqual([`backup failed: ${r.message}`, 'backup: warning, work-directory-not-removed'])
+    // the work directory cannot be removed either (rmSync throws for everything here): a warning says that it is still there, and
+    // another one that the plaintext dump in it is (the run failed already, so it keeps its own reason)
+    const warning = 'work-directory-not-removed,plaintext-dump-not-removed'
+    expect(r.log).toBe(`03/10/2026 10:15 failed host=${MASKED_HOST} warning=${warning} error=${r.message}\n`)
+    expect(r.errs).toEqual([`backup failed: ${r.message}`, `backup: warning, ${warning}`])
     expect(visible(r)).not.toContain('secret-place')
     expect(visible(r)).not.toContain(tmp)
   })
@@ -2144,7 +2253,7 @@ describe('a cleanup that fails', () => {
     })
     expect(r.exitCode).toBe(1)
     expect(r.issue).toBe('opened')
-    expect(r.log).toContain(' warning=work-directory-not-removed issue=opened error=pg_dump failed')
+    expect(r.log).toContain(' warning=work-directory-not-removed,plaintext-dump-not-removed issue=opened error=pg_dump failed')
     expect(r.errs).toContain('backup: an issue was opened')
     expect(visible(r)).not.toContain('secret-place')
   })
@@ -2163,7 +2272,7 @@ describe('a cleanup that fails', () => {
     expect(r.exitCode).toBe(0)
     expect(r.removed).toBe(4)
     expect(r.warning).toBe('1-old-backups-not-removed')
-    expect(r.files).toEqual(['backup.log', 'building-qr-20260901T0000Z.dump', FINAL])
+    expect(r.files).toEqual(['backup.log', 'building-qr-20260901T0000Z.dump.gpg', FINAL])
     expect(r.log).toContain(' removed=4 warning=1-old-backups-not-removed')
   })
 
@@ -2204,10 +2313,13 @@ describe('the command line entry', () => {
     return { out, errs, deps: { out: (l) => out.push(l), err: (l) => errs.push(l) } }
   }
 
+  // the two options that every run needs
+  const encArgs = () => ['--encrypt-to', keyFile, '--encrypt-fingerprint', FPR]
+
   it('returns the exit code of the run', async () => {
     const io = lines()
-    expect(await main(['--out', dir], { ...io.deps, run: async (options) => ({ exitCode: options.keep === 30 ? 0 : 9 }) })).toBe(0)
-    expect(await main(['--out', dir, '--keep', '2'], { ...io.deps, run: async () => ({ exitCode: 1 }) })).toBe(1)
+    expect(await main(['--out', dir, ...encArgs()], { ...io.deps, run: async (options) => ({ exitCode: options.keep === 30 ? 0 : 9 }) })).toBe(0)
+    expect(await main(['--out', dir, ...encArgs(), '--keep', '2'], { ...io.deps, run: async () => ({ exitCode: 1 }) })).toBe(1)
   })
 
   it('an unexpected error prints one cleaned line with its code or name, never its message or a path, and returns 1', async () => {
@@ -2221,7 +2333,7 @@ describe('the command line entry', () => {
     ]
     for (const [thrown, label] of cases) {
       const io = lines()
-      const code = await main(['--out', dir], {
+      const code = await main(['--out', dir, ...encArgs()], {
         ...io.deps,
         run: async () => {
           throw thrown
@@ -2235,7 +2347,7 @@ describe('the command line entry', () => {
   })
 
   it('still returns 1 when even the message cannot be printed', async () => {
-    const code = await main(['--out', dir], {
+    const code = await main(['--out', dir, ...encArgs()], {
       out: () => {},
       err: () => {
         throw new Error('EPIPE')
@@ -2247,9 +2359,24 @@ describe('the command line entry', () => {
     expect(code).toBe(1)
   })
 
+  it('a command line without the key or its fingerprint is refused, and the backup is never started (nothing is asked for)', async () => {
+    for (const argv of [['--out', dir], ['--out', dir, '--encrypt-to', keyFile], ['--out', dir, '--encrypt-fingerprint', FPR]]) {
+      const io = lines()
+      let started = false
+      const run = async () => {
+        started = true
+        return { exitCode: 0 }
+      }
+      expect(await main(argv, { ...io.deps, run })).toBe(1)
+      expect(started).toBe(false)
+      expect(io.errs[0]).toMatch(/^backup: --encrypt-(to|fingerprint)/)
+      expect(io.errs[1]).toMatch(/^Usage: /)
+    }
+  })
+
   it('a wrong command line prints the reason and the usage and returns 1, and --help prints the usage and returns 0', async () => {
     const bad = lines()
-    expect(await main(['--keep', '0', '--out', dir], { ...bad.deps, run: async () => ({ exitCode: 0 }) })).toBe(1)
+    expect(await main(['--keep', '0', '--out', dir, ...encArgs()], { ...bad.deps, run: async () => ({ exitCode: 0 }) })).toBe(1)
     expect(bad.errs[0]).toMatch(/^backup: --keep must be/)
     expect(bad.errs[1]).toMatch(/^Usage: /)
     const help = lines()
@@ -2310,7 +2437,7 @@ describe('owner-only files on Windows', () => {
 
   it('closes the work directory in the output folder, then the empty temporary file in it, with icacls before pg_dump writes anything: SID, no inheritance', async () => {
     const seen = {}
-    const ls = (target) => (fs.existsSync(target) ? fs.readdirSync(target) : null)
+    const ls = (target) => (fs.existsSync(target) ? fs.readdirSync(target).sort() : null)
     const lsOut = () => ls(dir)?.filter((name) => !name.startsWith('.bqr-work-')) ?? null // what is in the output folder besides the work directory
     const runner = makeRunner({
       icacls: (call) => {
@@ -2340,17 +2467,17 @@ describe('owner-only files on Windows', () => {
     }
     expect(seen).toEqual({
       atWorkDir: { out: [], inside: [] }, // nothing is in the directory when its list is set, and nothing is in the output folder
-      atFile: { inside: [PARTIAL], size: 0, final: false },
-      beforeDump: { out: [], inside: [PARTIAL] },
+      atFile: { inside: [PARTIAL, KEY_COPY], size: 0, final: false }, // (the copy of the key file was checked before)
+      beforeDump: { out: [], inside: [PARTIAL, KEY_COPY] },
     })
     // nothing in the command lines names a folder, a user or the connection
     const commandLines = JSON.stringify([dirCall.args, fileCall.args])
     for (const text of [dir, tmp, os.homedir(), USER, HOST, PASSWORD]) expect(commandLines).not.toContain(text)
   })
 
-  it('goes in this order: whoami, the work directory, icacls on it, the empty file, icacls, pg_dump, the list, the full read, the rename, the new log', async () => {
+  it('goes in this order: whoami, the work directory, icacls on it, the key check, the empty file, icacls, pg_dump, the list, the full read, the encryption, the rename, the new log', async () => {
     const events = []
-    const ls = (target) => (target && fs.existsSync(target) ? fs.readdirSync(target).join(' ') : '-')
+    const ls = (target) => (target && fs.existsSync(target) ? fs.readdirSync(target).sort().join(' ') : '-')
     const outList = () => (fs.existsSync(dir) ? fs.readdirSync(dir).filter((name) => !name.startsWith('.bqr-work-')).join(' ') || 'empty' : '-')
     const where = () => `out: ${outList()}, work: ${ls(workDirsNow().map((name) => path.join(dir, name))[0])}`
     const named = (name) => name.replace(/^\.bqr-work-.*$/, '<work>')
@@ -2366,6 +2493,10 @@ describe('owner-only files on Windows', () => {
       icacls: (call) => {
         events.push(`icacls ${named(call.args[0])}${call.args.length === 1 ? ' read back' : ''} (${where()})`)
         return defaults.icacls(call)
+      },
+      gpg: (call) => {
+        events.push(`gpg ${isShowKeys(call) ? 'key check' : 'encrypt'} (${where()})`)
+        return defaults.gpg(call)
       },
       pg_dump: (call) => {
         events.push('pg_dump')
@@ -2384,11 +2515,13 @@ describe('owner-only files on Windows', () => {
       'folders checked again (out: empty, work: -)', // and again right after the output folder is made, on the real chain: it is new
       'icacls <work> (out: empty, work: )', // the directory exists and is empty when its list is set, and the output folder is empty
       'icacls <work> read back (out: empty, work: )', // and its list is read back before anything is written into it
-      `icacls ${PARTIAL} (out: empty, work: ${PARTIAL})`,
+      `gpg key check (out: empty, work: ${KEY_COPY})`, // the copy of the key file is checked before anything is asked for
+      `icacls ${PARTIAL} (out: empty, work: ${PARTIAL} ${KEY_COPY})`,
       'pg_dump',
       'list',
       'full read',
       'marker',
+      `gpg encrypt (out: empty, work: ${PARTIAL} ${KEY_COPY})`, // after every check, and still nothing in the output folder
       // the file was renamed into the output folder and the work directory is removed: the log is made last
       `icacls backup.log (out: backup.log ${FINAL}, work: -)`,
     ])
@@ -2433,7 +2566,8 @@ describe('owner-only files on Windows', () => {
     expect(r.files).toEqual(['backup.log', ...oldBackups]) // the empty temporary file is deleted, the old backups are all still there
     expect(r.errs).toContain(`backup failed: ${r.message}`)
     for (const text of [dir, tmp, os.homedir()]) expect(visible(r)).not.toContain(text)
-    expect(r.log).toBe(`03/10/2026 10:15 failed host=${MASKED_HOST} error=${r.message}\n`)
+    // (the work directory is made before the connection string is asked for, so the host is not known yet)
+    expect(r.log).toBe(`03/10/2026 10:15 failed host=- error=${r.message}\n`)
   })
 
   it('fails closed when icacls is missing or does not finish', async () => {
@@ -2474,7 +2608,7 @@ describe('owner-only files on Windows', () => {
     const r = await go()
     expect(r.runner.of('whoami')).toEqual([])
     expect(r.runner.of('icacls')).toEqual([])
-    expect(r.runner.calls.map((c) => c.tool)).toEqual(['pg_dump', 'pg_restore', 'pg_restore', 'pg_restore'])
+    expect(r.runner.calls.map((c) => c.tool)).toEqual(['gpg', 'pg_dump', 'pg_restore', 'pg_restore', 'pg_restore', 'gpg'])
   })
 })
 
@@ -2546,7 +2680,10 @@ describe('one work directory and one temporary file per run', () => {
     }
     const r = await go({ deps: { fs: files } })
     expect(r.exitCode).toBe(0)
-    expect(made).toEqual([{ name: PARTIAL, data: '', options: { flag: 'wx', mode: 0o600 } }])
+    expect(made).toEqual([
+      { name: KEY_COPY, data: Buffer.from(KEY_TEXT), options: { flag: 'wx', mode: 0o600 } }, // the copy of the key file, made the same way
+      { name: PARTIAL, data: '', options: { flag: 'wx', mode: 0o600 } },
+    ])
   })
 
   it('never reuses a temporary file that is there already, even inside a work directory that it made', async () => {
@@ -2591,7 +2728,7 @@ describe('one work directory and one temporary file per run', () => {
     expect(new Set(names).size).toBe(2) // each run dumped in its own directory
     expect(fs.readdirSync(dir).sort()).toEqual(['backup.log', FINAL]) // one final file is left
     expect(workDirsNow()).toEqual([]) // and both work directories are gone
-    expect(fs.readFileSync(path.join(dir, FINAL), 'utf8')).toBe('PGDMP fake dump')
+    expect(fs.readFileSync(path.join(dir, FINAL), 'utf8')).toBe(ENCRYPTED_FAKE)
   })
 })
 
@@ -2732,6 +2869,7 @@ describe('the private work directory', () => {
     expect(events).toEqual([
       'mkdir folder {"recursive":true,"mode":448}',
       'mkdtemp in the output folder .bqr-work-',
+      'write .bqr-work-XXXXXX/recipient.key {"flag":"wx","mode":384}',
       'write .bqr-work-XXXXXX/partial.dump {"flag":"wx","mode":384}',
     ])
     expect(outFolderDuringDump).toEqual([work]) // only the work directory, and later the finished file, are in the output folder
@@ -2740,7 +2878,7 @@ describe('the private work directory', () => {
   it('is where pg_dump, the list and the full read run, and the finished file is moved out of it into the output folder', async () => {
     const r = await go()
     const cwds = r.runner.calls.map((c) => c.options.cwd)
-    expect(cwds).toHaveLength(4) // pg_dump, the list, the full read and the marker
+    expect(cwds).toHaveLength(6) // the key check, pg_dump, the list, the full read, the marker and the encryption
     expect(new Set(cwds).size).toBe(1)
     expectWorkCwd(cwds[0])
     expect(fs.existsSync(path.join(dir, FINAL))).toBe(true)
@@ -2788,17 +2926,18 @@ describe('the private work directory', () => {
     const r = await go({ deps: { fs: files } })
     expect(r.exitCode).toBe(0)
     expect(r.warning).toBe('work-directory-not-removed')
-    expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0 warning=work-directory-not-removed\n`)
+    expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0 warning=work-directory-not-removed\n`)
     expect(r.errs).toEqual(['backup: warning, work-directory-not-removed'])
     expect(r.files.filter((name) => !name.startsWith('.bqr-work-'))).toEqual(['backup.log', FINAL])
     const [left] = workDirsNow()
-    expect(fs.readdirSync(path.join(dir, left))).toEqual([]) // the dump was moved out, so nothing is left in it
+    // the encrypted dump was moved out and the plaintext deleted on its own: only the copy of the public key is left in it
+    expect(fs.readdirSync(path.join(dir, left))).toEqual([KEY_COPY])
     expect(visible(r)).not.toContain(tmp)
     // and it is a directory, so the retention of the next run never sees it as a backup
     const next = await go({ options: { keep: 1 }, deps: { now: () => new Date('2026-10-04T07:15:00Z') } })
     expect(next.exitCode).toBe(0)
     expect(next.files).toContain(left)
-    expect(next.files).toContain('building-qr-20261004T0715Z.dump')
+    expect(next.files).toContain('building-qr-20261004T0715Z.dump.gpg')
   })
 
   it('on Linux must be owner-only: a file system that ignores modes stops the run before anything is dumped', async () => {
@@ -3214,7 +3353,7 @@ describe('a backup.log that is a link or has another name', () => {
     fs.writeFileSync(logPath(), 'an older line\n')
     const first = await go()
     expect(first.exitCode).toBe(0)
-    expect(first.log.split('\n').filter(Boolean)).toEqual(['an older line', `03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0`])
+    expect(first.log.split('\n').filter(Boolean)).toEqual(['an older line', `03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0`])
     fs.rmSync(dir, { recursive: true, force: true })
     const second = await go()
     expect(second.exitCode).toBe(0)
@@ -4163,8 +4302,19 @@ describe('a folder that another account can change', () => {
       layout()
       if (typeof process.getuid === 'function') {
         // the real uid with files that really belong to this account: the whole chain of the real folder of the test passes
+        // (the key file, its fingerprint and the gpg of the stub runner, as go() gives every run: a dump is never kept without them)
         const real = await runBackup(
-          { out: dir, keep: 30, neonProject: null, neonBranch: 'main', reportIssue: null, pgBin: null },
+          {
+            out: dir,
+            keep: 30,
+            neonProject: null,
+            neonBranch: 'main',
+            reportIssue: null,
+            pgBin: null,
+            encryptTo: keyFile,
+            encryptFingerprint: FPR,
+            gpg: null,
+          },
           { env: { BACKUP_DATABASE_URL: URL_FAKE, PATH: '/usr/bin' }, platform: 'linux', exists: () => false, runner: makeRunner(), now: () => NOW, out: () => {}, err: () => {} },
         )
         expect(real.exitCode).toBe(0)
@@ -4580,7 +4730,7 @@ describe('work folders that a crashed run left behind', () => {
     const others = [
       'bqr-work-AbC123', '.bqr-work-AbC12', '.bqr-work-AbC1234', '.bqr-work-AbC12_', '.bqr-work-AbC12-', '.bqr-work-AbC12 ', ' .bqr-work-AbC123',
       '.bqr-work-AbC123/', '.bqr-work-AbC123.old', 'x.bqr-work-AbC123', '..bqr-work-AbC123', '.BQR-WORK-AbC123', '.bqr-work-', '.bqr-work-ab-123',
-      '.bqr-work-AbC12\u00E9', 'building-qr-20261003T0715Z.dump', 'backup.log', '',
+      '.bqr-work-AbC12\u00E9', 'building-qr-20261003T0715Z.dump.gpg', 'backup.log', '',
     ]
     for (const name of others) expect(WORK_NAME.test(name), JSON.stringify(name)).toBe(false)
     expect(STALE_WORK_MS).toBe(24 * HOUR)
@@ -4621,8 +4771,8 @@ describe('work folders that a crashed run left behind', () => {
     // a FILE with the exact name of a work directory is not a directory
     fs.writeFileSync(path.join(dir, '.bqr-work-FILE01'), 'a file, not a folder')
     // a directory with the name of a dump
-    fs.mkdirSync(path.join(dir, 'building-qr-20260801T0000Z.dump'))
-    for (const name of [...oldBackups, 'backup.log', '.bqr-work-FILE01', 'building-qr-20260801T0000Z.dump']) fs.utimesSync(path.join(dir, name), longAgo, longAgo)
+    fs.mkdirSync(path.join(dir, 'building-qr-20260801T0000Z.dump.gpg'))
+    for (const name of [...oldBackups, 'backup.log', '.bqr-work-FILE01', 'building-qr-20260801T0000Z.dump.gpg']) fs.utimesSync(path.join(dir, name), longAgo, longAgo)
     const before = namesInDir()
     const result = removeStaleWorkFolders(dir, NOW, fs)
     expect(result).toEqual({ removed: 0, failed: 0, checked: true })
@@ -4724,11 +4874,11 @@ describe('work folders that a crashed run left behind', () => {
       expect(r.exitCode).toBe(0)
       expect(atMkdtemp).toEqual(['.bqr-work-YNG001']) // the old ones were gone before this run made its own
       expect(atDump).toEqual(['.bqr-work-YNG001', path.basename(runner.of('pg_dump')[0].options.cwd)].sort())
-      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0 stale-work-folders-removed=2\n`)
+      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0 stale-work-folders-removed=2\n`)
       expect(r.files).toEqual(['.bqr-work-YNG001', 'backup.log', FINAL]) // the young one is another run's: left alone
       expect(r.log).not.toContain(tmp)
       expect(r.log).not.toContain('bqr-work-OLD')
-      expect(r.out).toEqual([`backup ok: ${FINAL}, 15 B, removed 0 old files`])
+      expect(r.out).toEqual([`backup ok: ${FINAL}, 19 B, removed 0 old files`])
       expect(r.errs).toEqual([])
     })
 
@@ -4736,7 +4886,7 @@ describe('work folders that a crashed run left behind', () => {
       seed([])
       workFolder('.bqr-work-YNG001', 2)
       const r = await go()
-      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0\n`)
+      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0\n`)
       expect(r.log).not.toContain('stale')
     })
 
@@ -4764,7 +4914,7 @@ describe('work folders that a crashed run left behind', () => {
       const r = await go({ deps: { fs: files } })
       expect(r.exitCode).toBe(0)
       expect(r.warning).toBe('1-stale-work-folders-not-removed')
-      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0 stale-work-folders-removed=1 warning=1-stale-work-folders-not-removed\n`)
+      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0 stale-work-folders-removed=1 warning=1-stale-work-folders-not-removed\n`)
       expect(r.errs).toEqual(['backup: warning, 1-stale-work-folders-not-removed'])
       expect(visible(r)).not.toContain(tmp)
       expect(r.files).toEqual(['.bqr-work-STUCK1', 'backup.log', FINAL])
@@ -4805,30 +4955,30 @@ describe('work folders that a crashed run left behind', () => {
 
   describe('and retention', () => {
     it('never counts, rotates or deletes a work folder, finished or not, young or old: only files with the exact name of a backup', () => {
-      seed(['building-qr-20260901T0000Z.dump', 'building-qr-20260902T0000Z.dump', 'building-qr-20260903T0000Z.dump'])
+      seed(['building-qr-20260901T0000Z.dump.gpg', 'building-qr-20260902T0000Z.dump.gpg', 'building-qr-20260903T0000Z.dump.gpg'])
       // a work folder that holds a finished dump under a dump name, one that is empty, one with a half dump, a file and a dump-named directory
       const finished = path.join(dir, '.bqr-work-DONE01')
       fs.mkdirSync(finished)
-      fs.writeFileSync(path.join(finished, 'building-qr-20260701T0000Z.dump'), 'finished, still inside')
+      fs.writeFileSync(path.join(finished, 'building-qr-20260701T0000Z.dump.gpg'), 'finished, still inside')
       fs.writeFileSync(path.join(finished, PARTIAL), 'x')
       fs.mkdirSync(path.join(dir, '.bqr-work-EMPTY1'))
       workFolder('.bqr-work-HALF01', 1000)
       fs.writeFileSync(path.join(dir, '.bqr-work-FILE01'), 'a file')
-      fs.mkdirSync(path.join(dir, 'building-qr-20260801T0000Z.dump'))
+      fs.mkdirSync(path.join(dir, 'building-qr-20260801T0000Z.dump.gpg'))
       const before = fs.readdirSync(dir).sort()
       const result = rotate(dir, 1, NOW, fs)
-      expect(result).toEqual({ removed: ['building-qr-20260902T0000Z.dump', 'building-qr-20260901T0000Z.dump'], failed: 0, future: 0 })
+      expect(result).toEqual({ removed: ['building-qr-20260902T0000Z.dump.gpg', 'building-qr-20260901T0000Z.dump.gpg'], failed: 0, future: 0 })
       const after = fs.readdirSync(dir).sort()
       expect(after).toEqual(before.filter((name) => !result.removed.includes(name)))
-      expect(fs.readFileSync(path.join(finished, 'building-qr-20260701T0000Z.dump'), 'utf8')).toBe('finished, still inside')
-      expect(fs.existsSync(path.join(dir, 'building-qr-20260801T0000Z.dump'))).toBe(true) // a directory with a dump name
+      expect(fs.readFileSync(path.join(finished, 'building-qr-20260701T0000Z.dump.gpg'), 'utf8')).toBe('finished, still inside')
+      expect(fs.existsSync(path.join(dir, 'building-qr-20260801T0000Z.dump.gpg'))).toBe(true) // a directory with a dump name
     })
 
     it('in a run with --keep 1: the old backups go, the young work folders of other runs stay with what is in them, and removed= counts only backups', async () => {
       seed(oldBackups)
       const finished = path.join(dir, '.bqr-work-DONE01')
       fs.mkdirSync(finished)
-      fs.writeFileSync(path.join(finished, 'building-qr-20260701T0000Z.dump'), 'finished, still inside')
+      fs.writeFileSync(path.join(finished, 'building-qr-20260701T0000Z.dump.gpg'), 'finished, still inside')
       fs.mkdirSync(path.join(dir, '.bqr-work-EMPTY1'))
       const half = workFolder('.bqr-work-HALF01', 3)
       fs.utimesSync(finished, new Date(NOW.getTime() - HOUR), new Date(NOW.getTime() - HOUR))
@@ -4838,9 +4988,9 @@ describe('work folders that a crashed run left behind', () => {
       expect(r.removed).toBe(5)
       expect(r.files.filter((name) => BACKUP_NAME.test(name))).toEqual([FINAL])
       expect(workDirsNow().sort()).toEqual(['.bqr-work-DONE01', '.bqr-work-EMPTY1', '.bqr-work-HALF01'])
-      expect(fs.readFileSync(path.join(finished, 'building-qr-20260701T0000Z.dump'), 'utf8')).toBe('finished, still inside')
+      expect(fs.readFileSync(path.join(finished, 'building-qr-20260701T0000Z.dump.gpg'), 'utf8')).toBe('finished, still inside')
       expect(fs.readFileSync(path.join(half, PARTIAL), 'utf8')).toBe('a half dump')
-      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=5\n`)
+      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=5\n`)
     })
 
     it('does not delete an old work folder by retention either: only the clean-up of stale folders does, and it says so', async () => {
@@ -4850,7 +5000,7 @@ describe('work folders that a crashed run left behind', () => {
       expect(r.exitCode).toBe(0)
       expect(r.removed).toBe(5) // five backups, not six: the work folder is not one
       expect(fs.existsSync(half)).toBe(false)
-      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=5 stale-work-folders-removed=1\n`)
+      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=5 stale-work-folders-removed=1\n`)
     })
   })
 })
@@ -4929,11 +5079,418 @@ describe('a system that is not Windows or Linux', () => {
 
 // ---- the heartbeat ---------------------------------------------------------------------------------------------------------------------------
 
+// ---- the encryption --------------------------------------------------------------------------------------------------------------------
+
+describe('the encryption', () => {
+  /** A runner whose gpg answers the key check with `shown` (what --show-keys prints) and encrypts as the stub does. */
+  const keyRunner = (shown, extra = {}) =>
+    makeRunner({ gpg: (call) => (isShowKeys(call) ? { status: 0, stdout: shown, stderr: '' } : defaults.gpg(call)), ...extra })
+  const neonOptions = { neonProject: 'square-term-1' }
+  const neonEnv = { BACKUP_DATABASE_URL: '' }
+
+  describe('the gpg program', () => {
+    it('is --gpg, else on Windows the gpg of Git for Windows when it is there, else the bare name (PATH)', () => {
+      expect(WINDOWS_GPG).toBe('C:\\Program Files\\Git\\usr\\bin\\gpg.exe')
+      expect(resolveGpg({ option: '/opt/gnupg/bin/gpg', platform: 'win32', exists: () => true })).toBe('/opt/gnupg/bin/gpg')
+      expect(resolveGpg({ platform: 'win32', exists: (p) => p === WINDOWS_GPG })).toBe(WINDOWS_GPG)
+      expect(resolveGpg({ platform: 'win32', exists: () => false })).toBe('gpg.exe')
+      expect(resolveGpg({ platform: 'linux', exists: () => true })).toBe('gpg')
+    })
+
+    it('always runs in a home of its own (the work directory), with no option file, no question and no agent started', () => {
+      expect(GPG_BASE_ARGS).toEqual(['--homedir', '.', '--batch', '--no-tty', '--no-options', '--no-autostart', '--no-permission-warning'])
+    })
+
+    it('writes a Windows path the way the gpg of Git for Windows prints it, so that the scrubber can hide it', () => {
+      expect(msysPath('C:\\Users\\Some Name\\backups')).toBe('/c/Users/Some Name/backups')
+      expect(msysPath('D:/data')).toBe('/d/data')
+      expect(msysPath('/home/someone')).toBeNull()
+      expect(msysPath(undefined)).toBeNull()
+    })
+  })
+
+  describe('reading the key file', () => {
+    it('finds the fingerprint of each primary key, not of a subkey, and says when a private key is there', () => {
+      expect(parseShownKeys(shownKeys())).toEqual({ primaries: [FPR], secret: false })
+      expect(parseShownKeys(shownKeys([FPR, OTHER_FPR]))).toEqual({ primaries: [FPR, OTHER_FPR], secret: false })
+      expect(parseShownKeys(shownKeys([FPR], { secret: true }))).toEqual({ primaries: [FPR], secret: true })
+      expect(parseShownKeys('')).toEqual({ primaries: [], secret: false })
+      expect(parseShownKeys(shownKeys().replaceAll('\n', '\r\n')).primaries).toEqual([FPR])
+    })
+
+    it('accepts exactly one public key with the fingerprint that was given, and nothing else', () => {
+      expect(keyProblem(shownKeys(), FPR)).toBeNull()
+      expect(keyProblem(shownKeys(), FPR.toLowerCase())).toBeNull()
+      expect(keyProblem(shownKeys([OTHER_FPR]), FPR)).toBe(KEY_MISMATCH_ERROR)
+      // the fingerprint of the encryption subkey is not the fingerprint of the key
+      expect(keyProblem(shownKeys(), 'FDA498B36306A2DF6CC1249B5E04B03393750919')).toBe(KEY_MISMATCH_ERROR)
+      expect(keyProblem(shownKeys([FPR, OTHER_FPR]), FPR)).toBe(KEY_COUNT_ERROR)
+      expect(keyProblem(shownKeys([OTHER_FPR, FPR]), FPR)).toBe(KEY_COUNT_ERROR)
+      expect(keyProblem('', FPR)).toBe(KEY_COUNT_ERROR)
+      expect(keyProblem(shownKeys([FPR], { secret: true }), FPR)).toBe(KEY_SECRET_ERROR)
+      for (const message of [KEY_MISMATCH_ERROR, KEY_COUNT_ERROR, KEY_SECRET_ERROR]) expect(message).toMatch(/nothing was dumped/)
+    })
+
+    it('knows a fingerprint: 40 hex characters in upper case', () => {
+      expect(FINGERPRINT.test(FPR)).toBe(true)
+      for (const bad of [FPR.toLowerCase(), FPR.slice(1), `${FPR}0`, FPR.slice(-16), '']) expect(FINGERPRINT.test(bad), bad).toBe(false)
+    })
+  })
+
+  describe('in a run', () => {
+    it('checks the key with gpg --show-keys on a copy in the work directory, before the connection string is asked for', async () => {
+      const r = await go({ options: neonOptions, deps: { env: neonEnv } })
+      expect(r.exitCode).toBe(0)
+      expect(r.runner.calls.map((c) => c.tool)).toEqual(['gpg', 'neon', 'pg_dump', 'pg_restore', 'pg_restore', 'pg_restore', 'gpg'])
+      const [check] = r.runner.of('gpg')
+      expect(check.command).toBe('gpg')
+      expect(check.args).toEqual([...GPG_BASE_ARGS, '--with-colons', '--show-keys', KEY_COPY_NAME])
+      expectWorkCwd(check.options.cwd)
+      expect(KEY_COPY_NAME).toBe(KEY_COPY)
+    })
+
+    it('encrypts with an argument array, no shell, to the same copy of the key, in the work directory, with relative names', async () => {
+      const r = await go()
+      const [check, encrypt] = r.runner.of('gpg')
+      expect(Array.isArray(encrypt.args)).toBe(true)
+      expect(encrypt.args).toEqual([
+        ...GPG_BASE_ARGS, '--compress-algo', 'none', '--recipient-file', KEY_COPY, '--output', ENCRYPTED, '--encrypt', PARTIAL,
+      ])
+      expect(ENCRYPTED_PARTIAL_NAME).toBe(ENCRYPTED)
+      expect(encrypt.options.cwd).toBe(check.options.cwd)
+      expectWorkCwd(encrypt.options.cwd)
+      // no secret and no folder on the command line, and no database variable in its environment
+      for (const call of [check, encrypt]) {
+        for (const text of [PASSWORD, ENCODED, USER, HOST, dir, tmp, keyDir]) expect(JSON.stringify([call.command, call.args])).not.toContain(text)
+        expect(Object.keys(call.options.env).filter((key) => /^PG[A-Z]/.test(key) || key === 'BACKUP_DATABASE_URL')).toEqual([])
+      }
+    })
+
+    it('uses the gpg of --gpg, and on Windows the gpg of Git for Windows when it is there', async () => {
+      const own = await go({ options: { gpg: '/opt/gnupg/bin/gpg' } })
+      expect(own.runner.of('gpg').map((c) => c.command)).toEqual(['/opt/gnupg/bin/gpg', '/opt/gnupg/bin/gpg'])
+      fs.rmSync(dir, { recursive: true, force: true })
+      const win = await go({ deps: { platform: 'win32', exists: (p) => p === WINDOWS_GPG, env: { SystemRoot: 'C:\\Windows' } } })
+      expect(win.exitCode).toBe(0)
+      expect(win.runner.of('gpg').map((c) => c.command)).toEqual([WINDOWS_GPG, WINDOWS_GPG])
+    })
+
+    it('keeps only the ciphertext, under the encrypted name, and deletes the plaintext before the ciphertext is moved', async () => {
+      let atRename
+      const files = {
+        ...fs,
+        statSync: privateStat,
+        renameSync: (from, to) => {
+          atRename = { inside: fs.readdirSync(path.dirname(String(from))).sort(), moved: path.basename(String(from)), to: path.basename(String(to)) }
+          return fs.renameSync(from, to)
+        },
+      }
+      const r = await go({ deps: { fs: files } })
+      expect(r.exitCode).toBe(0)
+      expect(atRename).toEqual({ inside: [ENCRYPTED, KEY_COPY], moved: ENCRYPTED, to: FINAL }) // the plaintext is gone already
+      expect(FINAL.endsWith('.dump.gpg')).toBe(true)
+      expect(BACKUP_NAME.test(FINAL)).toBe(true)
+      expect(r.files).toEqual(['backup.log', FINAL])
+      expect(fs.readFileSync(path.join(dir, FINAL), 'utf8')).toBe(ENCRYPTED_FAKE)
+      expect(workDirsNow()).toEqual([])
+    })
+
+    it('reads the key file once: the copy that gpg checked is the one it encrypts to, even if the file is swapped in between', async () => {
+      let copyAtEncrypt
+      const r = await go({
+        runner: makeRunner({
+          gpg: (call) => {
+            if (isShowKeys(call)) {
+              fs.writeFileSync(keyFile, 'a key of somebody else') // the file is swapped right after the check
+              return defaults.gpg(call)
+            }
+            copyAtEncrypt = fs.readFileSync(path.join(call.options.cwd, KEY_COPY), 'utf8')
+            return defaults.gpg(call)
+          },
+        }),
+      })
+      expect(r.exitCode).toBe(0)
+      expect(copyAtEncrypt).toBe(KEY_TEXT)
+    })
+
+    it('refuses a key file whose key is not the one of the fingerprint: before the connection string is asked for, nothing kept or rotated', async () => {
+      seed(oldBackups)
+      const r = await go({ options: { ...neonOptions, keep: 1 }, deps: { env: neonEnv }, runner: keyRunner(shownKeys([OTHER_FPR])) })
+      expect(r.exitCode).toBe(1)
+      expect(r.message).toBe(KEY_MISMATCH_ERROR)
+      expect(r.runner.calls.map((c) => c.tool)).toEqual(['gpg']) // not the Neon CLI, not pg_dump
+      expect(r.files).toEqual(['backup.log', ...oldBackups])
+      expect(workDirsNow()).toEqual([])
+      expect(r.log).toBe(`03/10/2026 10:15 failed host=- error=${KEY_MISMATCH_ERROR}\n`)
+      for (const text of [FPR, OTHER_FPR, keyDir]) expect(visible(r)).not.toContain(text)
+    })
+
+    it('refuses a key file with a private key, with two keys, with none, or one that gpg cannot read: nothing is asked for', async () => {
+      const cases = [
+        [keyRunner(shownKeys([FPR], { secret: true })), KEY_SECRET_ERROR],
+        [keyRunner(shownKeys([FPR, OTHER_FPR])), KEY_COUNT_ERROR],
+        [keyRunner(''), KEY_COUNT_ERROR],
+        [makeRunner({ gpg: () => ({ status: 2, stdout: '', stderr: 'gpg: no valid OpenPGP data found.\n' }) }), 'gpg could not read the --encrypt-to file as a key (exit code 2): gpg: no valid OpenPGP data found.'],
+        [makeRunner({ gpg: () => ({ status: null, stdout: '', stderr: '', problem: 'ENOENT' }) }), 'gpg was not found: install Git for Windows (or GnuPG), or pass --gpg <the gpg program>'],
+        [makeRunner({ gpg: () => ({ status: null, stdout: '', stderr: '', problem: 'TIMEOUT' }) }), 'gpg did not finish in time'],
+      ]
+      for (const [runner, message] of cases) {
+        fs.rmSync(dir, { recursive: true, force: true })
+        const r = await go({ options: neonOptions, deps: { env: neonEnv }, runner })
+        expect(r.exitCode, message).toBe(1)
+        expect(r.message).toBe(message)
+        expect(r.runner.of('neon'), message).toEqual([])
+        expect(r.runner.of('pg_dump'), message).toEqual([])
+        expect(workDirsNow(), message).toEqual([])
+      }
+    })
+
+    it('refuses a key file that is missing or larger than 1 MB, before gpg runs, and names no path', async () => {
+      for (const make of [() => fs.rmSync(keyFile), () => fs.writeFileSync(keyFile, Buffer.alloc(1024 * 1024 + 1, 65))]) {
+        fs.rmSync(dir, { recursive: true, force: true })
+        fs.writeFileSync(keyFile, KEY_TEXT)
+        make()
+        const r = await go()
+        expect(r.exitCode).toBe(1)
+        expect(r.message).toBe(KEY_FILE_ERROR)
+        expect(r.runner.calls).toEqual([])
+        expect(workDirsNow()).toEqual([])
+        expect(visible(r)).not.toContain(keyDir)
+      }
+    })
+
+    it('never runs without a key: a caller that did not go through the command line is refused before anything is made', async () => {
+      for (const options of [{ encryptTo: null }, { encryptTo: '' }, { encryptFingerprint: null }, { encryptFingerprint: 'abc' }]) {
+        const r = await go({ options })
+        expect(r.exitCode, JSON.stringify(options)).toBe(1)
+        expect(r.message).toBe(ENCRYPTION_REQUIRED_ERROR)
+        expect(r.runner.calls).toEqual([])
+        expect(fs.existsSync(dir)).toBe(false) // nothing was made, not even the folder
+      }
+    })
+
+    it('fails when gpg fails, says the last line of gpg (cleaned), keeps nothing, rotates nothing, and leaves no plaintext', async () => {
+      seed(oldBackups)
+      const stderr = [`gpg: keybox '${dir}/.bqr-work-AbCdEf/pubring.kbx' created`, `gpg: ${PARTIAL}: encryption failed: unusable public key ${dir}`].join('\n')
+      const r = await go({ options: { keep: 1 }, runner: makeRunner({ gpg: (call) => (isShowKeys(call) ? defaults.gpg(call) : { status: 2, stdout: '', stderr }) }) })
+      expect(r.exitCode).toBe(1)
+      expect(r.message).toBe(`gpg could not encrypt the dump (exit code 2): gpg: ${PARTIAL}: encryption failed: unusable public key <out dir>`)
+      expect(r.files).toEqual(['backup.log', ...oldBackups])
+      expect(workDirsNow()).toEqual([]) // the work directory, with the plaintext, is gone
+      expect(visible(r)).not.toContain(tmp)
+    })
+
+    it('a gpg that is killed midway leaves no plaintext anywhere and no part of the ciphertext in the output folder', async () => {
+      seed(oldBackups)
+      let work
+      const runner = makeRunner({
+        gpg: (call) => {
+          if (isShowKeys(call)) return defaults.gpg(call)
+          work = call.options.cwd
+          fs.writeFileSync(path.join(work, ENCRYPTED), 'GPG:PGD') // half of the ciphertext, then the process is gone
+          return { status: null, stdout: '', stderr: '', problem: 'SIGKILL' }
+        },
+      })
+      const r = await go({ options: { keep: 1 }, runner })
+      expect(r.exitCode).toBe(1)
+      expect(r.message).toBe('gpg could not be started (SIGKILL)')
+      expect(fs.existsSync(work)).toBe(false) // the work folder is gone, with the plaintext and the half ciphertext in it
+      expect(r.files).toEqual(['backup.log', ...oldBackups]) // no plaintext and no ciphertext in the output folder, nothing rotated
+      const timeout = await go({ runner: makeRunner({ gpg: (call) => (isShowKeys(call) ? defaults.gpg(call) : { status: null, stdout: '', stderr: '', problem: 'TIMEOUT' }) }) })
+      expect(timeout.message).toBe('gpg did not finish in time')
+      expect(workDirsNow()).toEqual([])
+    })
+
+    it('fails when gpg exits with 0 but its file is empty or missing: a backup that cannot be restored is not a backup', async () => {
+      const answers = [
+        (call) => {
+          fs.writeFileSync(path.join(call.options.cwd, ENCRYPTED), '')
+          return { status: 0, stdout: '', stderr: '' }
+        },
+        () => ({ status: 0, stdout: '', stderr: '' }),
+      ]
+      for (const answer of answers) {
+        fs.rmSync(dir, { recursive: true, force: true })
+        const r = await go({ runner: makeRunner({ gpg: (call) => (isShowKeys(call) ? defaults.gpg(call) : answer(call)) }) })
+        expect(r.exitCode).toBe(1)
+        expect(r.message).toBe('gpg exited with 0 but wrote no encrypted dump, so nothing was kept')
+        expect(r.files).toEqual(['backup.log'])
+      }
+    })
+
+    it('deletes the plaintext right after gpg, also when gpg failed, before the work directory goes', async () => {
+      const removed = []
+      const files = {
+        ...fs,
+        statSync: privateStat,
+        rmSync: (target, options) => {
+          removed.push(path.basename(String(target)).replace(/^\.bqr-work-.*$/, '<work>'))
+          return fs.rmSync(target, options)
+        },
+      }
+      const good = await go({ deps: { fs: files } })
+      expect(good.exitCode).toBe(0)
+      expect(removed).toEqual([PARTIAL, PARTIAL, '<work>']) // at once after gpg, then again (already gone) in the clean-up
+      removed.length = 0
+      fs.rmSync(dir, { recursive: true, force: true })
+      removed.length = 0
+      const bad = await go({ deps: { fs: files }, runner: makeRunner({ gpg: (call) => (isShowKeys(call) ? defaults.gpg(call) : { status: 2, stdout: '', stderr: '' }) }) })
+      expect(bad.exitCode).toBe(1)
+      expect(removed).toEqual([PARTIAL, PARTIAL, '<work>'])
+    })
+
+    it('a plaintext that cannot be deleted fails a run that had worked, so that the heartbeat and the issue make somebody look', async () => {
+      const files = {
+        ...fs,
+        statSync: privateStat,
+        rmSync: (target, options) => {
+          if (path.basename(String(target)) === PARTIAL || isWorkDir(target)) {
+            throw Object.assign(new Error(`EBUSY: resource busy or locked, unlink '${target}'`), { code: 'EBUSY' })
+          }
+          return fs.rmSync(target, options)
+        },
+      }
+      const r = await go({ deps: { fs: files }, options: { reportIssue: 'owner/repo' } })
+      expect(r.exitCode).toBe(1)
+      expect(r.ok).toBe(false)
+      expect(r.message).toBe(PLAINTEXT_LEFT_ERROR)
+      expect(r.issue).toBe('opened')
+      expect(r.log).toContain(` failed host=${MASKED_HOST} file=${FINAL} size=19 removed=0 warning=work-directory-not-removed issue=opened error=${PLAINTEXT_LEFT_ERROR}`)
+      expect(visible(r)).not.toContain(tmp)
+      // (the test removes what is left)
+    })
+  })
+
+  describe('retention', () => {
+    const plaintext = ['building-qr-20260801T0000Z.dump', 'building-qr-20260802T0000Z.dump', 'building-qr-20261003T0700Z.dump']
+
+    it('counts and deletes only encrypted dumps: a plaintext .dump of before is never counted, rotated or deleted', async () => {
+      seed([...plaintext, ...oldBackups])
+      const r = await go({ options: { keep: 2 } })
+      expect(r.exitCode).toBe(0)
+      expect(r.removed).toBe(4)
+      expect(r.files).toEqual(['backup.log', ...plaintext, 'building-qr-20260905T0000Z.dump.gpg', FINAL].sort())
+      for (const name of plaintext) expect(fs.readFileSync(path.join(dir, name), 'utf8')).toBe('old')
+      expect(backupTime(plaintext[0])).toBeNull()
+      expect(selectOld([...plaintext, FINAL], 1).old).toEqual([])
+    })
+
+    it('with only plaintext dumps in the folder, keeps all of them and the new encrypted one, with --keep 1', async () => {
+      seed(plaintext)
+      const r = await go({ options: { keep: 1 } })
+      expect(r.exitCode).toBe(0)
+      expect(r.removed).toBe(0)
+      expect(r.files).toEqual(['backup.log', ...plaintext, FINAL].sort())
+    })
+  })
+})
+
+// ---- a real round trip -------------------------------------------------------------------------------------------------------------
+
+describe('a real round trip with gpg (a test key pair made at run time, never committed)', () => {
+  // gpg is found the way the script finds it: on Windows the gpg of Git for Windows, elsewhere the one on PATH.
+  const GPG = resolveGpg({ platform: process.platform, exists: fs.existsSync })
+  const ext = process.platform === 'win32' ? '.exe' : ''
+  const GPGCONF = path.isAbsolute(GPG) ? path.join(path.dirname(GPG), `gpgconf${ext}`) : `gpgconf${ext}`
+  // The key home is a short folder in the temp folder, given RELATIVE to it: the gpg of Git for Windows does not take a Windows path
+  // (C:\...) on its command line, and the socket of its agent (which making and using a private key need) wants a short path.
+  const base = os.tmpdir()
+  let home
+  const keys = {}
+  const realGpg = (args) =>
+    runProcess(GPG, ['--homedir', home, '--batch', '--no-tty', '--no-options', '--no-permission-warning', ...args], {
+      cwd: base,
+      env: process.env,
+      timeoutMs: 60_000,
+    })
+  const inHome = (name) => path.join(base, home, name)
+
+  beforeAll(async () => {
+    home = path.basename(fs.mkdtempSync(path.join(base, 'bqr-gpg-')))
+    for (const who of ['owner', 'other']) {
+      const made = await realGpg(['--pinentry-mode', 'loopback', '--passphrase', '', '--quick-generate-key', `Backup Test ${who} <backup-test-${who}@example.invalid>`, 'default', 'default', 'never'])
+      expect(made.status, made.stderr).toBe(0)
+    }
+    const list = await realGpg(['--with-colons', '--list-keys'])
+    ;[keys.owner, keys.other] = parseShownKeys(list.stdout).primaries
+    for (const [name, args] of [
+      ['owner.asc', ['--armor', '--export', keys.owner]],
+      ['both.asc', ['--armor', '--export', keys.owner, keys.other]],
+      ['secret.asc', ['--pinentry-mode', 'loopback', '--passphrase', '', '--armor', '--export-secret-keys', keys.owner]],
+    ]) {
+      const exported = await realGpg(['--output', `${home}/${name}`, ...args])
+      expect(exported.status, exported.stderr).toBe(0)
+    }
+  })
+
+  afterAll(async () => {
+    if (!home) return
+    await runProcess(GPGCONF, ['--homedir', home, '--kill', 'all'], { cwd: base, env: process.env, timeoutMs: 60_000 })
+    fs.rmSync(path.join(base, home), { recursive: true, force: true })
+  })
+
+  /** A runner that runs the real gpg, and stubs the PostgreSQL tools: pg_dump writes `plaintext`. */
+  const realRunner = (plaintext) => {
+    const runner = makeRunner({
+      gpg: () => {
+        throw new Error('not used')
+      },
+      pg_dump: ({ args, options }) => {
+        fs.writeFileSync(path.join(options.cwd, args[args.indexOf('--file') + 1]), plaintext)
+        return { status: 0, stdout: '', stderr: '' }
+      },
+    })
+    const wrapped = (command, args, options) => (toolOf(command) === 'gpg' ? runProcess(command, args, options) : runner(command, args, options))
+    wrapped.of = runner.of
+    return wrapped
+  }
+  const realEnv = { PATH: process.env.PATH, SystemRoot: process.env.SystemRoot }
+
+  it('encrypts to the public key, and the private key gives the same bytes back', async () => {
+    const plaintext = crypto.randomBytes(256 * 1024)
+    // a GNUPGHOME of the owner, which the run must not touch (gpg runs with the work directory as its home)
+    const ownerHome = fs.mkdtempSync(path.join(tmp, 'owner-gnupg-'))
+    const r = await go({
+      options: { encryptTo: inHome('owner.asc'), encryptFingerprint: keys.owner, gpg: GPG },
+      runner: realRunner(plaintext),
+      deps: { env: { ...realEnv, GNUPGHOME: ownerHome } },
+    })
+    expect(r.exitCode, r.message).toBe(0)
+    expect(r.files).toEqual(['backup.log', FINAL])
+    expect(workDirsNow()).toEqual([])
+    expect(fs.readdirSync(ownerHome)).toEqual([])
+    const kept = fs.readFileSync(path.join(dir, FINAL))
+    expect(kept.length).toBeGreaterThan(0)
+    expect(kept.includes(plaintext.subarray(0, 64))).toBe(false) // ciphertext, not the dump
+    fs.copyFileSync(path.join(dir, FINAL), inHome('kept.gpg'))
+    const back = await realGpg(['--pinentry-mode', 'loopback', '--passphrase', '', '--output', `${home}/back.dump`, '--decrypt', `${home}/kept.gpg`])
+    expect(back.status, back.stderr).toBe(0)
+    expect(fs.readFileSync(inHome('back.dump')).equals(plaintext)).toBe(true)
+  })
+
+  it('refuses the real key file with another fingerprint, a file with two keys, a private key, and a file that is not a key', async () => {
+    const cases = [
+      [{ encryptTo: inHome('owner.asc'), encryptFingerprint: keys.other }, KEY_MISMATCH_ERROR],
+      [{ encryptTo: inHome('both.asc'), encryptFingerprint: keys.owner }, KEY_COUNT_ERROR],
+      [{ encryptTo: inHome('secret.asc'), encryptFingerprint: keys.owner }, KEY_SECRET_ERROR],
+      [{ encryptTo: keyFile, encryptFingerprint: keys.owner }, /^gpg could not read the --encrypt-to file as a key \(exit code 2\)/],
+    ]
+    for (const [options, message] of cases) {
+      fs.rmSync(dir, { recursive: true, force: true })
+      const r = await go({ options: { ...options, gpg: GPG }, runner: realRunner(Buffer.from('never dumped')), deps: { env: realEnv } })
+      expect(r.exitCode, String(message)).toBe(1)
+      expect(r.message).toMatch(message)
+      expect(r.runner.of('pg_dump')).toEqual([])
+      expect(workDirsNow()).toEqual([])
+    }
+  })
+})
+
 describe('the heartbeat', () => {
   // An invented address: nothing is at it, and no real address is ever used in a test.
   const PING = 'https://hc-ping.example/00000000-0000-4000-8000-0000000000aa'
   const UUID = '00000000-0000-4000-8000-0000000000aa'
-  const NORMAL_LINE = `03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0\n`
+  const NORMAL_LINE = `03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0\n`
 
   afterEach(() => {
     vi.restoreAllMocks()
@@ -4983,6 +5540,16 @@ describe('the heartbeat', () => {
       fs.mkdirSync(path.join(dir, 'backup.log'), { recursive: true })
       return {}
     },
+    // the encryption: the heartbeat is told that all is well only after gpg exited with 0 and wrote a file that is not empty
+    'the key file is not the key of the fingerprint': () => ({
+      runner: makeRunner({ gpg: (call) => (isShowKeys(call) ? { status: 0, stdout: shownKeys([OTHER_FPR]), stderr: '' } : defaults.gpg(call)) }),
+    }),
+    'gpg fails to encrypt': () => ({
+      runner: makeRunner({ gpg: (call) => (isShowKeys(call) ? defaults.gpg(call) : { status: 2, stdout: '', stderr: 'gpg: encryption failed' }) }),
+    }),
+    'gpg exits with 0 and writes nothing': () => ({
+      runner: makeRunner({ gpg: (call) => (isShowKeys(call) ? defaults.gpg(call) : { status: 0, stdout: '', stderr: '' }) }),
+    }),
   }
 
   describe('without the variable', () => {
@@ -4994,7 +5561,7 @@ describe('the heartbeat', () => {
         expect(fetcher.calls, JSON.stringify(url)).toEqual([])
         expect(r.log, JSON.stringify(url)).toBe(NORMAL_LINE)
         expect(r.errs, JSON.stringify(url)).toEqual([])
-        expect(r.out, JSON.stringify(url)).toEqual([`backup ok: ${FINAL}, 15 B, removed 0 old files`])
+        expect(r.out, JSON.stringify(url)).toEqual([`backup ok: ${FINAL}, 19 B, removed 0 old files`])
         expect(r.warning, JSON.stringify(url)).toBeUndefined()
       }
       for (const [what, make] of Object.entries(failures)) {
@@ -5152,7 +5719,7 @@ describe('the heartbeat', () => {
         expect(fetcher.calls, url).toEqual([])
         expect(r.exitCode, url).toBe(0) // the backup itself is unchanged
         expect(r.warning, url).toBe('heartbeat-not-sent')
-        expect(r.log, url).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0 warning=heartbeat-not-sent\n`)
+        expect(r.log, url).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0 warning=heartbeat-not-sent\n`)
         expect(r.errs, url).toEqual(['backup: warning, heartbeat-not-sent'])
         expect(visible(r), url).not.toContain('pa55word')
         expect(r.errs.join('\n'), url).not.toContain('hc-ping')
@@ -5189,7 +5756,7 @@ describe('the heartbeat', () => {
       expect(sleep.asked).toEqual([2000, 5000])
       expect(r.exitCode).toBe(0)
       expect(r.warning).toBe('heartbeat-failed')
-      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=15 removed=0 warning=heartbeat-failed\n`)
+      expect(r.log).toBe(`03/10/2026 10:15 ok host=${MASKED_HOST} file=${FINAL} size=19 removed=0 warning=heartbeat-failed\n`)
       expect(r.errs).toEqual(['backup: warning, heartbeat-failed'])
       expect(r.runner.of('gh')).toEqual([]) // never an issue
     })
