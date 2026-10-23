@@ -80,7 +80,10 @@ Delete the check branch when you are done (it holds personal data). Then write t
 The free Neon plan restores only to a point in the last 6 hours, so a scheduled task on the owner's computer also makes a
 dump of the database every day. The dumps stay on that computer: they hold personal data (the names of providers, their
 check-ins, the e-mail addresses of the committee), so they never go to GitHub, in a pull request, an issue or a log.
-`*.dump` is in `.gitignore` as a second net.
+`*.dump` is in `.gitignore` as a second net for a plaintext dump (an encrypted `.dump.gpg` is not in it, and stays out of the
+repository the same way, by its folder). Every dump is kept only encrypted to the owner's public key
+(`building-qr-<time>.dump.gpg`), and the private key that opens it is only in the owner's password manager: see
+[Encrypted backups](#encrypted-backups) below.
 
 **What runs.** `scripts/backup-db.mjs` (`npm run db:backup`), once a day. It asks the Neon CLI for the direct connection
 string of the production branch (kept in memory, never written down) and runs `pg_dump` in a read-only session: the server
@@ -98,9 +101,11 @@ a good backup, and the retention could then rotate the real production dumps awa
 not kept and nothing is rotated: the run fails (exit code 1, a line in `backup.log`, an issue with `--report-issue`) with a
 message that says what the marker holds (`missing`, `empty` or `says "nonprod"`) and to check `--neon-project`,
 `--neon-branch` and `BACKUP_DATABASE_URL`; the project, the host and the connection string are never in it. Only after the
-three checks is the file named `building-qr-<UTC date and time>.dump` (a file of the same minute is replaced by it). A failed
-dump leaves no file behind.
-It keeps the newest 30 dumps (`--keep`) and deletes older ones, and it never touches another file in the folder. "Newest"
+three checks is the dump encrypted (see [Encrypted backups](#encrypted-backups)), and only the encrypted file is kept, named
+`building-qr-<UTC date and time>.dump.gpg` (a file of the same minute is replaced by it). The plaintext never leaves the work
+directory. A failed dump leaves no file behind.
+It keeps the newest 30 encrypted dumps (`--keep`) and deletes older ones, and it never touches another file in the folder (a
+plaintext `.dump` from before the encryption is not counted and never deleted). "Newest"
 is decided by the UTC time in the file names, for all the dumps together, whichever run finishes last: a run that started
 earlier and finishes after a newer one never deletes the newer dump. When its own dump is older than the ones that are
 kept, it removes its own dump instead, ends with 0 and writes `warning=own-dump-older-than-kept` in `backup.log` (a newer
@@ -158,8 +163,8 @@ see below). It never holds the connection string, the user or the password.
   access to the backup folder or to a folder above it, which this check refuses.
 - **A private work directory inside the backup folder.** Every run makes its own directory there, after the check above and
   after the folder exists (`.bqr-work-<random>`, a name nobody can guess, hidden on Linux), and does all of its work
-  in it: the dump is written there, the checks run there, and the mode or access list is set and checked there. Only then is
-  the verified file moved into the backup folder with a rename (on the same volume, so it cannot fail for that reason), and
+  in it: the dump is written there, the checks run there, the dump is encrypted there and the plaintext deleted, and the mode
+  or access list is set and checked there. Only then is the verified, encrypted file moved into the backup folder with a rename (on the same volume, so it cannot fail for that reason), and
   the work directory is removed, whatever happened. It inherits the access list of the backup folder, which only the trusted
   accounts can change (on Linux it is made with mode 700 in one step), and nobody else can add an access entry of
   their own to it or swap its path, because that needs write access to the backup folder. A work directory is a directory,
@@ -219,6 +224,10 @@ see below). It never holds the connection string, the user or the password.
 - The PostgreSQL 18 client tools (`pg_dump` and `pg_restore`; a version older than the server, which is Postgres 18, is
   refused by `pg_dump`). The script finds them through `--pg-bin`, then the `PG_BIN` variable, then on Windows
   `C:\Program Files\PostgreSQL\18\bin`, then `PATH`.
+- `gpg` (GnuPG 2.2.8 or newer). On Windows the one that Git for Windows installs is enough
+  (`C:\Program Files\Git\usr\bin\gpg.exe`, GnuPG 2.4.8 on 22/10/2026), and the script takes it by itself; elsewhere it is
+  the `gpg` on `PATH`; `--gpg <program>` names another. The public key file and its fingerprint: see
+  [Encrypted backups](#encrypted-backups).
 - The Neon CLI, signed in (`neon auth`) as a person who can see the project. Any other Postgres works too: set
   `BACKUP_DATABASE_URL` to its direct connection string (a host without `-pooler`, because `pg_dump` needs a session) and
   leave out `--neon-project`. Never type the string in a command (`export BACKUP_DATABASE_URL=postgres://...`, or the
@@ -242,8 +251,10 @@ see below). It never holds the connection string, the user or the password.
 **How to check that it works.**
 
 - Open the last line of `backup.log` in the backup folder: it says `ok`, with a time from the last 24 hours, and a size that
-  is not far from yesterday's. The newest file in the folder has the same name.
-- Look inside a file: `pg_restore --list <file>` prints the table of contents. It must show lines such as
+  is not far from yesterday's. The newest file in the folder has the same name, and it ends in `.dump.gpg`: no new `.dump`
+  appears in the folder.
+- Look inside a file: this needs the private key, so it is part of the drill (decrypt it first, as step 3 of "How to restore
+  from a dump" says, and look inside the decrypted copy). `pg_restore --list <file>` prints the table of contents. It must show lines such as
   `TABLE DATA public scans` and `TABLE DATA public points` (one `TABLE DATA` line for every table). To read every data
   block, as the script does, run `pg_restore --file=/dev/null <file>` (`--file=NUL` on Windows): it prints nothing and exits
   with 0 for a good file, and with an error such as "could not read from input file: end of file" for a cut one. The marker
@@ -358,11 +369,44 @@ The steps:
    bash `read -rs -p 'Password: ' PGPASSWORD; export PGPASSWORD` (in zsh `read -rs 'PGPASSWORD?Password: '; export PGPASSWORD`),
    in PowerShell `$env:PGPASSWORD = [System.Net.NetworkCredential]::new('', (Read-Host -AsSecureString 'Password')).Password`.
    The secure string is turned into text only in memory, for the variable.
-3. Restore the dump into it with the same version of the tools (18 or newer), giving `pg_restore` only the name of the
+3. Decrypt the dump into a new folder of its own, with the private key from the password manager. The folder is also the
+   GnuPG home of the key (never your own keyring), and it goes, with the key and the plaintext, when the restore is done. It
+   is made fresh, with a name nobody can guess, as in [Encrypted backups](#encrypted-backups) ("A new folder for gpg"). In
+   the PowerShell window of step 2 (`<file>` is the `.dump.gpg` to restore):
+
+   ```
+   $ErrorActionPreference = 'Stop'
+   $gpg = 'C:\Program Files\Git\usr\bin\gpg.exe'
+   Set-Location $env:LOCALAPPDATA
+   $h = 'bqr-r-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+   New-Item -ItemType Directory $h -ErrorAction Stop | Out-Null
+   if (Get-ChildItem -Force $h) { throw 'the new folder is not empty: stop' }
+   Copy-Item '<file>' "$h\backup.dump.gpg"
+   $h
+   ```
+
+   The last line prints the name of the folder (in `$env:LOCALAPPDATA`). Save the private key file of the password manager
+   (`backup-private-key.asc`) into that folder as `key.asc`, then:
+
+   ```
+   & $gpg --homedir $h --no-options --batch --import "$h\key.asc"
+   & $gpg --homedir $h --no-options --batch --output "$h\backup.dump" --decrypt "$h\backup.dump.gpg"
+   ```
+
+   `$h\backup.dump` is the plaintext: the `<file>` of the next step. On Linux the same, with `gpg` and a folder made with
+   `mktemp -d` (which makes a new folder with a name nobody can guess, owner-only).
+4. Restore the dump into it with the same version of the tools (18 or newer), giving `pg_restore` only the name of the
    database (this is how the drill below ran, and it keeps the password out of the arguments of the program):
 
    ```
    pg_restore --no-owner --no-privileges --exit-on-error --dbname restore_check <file>
+   ```
+
+   Then delete the plaintext and the key at once, whatever the restore did:
+
+   ```
+   & 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir $h --kill all
+   Remove-Item -Recurse -Force $h
    ```
 
    Close the window afterwards: the variables go with it. `--exit-on-error` stops at the first error instead of leaving a half
@@ -383,24 +427,24 @@ The steps:
    needs that login too: make it in the Neon SQL Editor with `create role <name> login password '<new password>' in role
    app_runtime` (never with the console's "Add role", which gives the role `neon_superuser`), and point
    `DATABASE_URL_RUNTIME` of the deployment at it.
-4. Check the copy with the queries of step 2 above (the counts of `scans`, `points` and `providers`, and `max(received_at)` of
+5. Check the copy with the queries of step 2 above (the counts of `scans`, `points` and `providers`, and `max(received_at)` of
    `scans`, which tells you how far the dump goes). Compare them with what you expect and with production now. The copy
    carries the marker of `public.environment_marker` with it (`production` for a dump of production), so the local tools of
    this repository refuse to run against a copy of production, on purpose.
-5. Only then recover: copy the rows that are missing from the checked copy into production (step 3 above, "Copy rows back").
-   Never restore a dump over production without first restoring it to a separate database and checking it (steps 1 to 4):
+6. Only then recover: copy the rows that are missing from the checked copy into production (step 3 above, "Copy rows back").
+   Never restore a dump over production without first restoring it to a separate database and checking it (steps 1 to 5):
    a restore replaces data, and the wrong dump cannot be undone.
-6. Delete the check database when you are done (it holds personal data):
+7. Delete the check database when you are done (it holds personal data):
    `neon databases delete restore_check --project-id <project id> --branch <check branch>`, and the check branch or project
    with it.
 
 **How to set the task on Windows.** Use Task Scheduler. It runs only when the user is signed in, so no password is stored.
 With PowerShell (the placeholders are `<repo>` for the folder of this repository, `<out dir>` for the backup folder,
-`<project id>` for the Neon project id, and `<owner>/<repo-name>` for the GitHub repository; `where node` prints the path
-of `node.exe`):
+`<project id>` for the Neon project id, `<owner>/<repo-name>` for the GitHub repository, and `<fingerprint>` for the 40
+characters of the backup key, see [Encrypted backups](#encrypted-backups); `where node` prints the path of `node.exe`):
 
 ```
-$action = New-ScheduledTaskAction -Execute '<path of node.exe>' -WorkingDirectory '<repo>' -Argument 'scripts\backup-db.mjs --out "<out dir>" --neon-project <project id> --report-issue <owner>/<repo-name>'
+$action = New-ScheduledTaskAction -Execute '<path of node.exe>' -WorkingDirectory '<repo>' -Argument 'scripts\backup-db.mjs --out "<out dir>" --encrypt-to "<out dir>\backup-public-key.asc" --encrypt-fingerprint <fingerprint> --neon-project <project id> --report-issue <owner>/<repo-name>'
 $trigger = New-ScheduledTaskTrigger -Daily -At 3am
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 Register-ScheduledTask -TaskName 'Building QR daily backup' -Action $action -Trigger $trigger -Settings $settings
@@ -423,11 +467,152 @@ read them"), the backup folder must move into your own profile. Nothing about `T
 the top of the crontab so that `node`, `neon`, `pg_dump` and `gh` are found:
 
 ```
-0 3 * * * cd <repo> && node scripts/backup-db.mjs --out "<out dir>" --neon-project <project id> --report-issue <owner>/<repo-name>
+0 3 * * * cd <repo> && node scripts/backup-db.mjs --out "<out dir>" --encrypt-to "<out dir>/backup-public-key.asc" --encrypt-fingerprint <fingerprint> --neon-project <project id> --report-issue <owner>/<repo-name>
 ```
 
 Keep the backup folder somewhere that is itself protected (a disk with encryption, and a copy on another disk that you control
 if you want to survive the loss of this one): the dumps are as sensitive as the database.
+
+## Encrypted backups
+
+A dump holds personal data, and every program that runs under the owner's account can read the owner's files, a coding agent
+included. So the backup keeps a dump only as ciphertext for the owner's public key, and the private key that opens it is never
+on the computer: it is in the owner's password manager, and it comes out only for a restore (step 3 of "How to restore from a
+dump" above), into a folder that is deleted right after.
+
+**What the script does.**
+
+- `--encrypt-to <file>` (the public key file) and `--encrypt-fingerprint <40 hex characters>` (its fingerprint, without
+  spaces) are required. Without them the command line is refused, and nothing is asked for or dumped.
+- Before it asks for the connection string, it reads the key file once into its private work directory and runs
+  `gpg --show-keys` on that copy: the copy must hold exactly one key, a public one, whose fingerprint is the one given. A key
+  file that was replaced (another key, two keys, a private key, something that is not a key) stops the run, with a line in
+  `backup.log`, an issue with `--report-issue` and a `/fail` heartbeat. The fingerprint is what makes a swapped key file
+  harmless; it does not protect against a change of the task itself, so keep the command line of the task out of reach.
+- After the three checks of "What runs", gpg encrypts the dump to that same copy (`--recipient-file`, which takes a file
+  "containing exactly one key" and "assumes that the key in this file is fully valid", GnuPG manual, "Key related options",
+  read on 22/10/2026). The dump is compressed already, so gpg does not compress it again (`--compress-algo none`).
+- gpg runs with the work directory as its home (`--homedir .`, `--no-options`, `--no-autostart`): your own keyring, settings
+  and agent are never read or changed, and no agent is started.
+- The plaintext is only in the work directory. It is deleted as soon as gpg exits, whatever gpg did, and again with the work
+  directory at the end. If it cannot be deleted, a backup that had worked is reported as failed (`the plaintext dump could not
+  be deleted ...`), so that somebody looks. Only when gpg exits with 0 and its file is not empty is the encrypted file renamed
+  into the backup folder, and only then is the run `ok` and the heartbeat pinged without `/fail`. A run that is killed (a power
+  cut) can leave a plaintext in its work directory: the next run removes work folders that are older than 24 hours (see "Who
+  can read them").
+
+**A new folder for gpg.** Every snippet below that gives gpg a home (and every one above, in "How to restore from a dump")
+makes a NEW folder for it, with a name nobody can guess, and stops when it cannot: `New-Item` refuses a name that exists
+already, `-ErrorAction Stop` and `$ErrorActionPreference = 'Stop'` end the snippet there, before gpg runs, and the folder
+must be empty right after it is made. Every gpg call gets `--no-options`, so no `gpg.conf` is read even if one appears. A
+folder with a fixed name, or one that is there already, could hold a `gpg.conf` of somebody else that makes gpg start a
+program of theirs as you. The folder is in `$env:LOCALAPPDATA` (your own profile; the one that encrypts the old dumps, which
+needs no agent, is in the backup folder), and its name is given to gpg relative to it: the gpg of Git for Windows takes no `C:\...` path for its home, and its agent needs a short path. The name is
+`bqr-`, a letter, and 12 characters of a new GUID (`[guid]::NewGuid()`): Windows PowerShell 5.1 runs on the .NET
+Framework, which has no `[System.IO.Directory]::CreateTempSubdirectory` (.NET 7 and later). A file that a snippet writes
+(a key file, a decrypted dump) goes into that folder, never under a fixed name. Run the lines of one snippet, and the ones
+after it that use `$h`, in the same PowerShell window. No line passes an empty argument (`''`), because Windows
+PowerShell 5.1 drops one before gpg sees it: `--passphrase=` is one argument.
+
+**Make the key pair, once.** On Windows, in PowerShell, with the gpg of Git for Windows, in a new folder (above), never in
+your own keyring:
+
+1. Make the key pair and read its fingerprint:
+
+   ```
+   $ErrorActionPreference = 'Stop'
+   $gpg = 'C:\Program Files\Git\usr\bin\gpg.exe'
+   Set-Location $env:LOCALAPPDATA
+   $h = 'bqr-k-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+   New-Item -ItemType Directory $h -ErrorAction Stop | Out-Null
+   if (Get-ChildItem -Force $h) { throw 'the new folder is not empty: stop' }
+   & $gpg --homedir $h --no-options --batch --pinentry-mode loopback --passphrase= --quick-generate-key 'Building QR backups' default default never
+   & $gpg --homedir $h --no-options --batch --with-colons --list-keys | Select-String '^fpr:' | Select-Object -First 1
+   ```
+
+   The 40 characters between the colons of that `fpr` line are the fingerprint (`<fingerprint>` below).
+2. Put the public key file next to the backups:
+
+   ```
+   & $gpg --homedir $h --no-options --batch --armor --output "$h\bqr-public.asc" --export <fingerprint>
+   Move-Item "$h\bqr-public.asc" '<out dir>\backup-public-key.asc'
+   ```
+
+3. Put the private key in the password manager, and nowhere else:
+
+   ```
+   & $gpg --homedir $h --no-options --batch --armor --output "$h\backup-private-key.asc" --export-secret-keys <fingerprint>
+   $h
+   ```
+
+   Attach `backup-private-key.asc` from that folder (its name is what the last line printed, in `$env:LOCALAPPDATA`) as a file to a new entry of the password manager ("Building QR
+   backup private key", with the fingerprint in the same entry). If the password manager takes no files, open the file in
+   Notepad and copy its whole text into a secure note; then clear the clipboard history too (Win+V, Clear all), because
+   Windows keeps what was copied there, and turn off its sync if it is on.
+4. Delete the key pair from the disk:
+
+   ```
+   & 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir $h --kill all
+   Remove-Item -Recurse -Force $h
+   ```
+
+5. Add `--encrypt-to` and `--encrypt-fingerprint` to the task ("How to set the task on Windows" above), run it once by hand,
+   and check that the folder got a `.dump.gpg` and no new `.dump`. Then restore that file once (steps 1 to 5 of "How to
+   restore from a dump"), before you rely on it, and before any old plaintext dump is deleted.
+
+The key has no passphrase on purpose: the password manager is what protects it, and a restore in a hurry should not wait for a
+second secret. It does not expire (`never`), so the daily backup does not stop one day on an expired key. On Linux the steps
+are the same with `gpg` and `gpgconf` from `PATH`, in a folder made with `mktemp -d` (new, owner-only, a name nobody can
+guess), and `--no-options` on every gpg call.
+
+**The plaintext dumps of before.** The script never counts, rotates or deletes a `.dump`. After the restore of step 5 above
+has worked, encrypt the old ones with the same key, in the backup folder (which holds `backup-public-key.asc`). First check
+the key file:
+
+```
+$ErrorActionPreference = 'Stop'
+$gpg = 'C:\Program Files\Git\usr\bin\gpg.exe'
+Set-Location '<out dir>'
+$e = 'bqr-e-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+New-Item -ItemType Directory $e -ErrorAction Stop | Out-Null
+if (Get-ChildItem -Force $e) { throw 'the new folder is not empty: stop' }
+& $gpg --homedir $e --batch --no-options --no-autostart --with-colons --show-keys backup-public-key.asc | Select-String '^fpr:' | Select-Object -First 1
+```
+
+The `fpr` line must hold the fingerprint of the password manager; if it does not, stop there. Then encrypt each one (a file
+that gpg could not finish is removed again, and its name is printed):
+
+```
+Get-ChildItem | Where-Object { $_.Name -match '^building-qr-\d{8}T\d{4}Z\.dump$' } | ForEach-Object { & $gpg --homedir $e --batch --no-options --no-autostart --compress-algo none --recipient-file backup-public-key.asc --output "$($_.Name).gpg" --encrypt $_.Name; if ($LASTEXITCODE) { Remove-Item -ErrorAction SilentlyContinue "$($_.Name).gpg"; "not encrypted: $($_.Name)" } }
+Remove-Item -Recurse -Force $e
+```
+
+A plaintext dump is deleted only when its encrypted copy gives the same bytes back. The private key goes into a new folder
+for these lines only, and the decrypted copy of each dump goes into the same folder:
+
+```
+$ErrorActionPreference = 'Stop'
+Set-Location $env:LOCALAPPDATA
+$h = 'bqr-c-' + [guid]::NewGuid().ToString('N').Substring(0, 12)
+New-Item -ItemType Directory $h -ErrorAction Stop | Out-Null
+if (Get-ChildItem -Force $h) { throw 'the new folder is not empty: stop' }
+$h
+```
+
+Save the private key file of the password manager into that folder (the name that the last line printed, in
+`$env:LOCALAPPDATA`) as `key.asc`, then:
+
+```
+& $gpg --homedir $h --no-options --batch --import "$h\key.asc"
+$copy = Join-Path (Join-Path $env:LOCALAPPDATA $h) 'check.dump'
+Get-ChildItem '<out dir>' | Where-Object { $_.Name -match '^building-qr-\d{8}T\d{4}Z\.dump$' -and (Test-Path "$($_.FullName).gpg") } | ForEach-Object { & $gpg --homedir $h --no-options --batch --yes --output $copy --decrypt "$($_.FullName).gpg"; if ($LASTEXITCODE -eq 0 -and (Get-FileHash $copy).Hash -eq (Get-FileHash $_.FullName).Hash) { Remove-Item $_.FullName } else { "kept: $($_.Name)" }; Remove-Item -ErrorAction SilentlyContinue $copy }
+& 'C:\Program Files\Git\usr\bin\gpgconf.exe' --homedir $h --kill all
+Remove-Item -Recurse -Force $h
+```
+
+A cut or damaged `.gpg` does not decrypt (gpg exits with an error), so its plaintext is kept and named. An encrypted old dump
+has the name of a backup, so from then on it counts for `--keep` like any other: the next run keeps the newest ones and
+deletes the rest, as `docs/privacy.md` says.
 
 ## Drill log
 
@@ -471,3 +656,14 @@ copy keeps its own drill log here, or removes them.
   end and only `main` was left. Found on the way: `neon branches create` prints the connection credentials unless it is
   given `--no-secrets`, and `--schema-only` makes a check branch without production's data; step 1 above now says both.
   The drill is repeatable with the owner's script `restore-drill-neon.sh <dump>` (kept outside the repository).
+- `22/10/2026`: the first restore of an encrypted dump, on a local PostgreSQL 18 only (127.0.0.1), with a test key pair made
+  for the drill and fake data; production and the owner's backup folder were not touched. A throwaway source database was
+  migrated (17 tables), given fake rows (5 providers, 4 points, 20,000 scans) and the marker `production` (the backup keeps
+  only a dump of a database that says so). The real `scripts/backup-db.mjs`, with `--encrypt-to` and
+  `--encrypt-fingerprint`, made `building-qr-<time>.dump.gpg` (640.1 KB) in 1.1 s, dump, three checks and encryption
+  together, and left no `.dump` in the folder; the kept file is not a plain dump (it does not start with `PGDMP`). It was
+  decrypted with the private key into a temporary folder (0.08 s) and restored into an empty database with the command of
+  step 4 (0.27 s), and the plaintext was deleted right after. All 17 tables have the row counts and a content hash of the
+  source (20,026 rows), and the copy carries the `production` marker. The databases, the key pair and the folders were
+  deleted at the end. Still to do: the same with the real key pair and a dump of production, before the plaintext dumps of
+  before are deleted ("The plaintext dumps of before" above).

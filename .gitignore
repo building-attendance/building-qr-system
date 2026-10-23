@@ -40,6 +40,8 @@ skills-lock.json
 
 # Database backups (pg_dump files hold personal data and must never be committed; see docs/runbooks/restore.md)
 *.dump
+# Encrypted database backups (the same data, encrypted to the owner's key: never committed either; see docs/runbooks/restore.md)
+*.dump.gpg
 
 # Playwright (end-to-end test output)
 playwright-report/
