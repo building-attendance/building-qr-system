@@ -4302,8 +4302,19 @@ describe('a folder that another account can change', () => {
       layout()
       if (typeof process.getuid === 'function') {
         // the real uid with files that really belong to this account: the whole chain of the real folder of the test passes
+        // (the key file, its fingerprint and the gpg of the stub runner, as go() gives every run: a dump is never kept without them)
         const real = await runBackup(
-          { out: dir, keep: 30, neonProject: null, neonBranch: 'main', reportIssue: null, pgBin: null },
+          {
+            out: dir,
+            keep: 30,
+            neonProject: null,
+            neonBranch: 'main',
+            reportIssue: null,
+            pgBin: null,
+            encryptTo: keyFile,
+            encryptFingerprint: FPR,
+            gpg: null,
+          },
           { env: { BACKUP_DATABASE_URL: URL_FAKE, PATH: '/usr/bin' }, platform: 'linux', exists: () => false, runner: makeRunner(), now: () => NOW, out: () => {}, err: () => {} },
         )
         expect(real.exitCode).toBe(0)
