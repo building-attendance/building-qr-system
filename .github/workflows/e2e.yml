@@ -10,7 +10,8 @@
 # files and ran about twice as long as the next (#218). Every file of the list is in exactly one part.
 #
 # It runs only when ci.yml calls it, under ci.yml's trigger, concurrency and permissions. Every third-party action is
-# pinned to a full commit SHA, the same ones as in ci.yml, and every value that a `run:` script reads goes in through env.
+# pinned to a full commit SHA, the same ones as in ci.yml where both use an action, and every value that a `run:` script
+# reads goes in through env.
 name: E2E parts
 
 on:
@@ -65,7 +66,28 @@ jobs:
           node-version-file: .nvmrc
           cache: npm
       - run: npm ci
-      # Only the browser this project needs. Playwright's own advice is not to cache the browsers, so they are downloaded.
+      # The browser's system packages come from the runner's Ubuntu mirror, which on a bad day serves them at 25 to 50 kB/s:
+      # WebKit needs 117 MB of them, and on 22/10/2026 its install failed about 8 times before any test ran. So the package
+      # files that apt-get downloaded are kept in a cache, and the next run hands them back to apt-get, which installs them
+      # without downloading them. scripts/ci-browser-packages.mjs makes the key (the release, the browser, Playwright, the
+      # week) and hands apt-get only a file whose SHA256 is the one of the signed Ubuntu index, so a cache that is stale or
+      # changed costs a download, never a different package. It never fails the job; the cache steps only warn.
+      - name: Find the cache of the browser's system packages
+        id: packages
+        env:
+          BROWSER: ${{ inputs.browser }}
+        run: node scripts/ci-browser-packages.mjs key "$BROWSER"
+      - name: Restore the browser's system packages
+        id: packages-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: ${{ steps.packages.outputs.key }}
+          restore-keys: ${{ steps.packages.outputs.prefix }}
+      - name: Hand apt-get the cached packages that match the index
+        run: node scripts/ci-browser-packages.mjs restore
+      # Only the browser this project needs. Playwright's own advice is not to cache the browsers, so they are downloaded
+      # (from its CDN, in seconds).
       # --with-deps runs apt-get on the runner, and a slow Ubuntu mirror has made it hang until the job's 30-minute limit
       # (twice, on 06/10 and 07/10/2026). So each attempt gets 5 minutes and there are up to three: a hang costs minutes,
       # not the job. Between attempts, whatever apt-get or dpkg left behind is stopped and finished, so that the next
@@ -83,6 +105,17 @@ jobs:
             sudo dpkg --configure -a || true
           done
           exit 1
+      # A run that did not find this week's key saves one, right after the install so that a failed test does not lose it,
+      # and from one part only: the parts install the same packages, and a key is saved once.
+      - name: Keep the browser's system packages for the next runs
+        if: steps.packages-cache.outputs.cache-hit != 'true' && matrix.part == 1
+        run: node scripts/ci-browser-packages.mjs keep
+      - name: Save the browser's system packages
+        if: steps.packages-cache.outputs.cache-hit != 'true' && matrix.part == 1
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ${{ steps.packages.outputs.dir }}
+          key: ${{ steps.packages.outputs.key }}
       # e2e/parts.js asks Playwright for the project's test files and writes this part's share of them to a list; it
       # fails (and so does the part) when Playwright lists nothing or the part would get no file. --test-list then runs
       # exactly those files. playwright.config.js builds the app and starts the API (on a scratch schema of this part's
