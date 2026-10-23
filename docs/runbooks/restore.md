@@ -228,7 +228,10 @@ see below). It never holds the connection string, the user or the password.
   (`C:\Program Files\Git\usr\bin\gpg.exe`, GnuPG 2.4.8 on 22/10/2026), and the script takes it by itself; elsewhere it is
   the `gpg` on `PATH`; `--gpg <program>` names another. The public key file and its fingerprint: see
   [Encrypted backups](#encrypted-backups).
-- The Neon CLI, signed in (`neon auth`) as a person who can see the project. Any other Postgres works too: set
+- The Neon CLI, signed in (`neon auth`) as a person who can see the project. Since migration 016 the branch has more than
+  one role, so the command names the one to connect as with `--neon-role`: the owner of the tables (`neondb_owner` in a
+  project that Vercel or Neon made; `neon roles list --project-id <project id>` lists them). Without it the run fails before
+  it dumps anything and says to pass it. The session is read-only whatever the role. Any other Postgres works too: set
   `BACKUP_DATABASE_URL` to its direct connection string (a host without `-pooler`, because `pg_dump` needs a session) and
   leave out `--neon-project`. Never type the string in a command (`export BACKUP_DATABASE_URL=postgres://...`, or the
   variable in front of `node`): the shell history keeps it (see "Why no secret is typed in a command" below). Put it in the
@@ -453,11 +456,11 @@ The steps:
 
 **How to set the task on Windows.** Use Task Scheduler. It runs only when the user is signed in, so no password is stored.
 With PowerShell (the placeholders are `<repo>` for the folder of this repository, `<out dir>` for the backup folder,
-`<project id>` for the Neon project id, `<owner>/<repo-name>` for the GitHub repository, and `<fingerprint>` for the 40
+`<project id>` for the Neon project id, `<role>` for the Neon role (see the Neon CLI above), `<owner>/<repo-name>` for the GitHub repository, and `<fingerprint>` for the 40
 characters of the backup key, see [Encrypted backups](#encrypted-backups); `where node` prints the path of `node.exe`):
 
 ```
-$action = New-ScheduledTaskAction -Execute '<path of node.exe>' -WorkingDirectory '<repo>' -Argument 'scripts\backup-db.mjs --out "<out dir>" --encrypt-to "<out dir>\backup-public-key.asc" --encrypt-fingerprint <fingerprint> --neon-project <project id> --report-issue <owner>/<repo-name>'
+$action = New-ScheduledTaskAction -Execute '<path of node.exe>' -WorkingDirectory '<repo>' -Argument 'scripts\backup-db.mjs --out "<out dir>" --encrypt-to "<out dir>\backup-public-key.asc" --encrypt-fingerprint <fingerprint> --neon-project <project id> --neon-role <role> --report-issue <owner>/<repo-name>'
 $trigger = New-ScheduledTaskTrigger -Daily -At 3am
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 Register-ScheduledTask -TaskName 'Building QR daily backup' -Action $action -Trigger $trigger -Settings $settings
@@ -480,7 +483,7 @@ read them"), the backup folder must move into your own profile. Nothing about `T
 the top of the crontab so that `node`, `neon`, `pg_dump` and `gh` are found:
 
 ```
-0 3 * * * cd <repo> && node scripts/backup-db.mjs --out "<out dir>" --encrypt-to "<out dir>/backup-public-key.asc" --encrypt-fingerprint <fingerprint> --neon-project <project id> --report-issue <owner>/<repo-name>
+0 3 * * * cd <repo> && node scripts/backup-db.mjs --out "<out dir>" --encrypt-to "<out dir>/backup-public-key.asc" --encrypt-fingerprint <fingerprint> --neon-project <project id> --neon-role <role> --report-issue <owner>/<repo-name>
 ```
 
 Keep the backup folder somewhere that is itself protected (a disk with encryption, and a copy on another disk that you control
