@@ -195,27 +195,29 @@ export const RUNTIME_ROLE = 'app_runtime'
  * variables:
  *  - A deployment (no DB_SCHEMA): DATABASE_URL_RUNTIME when it is set, the pooled URL of the login role that is a member of
  *    app_runtime, so that the app does not own its tables; else DATABASE_URL, as before, so a copy (or an old deployment) that
- *    never set the variable connects exactly as it always did. Nothing else of the environment changes this path: the dev-only
- *    switch below is not read here.
+ *    never set the variable connects exactly as it always did.
  *  - Local development (DB_SCHEMA): a scratch schema, so manual testing never touches real data. It needs the direct URL (the
- *    pooled one cannot set search_path), and DATABASE_URL_RUNTIME is not read. DB_RUNTIME_ROLE=1 (set by
- *    `node server/dev.mjs --runtime-role`) runs every connection as app_runtime, as a deployment with DATABASE_URL_RUNTIME does,
- *    so that the local server and the E2E tests exercise the grants: a startup option, as in tests/helpers.js, so it holds
- *    before the first statement and a connection that cannot take the role is refused instead of running as the owner. The local
- *    tools refuse a production database on this path (server/dbGuard.js), so the switch cannot reach production.
+ *    pooled one cannot set search_path), and DATABASE_URL_RUNTIME is not read.
+ * `runtimeRole` is the dev-only switch, and no variable of the environment turns it on: only server/dev.mjs passes it (its flag
+ * `--runtime-role`), so the seeds and scripts that share this module never get it. It runs every connection as app_runtime, as a
+ * deployment with DATABASE_URL_RUNTIME does, so that the local server and the E2E tests exercise the grants: a startup option, as
+ * in tests/helpers.js, so it holds before the first statement and a connection that cannot take the role is refused instead of
+ * running as the owner. It is refused without a scratch schema, the path on which the local tools refuse a production database
+ * (server/dbGuard.js), so it never applies to a deployment.
  * No URL is ever logged or put in an error: the messages name the variables only.
  * @param {Record<string, string | undefined>} [env]
+ * @param {{ runtimeRole?: boolean }} [options]
  */
-export function appPoolConfig(env = process.env) {
+export function appPoolConfig(env = process.env, { runtimeRole = false } = {}) {
   const schema = env.DB_SCHEMA
   if (schema && !/^[a-z_][a-z0-9_]*$/.test(schema)) throw new Error('DB_SCHEMA must be lower-case letters, digits or _')
+  if (runtimeRole && !schema) throw new Error('The runtime role switch is for a scratch schema (DB_SCHEMA) only')
   const connectionString = schema
     ? env.DATABASE_URL_UNPOOLED || env.DATABASE_URL
     : env.DATABASE_URL_RUNTIME || env.DATABASE_URL
   if (!connectionString) throw new Error('DATABASE_URL is not set')
   const config = poolConfig(connectionString, schema)
-  if (schema && env.DB_RUNTIME_ROLE === '1') return { ...config, options: `${config.options} -c role=${RUNTIME_ROLE}` }
-  return config
+  return runtimeRole ? { ...config, options: `${config.options} -c role=${RUNTIME_ROLE}` } : config
 }
 
 export function getPool() {

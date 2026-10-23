@@ -18,14 +18,16 @@ export const commit = () => (process.env.VERCEL_GIT_COMMIT_SHA ? process.env.VER
 
 /**
  * The one query of GET /api/health/db (after the key): the database answers, its newest migration, and whether the role the app
- * runs as (`current_user`) owns its tables. `scans` stands for all of them (the migrations, run as the owner, make every table).
- * A member of the owner role counts as the owner, because it can act as that role, and so does a superuser (pg_has_role says
- * true for one). A deployment with DATABASE_URL_RUNTIME (a login role that is a member of app_runtime only, migration 016)
- * answers false; one that connects with the owner's DATABASE_URL answers true.
+ * runs as (`current_user`) owns any table of the app's schema (the first of its search_path: public in a deployment), so that
+ * audit_log and scan_refusals, whose append-only triggers an owner could switch off, count as much as any other. A member of the
+ * owner's role counts as the owner, because it can act as that role, and so does a superuser (pg_has_role says true for one). A
+ * deployment with DATABASE_URL_RUNTIME (a login role that is a member of app_runtime only, migration 016) answers false; one
+ * that connects with the owner's DATABASE_URL answers true.
  */
 export const DB_HEALTH_SQL =
   'select 1 as ok, (select name from schema_migrations order by name desc limit 1) as migration, ' +
-  "(select pg_catalog.pg_has_role(current_user, c.relowner, 'MEMBER') from pg_catalog.pg_class c where c.oid = to_regclass('scans')) as owns_tables"
+  'exists (select 1 from pg_catalog.pg_class c where c.relnamespace = pg_catalog.to_regnamespace(current_schema()) ' +
+  "and c.relkind in ('r', 'p') and pg_catalog.pg_has_role(current_user, c.relowner, 'MEMBER')) as owns_tables"
 
 /**
  * The answer of GET /api/health/db, field by field: never the row as it is, so a column that the query gains later does not reach

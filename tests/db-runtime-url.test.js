@@ -2,8 +2,9 @@
 //  - a deployment takes DATABASE_URL_RUNTIME when it is set (the login role that is a member of app_runtime, migration 016) and
 //    falls back to DATABASE_URL, so a copy that never set the variable, and the deployment that keeps serving while a new one is
 //    built, connect exactly as before;
-//  - local development (DB_SCHEMA) never reads DATABASE_URL_RUNTIME, and only there the dev-only switch DB_RUNTIME_ROLE=1
-//    (`node server/dev.mjs --runtime-role`) runs every connection as app_runtime: a deployment ignores it.
+//  - local development (DB_SCHEMA) never reads DATABASE_URL_RUNTIME, and only there the dev-only switch (the option runtimeRole,
+//    which only `node server/dev.mjs --runtime-role` passes) runs every connection as app_runtime: without a scratch schema it is
+//    refused, and no variable of the environment turns it on.
 // The URLs are made up: nothing here connects, except the last test, which uses the throwaway schema of setupDb().
 import { describe, it, expect, beforeAll, afterAll, afterEach, vi } from 'vitest'
 import { setupDb, RUNTIME_ROLE } from './helpers.js'
@@ -32,9 +33,16 @@ describe('appPoolConfig: a deployment (no DB_SCHEMA)', () => {
     expect(appPoolConfig({ DATABASE_URL: OWNER_URL, DATABASE_URL_UNPOOLED: DIRECT_URL }).connectionString).toBe(OWNER_URL)
   })
 
-  it('ignores the dev-only switch DB_RUNTIME_ROLE: no startup option, whichever URL it connects with', () => {
-    expect(appPoolConfig({ DATABASE_URL: OWNER_URL, DB_RUNTIME_ROLE: '1' })).not.toHaveProperty('options')
-    expect(appPoolConfig({ DATABASE_URL: OWNER_URL, DATABASE_URL_RUNTIME: RUNTIME_URL, DB_RUNTIME_ROLE: '1' })).not.toHaveProperty('options')
+  it('refuses the dev-only switch, so a deployment can never take the role that way', () => {
+    expect(() => appPoolConfig({ DATABASE_URL: OWNER_URL }, { runtimeRole: true })).toThrow(/scratch schema/)
+    expect(() => appPoolConfig({ DATABASE_URL: OWNER_URL, DATABASE_URL_RUNTIME: RUNTIME_URL }, { runtimeRole: true })).toThrow(/scratch schema/)
+  })
+
+  it('is turned to app_runtime by no variable of the environment', () => {
+    for (const DB_RUNTIME_ROLE of ['1', 'true', 'app_runtime']) {
+      expect(appPoolConfig({ DATABASE_URL: OWNER_URL, DB_RUNTIME_ROLE })).not.toHaveProperty('options')
+      expect(appPoolConfig({ DATABASE_URL: OWNER_URL, DB_SCHEMA: 'e2e', DB_RUNTIME_ROLE }).options).toBe('-c search_path=e2e')
+    }
   })
 
   it('refuses to start without any URL, and the message names the variable and no value', () => {
@@ -51,11 +59,11 @@ describe('appPoolConfig: local development (DB_SCHEMA)', () => {
     expect(appPoolConfig(noDirect).connectionString).toBe(OWNER_URL)
   })
 
-  it('runs as app_runtime with DB_RUNTIME_ROLE=1 (a startup option after the search_path), and as the URL\'s role otherwise', () => {
+  it('runs as app_runtime with the switch (a startup option after the search_path), and as the URL\'s role without it', () => {
     const env = { DATABASE_URL_UNPOOLED: DIRECT_URL, DB_SCHEMA: 'e2e' }
-    expect(appPoolConfig({ ...env, DB_RUNTIME_ROLE: '1' }).options).toBe('-c search_path=e2e -c role=app_runtime')
-    for (const value of [undefined, '', '0', 'true', 'app_runtime']) {
-      expect(appPoolConfig({ ...env, DB_RUNTIME_ROLE: value }).options, String(value)).toBe('-c search_path=e2e')
+    expect(appPoolConfig(env, { runtimeRole: true })).toMatchObject({ connectionString: DIRECT_URL, options: '-c search_path=e2e -c role=app_runtime' })
+    for (const options of [undefined, {}, { runtimeRole: false }]) {
+      expect(appPoolConfig(env, options).options, JSON.stringify(options)).toBe('-c search_path=e2e')
     }
   })
 
@@ -72,7 +80,6 @@ describe('getPool', () => {
 
   it('builds the app\'s pool from DATABASE_URL_RUNTIME when it is set, and from DATABASE_URL when it is not (it opens no connection)', async () => {
     vi.stubEnv('DB_SCHEMA', '')
-    vi.stubEnv('DB_RUNTIME_ROLE', '1')
     vi.stubEnv('DATABASE_URL', OWNER_URL)
     vi.stubEnv('DATABASE_URL_RUNTIME', RUNTIME_URL)
     setPool(undefined)
@@ -98,7 +105,7 @@ describe('the dev-only switch on a real database', () => {
 
   it('connects as app_runtime, which does not own the tables, while the same settings without it connect as the owner', async () => {
     const env = { DATABASE_URL_UNPOOLED: process.env.DATABASE_URL_UNPOOLED, DATABASE_URL: process.env.DATABASE_URL, DB_SCHEMA: db.schema }
-    const switched = createPool(appPoolConfig({ ...env, DB_RUNTIME_ROLE: '1' }))
+    const switched = createPool(appPoolConfig(env, { runtimeRole: true }))
     const plain = createPool(appPoolConfig(env))
     try {
       const sql =
