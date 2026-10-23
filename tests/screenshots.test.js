@@ -131,7 +131,7 @@ describe('the config of the screenshots', () => {
     const build = `node_modules/.cache/bqr-e2e/${SCREENSHOTS_SCHEMA}/dist`
     expect(config.use.baseURL).toBe(`http://localhost:${SCREENSHOTS_APP_PORT}`)
     expect(api.command).toBe(
-      `node scripts/dev-seed.mjs ${SCREENSHOTS_SCHEMA} --drop && node scripts/dev-seed.mjs ${SCREENSHOTS_SCHEMA} && node server/dev.mjs --schema=${SCREENSHOTS_SCHEMA}`,
+      `node scripts/dev-seed.mjs ${SCREENSHOTS_SCHEMA} --drop && node scripts/dev-seed.mjs ${SCREENSHOTS_SCHEMA} && node server/dev.mjs --schema=${SCREENSHOTS_SCHEMA} --runtime-role`,
     )
     expect(api.url).toBe(`http://localhost:${SCREENSHOTS_API_PORT}/api/public/providers`)
     expect(preview.command).toBe(`npm run build -- --outDir ${build} && npx vite preview --port ${SCREENSHOTS_APP_PORT} --strictPort --outDir ${build}`)

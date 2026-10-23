@@ -9,6 +9,7 @@ import {
   DB_ATTEMPTS,
   expectedPolicy,
   newestMigration,
+  OWNER_HELP,
   POLICY_HEADERS,
   parseBaseUrl,
   printable,
@@ -491,6 +492,42 @@ describe('step 3: the database and its migration', () => {
     } finally {
       fs.rmSync(dir, { recursive: true, force: true })
     }
+  })
+})
+
+// owns_tables of /api/health/db (server/health.js): true while the app connects with the owner's DATABASE_URL instead of the
+// runtime login of DATABASE_URL_RUNTIME. A warning, never a failure: a copy that never sets the variable keeps passing.
+describe('step 3: the app as the owner of its tables', () => {
+  const dbAs = (owns) => () => json({ ok: true, commit: SHORT, migration: LATEST, owns_tables: owns })
+
+  it('passes with one warning when the app owns its tables, and says where the fix is', async () => {
+    const r = await run({ health: healthy, db: dbAs(true), env: { SMOKE_AGENT_KEY: KEY } })
+    expect(r.exitCode).toBe(0)
+    expect(r.failures).toEqual([])
+    expect(r.warnings).toEqual([OWNER_HELP])
+    expect(r.output).toContain(`ok   3/3 database reachable, newest migration is ${LATEST}`)
+    expect(r.output).toContain(`warn 3/3 ${OWNER_HELP}`)
+    expect(OWNER_HELP).toContain('docs/install.md')
+    expect(r.lines.at(-1)).toBe(`Smoke test passed for ${SHORT} on ${BASE} (1 warning)`)
+  })
+
+  it('says nothing when the app does not own them, or when the answer has no such field (a deployment from before it)', async () => {
+    for (const db of [dbAs(false), dbOk, dbAs(null), dbAs('true'), dbAs(1)]) {
+      const r = await run({ health: healthy, db, env: { SMOKE_AGENT_KEY: KEY } })
+      expect(r.exitCode).toBe(0)
+      expect(r.warnings).toEqual([])
+      expect(r.lines.at(-1)).toBe(`Smoke test passed for ${SHORT} on ${BASE}`)
+    }
+  })
+
+  it('still fails on a migration that is behind, and then gives no warning about the owner', async () => {
+    const r = await run({
+      health: healthy,
+      db: () => json({ ok: true, commit: SHORT, migration: '001_init.sql', owns_tables: true }),
+      env: { SMOKE_AGENT_KEY: KEY },
+    })
+    expect(r.exitCode).toBe(1)
+    expect(r.warnings).toEqual([])
   })
 })
 

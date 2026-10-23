@@ -267,6 +267,7 @@ Secrets together and the Configs together.
 | `CRON_SECRET` | Secret | Yes | A long random value that you make: `openssl rand -hex 32` in Git Bash, or the random-password generator of your password manager (64 characters, no spaces or line breaks). Vercel Cron sends it to the daily jobs. Without it every daily job refuses with a 401: nothing is deleted and the retention job never runs. The trial install did not add it **(check in the trial install)** |
 | `MIGRATION_GITHUB_TOKEN` | Secret | Only if the repository is private (possible, not supported: section 4) | Section 4. It must be there **before** the first deploy |
 | `HEALTH_HEARTBEAT_URL` | Secret | Optional | Section 3.9 |
+| `DATABASE_URL_RUNTIME` | Secret | Optional | Section 3.9, "The app as a role that owns nothing". Without it the app connects with `DATABASE_URL`, as before |
 
 After you save, Vercel shows "A new deployment is needed for changes to take effect", with a **Redeploy** button. Choose
 it (or Deployments, the newest production deployment, its menu, Redeploy): a new value reaches only the deployments that
@@ -437,6 +438,32 @@ with a summary of the last 24 hours (`server/alerts.js`, `server/summary.js`). W
    (an `https:` address, with no user name or password in it), and redeploy.
 3. Check it: Settings, Cron Jobs, run `daily-summary` once. Its log line ends with `heartbeat=sent`, and the check shows a ping
    from just now ([secrets.md](runbooks/secrets.md), `HEALTH_HEARTBEAT_URL`).
+
+**The app as a role that owns nothing.** Out of the box the running app connects with `DATABASE_URL`, as the role that owns
+the tables. An owner can switch off the triggers that keep the audit log and the refused visits append-only, or empty a
+table. Migration 016 made a role, `app_runtime`, that holds only what the server's code does to each table, and owns nothing.
+The app runs as that role when it connects with a login of its own that is a member of it. Each step is one action:
+
+1. In the Neon console, your project, **SQL Editor** (the production branch and database), run, with a new random password
+   from your password manager (letters and digits only, 20 characters or more, so that it needs no escaping in a URL):
+
+   ```sql
+   create role app_login login password '<the new password>' in role app_runtime;
+   ```
+
+   Make it with SQL, never with **Add role** on the Roles page: a role made there gets `neon_superuser`, which can do far more
+   than the app needs. The password stays in the history of the SQL Editor, in your Neon account; whoever has that account
+   controls the database anyway.
+2. In Vercel, Settings, Environment Variables, add `DATABASE_URL_RUNTIME` for **Production** only, with the Type Secret. Its
+   value is your `DATABASE_URL` (the pooled string, host with `-pooler`) with `app_login` and the new password in place of the
+   user name and the password before the `@`. Make it in your password manager, never in a chat or a file of the repository.
+3. **Redeploy** (or wait for the next merge): only a deployment built after the variable is set connects with it.
+4. Check: `/api/health/db` with an agent key (as in [deploy-and-rollback.md](runbooks/deploy-and-rollback.md), "How to see
+   it") answers `"owns_tables": false`, and the smoke run of the next deployment has no `warn 3/3` line about the owner.
+
+The migrations, the backups and `db:create-admin` keep using the owner's strings. To undo it, delete the variable and
+redeploy ([deploy-and-rollback.md](runbooks/deploy-and-rollback.md), "Roll back the runtime login"). After a restore into
+a new database, the login has to be made again ([restore.md](runbooks/restore.md), "Daily backups", step 4).
 
 **An uptime monitor.** Any monitor that asks `https://<your-domain>/api/health` every 5 minutes and expects the text
 `"ok":true`, and another on the home page. It sees only that the site answers, not the database or a failing route
@@ -624,6 +651,7 @@ call it Sensitive); "Config" is one that can be read.
 | The environment `smoke`, with the variable `SMOKE_BASE_URL` | GitHub, `gh api` and `gh variable set` | GitHub, Settings, Environments |
 | The agent key "smoke test", and the secret `SMOKE_AGENT_KEY` | The committee app, `gh secret set` | The key: the committee app (it can be revoked there). The secret: GitHub Actions |
 | `HEALTH_HEARTBEAT_URL` (optional) | healthchecks.io | Vercel, Production, Secret |
+| The login role `app_login`, and `DATABASE_URL_RUNTIME` (optional) | The Neon SQL Editor, your password manager | The role: Neon. The URL: Vercel, Production, Secret. A copy of the password in your password manager |
 | The agent key of the committee's agent (optional) | The committee app, Agent tab | The vault of the agent platform |
 | `BACKUP_HEARTBEAT_URL`, or `BACKUP_DATABASE_URL` (optional) | healthchecks.io, Neon | The environment of the backup computer only |
 | The backup folder (optional) | The backup computer | That computer, never synchronised online |
