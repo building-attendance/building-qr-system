@@ -13,14 +13,33 @@ if (schemaArg) {
 }
 if (process.env.DB_SCHEMA) console.log(`Using scratch schema "${process.env.DB_SCHEMA}"`)
 
-// Refuse to start on a production database (the scratch schema, if any, lives in the same database).
-const { getPool } = await import('./db.js')
+// `--runtime-role` (with a scratch schema) runs the server as app_runtime, the role that a deployment takes with
+// DATABASE_URL_RUNTIME, so that what the server does here and in the E2E tests (playwright.config.js) needs exactly the grants
+// of db/migrations/016_runtime_roles.sql. It is a flag of this command and not a line of .env.local, so that the seed that runs
+// before it (scripts/dev-seed.mjs, which migrates as the owner) never gets it (appPoolConfig in server/db.js).
+if (process.argv.includes('--runtime-role')) {
+  if (!process.env.DB_SCHEMA) {
+    console.error('--runtime-role needs a scratch schema (--schema=<name>): it is for local development only')
+    process.exit(1)
+  }
+  process.env.DB_RUNTIME_ROLE = '1'
+  console.log('Running as the role app_runtime')
+}
+
+// Refuse to start on a production database (the scratch schema, if any, lives in the same database). As app_runtime the pool
+// cannot read the marker (016 grants that role nothing on it), so with the switch the marker is read as the owner: the same URL
+// and schema without the role, in a pool of its own that is closed right after this check.
+const { getPool, createPool, appPoolConfig } = await import('./db.js')
 const { assertNotProduction } = await import('./dbGuard.js')
+const asRuntime = process.env.DB_RUNTIME_ROLE === '1'
+const markerPool = asRuntime ? createPool(appPoolConfig({ ...process.env, DB_RUNTIME_ROLE: undefined })) : getPool()
 try {
-  await assertNotProduction(getPool())
+  await assertNotProduction(markerPool)
 } catch (err) {
   console.error(err.message)
   process.exit(1)
+} finally {
+  if (asRuntime) await markerPool.end()
 }
 
 const { handle } = await import('./index.js')

@@ -65,6 +65,9 @@ export async function addCommitteeMember(run, email, name = '') {
 
 if (isMain(import.meta.url)) {
   loadEnv()
+  // The command writes as the URL in DATABASE_URL, the owner's, never through the app's runtime login (DATABASE_URL_RUNTIME,
+  // which server/db.js would take first): the row it writes and the database it names must be the ones that URL points at.
+  delete process.env.DATABASE_URL_RUNTIME
 
   const [email, name = ''] = process.argv.slice(2)
   if (!email || !EMAIL_PATTERN.test(email)) {

@@ -11,14 +11,15 @@ import { route } from './router.js'
 import { query } from './db.js'
 import { requireApiKey } from './auth.js'
 import { ApiError } from './http.js'
-import { commit, timeLeft, healthTimeout } from './health.js'
+import { commit, timeLeft, healthTimeout, DB_HEALTH_SQL, dbHealthAnswer } from './health.js'
 import { failureLabel } from './logSafe.js'
 
 // No database on purpose: an uptime monitor pings this every few minutes, and a query each time would keep the Neon
 // compute awake around the clock.
 route('GET', '/health', async () => ({ ok: true, commit: commit() }))
 
-// For the smoke test after a deploy ("does this deployment reach its database, and which migration is the newest?"),
+// For the smoke test after a deploy ("does this deployment reach its database, which migration is the newest, and does the app
+// own its tables?": DB_HEALTH_SQL and dbHealthAnswer in server/health.js),
 // not for the uptime monitor. It needs a read-only agent key: an open route that queries the database would let anyone
 // wake the Neon compute and tie up the small connection pool. The router checks the key before this handler runs
 // (requireApiKeyForHealth in server/health.js, chosen by server/access.js), and a missing or malformed one is refused
@@ -31,14 +32,12 @@ route('GET', '/health/db', async ({ req }) => {
     const left = timeLeft(req)
     if (left <= 0) throw healthTimeout()
     const { rows } = await Promise.race([
-      requireApiKey(req).then(() =>
-        query('select 1 as ok, (select name from schema_migrations order by name desc limit 1) as migration'),
-      ),
+      requireApiKey(req).then(() => query(DB_HEALTH_SQL)),
       new Promise((_, reject) => {
         timer = setTimeout(() => reject(healthTimeout()), left)
       }),
     ])
-    return { json: { ok: true, commit: commit(), migration: rows[0].migration } }
+    return { json: dbHealthAnswer(rows[0]) }
   } catch (err) {
     if (err instanceof ApiError) throw err // a refused key is a 401 (or a 429), not a database failure
     console.error(`health/db failed: ${failureLabel(err)}`)

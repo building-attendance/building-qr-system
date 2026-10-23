@@ -141,7 +141,7 @@ describe('playwright.config.js', () => {
     const config = await loadConfig()
     const [api, preview] = config.webServer
     expect(config.use.baseURL).toBe('http://localhost:3100')
-    expect(api.command).toBe('node scripts/dev-seed.mjs e2e --drop && node scripts/dev-seed.mjs e2e && node server/dev.mjs --schema=e2e')
+    expect(api.command).toBe('node scripts/dev-seed.mjs e2e --drop && node scripts/dev-seed.mjs e2e && node server/dev.mjs --schema=e2e --runtime-role')
     expect(api.url).toBe('http://localhost:3101/api/public/providers')
     expect(api.env).toMatchObject({ API_PORT: '3101', GOOGLE_CLIENT_ID: '' })
     expect(preview.command).toBe('npm run build && npx vite preview --port 3100 --strictPort')
@@ -156,7 +156,7 @@ describe('playwright.config.js', () => {
     const [api, preview] = config.webServer
     const build = 'node_modules/.cache/bqr-e2e/e2e_b/dist'
     expect(config.use.baseURL).toBe('http://localhost:3200')
-    expect(api.command).toBe('node scripts/dev-seed.mjs e2e_b --drop && node scripts/dev-seed.mjs e2e_b && node server/dev.mjs --schema=e2e_b')
+    expect(api.command).toBe('node scripts/dev-seed.mjs e2e_b --drop && node scripts/dev-seed.mjs e2e_b && node server/dev.mjs --schema=e2e_b --runtime-role')
     expect(api.url).toBe('http://localhost:3201/api/public/providers')
     expect(preview.command).toBe(`npm run build -- --outDir ${build} && npx vite preview --port 3200 --strictPort --outDir ${build}`)
     expect(preview.url).toBe('http://localhost:3200')

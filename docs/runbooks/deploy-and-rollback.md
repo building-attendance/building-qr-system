@@ -125,7 +125,10 @@ The three steps:
 3. `GET /api/health/db` with a read-only agent key: the database answers, and its newest migration is the newest file in
    `db/migrations/` of that commit. It needs the secret `SMOKE_AGENT_KEY`. Without it this step is skipped with a warning
    (`warn 3/3`) and the run still passes. How to set it is at the top of `smoke.yml`: make a key in the Agent tab of
-   `/admin`, then run `gh secret set SMOKE_AGENT_KEY` and paste the key at the prompt, never on the command line.
+   `/admin`, then run `gh secret set SMOKE_AGENT_KEY` and paste the key at the prompt, never on the command line. When the
+   answer says `"owns_tables": true` (the app connects with the owner's `DATABASE_URL`, because `DATABASE_URL_RUNTIME` is not
+   set), the step passes with a second warning that points at [install.md](../install.md), section 3.9, "The app as a role
+   that owns nothing". It is never a failure, so a copy that never sets the variable keeps passing.
 
 If step 1 fails, or passes on a newer commit, steps 2 and 3 are skipped, because they would test a different deployment.
 
@@ -221,6 +224,25 @@ If the new code is wrong but the deployment succeeded:
 The old code works with the newer schema because migrations only add (expand) until a later release contracts them.
 Every rollback and every undo is a new build ID for the phones (the build ID is the commit), so an installed app that is
 opened in between offers its update banner each time.
+
+## Roll back the runtime login
+
+`DATABASE_URL_RUNTIME` makes the app connect as a login of the role `app_runtime`, which owns nothing
+([install.md](../install.md), section 3.9). Without the variable it connects with `DATABASE_URL`, as before. If the
+deployment that first takes it fails (every request that reads the database answers `500` and `/api/health/db` answers
+`503`: a wrong password or user in the URL), or one screen fails where it worked before (a grant that migration 016
+missed: the Vercel log line `unhandled API error:` says `code=42501`):
+
+1. Vercel, Settings, Environment Variables: delete `DATABASE_URL_RUNTIME` (Production).
+2. **Redeploy** the current production deployment, as after any change of a variable. The new deployment connects with
+   `DATABASE_URL` again, and `/api/health/db` answers `"owns_tables": true`.
+
+While that build runs, the failing deployment keeps serving. Instant Rollback (above) is quicker: the deployment from before
+the variable was set keeps the variables it was built with, so it connects with `DATABASE_URL`. Then do steps 1 and 2
+anyway, or the next merge's deployment takes the variable again, and promote that new deployment (step 5 above), which
+undoes the rollback. Nothing in the database changes either way: the login role can stay until you try again. A missing
+grant is fixed forward with a migration that adds the row to `runtime_grants` and calls `ensure_runtime_roles()`
+(`db/migrations/016_runtime_roles.sql`).
 
 ## The database is never rolled back
 

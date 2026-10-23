@@ -143,13 +143,53 @@ describe('GET /api/health/db', () => {
   it('answers 200 with the newest migration for a valid key', async () => {
     const r = await call('GET', '/api/health/db', { token: key })
     expect(r.status).toBe(200)
-    expect(r.json).toEqual({ ok: true, commit: null, migration: newestMigration })
+    expect(r.json).toEqual({ ok: true, commit: null, migration: newestMigration, owns_tables: false })
   })
 
   it('shows the short commit too', async () => {
     process.env.VERCEL_GIT_COMMIT_SHA = SHA
     const r = await call('GET', '/api/health/db', { token: key })
-    expect(r.json).toEqual({ ok: true, commit: SHA.slice(0, 7), migration: newestMigration })
+    expect(r.json).toEqual({ ok: true, commit: SHA.slice(0, 7), migration: newestMigration, owns_tables: false })
+  })
+
+  // owns_tables: whether the role the app runs as owns its tables. The server's pool of the tests is app_runtime (tests/helpers.js),
+  // as a deployment with DATABASE_URL_RUNTIME is; the owner's pool is what a deployment with only DATABASE_URL connects as.
+  describe('says whether the app owns its tables', () => {
+    it('false as app_runtime, the role that owns nothing (a deployment with DATABASE_URL_RUNTIME)', async () => {
+      const r = await call('GET', '/api/health/db', { token: key })
+      expect(r.status).toBe(200)
+      expect(r.json.owns_tables).toBe(false)
+    })
+
+    it('true as the owner of the tables (a deployment with only DATABASE_URL)', async () => {
+      setPool(db.ownerPool)
+      const r = await call('GET', '/api/health/db', { token: key })
+      expect(r.status).toBe(200)
+      expect(r.json).toEqual({ ok: true, commit: null, migration: newestMigration, owns_tables: true })
+    })
+
+    it('is a boolean and nothing else: the answer names no role and no host', async () => {
+      for (const pool of [db.pool, db.ownerPool]) {
+        setPool(pool)
+        const r = await call('GET', '/api/health/db', { token: key })
+        expect(Object.keys(r.json).sort()).toEqual(['commit', 'migration', 'ok', 'owns_tables'])
+        expect(typeof r.json.owns_tables).toBe('boolean')
+        const { rows } = await pool.query('select current_user as role, session_user as login')
+        expect(r.text).not.toContain(rows[0].role)
+        expect(r.text).not.toContain(rows[0].login)
+        expect(r.text).not.toContain('app_runtime')
+      }
+    })
+
+    it('says false, not something else, for a row whose field is missing or null (only true counts)', async () => {
+      for (const owns of [undefined, null, 't', 1]) {
+        setPool({
+          query: (text, params) => (/schema_migrations/.test(text) ? Promise.resolve({ rows: [{ ok: 1, migration: 'm', owns_tables: owns }] }) : db.pool.query(text, params)),
+        })
+        const r = await call('GET', '/api/health/db', { token: key })
+        expect(r.json, String(owns)).toEqual({ ok: true, commit: null, migration: 'm', owns_tables: false })
+      }
+    })
   })
 
   it('answers 503 with no detail when the query fails', async () => {
@@ -255,7 +295,7 @@ describe('GET /api/health/db', () => {
     it('still answers 200 when the lookup and the query together fit in the limit', async () => {
       const { soFar } = await answerAfter(1000, 1000, 2001)
       expect(soFar?.status).toBe(200)
-      expect(soFar?.json).toEqual({ ok: true, commit: null, migration: 'm' })
+      expect(soFar?.json).toEqual({ ok: true, commit: null, migration: 'm', owns_tables: false })
     })
   })
 })

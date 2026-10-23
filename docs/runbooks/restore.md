@@ -371,18 +371,31 @@ The steps:
    exits with 0 (the drill below took about 16 seconds for a small database, most of it the network). Do not pass the whole
    connection string to `--dbname`: it would be a command with the password in it, in the history and in the arguments.
 
-   Then put back the app's roles and grants, as the same role, in the same window:
+   Then put back the app's roles and grants, as the same role, in the same window. First ask whether the dump has the
+   function that does it (migration 016; a dump made before 016 reached production does not):
 
    ```
-   psql --dbname restore_check --command "select ensure_runtime_roles();"
+   psql --dbname restore_check --command "select to_regprocedure('ensure_runtime_roles()') is not null as has_function;"
    ```
 
-   `--no-privileges` leaves out every grant, and roles belong to the Neon project, not to the dump. The function (migration
-   016) makes the roles `app_runtime` and `backup_reader` where they are missing and grants again what the table
-   `runtime_grants` lists. Once the app connects with a login of its own (`DATABASE_URL_RUNTIME`), a copy that will serve
-   needs that login too: make it in the Neon SQL Editor with `create role <name> login password '<new password>' in role
+   - `has_function` is `t`: run it.
+
+     ```
+     psql --dbname restore_check --command "select ensure_runtime_roles();"
+     ```
+
+     `--no-privileges` leaves out every grant, and roles belong to the Neon project, not to the dump. The function makes the
+     roles `app_runtime` and `backup_reader` where they are missing and grants again what the table `runtime_grants` lists.
+   - `has_function` is `f`: the dump is older than 016, so it has neither the function nor `runtime_grants`, and the command
+     above would fail. Run nothing here. A copy that will serve gets them from the migrations of its next production
+     deployment, which apply 016 and everything after it (`deploy-and-rollback.md`); a copy that is only checked needs none.
+
+   A copy that will serve with `DATABASE_URL_RUNTIME` set (the app as a login of its own, [install.md](../install.md),
+   section 3.9) needs that login too, made once the grants are there (after the function above, or after that deployment
+   for an older dump): make it in the Neon SQL Editor with `create role app_login login password '<new password>' in role
    app_runtime` (never with the console's "Add role", which gives the role `neon_superuser`), and point
-   `DATABASE_URL_RUNTIME` of the deployment at it.
+   `DATABASE_URL_RUNTIME` of the deployment at it. Until then, leave `DATABASE_URL_RUNTIME` unset on that deployment: without
+   it the app connects with `DATABASE_URL`, as the owner.
 4. Check the copy with the queries of step 2 above (the counts of `scans`, `points` and `providers`, and `max(received_at)` of
    `scans`, which tells you how far the dump goes). Compare them with what you expect and with production now. The copy
    carries the marker of `public.environment_marker` with it (`production` for a dump of production), so the local tools of
@@ -471,3 +484,9 @@ copy keeps its own drill log here, or removes them.
   end and only `main` was left. Found on the way: `neon branches create` prints the connection credentials unless it is
   given `--no-secrets`, and `--schema-only` makes a check branch without production's data; step 1 above now says both.
   The drill is repeatable with the owner's script `restore-drill-neon.sh <dump>` (kept outside the repository).
+- `22/10/2026`: the condition of step 3 ("Daily backups"), on a local PostgreSQL 18 (127.0.0.1) only, with no data of
+  production and no dump of it. Two empty source databases, one migrated up to 015 (a dump older than 016) and one up to
+  016, were dumped with `pg_dump -Fc` and restored with the command of step 3 (exit 0 both). On the older one the check said
+  `has_function` `f`, and `select ensure_runtime_roles();` failed (exit 1), as the step warns; the migrations that a
+  deployment runs then applied 016, after which `app_runtime` could insert into `audit_log` and not delete from it. On the
+  newer one the check said `t`, the function exited 0, and the grants were the same. All four databases were dropped.

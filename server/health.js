@@ -16,6 +16,25 @@ export const healthTimeout = () => Object.assign(new Error('timed out'), { code:
 // The first 7 characters of the commit that Vercel built (only a deployment from Git has one), else null.
 export const commit = () => (process.env.VERCEL_GIT_COMMIT_SHA ? process.env.VERCEL_GIT_COMMIT_SHA.slice(0, 7) : null)
 
+/**
+ * The one query of GET /api/health/db (after the key): the database answers, its newest migration, and whether the role the app
+ * runs as (`current_user`) owns its tables. `scans` stands for all of them (the migrations, run as the owner, make every table).
+ * A member of the owner role counts as the owner, because it can act as that role, and so does a superuser (pg_has_role says
+ * true for one). A deployment with DATABASE_URL_RUNTIME (a login role that is a member of app_runtime only, migration 016)
+ * answers false; one that connects with the owner's DATABASE_URL answers true.
+ */
+export const DB_HEALTH_SQL =
+  'select 1 as ok, (select name from schema_migrations order by name desc limit 1) as migration, ' +
+  "(select pg_catalog.pg_has_role(current_user, c.relowner, 'MEMBER') from pg_catalog.pg_class c where c.oid = to_regclass('scans')) as owns_tables"
+
+/**
+ * The answer of GET /api/health/db, field by field: never the row as it is, so a column that the query gains later does not reach
+ * the answer by itself. `owns_tables` is a boolean and nothing else: not the role's name, not the host. It came after the other
+ * fields, so a reader from before it (an old smoke run) ignores it.
+ * @param {{ migration: string | null, owns_tables: boolean | null }} row  the row of DB_HEALTH_SQL
+ */
+export const dbHealthAnswer = (row) => ({ ok: true, commit: commit(), migration: row.migration, owns_tables: row.owns_tables === true })
+
 // When the time limit of a request runs out (a time in ms), written down by the guard that starts it.
 const deadlines = new WeakMap()
 

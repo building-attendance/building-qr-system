@@ -183,18 +183,43 @@ export function guardPool(p) {
   return p
 }
 
+/**
+ * The role that owns nothing and holds only what the server's code does (db/migrations/016_runtime_roles.sql). A deployment
+ * takes it through a login role of its own, a member of it, whose URL is DATABASE_URL_RUNTIME; a local server takes it with
+ * the dev-only switch of appPoolConfig.
+ */
+export const RUNTIME_ROLE = 'app_runtime'
+
+/**
+ * The settings of the app's pool, from the environment (`env`, process.env in the app). Two paths, and each reads only its own
+ * variables:
+ *  - A deployment (no DB_SCHEMA): DATABASE_URL_RUNTIME when it is set, the pooled URL of the login role that is a member of
+ *    app_runtime, so that the app does not own its tables; else DATABASE_URL, as before, so a copy (or an old deployment) that
+ *    never set the variable connects exactly as it always did. Nothing else of the environment changes this path: the dev-only
+ *    switch below is not read here.
+ *  - Local development (DB_SCHEMA): a scratch schema, so manual testing never touches real data. It needs the direct URL (the
+ *    pooled one cannot set search_path), and DATABASE_URL_RUNTIME is not read. DB_RUNTIME_ROLE=1 (set by
+ *    `node server/dev.mjs --runtime-role`) runs every connection as app_runtime, as a deployment with DATABASE_URL_RUNTIME does,
+ *    so that the local server and the E2E tests exercise the grants: a startup option, as in tests/helpers.js, so it holds
+ *    before the first statement and a connection that cannot take the role is refused instead of running as the owner. The local
+ *    tools refuse a production database on this path (server/dbGuard.js), so the switch cannot reach production.
+ * No URL is ever logged or put in an error: the messages name the variables only.
+ * @param {Record<string, string | undefined>} [env]
+ */
+export function appPoolConfig(env = process.env) {
+  const schema = env.DB_SCHEMA
+  if (schema && !/^[a-z_][a-z0-9_]*$/.test(schema)) throw new Error('DB_SCHEMA must be lower-case letters, digits or _')
+  const connectionString = schema
+    ? env.DATABASE_URL_UNPOOLED || env.DATABASE_URL
+    : env.DATABASE_URL_RUNTIME || env.DATABASE_URL
+  if (!connectionString) throw new Error('DATABASE_URL is not set')
+  const config = poolConfig(connectionString, schema)
+  if (schema && env.DB_RUNTIME_ROLE === '1') return { ...config, options: `${config.options} -c role=${RUNTIME_ROLE}` }
+  return config
+}
+
 export function getPool() {
-  if (!pool) {
-    // DB_SCHEMA (local development only) points the app at a scratch schema so manual testing
-    // never touches real data. It needs the direct URL: the pooled one cannot set search_path.
-    const schema = process.env.DB_SCHEMA
-    if (schema && !/^[a-z_][a-z0-9_]*$/.test(schema)) throw new Error('DB_SCHEMA must be lower-case letters, digits or _')
-    const connectionString = schema
-      ? process.env.DATABASE_URL_UNPOOLED || process.env.DATABASE_URL
-      : process.env.DATABASE_URL
-    if (!connectionString) throw new Error('DATABASE_URL is not set')
-    pool = createPool(poolConfig(connectionString, schema))
-  }
+  if (!pool) pool = createPool(appPoolConfig())
   return pool
 }
 
