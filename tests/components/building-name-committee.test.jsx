@@ -7,7 +7,7 @@ import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup, within } from '@testing-library/react'
 import AdminApp from '../../src/pages/AdminApp.jsx'
 import { api } from '../../src/api/client.js'
-import { BUILDING_NAME_MAX_LENGTH } from '../../shared/contract.js'
+import { BUILDING_NAME_MAX_LENGTH, PRIVACY_CONTACT_MAX_LENGTH } from '../../shared/contract.js'
 
 vi.mock('../../src/api/client.js', () => ({ api: vi.fn() }))
 
@@ -50,7 +50,7 @@ function answerLikeTheServer() {
     if (path === '/admin/building' && options.method === 'PUT') {
       server.puts.push(options.body)
       if (server.putFails) throw server.putFails
-      server.stored = { address: options.body.address, name: options.body.name ?? server.stored.name }
+      server.stored = { address: options.body.address, name: options.body.name ?? server.stored.name, privacy_contact: options.body.privacy_contact ?? server.stored.privacy_contact ?? '' }
       return { building: { ...server.stored } }
     }
     if (path === '/admin/building') {
@@ -70,6 +70,7 @@ const start = () => render(<AdminApp />)
 const card = async () => within(await screen.findByRole('region', { name: 'פרטי הבניין' }))
 const nameField = (c) => c.getByLabelText('שם הבניין', { exact: true })
 const addressField = (c) => c.getByLabelText('כתובת הבניין', { exact: true })
+const contactField = (c) => c.getByLabelText('פרטי קשר לפניות בנושא פרטיות', { exact: true })
 const type = (field, value) => fireEvent.change(field, { target: { value } })
 const save = (c) => fireEvent.click(c.getByRole('button', { name: 'שמירה' }))
 // The brand is in the side rail (the complementary region) and in the top bar of a phone (the banner): CSS shows one of them.
@@ -84,7 +85,7 @@ describe('the card in the settings screen', () => {
     await waitFor(() => expect(nameField(c).value).toBe(NAME))
     expect(addressField(c).value).toBe(ADDRESS)
     const fields = c.getAllByRole('textbox')
-    expect(fields).toEqual([nameField(c), addressField(c)]) // the name first
+    expect(fields).toEqual([nameField(c), addressField(c), contactField(c)]) // the name first, the contact for privacy requests last
     expect(nameField(c).getAttribute('dir')).toBe('auto')
     expect(addressField(c).getAttribute('dir')).toBe('auto')
     expect(nameField(c).getAttribute('maxlength')).toBe(String(BUILDING_NAME_MAX_LENGTH))
@@ -114,7 +115,7 @@ describe('the card in the settings screen', () => {
     type(addressField(c), 'רחוב הבדיקה 2, עיר אחרת')
     save(c)
     expect(await screen.findByText('פרטי הבניין נשמרו')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 2, עיר אחרת', name: 'מגדל הבדיקה' }]) // one request, both fields, trimmed
+    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 2, עיר אחרת', name: 'מגדל הבדיקה', privacy_contact: '' }]) // one request, all fields, trimmed
     expect(nameField(c).value).toBe('מגדל הבדיקה')
     expect(addressField(c).value).toBe('רחוב הבדיקה 2, עיר אחרת')
     expect(c.getByRole('button', { name: 'שמירה' }).disabled).toBe(true)
@@ -128,7 +129,7 @@ describe('the card in the settings screen', () => {
     type(addressField(c), 'רחוב הבדיקה 3')
     save(c)
     expect(await screen.findByText('כתובת הבניין נשמרה')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 3', name: NAME }])
+    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 3', name: NAME, privacy_contact: '' }])
   })
 
   it('saves a name alone, and clearing it says the name is removed (the address is kept)', async () => {
@@ -139,12 +140,12 @@ describe('the card in the settings screen', () => {
     type(nameField(c), 'מגדל הבדיקה')
     save(c)
     expect(await screen.findByText('שם הבניין נשמר')).toBeTruthy()
-    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: 'מגדל הבדיקה' })
+    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: 'מגדל הבדיקה', privacy_contact: '' })
 
     type(nameField(c), '')
     save(c)
     expect(await screen.findByText('שם הבניין הוסר')).toBeTruthy()
-    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: '' })
+    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: '', privacy_contact: '' })
     expect(nameField(c).value).toBe('')
   })
 
@@ -156,7 +157,7 @@ describe('the card in the settings screen', () => {
     type(addressField(c), '')
     save(c)
     expect(await screen.findByText('כתובת הבניין הוסרה')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: '', name: NAME }])
+    expect(server.puts).toEqual([{ address: '', name: NAME, privacy_contact: '' }])
   })
 
   it('shows a refusal of the name by the server under the name field, with no toast, and keeps what was typed', async () => {
@@ -231,6 +232,82 @@ describe('the card in the settings screen', () => {
     const c = await card()
     await waitFor(() => expect(addressField(c).value).toBe(ADDRESS))
     expect(nameField(c).value).toBe('')
+  })
+
+  it('reads a server that sends no contact (from before the privacy contact existed) as an empty field, with the reminder', async () => {
+    answerLikeTheServer()
+    start()
+    const c = await card()
+    await waitFor(() => expect(addressField(c).value).toBe(ADDRESS))
+    expect(contactField(c).value).toBe('')
+    expect(contactField(c).getAttribute('maxlength')).toBe(String(PRIVACY_CONTACT_MAX_LENGTH))
+    expect(c.getByText(/עוד לא נשמרו פרטי קשר/)).toBeTruthy()
+    const link = c.getByRole('link', { name: 'הודעת הפרטיות שנותני השירות רואים' })
+    expect(link.getAttribute('href')).toBe('/privacy')
+    expect(link.getAttribute('target')).toBe('_blank')
+    expect(link.getAttribute('rel')).toBe('noopener')
+  })
+
+  it('saves a contact alone, trimmed, says so, drops the reminder, and clearing it says it is removed and brings the reminder back', async () => {
+    answerLikeTheServer()
+    start()
+    const c = await card()
+    await waitFor(() => expect(nameField(c).value).toBe(NAME))
+    type(contactField(c), '  vaad@example.test  ')
+    save(c)
+    expect(await screen.findByText('פרטי הקשר לפניות פרטיות נשמרו')).toBeTruthy()
+    expect(server.puts).toEqual([{ address: ADDRESS, name: NAME, privacy_contact: 'vaad@example.test' }])
+    expect(contactField(c).value).toBe('vaad@example.test')
+    expect(c.queryByText(/עוד לא נשמרו פרטי קשר/)).toBeNull()
+
+    type(contactField(c), '')
+    save(c)
+    expect(await screen.findByText('פרטי הקשר לפניות פרטיות הוסרו')).toBeTruthy()
+    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
+    expect(c.getByText(/עוד לא נשמרו פרטי קשר/)).toBeTruthy()
+  })
+
+  it('says "the building details" when the contact and another field are saved together', async () => {
+    answerLikeTheServer()
+    start()
+    const c = await card()
+    await waitFor(() => expect(nameField(c).value).toBe(NAME))
+    type(contactField(c), '03-5550100')
+    type(addressField(c), 'רחוב הבדיקה 4')
+    save(c)
+    expect(await screen.findByText('פרטי הבניין נשמרו')).toBeTruthy()
+  })
+
+  it('does not send a contact with a control character, and says so under the contact field', async () => {
+    answerLikeTheServer()
+    start()
+    const c = await card()
+    await waitFor(() => expect(nameField(c).value).toBe(NAME))
+    type(contactField(c), '03-5550100\tוועד')
+    save(c)
+    expect((await c.findByRole('alert')).textContent).toContain('פרטי הקשר מכילים תווים שאי אפשר לשמור')
+    expect(contactField(c).getAttribute('aria-invalid')).toBe('true')
+    expect(nameField(c).getAttribute('aria-invalid')).toBeNull()
+    expect(server.puts).toEqual([])
+    type(contactField(c), '03-5550100')
+    expect(c.queryByRole('alert')).toBeNull()
+  })
+
+  it('shows a refusal of the contact by the server under the contact field, with no toast, and keeps what was typed', async () => {
+    answerLikeTheServer()
+    server.putFails = refusal('privacy_contact')
+    start()
+    const c = await card()
+    await waitFor(() => expect(nameField(c).value).toBe(NAME))
+    type(contactField(c), 'פרטים שהשרת לא מקבל')
+    save(c)
+    const alert = await c.findByRole('alert')
+    expect(alert.textContent).toContain('פרטי הקשר לא נשמרו')
+    expect(contactField(c).getAttribute('aria-invalid')).toBe('true')
+    expect(contactField(c).getAttribute('aria-describedby')).toContain(alert.id)
+    expect(nameField(c).getAttribute('aria-invalid')).toBeNull()
+    expect(contactField(c).value).toBe('פרטים שהשרת לא מקבל')
+    expect(screen.queryByText('אחד הערכים לא תקין.')).toBeNull()
   })
 })
 
