@@ -36,11 +36,11 @@ function savedMessage({ addressChanged, nameChanged, contactChanged }, building)
 const fieldsOf = (building) => ({ address: building?.address ?? '', name: building?.name ?? '', privacy_contact: building?.privacy_contact ?? '' })
 
 /**
- * The building's name, address and contact for privacy requests: the name and address are shown at the top of the service providers' app
- * (the name above the address) and, the name, in the committee app too; the contact is shown in the providers' privacy notice (/privacy).
- * All are kept in the database of this committee and any can stay empty (the apps then show nothing for it, and the notice tells the
- * providers to ask the committee's members). One form and one save button for the three, so there are no row actions here (and the card is not an <article>: the committee
- * members' cards are). The heading of the section, with its line, stands above the card like the members' one, so the card holds
+ * The building's name, address and contact for privacy requests: the name and address are shown at the top of the service
+ * providers' app (the name above the address) and, the name, in the committee app too; the contact is shown in the providers'
+ * privacy notice (/privacy). All are kept in the database of this committee and any can stay empty (the apps then show nothing for
+ * it, and the notice tells the providers to ask the committee's members). One form and one save button for the three, so there are
+ * no row actions here (and the card is not an <article>: the committee members' cards are). The heading of the section, with its line, stands above the card like the members' one, so the card holds
  * the fields alone. A save tells the committee app the name that the server now has, so its brand follows with no reload.
  */
 function BuildingCard() {
