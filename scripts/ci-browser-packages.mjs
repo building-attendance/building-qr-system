@@ -44,6 +44,12 @@ const BROWSER = /^[a-z][a-z0-9-]{0,30}$/
 const RELEASE_VALUE = /^[A-Za-z0-9.]{1,20}$/
 const VERSION = /^\d+\.\d+\.\d+(?:-[A-Za-z0-9.]+)?$/
 const SHA256 = /^[0-9a-f]{64}$/
+// A package name and a version as Debian's policy allows them (sections 5.6.1 and 5.6.12, policy 4.7.4.1, read
+// 23/10/2026), and an architecture as a lower-case word such as amd64 or all: a cached file name becomes an argument of
+// apt-cache, so a name such as `-o` or a version such as `APT::Key=value` must never get that far.
+const PACKAGE_NAME = /^[a-z0-9][a-z0-9+.-]+$/
+const PACKAGE_VERSION = /^(?:[0-9]+:)?[0-9A-Za-z][0-9A-Za-z.+~-]*$/
+const PACKAGE_ARCH = /^[a-z0-9][a-z0-9-]*$/
 
 /** apt's QuoteString(value, bad): each byte that is in `bad`, a %, a space or a control or non-ASCII byte becomes %xx. */
 export function quote(value, bad) {
@@ -60,12 +66,16 @@ export function archiveName({ name, version, arch }) {
   return `${quote(name, '_:')}_${quote(version, '_:')}_${quote(arch, '_:.')}.deb`
 }
 
-/** The package version that an archive file name stands for, or null for a name that apt-get would not have written. */
+/**
+ * The package version that an archive file name stands for, or null for a name that apt-get would not have written or
+ * whose name, version or architecture Debian's policy does not allow.
+ */
 export function parseArchiveName(file) {
   const match = /^([^_/]+)_([^_/]+)_([^_/]+)\.deb$/.exec(String(file))
   if (!match) return null
   try {
     const [name, version, arch] = match.slice(1).map((part) => decodeURIComponent(part))
+    if (!PACKAGE_NAME.test(name) || !PACKAGE_VERSION.test(version) || !PACKAGE_ARCH.test(arch)) return null
     const parsed = { name, version, arch }
     return archiveName(parsed) === file ? parsed : null
   } catch {
@@ -162,8 +172,9 @@ function restoreCommand() {
   // The index that the hashes come from, fresh and with its signature checked.
   execFileSync('sudo', ['apt-get', 'update', '-qq'], { stdio: 'inherit', timeout: 120_000 })
   // One call for every version. A version that the index no longer has prints a notice and is simply not in the output, so
-  // the records are read whatever the exit status.
-  const shown = spawnSync('apt-cache', ['show', ...versions.map((v) => `${v.name}=${v.version}`)], {
+  // the records are read whatever the exit status. apt reads an option anywhere in its arguments, so `--` ends them before
+  // the names that come from the cache (which parseArchiveName has already held to Debian's policy).
+  const shown = spawnSync('apt-cache', ['show', '--', ...versions.map((v) => `${v.name}=${v.version}`)], {
     encoding: 'utf8',
     maxBuffer: 256 * 1024 * 1024,
     timeout: 120_000,

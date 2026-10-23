@@ -57,6 +57,22 @@ describe('archiveName and parseArchiveName', () => {
     ])
       expect(parseArchiveName(file), file).toBeNull()
   })
+
+  it('refuses a name, version or architecture that Debian does not allow, so that none can become an option of apt-cache', () => {
+    for (const file of [
+      '-o_APT%3a%3aCompressor%3a%3alz4%3a%3aBinary=sh_all.deb', // round-trips, but the name is an option
+      '--option_1.0_amd64.deb',
+      'fonts_-o_all.deb',
+      'fonts_1.0_-all.deb',
+      'Fonts_1.0_all.deb', // upper case
+      'f_1.0_all.deb', // one character
+      'fonts_1.0%3dx_all.deb', // = in the version
+      'fonts_1.0_amd64%2c.deb',
+    ])
+      expect(parseArchiveName(file), file).toBeNull()
+    expect(parseArchiveName('libc6_2.39-0ubuntu8.6_amd64.deb')).toEqual({ name: 'libc6', version: '2.39-0ubuntu8.6', arch: 'amd64' })
+    expect(parseArchiveName('libstdc++6_14.2.0-4ubuntu2~24.04_amd64.deb')).toEqual({ name: 'libstdc++6', version: '14.2.0-4ubuntu2~24.04', arch: 'amd64' })
+  })
 })
 
 describe('indexHashes', () => {
