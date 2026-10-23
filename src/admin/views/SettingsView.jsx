@@ -107,9 +107,10 @@ function BuildingCard() {
     // is said. Any other failure is the usual toast.
     const res = await run(async () => {
       try {
-        // The contact goes only when it changed: the server keeps the saved one when it is not sent, so a save of the address or the
-        // name from a card that was opened earlier never brings back a contact that another member has replaced since.
-        const body = contactChanged ? { address, name, privacy_contact: contact } : { address, name }
+        // The name and the contact go only when they changed: the server keeps the saved one when it is not sent, so a save from a
+        // card that was opened earlier never brings back a name or a contact that another member has replaced since. The address goes
+        // with every save, because the route requires it (the committee screens from before the name sent the address alone).
+        const body = { address, ...(nameChanged ? { name } : {}), ...(contactChanged ? { privacy_contact: contact } : {}) }
         return await adminApi('/building', { method: 'PUT', body })
       } catch (err) {
         const field = err?.code === 'invalid_field' ? err.extra?.field : undefined

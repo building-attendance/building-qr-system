@@ -121,7 +121,7 @@ describe('the card in the settings screen', () => {
     expect(c.getByRole('button', { name: 'שמירה' }).disabled).toBe(true)
   })
 
-  it('sends the name that is saved along with an address that changed alone, and says it is the address', async () => {
+  it('sends the address alone when only the address changed (the server keeps the saved name), and says it is the address', async () => {
     answerLikeTheServer()
     start()
     const c = await card()
@@ -129,7 +129,7 @@ describe('the card in the settings screen', () => {
     type(addressField(c), 'רחוב הבדיקה 3')
     save(c)
     expect(await screen.findByText('כתובת הבניין נשמרה')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 3', name: NAME }])
+    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 3' }])
   })
 
   it('does not send a contact that did not change, so a save of the address keeps one that another member saved since', async () => {
@@ -141,7 +141,7 @@ describe('the card in the settings screen', () => {
     type(addressField(c), 'רחוב הבדיקה 4')
     save(c)
     expect(await screen.findByText('כתובת הבניין נשמרה')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 4', name: NAME }])
+    expect(server.puts).toEqual([{ address: 'רחוב הבדיקה 4' }])
     expect(server.stored.privacy_contact).toBe('newer@example.test')
     expect(contactField(c).value).toBe('newer@example.test') // and the card shows what the server now has
   })
@@ -171,7 +171,7 @@ describe('the card in the settings screen', () => {
     type(addressField(c), '')
     save(c)
     expect(await screen.findByText('כתובת הבניין הוסרה')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: '', name: NAME }])
+    expect(server.puts).toEqual([{ address: '' }])
   })
 
   it('shows a refusal of the name by the server under the name field, with no toast, and keeps what was typed', async () => {
@@ -271,15 +271,29 @@ describe('the card in the settings screen', () => {
     type(contactField(c), '  vaad@example.test  ')
     save(c)
     expect(await screen.findByText('פרטי הקשר לפניות פרטיות נשמרו')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: ADDRESS, name: NAME, privacy_contact: 'vaad@example.test' }])
+    expect(server.puts).toEqual([{ address: ADDRESS, privacy_contact: 'vaad@example.test' }])
     expect(contactField(c).value).toBe('vaad@example.test')
     expect(c.queryByText(/עוד לא נשמרו פרטי קשר/)).toBeNull()
 
     type(contactField(c), '')
     save(c)
     expect(await screen.findByText('פרטי הקשר לפניות פרטיות הוסרו')).toBeTruthy()
-    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: NAME, privacy_contact: '' })
+    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, privacy_contact: '' })
     expect(c.getByText(/עוד לא נשמרו פרטי קשר/)).toBeTruthy()
+  })
+
+  it('does not send a name that did not change, so a save of the contact keeps a name that another member saved since', async () => {
+    answerLikeTheServer()
+    start()
+    const c = await card()
+    await waitFor(() => expect(nameField(c).value).toBe(NAME))
+    server.stored = { ...server.stored, name: 'שם חדש יותר' } // another member saved a name after this card opened
+    type(contactField(c), 'vaad@example.test')
+    save(c)
+    expect(await screen.findByText('פרטי הקשר לפניות פרטיות נשמרו')).toBeTruthy()
+    expect(server.puts).toEqual([{ address: ADDRESS, privacy_contact: 'vaad@example.test' }])
+    expect(server.stored.name).toBe('שם חדש יותר')
+    expect(nameField(c).value).toBe('שם חדש יותר') // and the card shows what the server now has
   })
 
   it('says "the building details" when the contact and another field are saved together', async () => {
