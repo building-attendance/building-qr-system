@@ -141,7 +141,8 @@ The server cuts every report to a fixed list of fields (`shared/contract.js`) an
 
 The first installation's owner keeps a daily backup of the database on his own computer, never in the repository or in any
 online place (`docs/runbooks/restore.md`, which also says how to set up the same task). The task keeps the newest 30
-backups (`--keep 30`, usually one a day, so about 30 days; there are fewer days if some days have no backup and more if
+backups (`--keep 30`, usually one a day, so about 30 days; they reach further back when some days have no backup, for
+example while the computer is off or asleep, so a row can stay in a backup for more than 30 days, and over fewer days when
 several are made in a day), and deletes the older ones. A backup holds everything that was in the database on that day, so a
 row that the daily job deleted can still be in a backup, until the backup itself is deleted because 30 newer ones exist. Every backup is kept encrypted to the owner's public key, and only the owner holds the
 private key that opens it, in his password manager and not on that computer. The unencrypted dump exists only while a run
