@@ -3,7 +3,7 @@
 The production database is a Neon project. On the current plan Neon keeps history for only **6 hours**: a restore point
 older than that does not exist. Act fast, and do not wait for the next morning.
 
-A daily backup on the owner's computer reaches back further (30 days): see [Daily backups](#daily-backups) below. Neon's own
+A daily backup on the owner's computer reaches back further (the newest 30 backups, usually one a day, so about 30 days): see [Daily backups](#daily-backups) below. Neon's own
 history is the faster way back, but it covers only the last 6 hours, so use it first when the damage is that recent.
 The short page for the owner is [something-broke.md](something-broke.md); the general checklist is
 [incident.md](incident.md).

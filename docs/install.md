@@ -128,7 +128,11 @@ There are two ways. Take the first for your first install: it makes the first de
 1. In the Neon console create a project. The "Create project" dialog has Project name, Region and Services:
    - Give it a name of your own.
    - **Region:** it defaults to "AWS US East 2 (Ohio)": **change it** to "AWS US East 1 (N. Virginia)", the region next to
-     the Vercel function region, `iad1` (Washington, D.C., set in `vercel.json`).
+     the Vercel function region, `iad1` (Washington, D.C., set in `vercel.json`). The privacy notice that your providers
+     read says that their data is kept on the servers of Vercel and Neon in the United States, and that statement is true
+     only with these two regions. If you choose another region for the database, or another `regions` in `vercel.json`,
+     do not edit the notice yourself: open an issue on this repository, so that the notice and
+     [privacy.md](privacy.md) are changed together, with the new date.
    - **Postgres version:** expand the "Postgres database" row. It shows version 18 (the version the tests and the first
      installation run on) and the database name `neondb`: keep both.
    - **Services:** leave Object storage, Functions, AI gateway and Neon Auth off. The app uses none of them.
@@ -147,7 +151,9 @@ There are two ways. Take the first for your first install: it makes the first de
 variables, then connect the database in the project's Storage tab (Neon, from the Marketplace), or connect an existing
 Neon project from the Neon console, Integrations. Both integrations add `DATABASE_URL` and `DATABASE_URL_UNPOOLED` to the
 Vercel project by themselves (Neon's documentation), and those are the two names this app reads. Leave the option of a
-database branch for every preview deployment off, because this project builds no preview deployments. The first deploy
+database branch for every preview deployment off, because this project builds no preview deployments. Choose the same
+region as in the manual route, "AWS US East 1 (N. Virginia)" (the same reason: the privacy notice says that the data is kept
+in the United States). The first deploy
 then fails at the gate, with the message that `DATABASE_URL_UNPOOLED` is not set: that is expected, and nothing is
 touched. Once the database is connected, **Redeploy** **(check in the trial install)**.
 
@@ -311,8 +317,16 @@ not say `nonprod`.
 
 ### 3.7 In the app: the building, a point, a provider, a test scan
 
-1. Settings screen ("הגדרות"), the section ("פרטי הבניין"): fill ("שם הבניין") and ("כתובת הבניין"), and save ("שמירה"). The toast
-   says that the details were saved ("פרטי הבניין נשמרו"). The committee app's brand and window title follow at once, and
+1. Settings screen ("הגדרות"), the section ("פרטי הבניין"): fill ("שם הבניין"), ("כתובת הבניין") and
+   ("פרטי קשר לפניות בנושא פרטיות"), and save ("שמירה"). The toast says that the details were saved ("פרטי הבניין נשמרו").
+   The third field is **how a service provider reaches the committee about the data kept about them**, for example the
+   phone number or the e-mail address of a committee member (at most 120 characters). It is needed because Section 11 of
+   the Protection of Privacy Law asks a notice to name the body that holds the data and to say how to reach it. The
+   providers' privacy notice shows it to anyone who opens the app, so type only what you are ready to publish. While it is
+   empty, the card says so, and the notice sends the providers to "the committee members", without a way to reach them.
+   A link next to the field opens the notice ("הודעת הפרטיות שנותני השירות רואים"). Like the name and the address, the
+   contact is kept in the database of your copy and a change of it is written to the audit log; the providers' phones do
+   not keep it. The committee app's brand and window title follow at once, and
    the providers' app shows the name within about a minute. The label of the installed app on a phone's Home Screen is
    fixed when the app is built, so it does not follow the name.
 2. Points tab ("מיקומים"), on an empty list ("הוסיפו את הנקודה הראשונה"), later ("נקודה חדשה"): a name and a pin on the
@@ -340,6 +354,16 @@ not say `nonprod`.
 5. Before you give signs to the providers: read [privacy.md](privacy.md) (in a copy, "the owner of the project" is you,
    and the periods are constants in `server/config.js`; this guide is not legal advice), and do the quick pass of the
    [iOS checklist](manual-ios-checklist.md) on a real iPhone (items 1, 4 and 8 are the quick pass).
+6. **The privacy notice: read it, and have it checked by a lawyer.** The providers' app has a privacy notice at
+   `https://<your-domain>/privacy`, in Hebrew, English, Russian and Arabic. It is linked from the sign-in screen and from
+   the home screen, and a short version stands on the sign-in list, before the first scan. It is built from the building's
+   name, address and contact that you typed in step 1, so it names your committee. Open it, with your contact filled in, in
+   each language that your providers read, and check that every sentence is true for your copy: what is recorded, the
+   periods, who sees it, the hosting in the United States, the backups, the AI service (which counts only if you use
+   one). **The text is a proposal, not legal advice.** Have a lawyer check it before you give signs to the providers.
+   If a sentence is not true for your copy, or your lawyer changes it, change the words in `src/i18n/*.js` (the keys that
+   start with `privacy.`), the date `PRIVACY_NOTICE_UPDATED` in `src/worker/PrivacyView.jsx` and [privacy.md](privacy.md),
+   where the facts behind each sentence are kept, in the same pull request.
 
 ### 3.8 GitHub settings for the copy
 
@@ -656,4 +680,4 @@ call it Sensitive); "Config" is one that can be read.
 | The agent key of the committee's agent (optional) | The committee app, Agent tab | The vault of the agent platform |
 | `BACKUP_HEARTBEAT_URL`, or `BACKUP_DATABASE_URL` (optional) | healthchecks.io, Neon | The environment of the backup computer only |
 | The backup folder (optional) | The backup computer | That computer, never synchronised online |
-| The building's name and address | The committee app, Settings screen | The database |
+| The building's name, address and contact for privacy requests | The committee app, Settings screen | The database |
