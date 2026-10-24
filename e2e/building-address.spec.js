@@ -3,7 +3,7 @@
 // scratch schema has an invented address and an invented name (scripts/dev-seed.mjs).
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
-import { BUILDING_NAME_MAX_LENGTH } from '../shared/contract.js'
+import { BUILDING_NAME_MAX_LENGTH, PRIVACY_CONTACT_MAX_LENGTH } from '../shared/contract.js'
 import { test, expect, he, en, ru, BUILDING_ADDRESS, BUILDING_NAME, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, allowConsoleErrors, accountButton } from './fixtures.js'
 
 const COMPUTER = { width: 1280, height: 800 }
@@ -473,4 +473,122 @@ test('a phone that saved only the address (an older version of the app) shows it
   await expect(page.getByRole('banner').getByText(BUILDING_ADDRESS)).toBeVisible()
   await expect(page.getByRole('banner').getByText(BUILDING_NAME)).toBeVisible()
   await expect.poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem('qr.building.v1')))).toEqual({ address: BUILDING_ADDRESS, name: BUILDING_NAME })
+})
+
+// ---- the committee's contact for privacy requests ----------------------------------------------------------------------
+// The third field of the card: the providers' privacy notice shows it (and tells them to ask the committee's members while it is
+// empty), so the card says that the value is public, reminds the committee while it is empty and links to the notice. The scratch
+// schema starts with no contact (scripts/dev-seed.mjs).
+
+const contactField = (page) => page.getByLabel('פרטי קשר לפניות בנושא פרטיות', { exact: true })
+const emptyNote = (page) => page.getByText('עוד לא נשמרו פרטי קשר')
+const noticeLink = (page) => page.getByRole('link', { name: 'הודעת הפרטיות שנותני השירות רואים', exact: true })
+const savedContact = async (page) => (await (await page.request.get('/api/admin/building')).json()).building.privacy_contact
+
+/** Puts the contact of the scratch schema back (none), with the address and the name, so that the specs that run after this one find them. */
+const restoreContact = (page) => page.request.put('/api/admin/building', { data: { address: BUILDING_ADDRESS, name: BUILDING_NAME, privacy_contact: '' } })
+
+for (const [where, size] of SIZES) {
+  test(`the committee types a contact for privacy requests ${where}: it is public, clearing it brings the reminder back, and the audit log names the field`, async ({ page, playwright }) => {
+    const contact = `vaad-${randomUUID().slice(0, 6)}@example.com`
+    await adminSignIn(page)
+    if (size) await page.setViewportSize(size)
+    const anonymous = await playwright.request.newContext({ baseURL: new URL(page.url()).origin })
+    try {
+      // the field is the third of the card, with its hint and its limit; nothing is saved yet, so the reminder and the link are there
+      await page.goto('/admin#settings')
+      await loaded(page)
+      await expect(contactField(page)).toHaveValue('')
+      await expect(contactField(page)).toHaveAttribute('maxlength', String(PRIVACY_CONTACT_MAX_LENGTH))
+      await expect(page.getByText('מוצג לכל מי שפותח את אפליקציית נותני השירות, בהודעת הפרטיות')).toBeVisible()
+      await expect(emptyNote(page)).toBeVisible()
+      await expect(saveButton(page)).toBeDisabled()
+      await expect(noticeLink(page)).toHaveAttribute('href', '/privacy')
+      await expect(noticeLink(page)).toHaveAttribute('target', '_blank')
+      await expect(noticeLink(page)).toHaveAttribute('rel', 'noopener')
+      const [addressBox, contactBox] = [await field(page).boundingBox(), await contactField(page).boundingBox()]
+      const link = await noticeLink(page).boundingBox()
+      const view = page.viewportSize()
+      expect(addressBox.y + addressBox.height, 'the contact field is under the address field').toBeLessThanOrEqual(contactBox.y)
+      expect(contactBox.x).toBeGreaterThanOrEqual(0)
+      expect(contactBox.x + contactBox.width).toBeLessThanOrEqual(view.width)
+      expect(contactBox.height).toBeGreaterThanOrEqual(44)
+      expect(link.x, 'the link is inside the screen').toBeGreaterThanOrEqual(0)
+      expect(link.x + link.width, 'the link is inside the screen').toBeLessThanOrEqual(view.width)
+      expect(link.height, 'the link is big enough to tap').toBeGreaterThanOrEqual(44)
+      expect(await noHorizontalScroll(page), `the settings screen ${where}`).toBe(true)
+      expect((await (await anonymous.get('/api/public/building')).json()).building.privacy_contact).toBe('')
+
+      // saving the contact alone says so, keeps the address and the name, and the public route answers it
+      await contactField(page).fill(` ${contact} `)
+      await expect(saveButton(page)).toBeEnabled()
+      await saveButton(page).click()
+      await expect(page.getByRole('status').filter({ hasText: 'פרטי הקשר לפניות פרטיות נשמרו' })).toBeVisible()
+      await expect(contactField(page)).toHaveValue(contact)
+      await expect(emptyNote(page)).toHaveCount(0)
+      await expect(saveButton(page)).toBeDisabled()
+      await expect(field(page)).toHaveValue(BUILDING_ADDRESS)
+      await expect(nameField(page)).toHaveValue(BUILDING_NAME)
+      expect((await (await anonymous.get('/api/public/building')).json()).building).toEqual({ address: BUILDING_ADDRESS, name: BUILDING_NAME, privacy_contact: contact })
+
+      // still there after a reload (it is stored, not just on the screen), and no reminder
+      await page.goto('/admin#settings')
+      await loaded(page)
+      await expect(contactField(page)).toHaveValue(contact)
+      await expect(emptyNote(page)).toHaveCount(0)
+
+      // two fields in one save: the toast speaks of the building's details
+      await contactField(page).fill(`${contact} 2`)
+      await field(page).fill(`${BUILDING_ADDRESS} 2`)
+      await saveButton(page).click()
+      await expect(page.getByRole('status').filter({ hasText: 'פרטי הבניין נשמרו' })).toBeVisible()
+
+      // the audit log describes the change of the contact with its label
+      await page.evaluate(() => { window.location.hash = '#audit' })
+      await expect(page.getByRole('heading', { level: 1, name: 'יומן פעולות', exact: true })).toBeVisible()
+      const entry = page.getByRole('main').getByRole('listitem').filter({ hasText: 'עדכון פרטי הבניין' }).filter({ hasText: 'פרטי קשר לפרטיות' }).first()
+      await expect(entry).toContainText(`פרטי קשר לפרטיות: ${contact} ← ${contact} 2`)
+
+      // clearing it saves nothing in its place, says so, and the reminder comes back
+      await page.goto('/admin#settings')
+      await loaded(page)
+      await contactField(page).fill('')
+      await saveButton(page).click()
+      await expect(page.getByRole('status').filter({ hasText: 'פרטי הקשר לפניות פרטיות הוסרו' })).toBeVisible()
+      await expect(emptyNote(page)).toBeVisible()
+      expect(await savedContact(page)).toBe('')
+      expect((await (await anonymous.get('/api/public/building')).json()).building.privacy_contact).toBe('')
+    } finally {
+      await anonymous.dispose()
+      await restoreContact(page)
+    }
+  })
+}
+
+test('the committee is told about a contact with a character that cannot be saved, under its own field, and nothing is saved', async ({ page }) => {
+  await adminSignIn(page)
+  await page.goto('/admin#settings')
+  await loaded(page)
+  await contactField(page).fill('000-0000000\tוועד')
+  await saveButton(page).click()
+  await expect(page.getByRole('alert').filter({ hasText: 'פרטי הקשר מכילים תווים שאי אפשר לשמור' })).toBeVisible()
+  await expect(contactField(page)).toHaveAttribute('aria-invalid', 'true')
+  await expect(nameField(page)).not.toHaveAttribute('aria-invalid', 'true')
+  await contactField(page).fill('000-0000000')
+  await expect(page.getByRole('alert').filter({ hasText: 'פרטי הקשר מכילים תווים שאי אפשר לשמור' })).toHaveCount(0)
+  expect(await savedContact(page)).toBe('')
+})
+
+test('the contact field stops at 120 characters, the most the server takes, and the server answers the field it refuses', async ({ page }) => {
+  await adminSignIn(page)
+  await page.goto('/admin#settings')
+  await loaded(page)
+  await expect(contactField(page)).toHaveAttribute('maxlength', '120')
+  // a contact that is too long, or that is null, is refused by the server naming the field (the form never sends one, an old or odd client could)
+  for (const privacy_contact of ['א'.repeat(121), null]) {
+    const refused = await page.request.put('/api/admin/building', { data: { address: BUILDING_ADDRESS, name: BUILDING_NAME, privacy_contact } })
+    expect(refused.status()).toBe(400)
+    expect((await refused.json()).error).toMatchObject({ code: 'invalid_field', field: 'privacy_contact' })
+  }
+  expect(await savedContact(page)).toBe('')
 })

@@ -60,6 +60,7 @@ export const FIELD_LABELS = Object.freeze({
   description: 'תיאור',
   service_type: 'סוג שירות',
   address: 'כתובת',
+  privacy_contact: 'פרטי קשר לפרטיות',
   gps_mode: 'בדיקת מיקום',
   lat: 'קו רוחב',
   lng: 'קו אורך',
