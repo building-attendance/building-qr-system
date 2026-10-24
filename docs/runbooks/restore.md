@@ -689,3 +689,16 @@ copy keeps its own drill log here, or removes them.
   `has_function` `f`, and `select ensure_runtime_roles();` failed (exit 1), as the step warns; the migrations that a
   deployment runs then applied 016, after which `app_runtime` could insert into `audit_log` and not delete from it. On the
   newer one the check said `t`, the function exited 0, and the grants were the same. All four databases were dropped.
+- `24/10/2026`: the first restore with the real key pair and a dump of production, on a local PostgreSQL 18.6 (127.0.0.1)
+  only; production was not contacted. The private key came out of the password manager into a new folder in the owner's
+  profile with an access list for the owner alone (not in `$env:LOCALAPPDATA`: a program that the Claude desktop app
+  starts sees a virtual copy of that folder, so the password manager and the agent would not find the same files). The
+  newest daily `.dump.gpg` was decrypted there (0.07 s) and restored into an empty database with the command of step 4
+  (exit 0, 0.3 s). All 27 tables have the row counts of the dump's own data (261 rows in all); the newest migration is 017;
+  the copy carries the `production` marker; `has_function` said `t` and `ensure_runtime_roles()` exited 0 (20 rows in
+  `runtime_grants`); the six append-only triggers are there, and a delete from `audit_log` and a truncate of `scans` were
+  refused. The database and the plaintext were deleted. Then the 61 plaintext dumps of before (04/10 to 22/10/2026) were
+  encrypted to the same public key as "The plaintext dumps of before" writes, each `.dump.gpg` was decrypted again and
+  compared byte for byte with its plaintext (61 of 61 the same), and only then was each plaintext deleted. The folder with
+  the private key was deleted at the end. The task keeps the newest 30 (`--keep 30`), so its next run removes the oldest
+  encrypted ones.
