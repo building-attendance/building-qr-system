@@ -71,9 +71,15 @@ export function makeFormatters(lang) {
   const locale = LOCALES[lang] ?? LOCALES.he
   const meters = new Intl.NumberFormat(locale, { style: 'unit', unit: 'meter', unitDisplay: 'short', maximumFractionDigits: 0 })
   const km = new Intl.NumberFormat(locale, { style: 'unit', unit: 'kilometer', unitDisplay: 'short', maximumFractionDigits: 1 })
+  // A period in whole days or minutes, with the plural of the language ('1 day', '90 days', '5 דקות'): the privacy notice states how long
+  // things are kept, and its numbers come from the code (shared/contract.js), so the word follows the number.
+  const days = new Intl.NumberFormat(locale, { style: 'unit', unit: 'day', unitDisplay: 'long' })
+  const minutes = new Intl.NumberFormat(locale, { style: 'unit', unit: 'minute', unitDisplay: 'long' })
   return {
     time: formatTime, // HH:MM in the building's time, the same in every language (shared/datetime.js)
     date: formatDate, // DD/MM/YYYY, likewise
     distance: (m) => (m >= 1000 ? km.format(m / 1000) : meters.format(Math.max(1, Math.round(m)))),
+    days: (n) => days.format(n),
+    minutes: (n) => minutes.format(n),
   }
 }

@@ -175,6 +175,15 @@ test.describe('provider app', () => {
     await expectNoA11yViolations(page, { context: 'provider ru: theme chosen in the picker [light]' })
   })
 
+  test('the privacy notice, right to left and left to right', async ({ page }) => {
+    await page.goto('/privacy')
+    await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeVisible()
+    await scanBothThemes(page, 'provider he: privacy notice')
+    await page.getByLabel(he['lang.label']).selectOption('en')
+    await expect(page.getByRole('heading', { level: 1, name: en['privacy.title'] })).toBeVisible()
+    await scanBothThemes(page, 'provider en: privacy notice')
+  })
+
   test('the states that a slow, failing or empty server brings, and a phone with visits saved on it', async ({ page }) => {
     allowConsoleErrors(page, /status of 500/, /status of 503/, /status of 401/) // the answers that this test makes up
     const provider = { id: '00000000-0000-4000-8000-000000000001', contact_name: PEOPLE.ploni.name, company: 'ניקיון' }
