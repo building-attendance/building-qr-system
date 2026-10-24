@@ -1,8 +1,8 @@
 # What personal data the app keeps
 
 A short, plain description of the personal data in the database, and of the one position that a provider's phone keeps: what
-it is, how long it is kept, and who can see it. It is the basis for a notice to the service providers (the cleaning company,
-the gardener), which is still to be written. The rules for the code are in `AGENTS.md` (Safety); the periods below are
+it is, how long it is kept, and who can see it. It is the basis for the privacy notice to the service providers (the cleaning
+company, the gardener): see "The notice to the service providers" below. The rules for the code are in `AGENTS.md` (Safety); the periods below are
 constants in `server/config.js`, and a daily job applies them (`server/retention.js`).
 
 Retention periods were decided by the owner on 04/10/2026, the periods of the recorded errors and of the alert days on
@@ -19,7 +19,7 @@ removes them. The periods themselves are the constants in `server/config.js`, wh
 | Committee members (`admins`) | E-mail address, name, the Google account id, the time of the last sign-in, and the address of the member's Google photo (see "The committee member's photo" below). The members are named by the committee, and they sign in with Google. The e-mail address of the first member of a deployment is also in that deployment's settings (the variable `FIRST_ADMIN_EMAIL` in Vercel) until the deployer removes it after the first sign-in | Until the committee removes the member (the photo's address goes with the row; it is replaced at every Google sign-in, and emptied when Google gives none) |
 | Committee sessions (`admin_sessions`) | A fingerprint (hash) of the sign-in cookie, and when the session started, expires and was ended. No address, no device details | Deleted 30 days after the session expired or was ended |
 | Building settings (`building_settings`) | A reference to the committee member who saved the row last (emptied when that member is removed), and the committee's contact for privacy requests: what the committee typed so that a service provider can reach it about the data kept about them (for example a committee member's phone or e-mail, at most 120 characters). The one row also holds the building's address and its name, as the committee typed them (the name of a building, not of a person), and when it was last saved. The provider app shows the address and the name before anyone signs in, and the contact in its privacy notice, to anyone who opens it (`GET /api/public/building`), on purpose: the notice must name the committee and how to reach it (Section 11 of the Protection of Privacy Law). All three also appear in the audit log when they change | Until the committee changes them. Nothing deletes the row |
-| Service providers (`providers`) | Company, contact name, kind of service, language, and a salted hash of the password (never the password) | Until the committee deletes the provider |
+| Service providers (`providers`) | Company, contact name, kind of service, and a salted hash of the password (never the password) | Until the committee deletes the provider |
 | Phones of a provider (`provider_devices`) | A fingerprint (hash) of the phone's sign-in token, when it was created, last used and revoked, and a label: the browser string that the phone sent at sign-in (for example the browser and system name, at most 80 characters). It also holds what the phone reports about itself: the version of the app, how many visits wait on the phone to be uploaded and since when, how many visits were not accepted and how many were dropped from a full queue (two running totals), the time of the last report, and the time of the last upload (which the server writes itself). It holds no position, no names and no QR codes | The label and everything that the phone reported are cleared 90 days after the phone was revoked. An active phone keeps them. The row stays, with the label and the reported data empty. A deleted provider takes its phones with it |
 | Scans (`scans`) | The provider's name as it was at the time, the point, the time (the server's and the phone's clock), the distance in metres between the phone and the point and the accuracy of the reading, flags, which phone sent it. **The position itself (latitude and longitude) is never stored** | Until the committee deletes it. A legal decision on how long scans may be kept is pending. Nothing deletes a scan by itself |
 | Refused visits (`scan_refusals`) | A visit that the server refused with a final answer (the point is switched off or was never assigned to the provider, the QR code is not one of ours or names no point, the data of the visit could not be stored), so that the committee can learn that a visit was not counted. The provider's name as it was at the time, the point (when the code named one), the time (the server's and the phone's clock), the reason (a code), which phone sent it. **The position itself and the QR code that was scanned are never stored.** It is not a scan and never counts as attendance. The table is append-only: the database refuses to change or delete a row, and to empty the table | Until a legal decision on how long it may be kept is made, like scans. Nothing deletes it by itself |
@@ -29,7 +29,7 @@ removes them. The periods themselves are the constants in `server/config.js`, wh
 | Alert days (`alert_pings`) | Nothing about a person, by construction. One date (a day in the building's time zone) for each day on which the server had an unexpected error, or an app reported a crash, and told the owner, and the moment the row was made. It is what lets the server send one alert for a day and not one for every error. Nothing about the error is in it | Deleted 30 days after the day |
 | Agent keys (`api_keys`) | The name the committee gave the key, a fingerprint of the key, when it was last used (written at most every 5 minutes, so it can be up to 5 minutes behind). No personal data unless the committee puts a name in the key's name | Until the committee deletes the key |
 | Usage of the agent keys (`api_key_usage`) | Nothing about a person, by construction. For each agent key and each minute in which the key made a request: how many requests were let through and how many were refused because the key had made too many (a key may make 60 requests in a minute and 2000 in a building day, and then gets a `429`). It is what limits a key. No address, no request path, no content of any request | Deleted 90 days after the minute. A deleted key takes its usage with it |
-| The provider's phone (on the device, not in the database) | One position at most: the last usable reading of the phone's location that the phone took live during a scan of the signed-in person (latitude, longitude, the accuracy and the time of the reading). It is never a position that the browser only remembered, so it can never come from before that person signed in. It is used only for a scan made within 5 minutes of the time of the reading, when the phone cannot get a fresh position (for example in a basement without reception). It is sent only with a scan, as any other reading is, and the server then uses it for the distance and stores neither latitude nor longitude (see "Scans"). A visit that waits on the phone to be uploaded holds the reading it was made with until it is uploaded | Deleted when a person signs in, signs out or is signed out, and when the app finds it older than 5 minutes. The next usable reading replaces it. A phone that nobody opens again keeps it in the browser's storage until the site's data is cleared, but it is never used after 5 minutes |
+| The provider's phone (on the device, not in the database) | One position at most: the last usable reading of the phone's location that the phone took live during a scan of the signed-in person (latitude, longitude, the accuracy and the time of the reading). It is never a position that the browser only remembered, so it can never come from before that person signed in. It is used only for a scan made within 5 minutes of the time of the reading, when the phone cannot get a fresh position (for example in a basement without reception). It is sent only with a scan, as any other reading is, and the server then uses it for the distance and stores neither latitude nor longitude (see "Scans"). A visit that waits on the phone to be uploaded holds the reading it was made with until it is uploaded, also after the person has signed out. The phone also keeps the building's address and name (`qr.building.v1`), to draw the header with no signal; it never keeps the committee's contact for privacy requests, which the notice shows only from the server's answer | The last reading is deleted when a person signs in, signs out or is signed out, and the next time the app looks for a position and finds the kept one older than 5 minutes. The next usable reading replaces it. A visit that waits keeps its reading until it is uploaded (a sign-out does not remove it). A phone that nobody opens again keeps all of this in the browser's storage until the site's data is cleared, but the last reading is never used after 5 minutes |
 
 The daily job never deletes or changes a scan, a refused visit, the audit log, an active session or an active phone. A
 session, a phone, a recorded error, an alert day or a minute of the usage of an agent key that is not yet past its period is left as it is. The job's own log line and its audit
@@ -99,6 +99,14 @@ The server cuts every report to a fixed list of fields (`shared/contract.js`) an
   the same sign-in), and on a read-only screen in the committee app, a screen of its own
   ("יומן פעולות"). It shows the same entries by the fields it knows and leaves out any value that looks like a key, a hash or
   a token. The committee app does not show the label of a phone, the sessions, the login attempts, the recorded errors or the alert days.
+- **Anyone who opens the provider app**, with no sign-in: the list of accounts to choose from on the sign-in screen shows
+  the contact name and the company of every active provider that has a password (`GET /api/public/providers`). Its answer
+  also carries each provider's id and kind of service, which the list does not draw but which anyone who calls the route
+  receives. Nothing else about a provider is in it. The same app shows
+  the building's address, name and the committee's contact for privacy requests (`GET /api/public/building`, see the
+  table). Both routes are public on purpose (`server/access.js` gives the reason of each), because a provider must be able to pick
+  the account before there is any credential. The privacy notice states the list: it says that whoever opens the app sees,
+  on the sign-in screen, the names of the active service providers and of their companies.
 - **The committee's own AI agent**, through the read-only agent API (`docs/agent-api.md`), with a key that the committee
   made, and through it **the AI service that runs the agent**, which the committee chooses and which receives what the
   agent reads under its own terms (the first installation's committee uses a bot on xAI's Grok). Since the owner's
@@ -117,7 +125,10 @@ The server cuts every report to a fixed list of fields (`shared/contract.js`) an
   hash of one, a token, a key or a hash of one, the label of a phone, the sessions, the login attempts, a network (IP)
   address, the recorded errors, the alert days, or a committee member's photo or its address.
 - **Whoever runs the services under the app**: the owner of the project and the services that host it (the database is a
-  Neon project, the app runs on Vercel). The committee's sign-in goes through Google, which handles it under its own terms.
+  Neon project, the app runs on Vercel), in the United States: the database in "AWS US East 1 (N. Virginia)" and the
+  functions in `iad1` (`vercel.json`), as `docs/install.md` (section 3.2) tells a copy to choose. The providers' notice says
+  that the data is kept on their servers in the United States, so a copy in another region changes the notice and this file
+  together. The committee's sign-in goes through Google, which handles it under its own terms.
   The first installation's owner has a check on healthchecks.io (optional: a copy has it only if it set
   `HEALTH_HEARTBEAT_URL`, and without it the server sends nothing). That check gets one short line when the server has its
   first unexpected error of a day: the route as it is written in the code, the method, the error's code and the time. When an
@@ -128,15 +139,72 @@ The server cuts every report to a fixed list of fields (`shared/contract.js`) an
 
 ## Backups
 
-The first installation's owner keeps a daily backup of the database on his own computer, for 30 days, and never in the
-repository or in any online place (`docs/runbooks/restore.md`, which also says how to set up the same task). A backup holds
-everything that was in the database on that day, so a row that the daily job deleted can still be in a backup, until the backup
-itself is removed after 30 days. Every backup is kept encrypted to the owner's public key, and only the owner holds the
+The first installation's owner keeps a daily backup of the database on his own computer, never in the repository or in any
+online place (`docs/runbooks/restore.md`, which also says how to set up the same task). The task keeps the newest 30
+backups (`--keep 30`, usually one a day, so about 30 days; they reach further back when some days have no backup, for
+example while the computer is off or asleep, so a row can stay in a backup for more than 30 days, and over fewer days when
+several are made in a day), and deletes the older ones. A backup holds everything that was in the database on that day, so a
+row that the daily job deleted can still be in a backup, until the backup itself is deleted because 30 newer ones exist. Every backup is kept encrypted to the owner's public key, and only the owner holds the
 private key that opens it, in his password manager and not on that computer. The unencrypted dump exists only while a run
 makes and checks it, in the backup's private work folder (after a run that was killed, until a later run clears that folder,
 up to about two days). The unencrypted backups made before the encryption are encrypted or deleted by the owner
 (`docs/runbooks/restore.md`, "Encrypted backups"). A copy that does not set up the task has no such backup, and this section
 is changed to say so.
+
+## The notice to the service providers
+
+The providers' app has a privacy notice, at `/privacy` (`src/worker/PrivacyView.jsx`, the words in `src/i18n/*.js`, the keys
+that start with `privacy.`, in the app's four languages). It is public, like the sign-in list, and it is linked from the
+sign-in screen (which also carries a short version, `login.privacy`, before the first scan) and from the home screen. It is a
+proposed text, not legal advice: each committee has it checked by a lawyer (`docs/install.md`, section 3.7). Its date, shown
+at its foot as "Updated", is `PRIVACY_NOTICE_UPDATED` in `src/worker/PrivacyView.jsx`.
+
+It names the committee of the building and how to reach it from the building settings that the committee typed (the name, the
+address and the contact for privacy requests), so every copy shows its own committee. While the contact is empty it tells the
+providers to ask the committee members. Each statement comes from this file:
+
+| The notice says | It comes from |
+|---|---|
+| Who is responsible: the committee of the building, by name and address, and how to reach it | "Building settings" in the table |
+| What is recorded about the account: company, contact name, kind of service, a password that cannot be read back | "Service providers" |
+| What a scan records: the name, the point, the time, the distance, the accuracy and whether the position was verified, which phone sent it; the reason, when the server does not accept a visit | "Scans" and "Refused visits" |
+| The position: asked only at a scan, never stored on the server, only the distance; on the phone, the last reading and the reading of a visit that waits to be uploaded | "Scans" and "The provider's phone" |
+| What is recorded about the phone: a fingerprint of its sign-in, the times of sign-in, last use and sign-out, the browser and system, the version of the app, what waits to be uploaded and since when, what was not accepted, the time of the last upload | "Phones of a provider" |
+| The network (IP) address of each sign-in attempt, to stop guessing of passwords | "Login attempts" |
+| Who sees it: the committee; whoever opens the app (the names on the sign-in list); the provider's own company, when the committee checks the service with it; an AI service, if the committee uses one; Vercel and Neon, in the United States, and whoever maintains the app | "Who can see it" (the third bullet names the hosting regions) |
+| How long: scans, refused visits and the committee's log until a period is set; the account until it is deleted; the phone's browser string and what it reported 90 days after the phone's sign-in ends, and the record of the sign-in, with its times, until the account is deleted; a login attempt's address 1 day; the last position not used after 5 minutes and deleted the next time the app looks for one, at sign-in and at sign-out, and the position of a visit that waits until it is uploaded; the 30 latest backups | the "How long" column of the rows above, and "Backups" |
+| Whether giving the information is required, and the rights to see and to correct | no row: "Answering a request" below |
+
+The three periods in the notice's words are not typed there: the 90 days (`RETENTION_DEVICE_LABEL_DAYS`), the 1 day
+(`RETENTION_LOGIN_ATTEMPT_DAYS`) and the 5 minutes (`GPS_MAX_STALE_AGE_S`) are read from `shared/contract.js`. The number
+of backups (30) is written in the words, because the backup task is outside the app (`--keep` in `scripts/backup-db.mjs`).
+The purposes (why the data is recorded) and the statement that no law requires it are the notice's own words, not facts of
+a table here, and a lawyer is the one to check them.
+
+## Answering a request
+
+A service provider (or the company that sends the provider) may ask to see the data kept about them, or to correct it. The
+notice tells them to ask the committee, at the contact the committee typed. A committee member answers with what the
+committee app already has, and every change is written to the audit log in the same transaction:
+
+- **To see:** in the History tab ("היסטוריית נוכחות"), choose the provider in the filter ("נותן שירות") and a range of dates,
+  and read the visits, or download them as a CSV file with the export button of that tab (its label names Excel). The file
+  holds the scans only; the visits that the server refused are listed in the same tab when its type is set to ("לא נקלטו"), read only and
+  not in the file. The provider's own details are on the provider's tile in the Providers tab, and the phones of the
+  provider, with what each reported about itself, in the dialog of its button ("מכשירים"). The audit log screen
+  ("יומן פעולות") lists what members did about the provider. The label of a phone and the login attempts are not shown by
+  the committee app: a request for them goes to whoever runs the services of the copy (in the first installation, the owner
+  of the project), who reads them in the database.
+- **To correct:** edit the provider (the tile's "more" button, then ("עריכה")): the company, the contact name and the kind
+  of service. A scan keeps the name as it was at the time of the visit, and an edit does not change it. A visit that is
+  wrong can be cancelled ("ביטול הנוכחות"), which can be undone and leaves it out of the reports and the CSV by default, or
+  deleted for good ("מחיקת הנוכחות לצמיתות"), which cannot be undone. Both are in the visit's "more" button.
+- **What the app cannot do:** the audit log and the refused visits are append-only, so no member can correct or delete a row
+  of them, and deleting a provider does not remove the provider's name from the scans, the refused visits and the audit
+  log. They wait for a legal decision on how long they may be kept (see the table), and a request that reaches them is
+  one to bring to the lawyer.
+- Check that the person who asks is the provider concerned before giving the data, and answer in Hebrew, Arabic or English, as
+  the notice says.
 
 ## Changing this
 
@@ -144,3 +212,7 @@ A retention period changes only by the owner's decision: change the constant in 
 test that names it (`tests/retention.test.js`) in the same pull request. The periods of the login attempts and of the
 labels of the phones are written in `shared/contract.js` (`server/config.js` re-exports them), because the providers'
 privacy notice states them: their pins in `tests/contract.test.js` change too.
+
+A change to a period, to who can see the data, or to what is collected changes the notice in `src/i18n/*.js` (all four
+languages) and its date `PRIVACY_NOTICE_UPDATED` in the same pull request, and the rows above with them. The notice is
+the statement that the providers read, so it must never say less or more than this file.

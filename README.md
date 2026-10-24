@@ -33,7 +33,8 @@ The committee app is in Hebrew. Every screen above shows invented sample data. M
 ## What you get
 
 - **A provider app in four languages:** Hebrew, English, Russian and Arabic. It installs to the Home Screen and works
-  without a signal: visits wait in a queue on the phone and upload by themselves.
+  without a signal: visits wait in a queue on the phone and upload by themselves. It has a privacy notice at `/privacy`
+  (a proposed text, for each committee to have checked by a lawyer: [docs/install.md](docs/install.md)).
 - **A committee app** at `/admin`: points and their printable QR signs, service providers (and the health of each
   provider's phones), history (and the visits that were not counted), agent keys, the committee and its audit log, and a
   help page. The committee names the building, and both apps show the name. Sign-in is with Google, only for people on
@@ -90,7 +91,7 @@ A Vite and React app (a PWA), one Vercel serverless function, and a Neon Postgre
 
 | Part | What |
 |---|---|
-| Provider app | `/` and `/scan?code=...`. Four languages, and it works without a signal (a local queue on the phone that uploads by itself). Code in `src/worker`, `src/i18n`, `src/pages/WorkerApp.jsx` |
+| Provider app | `/`, `/scan?code=...` and the privacy notice at `/privacy`. Four languages, and it works without a signal (a local queue on the phone that uploads by itself). Code in `src/worker`, `src/i18n`, `src/pages/WorkerApp.jsx` |
 | Committee app | `/admin`, in Hebrew only for now. Sign-in only with a Google account that is on the committee list. Code in `src/admin`, `src/pages/AdminApp.jsx` |
 | API | One Vercel function (`api/index.js`, to which `vercel.json` routes every `/api/*`) that runs `server/`. Postgres through `pg`. The router checks who may call a route before any code of its handler runs: a route is protected by default, and only the `PUBLIC` list in `server/access.js` answers without credentials |
 | Database | `db/migrations/*.sql`. Scans are append-only: they can only be voided, and a single row can be deleted only from the committee screen. A point, a service provider, a committee member or an agent key can be deleted, and their history stays with the name that was recorded |
