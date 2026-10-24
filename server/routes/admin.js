@@ -309,13 +309,18 @@ route('GET', '/admin/building', async ({ req }) => {
   return { building: await readBuilding() }
 })
 
-// The address is required (it can be empty). The name and the contact are optional: a screen that was installed before one of
-// them existed does not send it, and its save leaves the saved one as it is.
+// Each of the three is optional (and each can be empty), and one that is not sent keeps the saved one. The committee card sends only
+// what its member changed, so a card that was opened before another member's save does not send that member's change back. A screen
+// that was installed before the name or the contact existed does not send it, and the screens before this one send the address with
+// every save. A save must carry at least one of them: one with none is refused as the save with no address always was.
 route('PUT', '/admin/building', async ({ req, body }) => {
   const { admin } = await requireAdmin(req)
   const address = parseAddress(body.address)
   const name = parseName(body.name)
   const privacy_contact = parsePrivacyContact(body.privacy_contact)
+  if (address === undefined && name === undefined && privacy_contact === undefined) {
+    throw bad('missing_field', 'a save needs the address, the name or the contact (each can be empty)', { field: 'address' })
+  }
   const building = await tx(async (c) => {
     const { changed, before, after } = await saveBuilding(c, admin.id, { address, name, privacy_contact })
     if (!changed) return after // a save that changes none of the texts has nothing to record

@@ -1,8 +1,8 @@
 // The building's address and name, and the committee's contact for privacy requests: the three settings that the committee
 // saves in the committee app and the provider app reads (migrations 006, 012 and 017, GET /api/public/building, GET and PUT
 // /api/admin/building). All three start empty. The agent reads the name and the address at GET /api/agent/v1/building (owner
-// decision of 08/10/2026) and in no other agent answer, and never the contact there. The name and the contact are optional in a
-// save: a committee screen that does not send one leaves the saved one alone.
+// decision of 08/10/2026) and in no other agent answer, and never the contact there. Each of the three is optional in a save (a
+// save with none is refused): a committee screen that does not send one leaves the saved one alone.
 import { describe, it, expect, beforeAll, afterAll } from 'vitest'
 import { setupDb, call, seedAdmin, adminCookie } from './helpers.js'
 
@@ -293,11 +293,13 @@ describe("the building's name", () => {
     expect(await publicName()).toBe('שם שנשאר')
   })
 
-  it('does not make the address optional: a save with a name and no address is refused', async () => {
+  it('is saved alone, with no address, and the saved address stays (a committee card sends the address only when it changed)', async () => {
+    await put({ address: ADDRESS, name: 'שם לפני' })
     const r = await put({ name: 'שם בלי כתובת' })
-    expect(r.status).toBe(400)
-    expect(r.json.error).toMatchObject({ code: 'missing_field', field: 'address' })
-    expect(await publicName()).not.toBe('שם בלי כתובת')
+    expect(r.status).toBe(200)
+    expect(r.json).toEqual({ building: { address: ADDRESS, name: 'שם בלי כתובת', privacy_contact: '' } })
+    expect(await publicName()).toBe('שם בלי כתובת')
+    expect(await publicAddress()).toBe(ADDRESS)
   })
 
   it('is refused for a bad address too, as one save: the name is not kept either', async () => {
@@ -440,12 +442,62 @@ describe("the committee's contact for privacy requests", () => {
     expect(await auditCount()).toBe(before + 1) // nor for a refused one
   })
 
+  it('is saved alone, with no address, and the saved address stays (a committee card sends the address only when it changed)', async () => {
+    await put({ address: ADDRESS, name: 'שם שנשאר', privacy_contact: '' })
+    const r = await put({ privacy_contact: CONTACT })
+    expect(r.status).toBe(200)
+    expect(r.json).toEqual({ building: { address: ADDRESS, name: 'שם שנשאר', privacy_contact: CONTACT } })
+    expect(await publicAddress()).toBe(ADDRESS)
+  })
+
   it('is not in the answer of the agent at /building: the name and the address only', async () => {
     await put({ address: ADDRESS, name: 'בניין לסוכן', privacy_contact: 'contact-for-providers@example.test' })
     const key = (await call('POST', '/api/admin/api-keys', { cookie, body: { name: 'בדיקת פרטי קשר' } })).json.key
     const r = await call('GET', '/api/agent/v1/building', { token: key })
     expect(r.json).toEqual({ building: { name: 'בניין לסוכן', address: ADDRESS } })
     expect(r.text).not.toContain('contact-for-providers')
+  })
+})
+
+describe('a save from a committee card that was opened before another member saved', () => {
+  // Two members have the settings open. One saves a new address; the other, whose card still shows the old one, then changes only
+  // the name or only the contact. That card sends only what its member changed, so the newer address must stay.
+  const OLDER = 'רחוב ישן 8'
+  const NEWER = 'רחוב חדש יותר 9'
+  afterAll(async () => db.pool.query("update building_settings set privacy_contact = '', name = ''"))
+
+  it('keeps the address the other member saved, and records only the field that changed', async () => {
+    await put({ address: OLDER, name: 'שם ישן', privacy_contact: '' })
+    expect((await put({ address: NEWER })).status).toBe(200) // the other member
+    const before = await auditCount()
+    const r = await put({ name: 'שם חדש' }) // the card that still shows OLDER
+    expect(r.status).toBe(200)
+    expect(r.json).toEqual({ building: { address: NEWER, name: 'שם חדש', privacy_contact: '' } })
+    expect(await lastAudit()).toEqual({ changes: { name: { from: 'שם ישן', to: 'שם חדש' } } })
+    const contact = await put({ privacy_contact: 'vaad@example.test' })
+    expect(contact.json).toEqual({ building: { address: NEWER, name: 'שם חדש', privacy_contact: 'vaad@example.test' } })
+    expect(await lastAudit()).toEqual({ changes: { privacy_contact: { from: '', to: 'vaad@example.test' } } })
+    expect(await auditCount()).toBe(before + 2)
+    expect(await publicAddress()).toBe(NEWER)
+    expect((await stored())[0]).toMatchObject({ address: NEWER, name: 'שם חדש', updated_by: adminId })
+  })
+
+  it('still takes the address from a card that sends it with every save (a committee screen from before this change)', async () => {
+    await put({ address: NEWER, name: 'שם' })
+    const r = await put({ address: OLDER, name: 'שם אחר' }) // exactly what that screen sends: it cannot tell the address is older
+    expect(r.json.building).toMatchObject({ address: OLDER, name: 'שם אחר' })
+  })
+
+  it('refuses a save that carries none of the three texts, with the code it always had, and writes nothing', async () => {
+    await put({ address: NEWER, name: 'שם שנשאר', privacy_contact: '' })
+    const before = await auditCount()
+    for (const body of [{}, { future_field: 'x' }]) {
+      const r = await put(body)
+      expect(r.status, JSON.stringify(body)).toBe(400)
+      expect(r.json.error, JSON.stringify(body)).toMatchObject({ code: 'missing_field', field: 'address' })
+    }
+    expect(await auditCount()).toBe(before)
+    expect((await stored())[0]).toMatchObject({ address: NEWER, name: 'שם שנשאר' })
   })
 })
 
