@@ -8,6 +8,9 @@ import { test, expect, he, en, ru, POINTS, PEOPLE, BUILDING_ADDRESS, BUILDING_NA
 const CONTACT = 'ועד הבית, vaad@example.test'
 const strip = (text) => text.replace(/[⁨⁩]/g, '') // translate() wraps every value in direction isolates
 const noticeText = async (page) => strip(await page.getByRole('article').innerText())
+// The phone never keeps the committee's contact (src/worker/buildingCache.js): the notice draws the fallback line first and the
+// contact once the server's answer has come. A test that reads the contact waits for that answer.
+const buildingAnswer = (page) => page.waitForResponse((r) => r.url().endsWith('/api/public/building') && r.ok())
 
 /** Saves the committee's contact for privacy requests through the committee's own route, as the settings screen does. */
 async function setContact(page, privacy_contact) {
@@ -28,10 +31,13 @@ test('the sign-in screen gives the short notice and the way to the whole of it, 
   await expect(page.getByRole('heading', { level: 1, name: he['login.title'] })).toBeVisible()
   await expect(page.getByText(he['login.privacy'])).toBeVisible()
 
+  const answered = buildingAnswer(page)
   await page.getByRole('link', { name: he['privacy.open'] }).click()
   await expect(page).toHaveURL(/\/privacy$/)
   await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeVisible()
   await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeFocused()
+  await answered
+  await expect(page.getByRole('article')).toContainText(CONTACT) // drawn from the answer, not from the phone
   const text = await noticeText(page)
   expect(text).toContain(`ועד הבית של ${BUILDING_NAME}, ${BUILDING_ADDRESS}, אחראי למידע`)
   expect(text).toContain(`לשאלות ולבקשות על המידע שלכם: ${CONTACT}.`)
@@ -45,8 +51,10 @@ test('the sign-in screen gives the short notice and the way to the whole of it, 
 })
 
 test('opens with no session, straight from its address, and asks the committee members when no contact is set', async ({ page }) => {
+  const answered = buildingAnswer(page)
   await page.goto('/privacy')
   await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeVisible()
+  await answered // the fallback stays after the answer too, since no contact is set
   const text = await noticeText(page)
   expect(text).toContain(he['privacy.who.noContact'])
   expect(text).toContain(he['privacy.rights.noContact'])
@@ -60,9 +68,11 @@ test('opens with no session, straight from its address, and asks the committee m
 for (const [where, size] of [['on a phone', null], ['on a computer', { width: 1280, height: 800 }]]) {
   test(`fits the screen ${where}: no sideways scroll, and the notice stays in the column of the app`, async ({ page }) => {
     if (size) await page.setViewportSize(size)
-    await setContact(page, 'committee.of.the.building.with.one.long.word.for.its.contact@example.test')
+    const contact = 'committee.of.the.building.with.one.long.word.for.its.contact@example.test'
+    await setContact(page, contact)
     await page.goto('/privacy')
     await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeVisible()
+    await expect(page.getByRole('article')).toContainText(contact) // the long word is on the screen before anything is measured
     const width = page.viewportSize().width
     expect(await page.evaluate((w) => document.documentElement.scrollWidth <= w, width), 'no sideways scroll').toBe(true)
     const notice = await page.getByRole('article').boundingBox()
