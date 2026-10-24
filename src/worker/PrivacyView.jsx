@@ -10,10 +10,10 @@ import { formatDate } from '../../shared/datetime.js'
 import { GPS_MAX_STALE_AGE_S, RETENTION_DEVICE_LABEL_DAYS, RETENTION_LOGIN_ATTEMPT_DAYS } from '../../shared/contract.js'
 
 /** When the text of the notice last changed, written for the person as DD/MM/YYYY. Change it with every change of the text. */
-export const PRIVACY_NOTICE_UPDATED = '2026-10-23T09:00:00Z'
+export const PRIVACY_NOTICE_UPDATED = '2026-10-24T09:00:00Z'
 
-/** The days that a committee keeps a backup, when it keeps one (docs/runbooks/restore.md: the task lives outside the app). */
-const BACKUP_DAYS = 30
+// The backups are counted, not dated: the backup task (scripts/backup-db.mjs, outside the app) keeps the newest 30 files
+// (`--keep`, DEFAULT_KEEP), so the notice says "the latest 30 backups" in its words rather than taking a period from the code.
 
 /** The path of the notice. Every path but /admin is the provider app (src/appKind.js), so it needs nothing in vercel.json. */
 export const PRIVACY_PATH = '/privacy'
@@ -77,7 +77,6 @@ export function PrivacyView({ building }) {
     deviceDays: days(RETENTION_DEVICE_LABEL_DAYS),
     loginDays: days(RETENTION_LOGIN_ATTEMPT_DAYS),
     fixMinutes: minutes(Math.round(GPS_MAX_STALE_AGE_S / 60)),
-    backupDays: days(BACKUP_DAYS),
   }
   /** @param {string} which */
   const paragraph = (which) =>

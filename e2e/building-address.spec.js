@@ -472,7 +472,5 @@ test('a phone that saved only the address (an older version of the app) shows it
   await page.goto('/')
   await expect(page.getByRole('banner').getByText(BUILDING_ADDRESS)).toBeVisible()
   await expect(page.getByRole('banner').getByText(BUILDING_NAME)).toBeVisible()
-  // saved with the committee's contact for privacy requests too (the privacy notice reads it offline), which the scratch schema leaves empty
-  await expect.poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem('qr.building.v1'))))
-    .toEqual({ address: BUILDING_ADDRESS, name: BUILDING_NAME, privacy_contact: '' })
+  await expect.poll(() => page.evaluate(() => JSON.parse(window.localStorage.getItem('qr.building.v1')))).toEqual({ address: BUILDING_ADDRESS, name: BUILDING_NAME })
 })

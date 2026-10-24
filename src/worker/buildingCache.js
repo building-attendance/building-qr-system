@@ -1,18 +1,20 @@
 import { safeStorage, readJson } from './storage.js'
 
 // The key has a version suffix, like the others: the shape can change later and the old one is read (or ignored).
-// The shape grew without a new key: { address } became { address, name }, then { address, name, privacy_contact }. A phone that
-// saved an older one has no `name` or no `privacy_contact`, and each is read as '' (not set); a phone that runs an older version
-// of the app reads only the texts it knows out of the new one and ignores the rest.
+// The shape grew without a new key: { address } became { address, name }. A phone that saved the old one has no `name`, and it is
+// read as '' (no name); a phone that runs an older version of the app reads only `address` out of the new one and ignores the rest.
+// The committee's contact for privacy requests is never kept here: it can be a committee member's phone or e-mail, and a copy on a
+// phone that never connects again could not be removed when the committee changes it. The privacy notice shows it once the server
+// answers, and asks the providers to contact the committee's members until then.
 const KEY = 'qr.building.v1'
 
 /**
  * The building's texts: the name and the address for the header of the provider app, and the committee's contact for its privacy
- * notice.
+ * notice (from the server's answer only: what the phone remembers has it empty).
  * @typedef {object} CachedBuilding
  * @property {string} address  empty means show no address
  * @property {string} name  empty means no name
- * @property {string} privacy_contact  empty means not set (the notice tells the providers to ask the committee's members)
+ * @property {string} privacy_contact  empty means not set or not known yet (the notice tells the providers to ask the committee's members)
  */
 
 /**
@@ -31,18 +33,18 @@ export function parseBuilding(building) {
 }
 
 /**
- * Remembers the building's texts on the phone, so the header and the privacy notice can show them on the first paint and with no
- * signal. Stored as { address, name, privacy_contact }, and an empty one is stored too (the committee may have cleared it: the phone
- * must follow).
- * @param {CachedBuilding} building
+ * Remembers the building's address and name on the phone, so the header can show them on the first paint and with no signal.
+ * Stored as { address, name }, never the contact (see the top of this file), and an empty one is stored too (the committee may have
+ * cleared it: the phone must follow).
+ * @param {{ address: string, name: string }} building
  */
-export function setCachedBuilding({ address, name, privacy_contact }, storage = safeStorage) {
-  storage.setItem(KEY, JSON.stringify({ address, name, privacy_contact }))
+export function setCachedBuilding({ address, name }, storage = safeStorage) {
+  storage.setItem(KEY, JSON.stringify({ address, name }))
 }
 
 /**
- * What the phone remembers: an empty text for each that was never saved or is not text. A value saved before the name or the
- * contact existed has none, so it is ''.
+ * What the phone remembers: an empty text for each that was never saved or is not text. A value saved before names existed has
+ * no `name`, so its name is ''. The contact is always '', because the phone never keeps it.
  * @returns {CachedBuilding}
  */
 export function getCachedBuilding(storage = safeStorage) {
@@ -50,6 +52,6 @@ export function getCachedBuilding(storage = safeStorage) {
   return {
     address: typeof saved?.address === 'string' ? saved.address : '',
     name: typeof saved?.name === 'string' ? saved.name : '',
-    privacy_contact: typeof saved?.privacy_contact === 'string' ? saved.privacy_contact : '',
+    privacy_contact: '',
   }
 }

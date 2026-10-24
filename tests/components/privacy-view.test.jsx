@@ -57,10 +57,10 @@ describe('the privacy notice', () => {
 
   it('states the periods of the code with the plural of each language, and leaves no placeholder', () => {
     const periods = {
-      he: ['90 ימים', '1 יום', '5 דקות', '30 ימים'],
-      en: ['90 days', '1 day', '5 minutes', '30 days'],
-      ru: ['90 дней', '1 день', '5 минут', '30 дней'],
-      ar: ['90 يومًا', 'يوم', '5 دقائق', '30 يومًا'],
+      he: ['90 ימים', '1 יום', '5 דקות', '30 הגיבויים האחרונים'],
+      en: ['90 days', '1 day', '5 minutes', 'the latest 30 backups'],
+      ru: ['90 дней', '1 день', '5 минут', '30 последних копий'],
+      ar: ['90 يومًا', 'يوم', '5 دقائق', 'آخر 30 نسخة'],
     }
     expect(Object.keys(periods).sort()).toEqual(LANGS.map((l) => l.code).sort())
     for (const { code } of LANGS) {
