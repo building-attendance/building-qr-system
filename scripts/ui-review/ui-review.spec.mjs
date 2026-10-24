@@ -136,6 +136,12 @@ test.describe('provider app', () => {
     await inEachLanguage(page, (code) => shotBothThemes(page, `provider-${code}-sign-in-list`))
   })
 
+  test('privacy notice', async ({ page }) => {
+    await page.goto('/privacy')
+    await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeVisible()
+    await inEachLanguage(page, (code) => shotBothThemes(page, `provider-${code}-privacy`))
+  })
+
   test('password screen', async ({ page }) => {
     await page.goto('/')
     await page.getByRole('button', { name: new RegExp(person.name) }).click()
@@ -284,6 +290,12 @@ test.describe('empty building', () => {
       await page.goto('/')
       await expect(page.getByText(he['login.noProviders'])).toBeVisible()
       await inEachLanguage(page, (code) => shotBothThemes(page, `provider-${code}-empty-sign-in-list`))
+    })
+
+    test('privacy notice with no name, address or contact', async ({ page }) => {
+      await page.goto('/privacy')
+      await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeVisible()
+      await inEachLanguage(page, (code) => shotBothThemes(page, `provider-${code}-empty-privacy`))
     })
   })
 

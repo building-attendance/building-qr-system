@@ -2,7 +2,7 @@
 //
 // Usage:
 //   npm run db:backup -- --out <dir> --encrypt-to <public key file> --encrypt-fingerprint <40 hex>
-//                        --neon-project <project id> [--neon-branch main] [--keep 30]
+//                        --neon-project <project id> [--neon-branch main] [--neon-role <role>] [--keep 30]
 //                        [--report-issue <owner/repo>] [--pg-bin <dir>] [--gpg <gpg program>]
 //   npm run db:backup -- --out <dir> --encrypt-to <file> --encrypt-fingerprint <40 hex>
 //                                      (with BACKUP_DATABASE_URL set from a prompt that is not recorded, not typed in the
@@ -34,6 +34,12 @@
 //   1. Gets the DIRECT connection string (never the pooled one: pg_dump needs a session) from BACKUP_DATABASE_URL, or from
 //      the Neon CLI (`neon connection-string`) when --neon-project is given. It lives in memory only. Giving both is an
 //      error (exit 1, nothing dumped): the environment must not silently win over what the command line says.
+//      With --neon-role the Neon CLI gives the string of that role (`--role-name`); without it the CLI chooses the role, and it
+//      does so only when the branch has one. Since migration 016 the branch of this app has several (app_runtime and
+//      backup_reader at least) and the CLI refuses: the run then fails before anything is dumped, and says to pass
+//      --neon-role. The role changes only who connects: the session is read-only whatever the role (step 3), and the
+//      name is checked like the project id, because it goes into the same command line. --neon-role without
+//      --neon-project is refused, since there is no CLI to give it to.
 //   2. Before anything is made, REFUSES to work in a folder that another account can change: the output folder and every
 //      folder above it (checkFoldersNotShared). Every check of a path before it is used has a gap in which an account that can
 //      write in that folder could rename a directory away and put its own at the same path, swap a file for a link, or add an
@@ -223,6 +229,10 @@ export const PATH_TOO_LONG_ERROR =
 // One database source only: BACKUP_DATABASE_URL and --neon-project together are refused, not resolved by a rule.
 export const AMBIGUOUS_SOURCE_ERROR =
   'both BACKUP_DATABASE_URL and --neon-project were given, so it is not clear which database to dump: use only one of them'
+// The Neon CLI refused to choose a role, because the branch has more than one (migration 016 adds two). The names it listed
+// are not repeated: the message says what to pass.
+export const NEON_ROLE_NEEDED_ERROR =
+  'the Neon branch has more than one role, so the Neon CLI needs to be told which one to connect as: pass --neon-role <role>, the owner of the tables (neondb_owner in a project that Vercel or Neon made); see "Daily backups" in docs/runbooks/restore.md'
 // The table that says which database it is (server/dbGuard.js): `production` in the production database, `nonprod` in the other.
 export const MARKER_TABLE = 'environment_marker'
 // backup.log exists but is not a plain file with one name: a symbolic link (or another reparse point) or a hard link that another
@@ -295,6 +305,7 @@ export const USAGE = [
   `  --keep <n>              how many backups to keep (default ${DEFAULT_KEEP}, at least 1)`,
   '  --neon-project <id>     get the direct connection string from the Neon CLI, for this project',
   `  --neon-branch <name>    the Neon branch (default ${DEFAULT_NEON_BRANCH})`,
+  '  --neon-role <name>      the role of that connection string (needed when the branch has more than one, as after migration 016)',
   '  --report-issue <o/r>    on a failure, open an issue in this GitHub repository with the gh CLI',
   '  --pg-bin <dir>          the folder of pg_dump and pg_restore (else PG_BIN, else the Windows install, else PATH)',
   '  --gpg <file>            the gpg program (else, on Windows, the gpg of Git for Windows, else PATH)',
@@ -309,21 +320,24 @@ const VALUE_OPTIONS = {
   '--keep': 'keep',
   '--neon-project': 'neonProject',
   '--neon-branch': 'neonBranch',
+  '--neon-role': 'neonRole',
   '--report-issue': 'reportIssue',
   '--pg-bin': 'pgBin',
   '--encrypt-to': 'encryptTo',
   '--encrypt-fingerprint': 'encryptFingerprint',
   '--gpg': 'gpg',
 }
-// The project id and the branch name go into a command line (through cmd.exe on Windows), so they are checked against a
-// short list of safe characters and cannot start with a hyphen (an option) or hold a space, a quote or a shell character.
+// The project id, the branch name and the role name go into a command line (through cmd.exe on Windows), so they are checked
+// against a short list of safe characters and cannot start with a hyphen (an option) or hold a space, a quote or a shell
+// character. A role name is at most 63 characters, as in Postgres.
 const PROJECT_ID = /^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/
 const BRANCH_NAME = /^[A-Za-z0-9][A-Za-z0-9._/-]{0,127}$/
+const ROLE_NAME = /^[A-Za-z0-9_][A-Za-z0-9_-]{0,62}$/
 const REPO_NAME = /^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/
 
 /**
- * Reads the command line (`--name value` or `--name=value`) into { out, keep, neonProject, neonBranch, reportIssue, pgBin,
- * encryptTo, encryptFingerprint (upper case), gpg, help }. Throws an Error whose message is safe to print: it names an option,
+ * Reads the command line (`--name value` or `--name=value`) into { out, keep, neonProject, neonBranch, neonRole, reportIssue,
+ * pgBin, encryptTo, encryptFingerprint (upper case), gpg, help }. Throws an Error whose message is safe to print: it names an option,
  * and never repeats a value (a person may have pasted a connection string in the wrong place).
  */
 export function parseArgs(argv) {
@@ -370,6 +384,10 @@ export function parseArgs(argv) {
   }
   const neonBranch = raw.neonBranch === undefined ? DEFAULT_NEON_BRANCH : raw.neonBranch
   if (!BRANCH_NAME.test(neonBranch)) throw new Error('--neon-branch must be a branch name (letters, digits, . _ / and -)')
+  if (raw.neonRole !== undefined) {
+    if (!ROLE_NAME.test(raw.neonRole)) throw new Error('--neon-role must be a role name (letters, digits, - and _)')
+    if (raw.neonProject === undefined) throw new Error('--neon-role goes with --neon-project: it names the role that the Neon CLI connects as')
+  }
   if (raw.reportIssue !== undefined && !REPO_NAME.test(raw.reportIssue)) {
     throw new Error('--report-issue must be written owner/repo')
   }
@@ -380,6 +398,7 @@ export function parseArgs(argv) {
     keep,
     neonProject: raw.neonProject ?? null,
     neonBranch,
+    neonRole: raw.neonRole ?? null,
     reportIssue: raw.reportIssue ?? null,
     pgBin: raw.pgBin ?? null,
     encryptTo: raw.encryptTo,
@@ -963,12 +982,13 @@ export function cleanEnv(base) {
 }
 
 /**
- * The command that asks the Neon CLI for the direct connection string of a branch (the default role and database, not
- * the pooled host). The CLI of Windows is neon.cmd, which Node cannot start by itself, so it goes through cmd.exe /c. The
- * project and the branch were checked by parseArgs, so nothing here can be taken for a shell command.
+ * The command that asks the Neon CLI for the direct connection string of a branch (the default database, not the pooled
+ * host), as `role` when one is given, else as the role that the CLI chooses. The CLI of Windows is neon.cmd, which Node
+ * cannot start by itself, so it goes through cmd.exe /c. The project, the branch and the role were checked by parseArgs, so
+ * nothing here can be taken for a shell command.
  */
-export function neonCommand({ project, branch, platform = process.platform }) {
-  const args = ['connection-string', branch, '--project-id', project]
+export function neonCommand({ project, branch, role = null, platform = process.platform }) {
+  const args = ['connection-string', branch, '--project-id', project, ...(role ? ['--role-name', role] : [])]
   if (platform === 'win32') return { command: 'cmd.exe', args: ['/d', '/c', 'neon.cmd', ...args] }
   return { command: 'neon', args }
 }
@@ -1494,7 +1514,7 @@ async function connectionStringFor({ options, env, platform, runner, network }) 
   if (!options.neonProject) {
     throw new Error('there is no database to back up: set BACKUP_DATABASE_URL (the direct connection string) or pass --neon-project')
   }
-  const { command, args } = neonCommand({ project: options.neonProject, branch: options.neonBranch, platform })
+  const { command, args } = neonCommand({ project: options.neonProject, branch: options.neonBranch, role: options.neonRole, platform })
   // The first step that needs the network in the daily task, so the one that a run right after a wake meets first.
   const result = await retryOnNetworkFailure(() => runner(command, args, { env: cleanEnv(env), timeoutMs: NEON_TIMEOUT_MS }), network)
   // 9009 is what cmd.exe answers when it cannot find neon.cmd
@@ -1502,6 +1522,10 @@ async function connectionStringFor({ options, env, platform, runner, network }) 
     throw new Error('the Neon CLI was not found: install it (npm i -g neonctl) and sign in with `neon auth`')
   }
   if (result.problem) throw new Error(`the Neon CLI did not finish (${result.problem})`)
+  // neonctl: "ERROR: Multiple roles found for the branch, please provide one with the --role-name option: <the names>"
+  if (result.status !== 0 && !options.neonRole && /\bMultiple roles found\b/i.test(String(result.stderr ?? ''))) {
+    throw new Error(NEON_ROLE_NEEDED_ERROR)
+  }
   if (result.status !== 0) throw new Error(`the Neon CLI failed (exit code ${result.status})${firstLine(result.stderr)}`)
   const url = parseNeonOutput(result.stdout)
   if (!url) throw new Error('the Neon CLI did not print a connection string')

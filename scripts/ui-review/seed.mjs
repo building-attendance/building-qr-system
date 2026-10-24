@@ -99,11 +99,19 @@ await tx(async (c) => {
   }
 
   // The building.
-  const was = (await c.query('select name, address from building_settings where id = 1')).rows[0]
-  await c.query('update building_settings set name = $1, address = $2 where id = 1', [BUILDING.name, BUILDING.address])
+  const was = (await c.query('select name, address, privacy_contact from building_settings where id = 1')).rows[0]
+  await c.query('update building_settings set name = $1, address = $2, privacy_contact = $3 where id = 1', [
+    BUILDING.name, BUILDING.address, BUILDING.privacy_contact,
+  ])
   await audit(c, actor, 'building.update', {
     entity: 'building',
-    detail: { changes: { address: { from: was.address, to: BUILDING.address }, name: { from: was.name, to: BUILDING.name } } },
+    detail: {
+      changes: {
+        address: { from: was.address, to: BUILDING.address },
+        name: { from: was.name, to: BUILDING.name },
+        privacy_contact: { from: was.privacy_contact, to: BUILDING.privacy_contact },
+      },
+    },
   })
 
   // The providers: three of the dev seed's, renamed (they keep the password of the dev seed), and one more.

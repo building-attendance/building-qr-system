@@ -218,7 +218,8 @@ export const CLIENT_ERROR_KINDS = Object.freeze(['crash', 'unhandled', 'signed_o
 /**
  * Where in an app it happened, a closed list of screen keys: `provider:<screen>` for the provider's app and `committee:<tab>` for
  * the committee app, so that the number of rows in app_errors stays small whatever an app sends. The provider's screens are those of
- * src/pages/WorkerApp.jsx (the sign-in, the home screen, the check-in in progress, and its result) and the committee's are the screens
+ * src/pages/WorkerApp.jsx (the sign-in, the home screen, the check-in in progress, its result, and the privacy notice at /privacy) and the
+ * committee's are the screens
  * of TABS in src/pages/AdminApp.jsx (tests/client-errors.test.js compares them). The sign-in screens are here although nobody is signed
  * in when they break: the app keeps the event on the device and sends it after the next sign-in. `provider:app` and `committee:app`
  * are for a crash outside any screen (the language provider, the boundary above everything). Each provider key starts with
@@ -231,6 +232,7 @@ export const CLIENT_PLACES = Object.freeze([
   'provider:home',
   'provider:working',
   'provider:result',
+  'provider:privacy',
   'provider:app',
   'committee:login',
   'committee:home',

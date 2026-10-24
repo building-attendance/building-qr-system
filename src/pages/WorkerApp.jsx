@@ -10,6 +10,7 @@ import { SCAN_ERROR_POINT_INACTIVE } from '../../shared/contract.js'
 import { useProviders, useBuilding, usePoint, useTodayVisits, useQueueSync, useDeviceStatus, useErrorReport } from '../worker/hooks.js'
 import { noteClientError, setPlace, currentPlace } from '../ui/errorReport.js'
 import { TopBar, LoginView, HomeView, WorkingView, ResultView } from '../worker/components.jsx'
+import { PrivacyView, isPrivacyPath } from '../worker/PrivacyView.jsx'
 import '../ui/ui.css'
 
 /** @import { PublicPoint } from '../../shared/types.js' */
@@ -21,8 +22,26 @@ export default function WorkerApp() {
   const building = useBuilding()
   return (
     <I18nProvider buildingName={building.name}>
-      <WorkerShell session={session} setSession={setSession} building={building} />
+      {isPrivacyPath() ? <PrivacyScreen building={building} /> : <WorkerShell session={session} setSession={setSession} building={building} />}
     </I18nProvider>
+  )
+}
+
+/**
+ * The privacy notice at /privacy, signed in or not: the header of the app and the notice, and nothing that needs a session (no check
+ * of the stored session, no upload of the queue). It is a page of its own, reached by an ordinary link, so going back is the browser's.
+ */
+function PrivacyScreen({ building }) {
+  setPlace('provider:privacy')
+  return (
+    <div className="w-app">
+      <div className="w-shell">
+        <TopBar name={building.name} address={building.address} />
+        <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
+          <PrivacyView building={building} />
+        </main>
+      </div>
+    </div>
   )
 }
 

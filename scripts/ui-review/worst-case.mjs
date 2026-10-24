@@ -29,8 +29,12 @@ export const SAMPLE = Object.freeze({
 /** The member of the committee that the dev seed makes, for the empty building (a new installation has only the member who set it up). */
 export const PLAIN_ADMIN = Object.freeze({ email: 'dev@example.test', name: 'Dev Admin' })
 
-/** The building: the name and the address at the longest the server accepts (80 and 200 characters). */
+/**
+ * The building: the name and the address at the longest the server accepts (80 and 200 characters), and the committee's contact
+ * for privacy requests at its longest (120), a phone and an e-mail address that is one long word.
+ */
 export const BUILDING = Object.freeze({
+  privacy_contact: 'ועד הבית, טלפון 000-0000000, דוא"ל committee.of.the.green.view.towers.and.the.tall.sycamores.north.building@example.test',
   name: 'ועד הבית של מגדלי הנוף הירוק והשקמים הגבוהים, בניין A ו-B בשכונת הדוגמה הצפונית.',
   address:
     'שדרות הדוגמה הצפונית הארוכה מאוד 11140, כניסה ג, קומה 12, דירה 144, מתחם מגדלי הנוף הירוק והשקמים, שכונת הפרחים הצפונית, עיר לדוגמה ואזור הדוגמה, ליד תחנת הרכבת הקלה וגן המשחקים הציבורי, מיקוד 0000000',

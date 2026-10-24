@@ -231,7 +231,9 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
           ))}
         </ul>
       )}
+      {/* The short privacy notice, before anyone signs in or scans, and the way to the whole of it (src/worker/PrivacyView.jsx). */}
       <p className="w-note"><IconShield size={20} /><span>{t('login.privacy')}</span></p>
+      <a className="w-link" href="/privacy">{t('privacy.open')}</a>
       <AdminLink />
     </div>
   )
@@ -323,6 +325,7 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
       </section>
 
       <button className="w-link" onClick={onSwitch}>{t('home.switchWorker')}</button>
+      <a className="w-link" href="/privacy">{t('privacy.title')}</a>
       <AdminLink />
       <BuildLabel label={t('app.version')} className="w-build--center" />
     </div>

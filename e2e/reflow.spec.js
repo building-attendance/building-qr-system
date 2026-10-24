@@ -16,7 +16,7 @@
 // offending text is outlined in red. The screens are checked softly, so one run lists every failing screen.
 import { randomUUID } from 'node:crypto'
 import ar from '../src/i18n/ar.js'
-import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, EMAIL_MAX_LENGTH } from '../shared/contract.js'
+import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, KEY_NAME_MAX_LENGTH, NAME_MAX_LENGTH, DESCRIPTION_MAX_LENGTH, EMAIL_MAX_LENGTH, PRIVACY_CONTACT_MAX_LENGTH } from '../shared/contract.js'
 import { test, expect, he, en, ru, SAMPLE_POINT, FAR, ADMIN_EMAIL, SCREEN_TITLES, adminSignIn, clearScans, allowConsoleErrors, pageSettled, openFilters, stubHome, homeSummary, openAccountMenu, openTileMenu, chooseFromMenu } from './fixtures.js'
 
 const PHONE = { width: 320, height: 640 }
@@ -37,6 +37,8 @@ function fill(words, max) {
 
 const HEBREW = ['הדוגמה', 'הארוכה', 'מאוד', 'של', 'הבניין', 'הגדול', 'ליד', 'חדר', 'הדואר', 'והמעליות', 'הצפוניות', 'בקומת', 'הקרקע']
 const BUILDING_NAME = fill(HEBREW, BUILDING_NAME_MAX_LENGTH)
+// The committee's contact for privacy requests that the notice shows: one unbreakable word of the longest length, an e-mail address.
+const PRIVACY_CONTACT = `${'committee.of.the.building'.repeat(5)}`.slice(0, PRIVACY_CONTACT_MAX_LENGTH - '@example.test'.length) + '@example.test'
 const BUILDING_ADDRESS = fill(['רחוב', 'הדוגמה', 'הארוך', 'מאוד', 'מספר', '123,', 'קומה', '4,', 'דירה', '56,', 'שכונת', 'הדוגמאות', 'הצפונית,', 'עיר', 'לדוגמה,', 'מחוז', 'הדוגמה,', 'כניסה', 'צפונית'], ADDRESS_MAX_LENGTH)
 const POINT_NAME = fill(['לובי', 'הכניסה', 'הראשית', 'והמעבר', 'הצדדי', ...HEBREW], NAME_MAX_LENGTH)
 const POINT_DESCRIPTION = fill(['נקודה', 'לדוגמה', 'עם', 'תיאור', 'ארוך', 'מאוד', ...HEBREW], 300)
@@ -76,7 +78,7 @@ async function createWorstCase(playwright, baseURL) {
   }
   const was = (await call(admin, 'get', '/api/admin/building')).building
 
-  await call(admin, 'put', '/api/admin/building', { name: BUILDING_NAME, address: BUILDING_ADDRESS })
+  await call(admin, 'put', '/api/admin/building', { name: BUILDING_NAME, address: BUILDING_ADDRESS, privacy_contact: PRIVACY_CONTACT })
   const point = (await call(admin, 'post', '/api/admin/points', {
     name: POINT_NAME, description: POINT_DESCRIPTION, gps_mode: 'required', lat: SAMPLE_POINT.lat, lng: SAMPLE_POINT.lng, radius_m: 50,
   })).point
@@ -102,7 +104,7 @@ async function createWorstCase(playwright, baseURL) {
       admin.delete(`/api/admin/api-keys/${key.id}`, { data: {} }),
       admin.delete(`/api/admin/admins/${member.id}`, { data: {} }),
       ...Object.values(workers).map(({ id }) => admin.delete(`/api/admin/providers/${id}`, { data: {} })),
-      admin.put('/api/admin/building', { data: { name: was.name, address: was.address } }),
+      admin.put('/api/admin/building', { data: { name: was.name, address: was.address, privacy_contact: was.privacy_contact } }),
     ])
     await Promise.all([admin.dispose(), phone.dispose()])
   }
@@ -389,7 +391,7 @@ test.describe('T2 reflow at 320 px: the provider app', () => {
   test.use({ viewport: PHONE, reducedMotion: 'reduce' })
 
   for (const lang of ['he', 'en', 'ru', 'ar']) {
-    test(`in ${lang}: the sign-in list, the password screen, a refused and a recorded check-in, and the home screen`, async ({ page, context, request }, testInfo) => {
+    test(`in ${lang}: the sign-in list, the password screen, a refused and a recorded check-in, the home screen and the privacy notice`, async ({ page, context, request }, testInfo) => {
       await clearScans(request) // a visit that is still on record would answer "already recorded" instead of recording
       const words = WORDS[lang]
       const worker = data.workers[lang]
@@ -424,6 +426,11 @@ test.describe('T2 reflow at 320 px: the provider app', () => {
       await expect(page.getByRole('heading', { name: new RegExp(worker.name.slice(0, 12)) })).toBeVisible()
       await expect(page.getByRole('list').getByText(POINT_NAME.slice(0, 20))).toBeVisible()
       await check(`provider ${lang}: home`)
+
+      await page.getByRole('link', { name: words['privacy.title'] }).click()
+      await expect(page.getByRole('heading', { level: 1, name: words['privacy.title'] })).toBeVisible()
+      await expect(page.getByText(PRIVACY_CONTACT).first()).toBeVisible()
+      await check(`provider ${lang}: privacy notice`)
     })
   }
 })

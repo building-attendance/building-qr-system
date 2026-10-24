@@ -10,6 +10,7 @@ import path from 'node:path'
 import {
   LOG_NOT_REGULAR_ERROR,
   AMBIGUOUS_SOURCE_ERROR,
+  NEON_ROLE_NEEDED_ERROR,
   BACKUP_NAME,
   DEFAULT_KEEP,
   ISSUE_TITLE,
@@ -295,6 +296,7 @@ async function go({ options = {}, deps = {}, runner = makeRunner() } = {}) {
       keep: 30,
       neonProject: null,
       neonBranch: 'main',
+      neonRole: null,
       reportIssue: null,
       pgBin: null,
       encryptTo: keyFile,
@@ -370,6 +372,7 @@ describe('the command line', () => {
       keep: 30,
       neonProject: null,
       neonBranch: 'main',
+      neonRole: null,
       reportIssue: null,
       pgBin: null,
       encryptTo: 'owner-key.asc',
@@ -385,6 +388,7 @@ describe('the command line', () => {
       keep: 7,
       neonProject: 'square-term-12345678',
       neonBranch: 'release/one',
+      neonRole: 'neondb_owner',
       reportIssue: 'owner/repo.name',
       pgBin: '/opt/pg18/bin',
       encryptTo: 'keys/owner key.asc',
@@ -394,14 +398,14 @@ describe('the command line', () => {
     expect(
       parseArgs([
         '--out', 'some dir/backups', '--keep', '7', '--neon-project', 'square-term-12345678', '--neon-branch', 'release/one',
-        '--report-issue', 'owner/repo.name', '--pg-bin', '/opt/pg18/bin', '--encrypt-to', 'keys/owner key.asc',
+        '--neon-role', 'neondb_owner', '--report-issue', 'owner/repo.name', '--pg-bin', '/opt/pg18/bin', '--encrypt-to', 'keys/owner key.asc',
         '--encrypt-fingerprint', FPR, '--gpg', '/usr/local/bin/gpg',
       ]),
     ).toEqual(wanted)
     expect(
       parseArgs([
         '--out=some dir/backups', '--keep=7', '--neon-project=square-term-12345678', '--neon-branch=release/one',
-        '--report-issue=owner/repo.name', '--pg-bin=/opt/pg18/bin', '--encrypt-to=keys/owner key.asc',
+        '--neon-role=neondb_owner', '--report-issue=owner/repo.name', '--pg-bin=/opt/pg18/bin', '--encrypt-to=keys/owner key.asc',
         `--encrypt-fingerprint=${FPR}`, '--gpg=/usr/local/bin/gpg',
       ]),
     ).toEqual(wanted)
@@ -457,6 +461,24 @@ describe('the command line', () => {
     for (const bad of ['owner', 'owner/', '/repo', 'a b/c', 'a/b/c', '-x/y;z']) {
       expect(() => parseArgs(['--out', 'x', ...ENC, `--report-issue=${bad}`]), bad).toThrow(/--report-issue/)
     }
+    const PROJECT = ['--neon-project', 'square-term-1']
+    for (const bad of ['a&b', 'a b', '-x', 'a;b', 'a"b', '$(x)', 'a|b', 'a.b', 'a/b', '', 'r'.repeat(64)]) {
+      let message = ''
+      try {
+        parseArgs(['--out', 'x', ...ENC, ...PROJECT, `--neon-role=${bad}`])
+      } catch (err) {
+        message = err.message
+      }
+      expect(message, bad).toMatch(/--neon-role must be a role name/)
+      if (bad) expect(message, bad).not.toContain(bad)
+    }
+    expect(parseArgs(['--out', 'x', ...ENC, ...PROJECT, '--neon-role', 'r'.repeat(63)]).neonRole).toBe('r'.repeat(63))
+    expect(parseArgs(['--out', 'x', ...ENC, ...PROJECT, '--neon-role', '_owner-2']).neonRole).toBe('_owner-2')
+  })
+
+  it('takes --neon-role only with --neon-project: there is no Neon CLI to give it to otherwise', () => {
+    expect(() => parseArgs(['--out', 'x', ...ENC, '--neon-role', 'neondb_owner'])).toThrow('--neon-role goes with --neon-project')
+    expect(parseArgs(['--out', 'x', ...ENC, '--neon-project', 'p1', '--neon-role', 'neondb_owner']).neonRole).toBe('neondb_owner')
   })
 
   it('refuses an unknown option and a missing value, and never repeats a value in the message', () => {
@@ -604,6 +626,21 @@ describe('the Neon CLI', () => {
 
   it('asks for the direct string: it never passes --pooled', () => {
     expect(neonCommand({ project: 'p', branch: 'main', platform: 'linux' }).args).not.toContain('--pooled')
+    expect(neonCommand({ project: 'p', branch: 'main', role: 'neondb_owner', platform: 'linux' }).args).not.toContain('--pooled')
+  })
+
+  it('names the role with --role-name when one is given, on Windows and elsewhere, and leaves the choice to the CLI otherwise', () => {
+    expect(neonCommand({ project: 'square-term-1', branch: 'main', role: 'neondb_owner', platform: 'win32' })).toEqual({
+      command: 'cmd.exe',
+      args: ['/d', '/c', 'neon.cmd', 'connection-string', 'main', '--project-id', 'square-term-1', '--role-name', 'neondb_owner'],
+    })
+    expect(neonCommand({ project: 'square-term-1', branch: 'main', role: 'neondb_owner', platform: 'linux' })).toEqual({
+      command: 'neon',
+      args: ['connection-string', 'main', '--project-id', 'square-term-1', '--role-name', 'neondb_owner'],
+    })
+    for (const role of [null, undefined, '']) {
+      expect(neonCommand({ project: 'p', branch: 'main', role, platform: 'linux' }).args).not.toContain('--role-name')
+    }
   })
 
   it('finds the connection string in what the CLI printed, and nothing else', () => {
@@ -983,6 +1020,45 @@ describe('where the connection string comes from', () => {
     expect(neon.command).toBe('cmd.exe')
     expect(neon.args).toEqual(['/d', '/c', 'neon.cmd', 'connection-string', 'main', '--project-id', 'square-term-1'])
     expect(r.runner.of('pg_dump')[0].command).toBe('pg_dump.exe')
+  })
+
+  it('with --neon-role the Neon CLI is asked for the string of that role, and the session is still read-only', async () => {
+    const r = await go({ options: { neonProject: 'square-term-1', neonRole: 'neondb_owner' }, deps: { env: { BACKUP_DATABASE_URL: '' } } })
+    expect(r.exitCode).toBe(0)
+    const [neon] = r.runner.of('neon')
+    expect(neon.args).toEqual(['connection-string', 'main', '--project-id', 'square-term-1', '--role-name', 'neondb_owner'])
+    expect(r.runner.of('pg_dump')[0].options.env.PGOPTIONS).toContain(READ_ONLY_OPTION)
+    expect(r.files).toEqual(['backup.log', FINAL])
+  })
+
+  it('a branch with several roles and no --neon-role: a clear error that asks for it, and nothing is dumped or rotated', async () => {
+    seed(oldBackups)
+    // what neonctl printed on 23/10/2026 for the production branch after migration 016 (the roles are this app's)
+    const several = 'ERROR: Multiple roles found for the branch, please provide one with the --role-name option: app_runtime, neondb_owner, backup_reader, app_login\n'
+    const r = await go({
+      options: { neonProject: 'square-term-1', keep: 1 },
+      deps: { env: { BACKUP_DATABASE_URL: '' } },
+      runner: makeRunner({ neon: () => ({ status: 1, stdout: '', stderr: several }) }),
+    })
+    expect(r.exitCode).toBe(1)
+    expect(r.message).toBe(NEON_ROLE_NEEDED_ERROR)
+    expect(NEON_ROLE_NEEDED_ERROR).toMatch(/pass --neon-role <role>/)
+    expect(r.runner.of('neon')).toHaveLength(1) // an answer of the CLI, not a network failure: never run again
+    expect(r.runner.of('pg_dump')).toEqual([])
+    expect(r.files).toEqual(['backup.log', ...oldBackups])
+    expect(r.log).toBe(`03/10/2026 10:15 failed host=- error=${NEON_ROLE_NEEDED_ERROR}\n`)
+    expect(visible(r)).not.toContain('app_login')
+  })
+
+  it('with --neon-role given, a refusal of the CLI is reported as it is, not as a missing role', async () => {
+    const r = await go({
+      options: { neonProject: 'square-term-1', neonRole: 'no_such_role' },
+      deps: { env: { BACKUP_DATABASE_URL: '' } },
+      runner: makeRunner({ neon: () => ({ status: 1, stdout: '', stderr: 'ERROR: Role not found\n' }) }),
+    })
+    expect(r.exitCode).toBe(1)
+    expect(r.message).toBe('the Neon CLI failed (exit code 1): ERROR: Role not found')
+    expect(r.runner.of('pg_dump')).toEqual([])
   })
 
   it('a clear error when there is neither, and nothing is run', async () => {
