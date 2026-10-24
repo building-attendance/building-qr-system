@@ -361,9 +361,11 @@ not say `nonprod`.
    each language that your providers read, and check that every sentence is true for your copy: what is recorded, the
    periods, who sees it, the hosting in the United States, the backups, the AI service (which counts only if you use
    one). **The text is a proposal, not legal advice.** Have a lawyer check it before you give signs to the providers.
-   If a sentence is not true for your copy, or your lawyer changes it, change the words in `src/i18n/*.js` (the keys that
-   start with `privacy.`), the date `PRIVACY_NOTICE_UPDATED` in `src/worker/PrivacyView.jsx` and [privacy.md](privacy.md),
-   where the facts behind each sentence are kept, in the same pull request.
+   If a sentence is not true for your copy, or your lawyer changes it, do not edit the words in your copy: open an issue
+   on this repository with the sentence and the reason. The notice is one text for every copy, updated by the releases
+   (the words in `src/i18n/*.js`, the keys that start with `privacy.`, and the facts behind them in
+   [privacy.md](privacy.md)), so a change that holds for every copy goes into the next release, and a copy that edited its
+   own words would meet a conflict at every update.
 
 ### 3.8 GitHub settings for the copy
 

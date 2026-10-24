@@ -171,7 +171,7 @@ providers to ask the committee members. Each statement comes from this file:
 | What is recorded about the phone: a fingerprint of its sign-in, the times of sign-in, last use and sign-out, the browser and system, the version of the app, what waits to be uploaded and since when, what was not accepted, the time of the last upload | "Phones of a provider" |
 | The network (IP) address of each sign-in attempt, to stop guessing of passwords | "Login attempts" |
 | Who sees it: the committee; whoever opens the app (the names on the sign-in list); the provider's own company, when the committee checks the service with it; an AI service, if the committee uses one; Vercel and Neon, in the United States, and whoever maintains the app | "Who can see it" (the third bullet names the hosting regions) |
-| How long: scans, refused visits and the committee's log until a period is set; the account until it is deleted; the phone's details 90 days after the phone's sign-in ends; a login attempt's address 1 day; the last position 5 minutes; the 30 latest backups | the "How long" column of the rows above, and "Backups" |
+| How long: scans, refused visits and the committee's log until a period is set; the account until it is deleted; the phone's browser string and what it reported 90 days after the phone's sign-in ends, and the record of the sign-in, with its times, until the account is deleted; a login attempt's address 1 day; the last position not used after 5 minutes and deleted the next time the app looks for one, at sign-in and at sign-out, and the position of a visit that waits until it is uploaded; the 30 latest backups | the "How long" column of the rows above, and "Backups" |
 | Whether giving the information is required, and the rights to see and to correct | no row: "Answering a request" below |
 
 The three periods in the notice's words are not typed there: the 90 days (`RETENTION_DEVICE_LABEL_DAYS`), the 1 day
@@ -192,8 +192,8 @@ committee app already has, and every change is written to the audit log in the s
   not in the file. The provider's own details are on the provider's tile in the Providers tab, and the phones of the
   provider, with what each reported about itself, in the dialog of its button ("מכשירים"). The audit log screen
   ("יומן פעולות") lists what members did about the provider. The label of a phone and the login attempts are not shown by
-  the committee app: a request for them goes to whoever runs the services (the owner of the project), who reads them in the
-  database.
+  the committee app: a request for them goes to whoever runs the services of the copy (in the first installation, the owner
+  of the project), who reads them in the database.
 - **To correct:** edit the provider (the tile's "more" button, then ("עריכה")): the company, the contact name and the kind
   of service. A scan keeps the name as it was at the time of the visit, and an edit does not change it. A visit that is
   wrong can be cancelled ("ביטול הנוכחות"), which can be undone and leaves it out of the reports and the CSV by default, or
