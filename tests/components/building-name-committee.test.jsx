@@ -50,7 +50,7 @@ function answerLikeTheServer() {
     if (path === '/admin/building' && options.method === 'PUT') {
       server.puts.push(options.body)
       if (server.putFails) throw server.putFails
-      server.stored = { address: options.body.address, name: options.body.name ?? server.stored.name, privacy_contact: options.body.privacy_contact ?? server.stored.privacy_contact ?? '' }
+      server.stored = { address: options.body.address ?? server.stored.address, name: options.body.name ?? server.stored.name, privacy_contact: options.body.privacy_contact ?? server.stored.privacy_contact ?? '' }
       return { building: { ...server.stored } }
     }
     if (path === '/admin/building') {
@@ -146,6 +146,28 @@ describe('the card in the settings screen', () => {
     expect(contactField(c).value).toBe('newer@example.test') // and the card shows what the server now has
   })
 
+  it('does not send an address that did not change, so a save of the name or the contact keeps one that another member saved since', async () => {
+    answerLikeTheServer()
+    start()
+    const c = await card()
+    await waitFor(() => expect(nameField(c).value).toBe(NAME))
+    server.stored = { ...server.stored, address: 'רחוב חדש יותר 5' } // another member saved an address after this card opened
+    type(nameField(c), 'מגדל הבדיקה')
+    save(c)
+    expect(await screen.findByText('שם הבניין נשמר')).toBeTruthy()
+    expect(server.puts).toEqual([{ name: 'מגדל הבדיקה' }])
+    expect(server.stored.address).toBe('רחוב חדש יותר 5')
+    expect(addressField(c).value).toBe('רחוב חדש יותר 5') // and the card shows what the server now has
+
+    server.stored = { ...server.stored, address: 'רחוב חדש עוד יותר 6' } // and once more, before a save of the contact
+    type(contactField(c), 'vaad@example.test')
+    save(c)
+    expect(await screen.findByText('פרטי הקשר לפניות פרטיות נשמרו')).toBeTruthy()
+    expect(server.puts.at(-1)).toEqual({ privacy_contact: 'vaad@example.test' })
+    expect(server.stored.address).toBe('רחוב חדש עוד יותר 6')
+    expect(addressField(c).value).toBe('רחוב חדש עוד יותר 6')
+  })
+
   it('saves a name alone, and clearing it says the name is removed (the address is kept)', async () => {
     answerLikeTheServer()
     start()
@@ -154,12 +176,12 @@ describe('the card in the settings screen', () => {
     type(nameField(c), 'מגדל הבדיקה')
     save(c)
     expect(await screen.findByText('שם הבניין נשמר')).toBeTruthy()
-    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: 'מגדל הבדיקה' })
+    expect(server.puts.at(-1)).toEqual({ name: 'מגדל הבדיקה' })
 
     type(nameField(c), '')
     save(c)
     expect(await screen.findByText('שם הבניין הוסר')).toBeTruthy()
-    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, name: '' })
+    expect(server.puts.at(-1)).toEqual({ name: '' })
     expect(nameField(c).value).toBe('')
   })
 
@@ -271,14 +293,14 @@ describe('the card in the settings screen', () => {
     type(contactField(c), '  vaad@example.test  ')
     save(c)
     expect(await screen.findByText('פרטי הקשר לפניות פרטיות נשמרו')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: ADDRESS, privacy_contact: 'vaad@example.test' }])
+    expect(server.puts).toEqual([{ privacy_contact: 'vaad@example.test' }])
     expect(contactField(c).value).toBe('vaad@example.test')
     expect(c.queryByText(/עוד לא נשמרו פרטי קשר/)).toBeNull()
 
     type(contactField(c), '')
     save(c)
     expect(await screen.findByText('פרטי הקשר לפניות פרטיות הוסרו')).toBeTruthy()
-    expect(server.puts.at(-1)).toEqual({ address: ADDRESS, privacy_contact: '' })
+    expect(server.puts.at(-1)).toEqual({ privacy_contact: '' })
     expect(c.getByText(/עוד לא נשמרו פרטי קשר/)).toBeTruthy()
   })
 
@@ -291,7 +313,7 @@ describe('the card in the settings screen', () => {
     type(contactField(c), 'vaad@example.test')
     save(c)
     expect(await screen.findByText('פרטי הקשר לפניות פרטיות נשמרו')).toBeTruthy()
-    expect(server.puts).toEqual([{ address: ADDRESS, privacy_contact: 'vaad@example.test' }])
+    expect(server.puts).toEqual([{ privacy_contact: 'vaad@example.test' }])
     expect(server.stored.name).toBe('שם חדש יותר')
     expect(nameField(c).value).toBe('שם חדש יותר') // and the card shows what the server now has
   })

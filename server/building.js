@@ -25,8 +25,14 @@ const CONTROL = /[\p{Cc}\p{Zl}\p{Zp}]/u
  *   tells the providers to ask the committee's members)
  */
 
-/** The address from a request body, trimmed. Empty is allowed (it means "show nothing"); a missing field is not. */
+/**
+ * The address from a request body, trimmed, or `undefined` when the request does not carry one. Empty is allowed (it means "show
+ * nothing"). The field is optional since the committee card sends it only when it changed: a card that was opened before another
+ * member saved a new address would otherwise send the older one back with a save of the name or the contact. The screens from before
+ * this still send it with every save, and that is still accepted. `null` is refused with `missing_field`, the code it always had.
+ */
 export function parseAddress(value) {
+  if (value === undefined) return undefined
   const address = str(value, { field: 'address', max: ADDRESS_MAX_LENGTH })
   if (address === undefined) throw bad('missing_field', 'address is required (it can be empty)', { field: 'address' })
   if (CONTROL.test(address)) throw bad('invalid_field', 'address must not contain control characters', { field: 'address' })
@@ -83,20 +89,24 @@ export async function readBuilding() {
  * Saves the address, the name, the contact and who saved them, with the client `c` of the transaction that also writes the
  * audit row (server/audit.js), so the change and its record commit together. The row is locked and read first, so that the
  * caller can say what the three texts were (`before`, what readBuilding would have answered) and what they are now (`after`).
- * `name` and `privacy_contact` are optional: `undefined` keeps the saved one, so `after` then holds the saved one. A save that
+ * Each of the three is optional: `undefined` keeps the saved one, so `after` then holds the saved one. A save that
  * leaves all three texts as they are writes nothing (not the time and not the member either: they say who CHANGED it), and
  * answers `changed: false`, so that the caller records nothing. An upsert, so a row that went missing does not turn a save into
  * an error.
  * @param {{ query: (text: string, params?: unknown[]) => Promise<{ rows: any[] }> }} c  the client of the transaction
  * @param {string} adminId
- * @param {{ address: string, name?: string, privacy_contact?: string }} next
+ * @param {{ address?: string, name?: string, privacy_contact?: string }} next
  * @returns {Promise<{ changed: boolean, before: Building, after: Building }>}
  */
 export async function saveBuilding(c, adminId, { address, name, privacy_contact }) {
   const current = await c.query('select address, name, privacy_contact from building_settings where id = 1 for update')
   const before = buildingOf(current.rows[0])
   /** @type {Building} */
-  const after = { address, name: name ?? before.name, privacy_contact: privacy_contact ?? before.privacy_contact }
+  const after = {
+    address: address ?? before.address,
+    name: name ?? before.name,
+    privacy_contact: privacy_contact ?? before.privacy_contact,
+  }
   const same = before.address === after.address && before.name === after.name && before.privacy_contact === after.privacy_contact
   if (same) return { changed: false, before, after }
   await c.query(
