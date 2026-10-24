@@ -1,9 +1,9 @@
-import { useId, useRef, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { adminApi, errorText } from '../api.js'
 import { useLoad, setLoadCache, LOAD_KEY, formatDateTime } from '../hooks.js'
 import { Modal, Field, Badge, EmptyState, Spinner, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { IconBan, IconCheck, IconShield, IconAlert, IconTrash } from '../icons.jsx'
-import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
+import { ADDRESS_MAX_LENGTH, BUILDING_NAME_MAX_LENGTH, NAME_MAX_LENGTH, PRIVACY_CONTACT_MAX_LENGTH } from '../../../shared/contract.js'
 import { useBuildingName } from '../buildingName.jsx'
 import MemberFace from '../MemberFace.jsx'
 import Email from '../Email.jsx'
@@ -18,23 +18,29 @@ const CONTROL_RE = /[\p{Cc}\p{Zl}\p{Zp}]/u
 const FIELD_REFUSED = {
   address: 'הכתובת לא נשמרה: היא ארוכה מדי או מכילה תווים שאי אפשר לשמור.',
   name: 'השם לא נשמר: הוא ארוך מדי או מכיל תווים שאי אפשר לשמור.',
+  privacy_contact: 'פרטי הקשר לא נשמרו: הם ארוכים מדי או מכילים תווים שאי אפשר לשמור.',
 }
 
-/** What the toast says after a save, by what the person changed: the address alone, the name alone, or both. */
-function savedMessage({ addressChanged, nameChanged }, building) {
-  if (addressChanged && nameChanged) return 'פרטי הבניין נשמרו'
+/** What the toast says after a save, by what the person changed: one field alone says which, more than one say "the building's details". */
+function savedMessage({ addressChanged, nameChanged, contactChanged }, building) {
+  if ([addressChanged, nameChanged, contactChanged].filter(Boolean).length > 1) return 'פרטי הבניין נשמרו'
   if (nameChanged) return building.name ? 'שם הבניין נשמר' : 'שם הבניין הוסר'
+  if (contactChanged) return building.privacy_contact ? 'פרטי הקשר לפניות פרטיות נשמרו' : 'פרטי הקשר לפניות פרטיות הוסרו'
   return building.address ? 'כתובת הבניין נשמרה' : 'כתובת הבניין הוסרה'
 }
 
-/** The two fields of the card from a building as the server sends it (`null`: nothing yet). A server from before names existed sends no name. */
-const fieldsOf = (building) => ({ address: building?.address ?? '', name: building?.name ?? '' })
+/**
+ * The three fields of the card from a building as the server sends it (`null`: nothing yet). A server from before names existed sends
+ * no name, and one from before the privacy contact existed sends no contact.
+ */
+const fieldsOf = (building) => ({ address: building?.address ?? '', name: building?.name ?? '', privacy_contact: building?.privacy_contact ?? '' })
 
 /**
- * The building's name and address: shown at the top of the service providers' app (the name above the address) and, the name, in the
- * committee app too. Both are kept in the database of this committee and either can stay empty (the apps then show nothing for it).
- * One form and one save button for the two, so there are no row actions here (and the card is not an <article>: the committee
- * members' cards are). The heading of the section, with its line, stands above the card like the members' one, so the card holds
+ * The building's name, address and contact for privacy requests: the name and address are shown at the top of the service
+ * providers' app (the name above the address) and, the name, in the committee app too; the contact is shown in the providers'
+ * privacy notice (/privacy). All are kept in the database of this committee and any can stay empty (the apps then show nothing for
+ * it, and the notice tells the providers to ask the committee's members). One form and one save button for the three, so there are
+ * no row actions here (and the card is not an <article>: the committee members' cards are). The heading of the section, with its line, stands above the card like the members' one, so the card holds
  * the fields alone. A save tells the committee app the name that the server now has, so its brand follows with no reload.
  */
 function BuildingCard() {
@@ -53,7 +59,19 @@ function BuildingCard() {
   const storedRef = useRef(stored)
   const [addressText, setAddressText] = useState(stored.address) // what the fields say now
   const [nameText, setNameText] = useState(stored.name)
-  const [errors, setErrors] = useState({ address: '', name: '' })
+  const [contactText, setContactText] = useState(stored.privacy_contact)
+  const [errors, setErrors] = useState({ address: '', name: '', privacy_contact: '' })
+  // A refused save moves the focus to the first field it refused (docs/design.md F2), as the filters of the history do: on a phone
+  // the field can be off the screen, and the save button keeps the focus otherwise.
+  const formRef = useRef(null)
+  const [refusals, setRefusals] = useState(0)
+  useEffect(() => {
+    if (refusals > 0) formRef.current?.querySelector('[aria-invalid="true"]')?.focus()
+  }, [refusals])
+  const refuse = (next) => {
+    setErrors(next)
+    setRefusals((n) => n + 1)
+  }
 
   // Takes what the server has (a load, a save) into the fields and the brand. With `keepEdits` a field that the person has changed
   // since the last answer keeps what they typed (an answer that arrives while a card drawn from the cache is already being edited);
@@ -65,6 +83,7 @@ function BuildingCard() {
     setStored(next)
     setAddressText((text) => (keepEdits && text !== before.address ? text : next.address))
     setNameText((text) => (keepEdits && text !== before.name ? text : next.name))
+    setContactText((text) => (keepEdits && text !== before.privacy_contact ? text : next.privacy_contact))
     showName(next.name)
   }
 
@@ -72,31 +91,38 @@ function BuildingCard() {
   const name = nameText.trim()
   const addressChanged = address !== stored.address
   const nameChanged = name !== stored.name
-  const changed = addressChanged || nameChanged
+  const contact = contactText.trim()
+  const contactChanged = contact !== stored.privacy_contact
+  const changed = addressChanged || nameChanged || contactChanged
   const submit = async (e) => {
     e.preventDefault()
     if (busy || !changed) return
     const next = {
       address: CONTROL_RE.test(address) ? 'הכתובת מכילה תווים שאי אפשר לשמור, למשל ירידת שורה.' : '',
       name: CONTROL_RE.test(name) ? 'השם מכיל תווים שאי אפשר לשמור, למשל ירידת שורה.' : '',
+      privacy_contact: CONTROL_RE.test(contact) ? 'פרטי הקשר מכילים תווים שאי אפשר לשמור, למשל ירידת שורה.' : '',
     }
-    if (next.address || next.name) return setErrors(next)
+    if (next.address || next.name || next.privacy_contact) return refuse(next)
     // The server says which field it refused (`invalid_field` with `field`): that one shows under its own field, and nothing else
     // is said. Any other failure is the usual toast.
     const res = await run(async () => {
       try {
-        return await adminApi('/building', { method: 'PUT', body: { address, name } })
+        // The name and the contact go only when they changed: the server keeps the saved one when it is not sent, so a save from a
+        // card that was opened earlier never brings back a name or a contact that another member has replaced since. The address goes
+        // with every save, because the route requires it (the committee screens from before the name sent the address alone).
+        const body = { address, ...(nameChanged ? { name } : {}), ...(contactChanged ? { privacy_contact: contact } : {}) }
+        return await adminApi('/building', { method: 'PUT', body })
       } catch (err) {
         const field = err?.code === 'invalid_field' ? err.extra?.field : undefined
-        if (field !== 'address' && field !== 'name') throw err
-        setErrors({ address: '', name: '', [field]: FIELD_REFUSED[field] })
+        if (field !== 'address' && field !== 'name' && field !== 'privacy_contact') throw err
+        refuse({ address: '', name: '', privacy_contact: '', [field]: FIELD_REFUSED[field] })
         return null
       }
     })
     if (!res) return
     take(res.building)
     setLoadCache(LOAD_KEY.building, res.building) // the next time this card opens it draws what was saved
-    toast.ok(savedMessage({ addressChanged, nameChanged }, res.building))
+    toast.ok(savedMessage({ addressChanged, nameChanged, contactChanged }, res.building))
   }
 
   return (
@@ -105,7 +131,7 @@ function BuildingCard() {
       <div className="a-head a-head--section">
         <div>
           <h2 id={titleId}>פרטי הבניין</h2>
-          <p>השם והכתובת שמופיעים בראש שתי האפליקציות.</p>
+          <p>השם והכתובת שמופיעים בראש שתי האפליקציות, ופרטי הקשר שמופיעים בהודעת הפרטיות.</p>
         </div>
       </div>
       <div className="a-card a-card--form">
@@ -117,7 +143,7 @@ function BuildingCard() {
           </>
         )}
         {loaded.data && (
-          <form className="a-form" onSubmit={submit} noValidate>
+          <form className="a-form" onSubmit={submit} noValidate ref={formRef}>
             <Field label="שם הבניין" error={errors.name}
               hint="השם מופיע בראש שתי האפליקציות, מעל הכתובת. בלי שם, הכותרת בוועד היא נוכחות בבניין.">
               {/* dir="auto": the name is typed in any language, and each one should read the right way round */}
@@ -130,6 +156,22 @@ function BuildingCard() {
               <input className="a-input" dir="auto" value={addressText} maxLength={ADDRESS_MAX_LENGTH} autoComplete="off"
                 onChange={(e) => { setAddressText(e.target.value); setErrors((r) => ({ ...r, address: '' })) }} />
             </Field>
+            <Field label="פרטי קשר לפניות בנושא פרטיות" error={errors.privacy_contact}
+              hint="מוצג לכל מי שפותח את אפליקציית נותני השירות, בהודעת הפרטיות. למשל טלפון או מייל של הוועד.">
+              {/* dir="auto": a phone number or an address, typed in any language */}
+              <input className="a-input" dir="auto" value={contactText} maxLength={PRIVACY_CONTACT_MAX_LENGTH} autoComplete="off"
+                onChange={(e) => { setContactText(e.target.value); setErrors((r) => ({ ...r, privacy_contact: '' })) }} />
+            </Field>
+            {/* While no contact is saved the providers' notice sends them to "the committee members": a note with the next step, not an error. */}
+            {!stored.privacy_contact && (
+              <div className="w-banner">
+                <IconShield size={18} />
+                <div className="w-banner__body">עוד לא נשמרו פרטי קשר, ולכן הודעת הפרטיות אומרת לנותני השירות לפנות לחברי הוועד. הוסיפו כאן טלפון או מייל של הוועד ולחצו על שמירה.</div>
+              </div>
+            )}
+            <div className="a-actions">
+              <a className="w-link" href="/privacy" target="_blank" rel="noopener">הודעת הפרטיות שנותני השירות רואים</a>
+            </div>
             <div className="a-actions">
               <button type="submit" className="w-btn w-btn--small" disabled={busy || !changed}>{busy ? 'שומר…' : 'שמירה'}</button>
             </div>
