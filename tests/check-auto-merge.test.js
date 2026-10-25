@@ -252,6 +252,11 @@ describe('refuses: the files', () => {
     'tests/AGENTS.md',
     'docs/made-up/CLAUDE.md',
     'docs/agents.md',
+    'AGENTS.override.md',
+    'docs/AGENTS.override.md',
+    'docs/made-up/agents.override.md',
+    'e2e/Agents.Override.md',
+    'tests/components/AGENTS.override.md',
     'tests/.claude/settings.json',
     'docs/.github/made-up.md',
     'e2e/.env',
@@ -261,7 +266,7 @@ describe('refuses: the files', () => {
     refusedOnlyFor(withFile({ filename, status: 'modified' }), /kept out of the class|not in the class/))
 
   it('each file of the deny list is kept out by the deny list itself, not only by being outside the allow list', () => {
-    for (const filename of ['e2e/fixtures.js', 'tests/helpers.js', 'docs/privacy.md', 'docs/adr/0001-x.md', 'e2e/x.png']) {
+    for (const filename of ['e2e/fixtures.js', 'tests/helpers.js', 'docs/privacy.md', 'docs/adr/0001-x.md', 'e2e/x.png', 'docs/AGENTS.override.md', 'e2e/agents.override.md']) {
       expect(fileProblem({ filename, status: 'added' })).toMatch(/kept out of the class/)
     }
   })

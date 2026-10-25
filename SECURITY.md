@@ -76,10 +76,14 @@ security review by Codex, of its final head: a push after the review gets a new 
 commit that was reviewed. Tests count, since a weakened test can hide a weakened protection, and so do `AGENTS.md`,
 `CLAUDE.md` and `SECURITY.md`, which hold the rules. Here it runs through the local CLI, in a checkout of that head. The
 CLI loads `AGENTS.md` from the folder it starts in and does not read this file by itself, so the first line puts the
-base branch's rules in place (a pull request cannot soften its own review) and the second names them:
+base branch's rules in place (a pull request cannot soften its own review). The CLI reads an `AGENTS.override.md` in
+place of the `AGENTS.md` of its folder, and a file system that ignores case finds `agents.md` too, so the second line
+lists every such file in any case: it must print `AGENTS.md` alone, and anything else stops the review (the `guards`
+check refuses such a file as well). The third line names the rules:
 
 ```
 git checkout origin/HEAD -- AGENTS.md SECURITY.md
+git ls-files -- ":(glob,icase)**/agents.md" ":(glob,icase)**/agents.override.md"
 codex review "Security review of the changes on this branch against the default branch (git diff origin/HEAD...HEAD). Follow the section 'Guidelines for the automated security review' in SECURITY.md and the sections of AGENTS.md that it names. Report only security findings, each with a severity, a file and a line."
 ```
 

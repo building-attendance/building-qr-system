@@ -88,7 +88,8 @@ const CI_PARTS = ['e2e/parts.js', 'e2e/part-weights.json', 'tests/time-sequencer
  */
 const DENIED = Object.freeze([
   { match: (p) => p.split('/').some((part) => part.startsWith('.')), why: 'a hidden file or folder (.claude, .github, .env and the like)' },
-  { match: (p) => /(?:^|\/)(?:agents|claude)\.md$/.test(p), why: 'the project rules (AGENTS.md or CLAUDE.md, in any folder)' },
+  // Codex reads an AGENTS.override.md in place of the AGENTS.md of its folder, so it is the rules too.
+  { match: (p) => /(?:^|\/)(?:agents(?:\.override)?|claude)\.md$/.test(p), why: 'the project rules (AGENTS.md, AGENTS.override.md or CLAUDE.md, in any folder)' },
   { match: (p) => p.startsWith('e2e/') && p.endsWith('.png'), why: 'a visual baseline (the owner approves pictures by eye)' },
   { match: (p) => p === 'e2e/a11y-baseline.js' || p === 'e2e/a11y-report.js', why: 'the accessibility baseline and how every scan is judged' },
   { match: (p) => p === 'tests/design-budget.json', why: 'the design budget' },
