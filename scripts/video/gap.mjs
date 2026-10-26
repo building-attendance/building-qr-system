@@ -54,8 +54,16 @@ const TIMEOUT_MS = 15_000
 /** The address of a language's manifest on the site. */
 /** The folders whose tracked files make the published video besides the app (decision D18): its editing, script, site and tools. */
 export const VIDEO_SOURCES = Object.freeze(['video', 'scripts/video'])
-/** The files under VIDEO_SOURCES that never count: a Markdown file cannot change a frame or a line (the push trigger of video.yml ignores them too). */
-const FINGERPRINT_EXCLUDED = Object.freeze([':(exclude)*.md'])
+/**
+ * The files under VIDEO_SOURCES that never count:
+ * - a Markdown file cannot change a frame or a line (the push trigger of video.yml ignores them too);
+ * - video/promo/ is the promotional video's own folder (decision D7 of the promo topic, 25/10/2026), not a source of the
+ *   tutorial, so a change there opens no `video-gap` issue. The pathspec is literal and ends with a slash, so it takes the files
+ *   under that one folder and no other path (not video/promo.js, video/promotion/, video/src/promo/ or scripts/video/promo/).
+ *   It is safe only while the tutorial depends on nothing in that folder: tests/video-gap.test.js fails when a file of the
+ *   tutorial imports from it.
+ */
+const FINGERPRINT_EXCLUDED = Object.freeze([':(exclude)*.md', ':(exclude,literal)video/promo/'])
 const FINGERPRINT = /^[0-9a-f]{64}$/
 
 /**
