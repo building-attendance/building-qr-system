@@ -15,9 +15,12 @@
 //   node scripts/ci-browser-packages.mjs restore         copies the cached files that match the index into apt's archive
 //   node scripts/ci-browser-packages.mjs keep            copies the files of the installed packages into the cache folder
 //
-// The key is the Ubuntu release, the architecture, the browser, the Playwright version and the week, so a run finds the
-// files of this week's package versions; the prefix (any Playwright version, any week) is the fallback, after which only
-// what changed is downloaded. A run that did not find its key saves a new one.
+// The key is the format of the cache, the Ubuntu release, the architecture, the browser, the Playwright version and the
+// week, so a run finds the files of this week's package versions; the prefix (any Playwright version, any week) is the
+// fallback, after which only what changed is downloaded. A run that did not find its key saves a new one. GitHub never
+// changes an entry that exists ("You cannot change the contents of an existing cache", its dependency caching reference,
+// read 26/10/2026), and a run that finds its key saves nothing, so an entry that misses files stays for the rest of its
+// week: when what `keep` collects changes, KEY_FORMAT goes up and the next run starts a new entry.
 //
 // What makes a cached file safe to install: apt-get takes a file in its archive folder when its name and size match the
 // package version it chose, without checking its hash (the constructor of pkgAcqArchive in apt's
@@ -25,6 +28,15 @@
 // index lists for that package, version and architecture, read with apt-cache after an apt-get update (which checks the
 // index's signature), under the name that apt-get itself would give the file. Any other file is left out, and apt-get
 // downloads that package as it would without a cache: the cache saves time and never changes what is installed.
+//
+// The file of a variant build: on the runner image ubuntu-26.04, apt reads the amd64v3 index of the mirror, where most
+// records are an `Architecture: amd64` package built for x86-64-v3 with `Architecture-Variant: amd64v3`, and the same
+// constructor names such a file after the variant, libproxy1v5_0.5.12-1_amd64v3.deb (read 26/10/2026; 3,485 of the 6,487
+// records of resolute's main index that day, the rest plain amd64 or all). dpkg knows no variant and reports the installed
+// package as amd64. So a record's file name takes its variant when it has one, and `keep` keeps a file whose package and
+// version are installed in its architecture or a variant of it. Before that, `keep` looked for the name that dpkg's
+// architecture gives, and so kept only the 17 files of architecture all (29.2 MB of the 140 MB that WebKit fetched, run
+// 40120516123 on 24/10/2026), and every WebKit part downloaded the other 172 from the mirror again.
 //
 // `restore` and `keep` never fail the job: when one goes wrong it prints a warning, and apt-get downloads what is
 // missing. Node built-ins only.
@@ -39,6 +51,9 @@ import { isMain } from './ci-git.mjs'
 export const ARCHIVES = '/var/cache/apt/archives'
 export const CACHE_DIR = path.join(os.homedir(), '.cache', 'browser-packages')
 export const KEY_PREFIX = 'playwright-packages'
+// The format of the cache, raised when what `keep` collects changes (the header says why). 2: the files of a variant build
+// (26/10/2026); the entries of format 1 have no number in their key.
+export const KEY_FORMAT = 2
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 const BROWSER = /^[a-z][a-z0-9-]{0,30}$/
 const RELEASE_VALUE = /^[A-Za-z0-9.]{1,20}$/
@@ -61,9 +76,12 @@ export function quote(value, bad) {
   return out
 }
 
-/** The name that apt-get gives the file of a package version in its archive folder (StoreFilename in pkgAcqArchive). */
-export function archiveName({ name, version, arch }) {
-  return `${quote(name, '_:')}_${quote(version, '_:')}_${quote(arch, '_:.')}.deb`
+/**
+ * The name that apt-get gives the file of a package version in its archive folder (StoreFilename in pkgAcqArchive): its
+ * last part is the version's architecture variant when it has one (amd64v3), and its architecture otherwise.
+ */
+export function archiveName({ name, version, arch, variant = '' }) {
+  return `${quote(name, '_:')}_${quote(version, '_:')}_${quote(variant || arch, '_:.')}.deb`
 }
 
 /**
@@ -84,17 +102,18 @@ export function parseArchiveName(file) {
 }
 
 /**
- * The SHA256 of each package version in the records that `apt-cache show` prints, by the archive file name of the version.
- * A name that two records give different hashes is left out, so that no file can match it.
+ * The SHA256 of each package version in the records that `apt-cache show` prints, by the archive file name of the version
+ * (with its Architecture-Variant, when the record has one). A name that two records give different hashes is left out, so
+ * that no file can match it.
  */
 export function indexHashes(text) {
   const hashes = new Map()
   const conflicts = new Set()
   for (const record of String(text).split(/\n[ \t]*\n/)) {
     const field = (key) => new RegExp(`^${key}: *(\\S+) *$`, 'm').exec(record)?.[1]
-    const [name, version, arch, sha256] = ['Package', 'Version', 'Architecture', 'SHA256'].map(field)
+    const [name, version, arch, variant, sha256] = ['Package', 'Version', 'Architecture', 'Architecture-Variant', 'SHA256'].map(field)
     if (!name || !version || !arch || !SHA256.test(sha256 ?? '')) continue
-    const file = archiveName({ name, version, arch })
+    const file = archiveName({ name, version, arch, variant })
     if (hashes.has(file) && hashes.get(file) !== sha256) conflicts.add(file)
     hashes.set(file, sha256)
   }
@@ -107,14 +126,24 @@ export function matchingFiles(files, hashes) {
   return files.filter(({ file, sha256 }) => SHA256.test(sha256) && hashes.get(file) === sha256)
 }
 
-/** The archive file names of the installed packages, from `dpkg-query -W` with the format of keepCommand. */
-export function installedNames(text) {
-  const names = new Set()
+/**
+ * The archive files of installed packages, of the `files` in apt's archive folder, by `dpkg-query -W` with the format of
+ * keepCommand: a file whose package and version are installed in its architecture, or in the one that its variant's name
+ * starts with (amd64 for amd64v3), since dpkg reports a variant build under its architecture.
+ */
+export function installedFiles(files, text) {
+  const installed = new Map()
   for (const line of String(text).split('\n')) {
     const [status, name, version, arch] = line.split('\t')
-    if (status?.startsWith('ii') && name && version && arch) names.add(archiveName({ name, version, arch }))
+    if (!status?.startsWith('ii') || !name || !version || !arch) continue
+    const key = `${name}=${version}`
+    installed.set(key, [...(installed.get(key) ?? []), arch])
   }
-  return names
+  return files.filter((file) => {
+    const parsed = parseArchiveName(file)
+    if (!parsed) return false
+    return (installed.get(`${parsed.name}=${parsed.version}`) ?? []).some((arch) => parsed.arch.startsWith(arch))
+  })
 }
 
 /** ID and VERSION_ID of /etc/os-release. */
@@ -133,7 +162,7 @@ export function cacheKey({ id, versionId, arch, browser, playwright, now }) {
   if (!RELEASE_VALUE.test(arch ?? '')) throw new Error('unknown architecture')
   if (!BROWSER.test(browser ?? '')) throw new Error('the browser must be a Playwright browser name, such as webkit')
   if (!VERSION.test(playwright ?? '')) throw new Error('unknown Playwright version')
-  const prefix = `${KEY_PREFIX}-${id}-${versionId}-${arch}-${browser}-`
+  const prefix = `${KEY_PREFIX}-v${KEY_FORMAT}-${id}-${versionId}-${arch}-${browser}-`
   return { prefix, key: `${prefix}${playwright}-w${Math.floor(now / WEEK_MS)}` }
 }
 
@@ -192,18 +221,23 @@ function restoreCommand() {
 }
 
 function keepCommand() {
-  const installed = installedNames(
+  const archived = debFiles(ARCHIVES)
+  const kept = installedFiles(
+    archived,
     execFileSync('dpkg-query', ['-W', '-f', '${db:Status-Abbrev}\\t${Package}\\t${Version}\\t${Architecture}\\n'], {
       encoding: 'utf8',
       maxBuffer: 64 * 1024 * 1024,
     }),
   )
-  const kept = debFiles(ARCHIVES).filter((file) => installed.has(file))
   fs.rmSync(CACHE_DIR, { recursive: true, force: true })
   fs.mkdirSync(CACHE_DIR, { recursive: true })
   for (const file of kept) fs.copyFileSync(path.join(ARCHIVES, file), path.join(CACHE_DIR, file))
   if (kept.length === 0) console.log(`::warning::No package file of an installed package is in ${ARCHIVES}: the cache stays empty.`)
-  else console.log(`Kept ${kept.length} package files of installed packages (${megabytes(CACHE_DIR, kept)} MB) for the next runs.`)
+  else
+    console.log(
+      `Kept ${kept.length} of the ${archived.length} package files in ${ARCHIVES}, those of installed packages ` +
+        `(${megabytes(CACHE_DIR, kept)} MB), for the next runs.`,
+    )
 }
 
 if (isMain(import.meta.url)) {
