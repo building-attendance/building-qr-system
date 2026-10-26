@@ -74,8 +74,8 @@ whole bars of the music, every cut falls on a beat and the video ends on a bar (
 - **The track is the owner's licensed file and is never committed.** Keep it outside the repository, or under `video/out/` (ignored
   by git); the render refuses any other path inside the repository. Its page, author and licence are in `ASSETS.md`. The render
   copies it into a staged folder that it deletes at the end.
-- The track now used is "Minimal House" by Monume (Pixabay): `--bpm 122 --first-beat 0 --start 8.132`, which starts it on its
-  fifth bar so that the full groove comes in with the scan scene.
+- The track now used is "Afrobeat 01" by vjgalaxy (Pixabay): `--bpm 120 --first-beat 0 --start 2.435`, which starts it on its
+  second bar so that the full groove comes in with the scan scene.
 - A copy of this repository that renders the promo falls under the same Remotion terms as the tutorial (the next section and
   [docs/video.md](../docs/video.md), "The Remotion licence").
 

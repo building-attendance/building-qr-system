@@ -28,9 +28,10 @@ import {
 import { REPOSITORY_QR, REPOSITORY_QR_OPTIONS, SIGN, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from '../video/promo/stage.js'
 
 const SCREENSHOTS = fileURLToPath(new URL('../docs/screenshots/', import.meta.url))
-const TRACK = { bpm: 122, firstBeat: 0 }
-// Tempos that the video may be planned at: the default, the chosen track (decision D14), and a first beat that is late in the bar.
-const TEMPOS = [DEFAULT_TEMPO, TRACK, { bpm: 122, firstBeat: 0.265 }, { bpm: 100, firstBeat: 0 }, { bpm: 132, firstBeat: 0 }]
+const TRACK = { bpm: 120, firstBeat: 0 }
+// Tempos that the video may be planned at: the default, the chosen track (decision D17), the first track (D14), and a first beat that
+// is late in the bar.
+const TEMPOS = [DEFAULT_TEMPO, TRACK, { bpm: 122, firstBeat: 0 }, { bpm: 122, firstBeat: 0.265 }, { bpm: 100, firstBeat: 0 }, { bpm: 132, firstBeat: 0 }]
 
 const isBarFrame = (frame, tempo) => Array.from({ length: 200 }, (_, bar) => beatFrame(bar * BEATS_PER_BAR, tempo)).includes(frame)
 const isBeatFrame = (frame, tempo) => Array.from({ length: 800 }, (_, beat) => beatFrame(beat, tempo)).includes(frame)
@@ -115,8 +116,15 @@ describe('planPromo', () => {
     expect(plan.scenes.map((scene) => (scene.endFrame - scene.startFrame) / FPS)).toEqual([4, 4, 6, 4, 6, 4, 6])
   })
 
-  it('plans 17 bars in 33.44 seconds (1003 frames) at the chosen track, 122 bpm with the first beat at 0 (D14)', () => {
+  it('plans 17 bars in 34 seconds (1020 frames) at the chosen track, 120 bpm with the first beat at 0 (D17)', () => {
     const plan = planPromo('he', TRACK)
+    expect(plan.bars).toBe(17)
+    expect(plan.totalFrames).toBe(1020)
+    expect(plan.fadeOutFrame).toBe(1020 - Math.round(MUSIC_FADE_OUT_SECONDS * FPS))
+  })
+
+  it('plans 17 bars in 33.44 seconds (1003 frames) at 122 bpm with the first beat at 0 (the first track, D14)', () => {
+    const plan = planPromo('he', { bpm: 122, firstBeat: 0 })
     expect(plan.bars).toBe(17)
     expect(plan.totalFrames).toBe(1003)
     expect(plan.totalFrames / FPS).toBeCloseTo(33.44, 1)
