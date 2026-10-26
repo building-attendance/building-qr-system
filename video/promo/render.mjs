@@ -37,9 +37,9 @@ const fail = (line) => {
 
 const repositoryRoot = path.resolve(videoDir, '..')
 
-/** A number option, read strictly: `Number('')` is 0 and `Number('1e3')` is 1000, so the text must be a plain decimal. */
+/** A number option, read strictly: `Number('')` is 0 and `Number('1e3')` is 1000, so the text must be a plain decimal, and none is negative. */
 function numberOption(name, text) {
-  if (!/^-?\d+(\.\d+)?$/.test(text)) throw new Error(`--${name} needs a number, not "${text}"`)
+  if (!/^\d+(\.\d+)?$/.test(text)) throw new Error(`--${name} needs a number of zero or more, not "${text}"`)
   return Number(text)
 }
 
@@ -78,18 +78,21 @@ try {
 
 if (music) {
   // The length of the file, by the ffprobe that Remotion ships, so that a start that leaves too little of the track is refused before the render.
-  const probe = await RenderInternals.callFf({
-    bin: 'ffprobe',
-    args: ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', music.path],
-    indent: false,
-    logLevel: 'error',
-    binariesDirectory: null,
-    cancelSignal: undefined,
-  })
   try {
-    checkMusicStart(music.start, Number(probe.stdout.trim()), plan.totalFrames / FPS)
+    const probe = await RenderInternals.callFf({
+      bin: 'ffprobe',
+      args: ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', music.path],
+      indent: false,
+      logLevel: 'error',
+      binariesDirectory: null,
+      cancelSignal: undefined,
+    })
+    const seconds = Number(probe.stdout.trim())
+    if (!Number.isFinite(seconds)) throw new Error('no length')
+    // The start is snapped to a frame, as the audio takes it, and the check is made on that.
+    checkMusicStart(startFrameOf(music.start) / FPS, seconds, plan.totalFrames / FPS)
   } catch (error) {
-    fail(error.message)
+    fail(/^The (track|start)/.test(error.message) ? error.message : `The length of the music file "${path.basename(music.path)}" could not be read: is it a sound file?`)
   }
 }
 
@@ -111,8 +114,14 @@ const elapsed = () => Number((hrtime.bigint() - started) / 1000000n) / 1000
 const outDir = path.join(videoDir, 'out', 'promo')
 const stillsDir = path.join(outDir, 'stills')
 const publicDir = path.join(videoDir, 'out', `.public-promo-${lang}`)
-rmSync(publicDir, { recursive: true, force: true })
-process.on('exit', () => rmSync(publicDir, { recursive: true, force: true })) // also when a step fails or fail() exits
+// The bundle copies the public folder, so it is written here too (not to the system's temp folder) and removed with it: the track is left nowhere.
+const bundleDir = path.join(videoDir, 'out', `.bundle-promo-${lang}`)
+const cleanUp = () => {
+  rmSync(publicDir, { recursive: true, force: true })
+  rmSync(bundleDir, { recursive: true, force: true })
+}
+cleanUp()
+process.on('exit', cleanUp) // also when a step fails or fail() exits
 rmSync(stillsDir, { recursive: true, force: true })
 mkdirSync(publicDir, { recursive: true })
 mkdirSync(stillsDir, { recursive: true })
@@ -122,7 +131,7 @@ writeFileSync(path.join(publicDir, SIGN.file), signSvg())
 writeFileSync(path.join(publicDir, DEMO_QR.file), await demoQrSvg())
 writeFileSync(path.join(publicDir, REPOSITORY_QR.file), await repositoryQrSvg()) // from the repository's address, at every render
 
-const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir })
+const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir, outDir: bundleDir })
 const composition = await selectComposition({ serveUrl, id: 'Promo', inputProps })
 if (composition.width !== WIDTH || composition.height !== HEIGHT || composition.durationInFrames !== plan.totalFrames) {
   fail(`The composition is ${composition.width}x${composition.height} for ${composition.durationInFrames} frames, not the plan's ${WIDTH}x${HEIGHT} for ${plan.totalFrames}.`)

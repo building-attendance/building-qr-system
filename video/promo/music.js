@@ -21,7 +21,8 @@ const IGNORED_FOLDER = ['video', 'out']
 
 const inside = (parent, child) => {
   const relative = path.relative(parent, child)
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+  // A folder called "..drafts" is inside; only ".." itself, or ".." followed by a separator, leaves the parent.
+  return relative === '' || (relative !== '..' && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
 }
 
 /**

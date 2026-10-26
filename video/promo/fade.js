@@ -15,6 +15,6 @@ export function volumeAt(frame, plan) {
   const last = plan.totalFrames - 1
   const fadeInFrames = Math.round(MUSIC_FADE_IN_SECONDS * FPS)
   const fadeIn = Math.min(1, Math.max(0, frame / fadeInFrames))
-  const fadeOut = Math.min(1, Math.max(0, (last - frame) / (last - plan.fadeOutFrame)))
+  const fadeOut = Math.min(1, Math.max(0, (last - frame) / Math.max(1, last - plan.fadeOutFrame)))
   return Math.min(fadeIn, fadeOut)
 }

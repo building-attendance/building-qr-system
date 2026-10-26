@@ -277,7 +277,7 @@ describe('the music (video/promo/music.js)', () => {
   })
 
   it('refuses a path inside the repository anywhere but under video/out/, so the track cannot be committed by accident', () => {
-    for (const where of ['video/src/track.mp3', 'video/promo/track.mp3', 'video/track.mp3', 'docs/track.mp3', 'track.mp3', 'video/outer/track.mp3']) {
+    for (const where of ['video/src/track.mp3', 'video/promo/track.mp3', 'video/track.mp3', 'docs/track.mp3', 'track.mp3', 'video/outer/track.mp3', '..drafts/track.mp3']) {
       expect(() => checkMusicPath(touch(path.join(root, where)), root), where).toThrow(/inside the repository/)
     }
   })
