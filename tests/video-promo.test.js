@@ -4,6 +4,7 @@
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
 import { fileURLToPath } from 'node:url'
+import QRCode from 'qrcode'
 import { DRAWN_PICTURES, LANGUAGES, REPOSITORY_URL, SCENES, SCRIPTS } from '../video/promo/script/index.js'
 import {
   BEATS_PER_BAR,
@@ -21,6 +22,7 @@ import {
   readingSeconds,
   wordsOf,
 } from '../video/promo/timing.js'
+import { REPOSITORY_QR, REPOSITORY_QR_OPTIONS, SIGN, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from '../video/promo/stage.js'
 
 const SCREENSHOTS = fileURLToPath(new URL('../docs/screenshots/', import.meta.url))
 const TRACK = { bpm: 122, firstBeat: 0 }
@@ -210,5 +212,33 @@ describe('planPromo', () => {
 
   it('refuses a language that has no script', () => {
     expect(() => planPromo('xx')).toThrow(/"xx"/)
+  })
+})
+
+describe('what the render stages (video/promo/stage.js)', () => {
+  it('stages each picture of docs/screenshots/ that the scenes name once, and none of the drawn ones', () => {
+    expect(stagedPictures()).toEqual(['provider-phone-check-in.png', 'provider-phone-saved-offline.png', 'committee-phone-home.png', 'committee-phone-history.png'])
+    for (const file of stagedPictures()) expect(fs.existsSync(SCREENSHOTS + file), file).toBe(true)
+    for (const drawn of DRAWN_PICTURES) expect(stagedPictures()).not.toContain(drawn)
+    expect(stagedPictures([{ picture: 'a.png', then: 'b.png' }, { picture: 'a.png' }, { picture: 'text' }])).toEqual(['a.png', 'b.png'])
+  })
+
+  it('makes the QR code of the closing card byte for byte from the repository address (no phone scan was done)', async () => {
+    expect(REPOSITORY_QR.text).toBe(REPOSITORY_URL)
+    const svg = await repositoryQrSvg()
+    expect(svg).toBe(await QRCode.toString(REPOSITORY_URL, REPOSITORY_QR_OPTIONS))
+    expect(svg).toMatch(/<svg /)
+    // The quiet zone is the standard four modules, so that the code reads off a screen; the demo code of the camera scene is another code.
+    expect(REPOSITORY_QR_OPTIONS.margin).toBe(4)
+    expect(svg).not.toBe(await demoQrSvg())
+  })
+
+  it('draws a sign with no words and a place for the code inside it', () => {
+    const svg = signSvg()
+    expect(svg).toMatch(/^<svg /)
+    expect(svg).not.toMatch(/<text/)
+    expect(svg).toMatch(/^[\x20-\x7e]+$/) // plain ASCII: no word of any language
+    expect(SIGN.qr.x + SIGN.qr.w).toBeLessThanOrEqual(SIGN.width)
+    expect(SIGN.qr.y + SIGN.qr.h).toBeLessThanOrEqual(SIGN.height)
   })
 })
