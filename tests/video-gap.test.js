@@ -646,4 +646,173 @@ describe("the fingerprint of the video's own sources", () => {
     write('video/untracked.txt', 'never added') // written after the commit, so git does not track it
     expect(fingerprint()).toBe(before)
   })
+
+  it("leaves out every file under video/promo/, the promo's own folder (decision D7 of the promo topic), at any depth", () => {
+    const before = fingerprint()
+    write('video/promo/Promo.jsx', 'export default 1')
+    write('video/promo/script/he.js', 'export default {}')
+    write('video/promo/assets/music.wav', 'a sound')
+    commitAll()
+    expect(fingerprint()).toBe(before)
+    write('video/promo/Promo.jsx', 'export default 2')
+    write('video/promo/script/he.js', 'export default { changed: true }')
+    commitAll()
+    expect(fingerprint()).toBe(before)
+    git('rm', '-q', '-r', 'video/promo')
+    git('commit', '-q', '-m', 'step')
+    expect(fingerprint()).toBe(before)
+  })
+
+  // Each name is close to video/promo/ and is still a source of the tutorial: an exclusion a little too wide would hide it.
+  // (No case variant such as video/Promo/: on Windows it is the same folder as video/promo/, so the test would differ from CI.)
+  it.each(['video/promo', 'video/promo.js', 'video/promotion/x.js', 'video/promo-cut/x.js', 'video/src/promo/x.js', 'video/script/promo/he.js', 'scripts/video/promo/x.js'])(
+    'still counts %s, a name next to the promo folder',
+    (file) => {
+      const before = fingerprint()
+      write(file, 'export default 1')
+      commitAll()
+      const added = fingerprint()
+      expect(added).not.toBe(before)
+      write(file, 'export default 2')
+      commitAll()
+      expect(fingerprint()).not.toBe(added)
+    },
+  )
+})
+
+// ---- the tutorial depends on nothing of the promo (decision D7 of the promo topic) ---------------------------------------------
+
+// The fingerprint above leaves out video/promo/, which is safe only while the tutorial depends on nothing in it: otherwise a change
+// of the promo would change the tutorial with no gap reported. This walks every file of video/ and scripts/video/ (VIDEO_SOURCES)
+// outside video/promo/, video/out/ and node_modules, and fails on
+// - an import that lands in video/promo/: each static import, `export ... from`, dynamic import() and require() of a code file,
+//   resolved against the file when relative; one whose argument is not a plain string fails too, since it cannot be checked;
+// - a quoted path that names a folder or file `promo` (a path.join part, a `new URL(..., import.meta.url)`, a Remotion entry point,
+//   a script of package.json, a CSS url()), which an import check does not see. It is wider than the folder on purpose: a path
+//   of the tutorial named promo fails too, and is renamed. The one exception is the pathspec of gap.mjs that leaves the folder out.
+describe('the tutorial video depends on nothing in video/promo/', () => {
+  const PROMO = path.join(root, 'video', 'promo')
+  const CODE = /\.(?:[cm]?js|jsx|[cm]?ts|tsx)$/
+  const TEXT = /\.(?:[cm]?js|jsx|[cm]?ts|tsx|json|css|html)$/
+  const SKIPPED = new Set([PROMO, path.join(root, 'video', 'out')])
+  /** The quoted paths allowed to name the folder, per file: the exclusion itself. */
+  const ALLOWED = { 'scripts/video/gap.mjs': [':(exclude,literal)video/promo/'] }
+
+  /** Every text file under the folders of VIDEO_SOURCES, outside video/promo/, video/out/ and any node_modules. */
+  function tutorialFiles() {
+    const files = []
+    const walk = (dir) => {
+      for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+        const full = path.join(dir, entry.name)
+        if (entry.isDirectory()) {
+          if (entry.name !== 'node_modules' && !SKIPPED.has(full)) walk(full)
+        } else if (TEXT.test(entry.name)) files.push(full)
+      }
+    }
+    for (const folder of VIDEO_SOURCES) walk(path.join(root, ...folder.split('/')))
+    return files.sort()
+  }
+
+  const inPromo = (target) => {
+    const relative = path.relative(PROMO, target)
+    return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+  }
+  const literal = (argument) => /^(['"`])([^'"`$\\]*)\1$/.exec(argument.trim())?.[2] ?? null
+
+  /** The imports of one code file's text that land in video/promo/, or whose target cannot be told, as readable lines. */
+  function promoImports(file, text) {
+    const found = []
+    const check = (specifier) => {
+      if (!specifier.startsWith('.') && !path.isAbsolute(specifier)) return // a package, never a file of this repository
+      if (inPromo(path.resolve(path.dirname(file), specifier.replace(/[?#].*$/, '')))) found.push(specifier)
+    }
+    for (const match of text.matchAll(/\bfrom\s*(['"])([^'"\n]+)\1/g)) check(match[2]) // import ... from, export ... from
+    for (const match of text.matchAll(/\bimport\s*(['"])([^'"\n]+)\1/g)) check(match[2]) // import 'x' (for its side effects)
+    for (const match of text.matchAll(/\b(import|require)\s*\(([^)]*)\)/g)) {
+      const argument = match[2].split(',')[0]
+      if (!argument.trim()) continue
+      const specifier = literal(argument)
+      if (specifier === null) found.push(`${match[1]}(${argument.trim()}) (not a plain string, so it cannot be checked)`)
+      else check(specifier)
+    }
+    return found
+  }
+
+  /**
+   * The quoted strings of one file's text (on one line) that have `promo` as a part of a path, apart from the allowed ones: the
+   * whole string or a part between slashes ('promo', '../promo/x', 'video\\promo'), or a relative path after a space, `=` or `:`
+   * (a command such as 'node promo/render.mjs').
+   */
+  const PROMO_PART = /(?:^|[\\/])promo(?:[\\/]|$)|(?:^|[\s=:])promo[\\/]/
+  function promoPaths(text, allowed = []) {
+    const found = []
+    for (const match of text.matchAll(/(['"`])((?:(?!\1)[^\\\n]|\\.)*)\1/g)) {
+      if (PROMO_PART.test(match[2]) && !allowed.includes(match[2])) found.push(match[2])
+    }
+    return found
+  }
+
+  it('finds a planted import of each form in a copy of a real file, and not a near miss', () => {
+    const file = path.join(root, 'video', 'src', 'Video.jsx')
+    const text = fs.readFileSync(file, 'utf8')
+    expect(promoImports(file, text)).toEqual([])
+    const planted = [
+      "import Promo from '../promo/Promo.jsx'",
+      "import { planPromo,\n  PROMO_FPS } from '../promo/timing.js'",
+      "import '../promo/fonts.js'",
+      "export { planPromo } from '../promo/timing.js'",
+      'export * from "../promo/script/he.js"',
+      "const promo = await import('../promo/Promo.jsx')",
+      'const promo = await import(`../promo/Promo.jsx`)',
+      "const promo = require('../promo/Promo.jsx')",
+      "import x from '../promo'",
+      "import x from './../../video/promo/index.jsx'",
+      "import x from '../promo/Promo.jsx?raw'",
+      'const promo = await import(`../${folder}/Promo.jsx`)',
+      'const promo = require(name)',
+    ]
+    for (const line of planted) expect(promoImports(file, `${text}\n${line}\n`), line).toHaveLength(1)
+    const nearMisses = [
+      "import x from './promo/x.js'", // video/src/promo/, a folder of the tutorial
+      "import x from '../promotion/x.js'",
+      "import x from '../promo.js'",
+      "import x from '../../scripts/video/promo/x.js'",
+      "import x from 'promo'", // a package
+      "const promo = await import('./Screens.jsx')",
+    ]
+    for (const line of nearMisses) expect(promoImports(file, `${text}\n${line}\n`), line).toEqual([])
+  })
+
+  it('finds a planted path to the folder in a copy of a real file, and not a word or a near name', () => {
+    const text = fs.readFileSync(path.join(root, 'video', 'src', 'render.mjs'), 'utf8')
+    expect(promoPaths(text)).toEqual([])
+    const planted = [
+      "cpSync(path.join(videoDir, 'promo', 'music.wav'), publicDir)",
+      "await bundle({ entryPoint: path.join(here, '../promo/index.jsx') })",
+      "const entry = new URL('../promo/index.jsx', import.meta.url)",
+      'const out = `${videoDir}/promo/out`',
+      "const folder = 'video\\\\promo'",
+      '"render:promo": "node promo/render.mjs he"',
+      "@import url('../promo/fonts.css');",
+    ]
+    for (const line of planted) expect(promoPaths(`${text}\n${line}\n`), line).toHaveLength(1)
+    const nearMisses = ["const name = 'promo.mp4'", "const kind = 'promotion/x'", "const label = 'a promo video'", '// the promo/ folder, in a comment']
+    for (const line of nearMisses) expect(promoPaths(`${text}\n${line}\n`), line).toEqual([])
+    expect(promoPaths("const x = ':(exclude,literal)video/promo/'", ALLOWED['scripts/video/gap.mjs'])).toEqual([])
+  })
+
+  it('holds for every file of the tutorial', () => {
+    const files = tutorialFiles()
+    const relative = files.map((file) => path.relative(root, file).split(path.sep).join('/'))
+    expect(relative).toEqual(expect.arrayContaining([
+      'video/src/Video.jsx', 'video/src/render.mjs', 'video/script/index.js', 'video/remotion.config.js', 'video/package.json', 'video/site/player.html',
+      'scripts/video/gap.mjs', 'scripts/video/voice-providers/http.mjs',
+    ]))
+    expect(relative.some((file) => file.startsWith('video/promo/') || file.startsWith('video/out/') || file.includes('node_modules'))).toBe(false)
+    const found = files.flatMap((file, i) => {
+      const text = fs.readFileSync(file, 'utf8')
+      return [...(CODE.test(file) ? promoImports(file, text) : []), ...promoPaths(text, ALLOWED[relative[i]])].map((what) => `${relative[i]}: ${what}`)
+    })
+    expect(found).toEqual([])
+  })
 })
