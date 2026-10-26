@@ -113,8 +113,8 @@ describe('the field on a phone', () => {
 
   it('shows the placeholder when it is empty, and a screen reader hears that nothing is chosen', () => {
     render(<Pair from="" to="" />)
-    expect(fromField().querySelector('[aria-hidden="true"]').textContent).toBe('DD/MM/YYYY')
-    expect(screen.getByRole('button', { name: 'מתאריך לא נבחר' })).toBe(fromField())
+    expect(fromField().querySelector('.a-date__placeholder').textContent).toBe('DD/MM/YYYY')
+    expect(screen.getByRole('button', { name: 'מתאריך לא נבחר DD/MM/YYYY' })).toBe(fromField())
   })
 
   it('from 640 px it is the field that takes typing, with the calendar button beside it (the computer\'s picker, as it was)', () => {
@@ -161,7 +161,7 @@ describe('the wheels', () => {
     expect(within(dialog).getAllByRole('listbox').map((list) => list.getAttribute('aria-label')), 'in the order of reading, right to left').toEqual(['שנה', 'חודש', 'יום'])
     expect(chosen('שנה').textContent).toBe('2026')
     expect(chosen('חודש').textContent).toBe('אוקטובר')
-    expect(chosen('יום').textContent).toBe('5')
+    expect(chosen('יום').textContent).toBe('05')
     expect(focused(), 'the focus starts on the chosen day').toBe(chosen('יום'))
     expect(document.body.style.overflow).toBe('hidden')
   })
@@ -180,7 +180,7 @@ describe('the wheels', () => {
     const months = ['ינואר', 'פברואר', 'מרץ', 'אפריל', 'מאי', 'יוני', 'יולי', 'אוגוסט', 'ספטמבר', 'אוקטובר', 'נובמבר', 'דצמבר']
     expect(options('חודש').map((o) => o.textContent)).toEqual(months)
     expect(options('חודש').map((o) => o.getAttribute('aria-label'))).toEqual(months.map((name, i) => `${name}, חודש ${i + 1}`))
-    expect(options('יום').map((o) => o.textContent)).toEqual(Array.from({ length: 31 }, (_, i) => String(i + 1)))
+    expect(options('יום').map((o) => o.textContent)).toEqual(Array.from({ length: 31 }, (_, i) => String(i + 1).padStart(2, '0')))
     expect(options('יום').map((o) => o.getAttribute('aria-label'))).toEqual(Array.from({ length: 31 }, (_, i) => `${String(i + 1).padStart(2, '0')}/10/2026`))
     expect(option('חודש', 'אוקטובר, חודש 10').getAttribute('aria-selected')).toBe('true')
     expect(option('חודש', 'ספטמבר, חודש 9').getAttribute('aria-selected')).toBe('false')
@@ -451,8 +451,8 @@ describe('choosing and cancelling', () => {
     fireEvent.click(within(sheet()).getByRole('button', { name: 'ניקוי התאריך' }))
     expect(screen.queryByRole('dialog')).toBeNull()
     expect(seen).toEqual([['from', '']])
-    expect(fromField()).toBe(screen.getByRole('button', { name: 'מתאריך לא נבחר' }))
-    expect(fromField().querySelector('[aria-hidden="true"]').textContent).toBe('DD/MM/YYYY')
+    expect(fromField()).toBe(screen.getByRole('button', { name: 'מתאריך לא נבחר DD/MM/YYYY' }))
+    expect(fromField().querySelector('.a-date__placeholder').textContent).toBe('DD/MM/YYYY')
     expect(toField().textContent, 'the other date stays').toBe('10/10/2026')
     expect(focused()).toBe(fromField())
     open()
@@ -588,7 +588,7 @@ describe('in the audit log on a phone', () => {
     await screen.findByText('עוד לא נרשמו פעולות', {}, WAIT)
     fireEvent.click(screen.getByRole('button', { name: /^סינון/ }))
     const filters = screen.getByRole('dialog', { name: 'סינון' })
-    expect(within(filters).getByRole('button', { name: 'מתאריך לא נבחר' })).toBeTruthy()
+    expect(within(filters).getByRole('button', { name: 'מתאריך לא נבחר DD/MM/YYYY' })).toBeTruthy()
     fireEvent.click(within(filters).getByLabelText('עד תאריך'))
     fireEvent.click(within(sheet('תאריך סיום')).getByRole('button', { name: '7 ימים' }))
     expect([within(filters).getByLabelText('מתאריך').textContent, within(filters).getByLabelText('עד תאריך').textContent]).toEqual(['08/10/2026', '14/10/2026'])
@@ -614,7 +614,7 @@ describe('in the audit log on a phone', () => {
     filters = screen.getByRole('dialog', { name: 'סינון' })
     fireEvent.click(within(filters).getByLabelText('מתאריך'))
     fireEvent.click(within(sheet()).getByRole('button', { name: 'ניקוי התאריך' }))
-    expect(within(filters).getByRole('button', { name: 'מתאריך לא נבחר' })).toBeTruthy()
+    expect(within(filters).getByRole('button', { name: 'מתאריך לא נבחר DD/MM/YYYY' })).toBeTruthy()
     expect(within(filters).getByLabelText('עד תאריך').textContent).toBe('14/10/2026')
     expect(within(filters).getByLabelText('סוג פעולה').value).toBe('point')
     fireEvent.click(within(filters).getByRole('button', { name: 'הצגת תוצאות' }))

@@ -144,13 +144,13 @@ describe('the grid', () => {
     days.forEach((button, i) => {
       const name = `${String(i + 1).padStart(2, '0')}/10/2026`
       expect(button.getAttribute('aria-label')).toBe(name)
-      expect(button.textContent).toBe(String(i + 1))
+      expect(button.textContent, 'two digits, the start of its name').toBe(String(i + 1).padStart(2, '0'))
       expect(button.getAttribute('type')).toBe('button')
     })
     // the 1st of October 2026 is a Thursday: the fifth column of the first row, after four empty cells
     const firstRow = within(grid()).getAllByRole('row')[1]
     const cells = within(firstRow).getAllByRole('gridcell')
-    expect(cells.map((cell) => cell.textContent)).toEqual(['', '', '', '', '1', '2', '3'])
+    expect(cells.map((cell) => cell.textContent)).toEqual(['', '', '', '', '01', '02', '03'])
     expect(within(grid()).getAllByRole('row'), 'six weeks always, so the grid keeps its height').toHaveLength(7)
   })
 
