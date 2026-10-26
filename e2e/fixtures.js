@@ -367,7 +367,7 @@ export async function openScreen(page, key) {
     await bar.getByRole('button', { name: SCREEN_NAV[key], exact: true }).click()
   } else {
     await bar.getByRole('button', { name: 'עוד', exact: true }).click()
-    await page.getByRole('dialog', { name: 'עוד', exact: true }).getByRole('button', { name: SCREEN_LABELS[key], exact: true }).click()
+    await page.getByRole('dialog', { name: 'עוד', exact: true }).getByRole('button', { name: new RegExp(`^${SCREEN_LABELS[key]} `) }).click() // the row's name is the screen's name and the line under it
   }
 }
 
@@ -630,7 +630,7 @@ export async function setDate(scope, label, ddmmyyyy) {
  */
 export async function expectDate(field, date) {
   if (!hasDateWheels(field.page())) return expect(field).toHaveValue(date)
-  if (date === '') return expect(field).toHaveAccessibleName(/ לא נבחר$/)
+  if (date === '') return expect(field).toHaveAccessibleName(/ לא נבחר DD\/MM\/YYYY$/)
   return expect(field).toHaveText(date)
 }
 

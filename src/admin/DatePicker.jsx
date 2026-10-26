@@ -366,7 +366,7 @@ export function DatePicker({ value, onChange, onPendingChange, label, range, onR
           aria-labelledby={field.id ? `${field.id}-label ${valueId}` : undefined} aria-describedby={field['aria-describedby']} onClick={openPicker}
         >
           <span id={valueId} className="a-date__value">
-            {isDay(value) ? formatDay(value) : <><span className="a-date__placeholder" aria-hidden="true">DD/MM/YYYY</span><span className="w-sr">לא נבחר</span></>}
+            {isDay(value) ? formatDay(value) : <><span className="w-sr">לא נבחר</span>{' '}<span className="a-date__placeholder">DD/MM/YYYY</span></>}
           </span>
           <IconCalendar size={20} />
         </button>
