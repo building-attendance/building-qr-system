@@ -87,10 +87,12 @@ const bar = () => screen.getByRole('navigation', { name: 'ניווט ראשי (�
 const rail = () => screen.getByRole('navigation', { name: 'ניווט ראשי' })
 const moreButton = () => within(bar()).getByRole('button', { name: 'עוד' })
 const sheet = () => screen.queryByRole('dialog', { name: 'עוד' })
-// A row of the sheet is named by the screen's name (aria-labelledby), and described by the line under it (aria-describedby): a button is
-// still found by its name, and a screen reader says the line after it.
-const rowName = (b) => document.getElementById(b.getAttribute('aria-labelledby')).textContent
-const rowSub = (b) => document.getElementById(b.getAttribute('aria-describedby')).textContent
+// A row of the sheet is named by the screen's name followed by the line under it (aria-labelledby with both ids): the name holds all the text
+// that the button shows (WCAG 2.5.3), and a button is found by the start of its name, the screen's name.
+const rowIds = (b) => b.getAttribute('aria-labelledby').split(' ')
+const rowName = (b) => document.getElementById(rowIds(b)[0]).textContent
+const rowSub = (b) => document.getElementById(rowIds(b)[1]).textContent
+const row = (scope, label) => within(scope).getByRole('button', { name: new RegExp(`^${label} `) })
 
 /** A person (or a test) opens another address of the same page: the address changes, and the browser says so. */
 async function openByAddress(hash) {
@@ -277,7 +279,7 @@ describe('changing the tab while the app is open', () => {
     await heading(FIRST)
     window.scrollTo.mockClear()
     fireEvent.click(moreButton())
-    fireEvent.click(within(sheet()).getByRole('button', { name: 'הגדרות' }))
+    fireEvent.click(row(sheet(), 'הגדרות'))
     await heading('settings')
     await waitFor(() => expect(window.scrollTo).toHaveBeenCalledWith(0, 0))
     await waitFor(() => expect(document.activeElement).toBe(document.querySelector('main')))
@@ -360,7 +362,8 @@ describe('the sheet under "עוד"', () => {
     for (const item of items) {
       expect(item.querySelector('svg'), rowName(item)).toBeTruthy()
       expect(rowSub(item), `${rowName(item)} has a line about the screen`).not.toBe('')
-      expect(within(dialog).getByRole('button', { name: rowName(item), exact: true }), 'found by the name of the screen alone').toBe(item)
+      expect(row(dialog, rowName(item)), 'found by the name of the screen').toBe(item)
+      expect(item.textContent, 'its name holds all the text that the button shows').toBe(`${rowName(item)} ${rowSub(item)}`)
     }
   })
 
@@ -379,7 +382,7 @@ describe('the sheet under "עוד"', () => {
 
   it.each(MORE)('goes to $key and closes when it is chosen', async ({ key, label }) => {
     const dialog = await open()
-    fireEvent.click(within(dialog).getByRole('button', { name: label }))
+    fireEvent.click(row(dialog, label))
     await heading(key)
     await waitFor(() => expect(window.location.hash).toBe(`#${key}`))
     expect(sheet()).toBeNull()
@@ -429,7 +432,7 @@ describe('the sheet under "עוד"', () => {
 
   it('stays on the same screen, and gives the focus back to "עוד", when the screen that is already open is chosen', async () => {
     const dialog = await open('#audit')
-    fireEvent.click(within(dialog).getByRole('button', { name: 'יומן פעולות' }))
+    fireEvent.click(row(dialog, 'יומן פעולות'))
     expect(sheet()).toBeNull()
     expect(shown()).toEqual(['audit'])
     expect(document.activeElement).toBe(moreButton())

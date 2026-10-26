@@ -65,7 +65,8 @@ function NavItem({ tab, current, onGo, className, size, iconOnly = false }) {
 // The sheet that "עוד" opens: the management screens, one row each (an icon on its tint, the name, a line about the screen, and a chevron).
 // A real dialog (the same `Modal` as every form of the app: focus moves in and is trapped, Esc and a tap outside close it). Choosing a screen
 // goes there and closes the sheet; the button that opened it takes the focus back (Shell). It has no form, so it never asks about unsaved
-// changes. The name of a row is the screen's name; the line under it is its description, so that a button is still found by its name.
+// changes. The name of a row is the screen's name followed by the line under it: both are drawn inside the button, and a name must contain
+// the text that a person sees (WCAG 2.5.3, axe `label-content-name-mismatch`). A button is still found by the start of its name.
 function MoreSheet({ tab, onGo, onClose }) {
   return (
     <Modal title="עוד" onClose={onClose} size="sheet">
@@ -73,10 +74,10 @@ function MoreSheet({ tab, onGo, onClose }) {
         {MORE_TABS.map((t) => (
           <button
             key={t.key} className="a-more__row" aria-current={tab === t.key ? 'page' : undefined}
-            aria-labelledby={`more-${t.key}`} aria-describedby={`more-${t.key}-sub`} onClick={() => { onGo(t.key); onClose() }}
+            aria-labelledby={`more-${t.key} more-${t.key}-sub`} onClick={() => { onGo(t.key); onClose() }}
           >
             <span className={`a-more__icon a-more__icon--${t.tint}`}><t.icon size={22} /></span>
-            <span className="a-more__text"><span id={`more-${t.key}`}>{t.label}</span><span id={`more-${t.key}-sub`}>{t.sub}</span></span>
+            <span className="a-more__text"><span id={`more-${t.key}`}>{t.label}</span>{' '}<span id={`more-${t.key}-sub`}>{t.sub}</span></span>
             <IconChevron size={18} className="w-flip" />
           </button>
         ))}

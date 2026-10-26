@@ -2291,12 +2291,12 @@ test('the "עוד" sheet: opens, lists the four other screens, marks the current
   await expect(sheet).toBeVisible()
   await expect(more).toHaveAttribute('aria-expanded', 'true')
   await expect(sheet).toHaveAttribute('aria-modal', 'true')
-  // each row is named by the screen's name and described by the line under it, so a button is still found by its name
+  // each row is named by the screen's name and the line under it, which is all the text the button shows (WCAG 2.5.3), so a button is still
+  // found by the start of its name
   const rows = [['אייג׳נט', 'מפתחות לסוכן ה-AI של הוועד'], ['הגדרות', 'מנהלי המערכת ופרטי הבניין'], ['יומן פעולות', 'מי שינה מה ומתי'], ['איך עובדים עם המערכת', 'מדריך קצר']]
   await expect(items).toHaveCount(rows.length)
   for (const [index, [name, line]] of rows.entries()) {
-    await expect(items.nth(index)).toHaveAccessibleName(name)
-    await expect(items.nth(index)).toHaveAccessibleDescription(line)
+    await expect(items.nth(index)).toHaveAccessibleName(`${name} ${line}`)
     await expect(items.nth(index)).toContainText(line) // and the line is drawn
   }
   // each item has its icon (and a chevron) and a target of 44 px or more, and the sheet is at the bottom of the screen
