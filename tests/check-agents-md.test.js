@@ -1,4 +1,4 @@
-// The guard of AGENTS.md that CI runs in the guards job (scripts/check-agents-md.mjs, .github/workflows/ci.yml): the
+// The guard of AGENTS.md that runs in the guards job (scripts/check-agents-md.mjs, .github/workflows/guards.yml): the
 // root AGENTS.md fits in what Codex reads, and it is the only instruction file.
 // It never reads or edits the real AGENTS.md: every case writes its files into a new temporary folder, removed
 // afterwards, and the command is run on such a folder (a git repository made for it) as a child process.

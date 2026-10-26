@@ -41,6 +41,7 @@ const SCRIPT = path.join(root, 'scripts', 'check-auto-merge.mjs')
 const readLf = (...parts) => fs.readFileSync(path.join(root, ...parts), 'utf8').replace(/\r\n/g, '\n')
 const WORKFLOW = readLf('.github', 'workflows', 'auto-merge.yml')
 const CI = readLf('.github', 'workflows', 'ci.yml')
+const GUARDS = readLf('.github', 'workflows', 'guards.yml')
 
 const REPO = 'fake-owner/fake-repo'
 const HEAD = '0123456789abcdef0123456789abcdef01234567'
@@ -911,13 +912,14 @@ const decideJob = block(code, /^ {2}decide:$/)
 const mergeJob = block(code, /^ {2}merge:$/)
 
 describe('the workflow file', () => {
-  it('runs only after CI and on comments, never on a trigger that runs the pull request copy of the file', () => {
+  it('runs only after CI or Guards and on comments, never on a trigger that runs the pull request copy of the file', () => {
     const on = block(code, /^on:$/)
     const triggers = on.split('\n').filter((line) => /^ {2}\S/.test(line)).map((line) => line.trim())
     expect(triggers).toEqual(['workflow_run:', 'issue_comment:'])
-    expect(on).toMatch(/workflow_run:\n {4}workflows: \[CI\]\n {4}types: \[completed\]/)
+    expect(on).toMatch(/workflow_run:\n {4}workflows: \[CI, Guards\]\n {4}types: \[completed\]/)
     expect(on).toMatch(/issue_comment:\n {4}types: \[created, edited\]/)
     expect(CI).toMatch(/^name: CI$/m)
+    expect(GUARDS).toMatch(/^name: Guards$/m)
     expect(code).not.toMatch(/pull_request_target|pull_request_review|workflow_dispatch|schedule:|\n {2}push:/)
   })
 

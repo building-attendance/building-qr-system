@@ -1,4 +1,4 @@
-// CI guard for the size of the app (see .github/workflows/ci.yml, job "guards", and `npm run size`).
+// CI guard for the size of the app (see .github/workflows/guards.yml, job "guards", and `npm run size`).
 //
 // Usage: node scripts/check-bundle-size.mjs [--dir <built app folder>]      (default: dist, next to the scripts folder)
 // `npm run size` builds the app first (vite build) and then runs this.

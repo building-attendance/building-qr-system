@@ -110,7 +110,7 @@ request (section 5), and your changes can go back as pull requests.
 2. The fork's default branch is `master`, and only `master` is copied. **Do not rename it.** The default branch is the
    production branch: the deploy gate asks GitHub for it on every production build
    ([deploy-and-rollback.md](runbooks/deploy-and-rollback.md)). `master` and `main` are the two names that `vercel.json`,
-   `ci.yml` and `scorecard.yml` already list; any other name needs edits in those three files.
+   `ci.yml`, `guards.yml` and `scorecard.yml` already list; any other name needs edits in those four files.
 3. A fork of a public repository is public, and the migration check can read a public repository without a token, so path
    A needs no `MIGRATION_GITHUB_TOKEN` (a private repository does: section 4).
 4. GitHub switches the workflows of a new fork off: the Actions tab says "Workflows aren't being run on this forked
@@ -414,13 +414,13 @@ Do these in order. After step 5 every change to the default branch needs a pull 
      Codex review of the head commit is one of its conditions), and set up your own App, as
      [`.github/rulesets/README.md`](../.github/rulesets/README.md), "The auto-merge App", says. `release.yml` runs only
      by hand and a copy can ignore it. `scorecard.yml` reports the repository's security habits and may be deleted. Keep
-     `ci.yml`, `e2e.yml` (which `ci.yml` calls for the end-to-end tests) and `smoke.yml`.
+     `ci.yml`, `guards.yml`, `e2e.yml` (which `ci.yml` calls for the end-to-end tests) and `smoke.yml`.
 
    This push starts the checks and a production deployment, which is also the first run of the smoke test. In the trial,
    Vercel (Hobby) deployed this push to the repository of a free organization, and the smoke test ran after it and passed.
 4. **Wait for the checks.** In the Actions tab, on that push, the four checks must be green: `guards`, `unit`,
    `e2e (android-chrome)` and `e2e (iphone-webkit)`. In the trial they took about 23 seconds, 3 minutes, 3.5 minutes and
-   5 minutes. `unit` and each e2e check come last, after their parts (`unit part <n>`, `e2e (<project>) part <n>`). If they did not start, run `gh workflow run ci.yml --repo <owner>/<repo>`. The smoke test should show its
+   5 minutes. `unit` and each e2e check come last, after their parts (`unit part <n>`, `e2e (<project>) part <n>`). If they did not start, run `gh workflow run guards.yml --repo <owner>/<repo>` and the same with `ci.yml`. The smoke test should show its
    three steps as `ok`. A required check that has never run blocks every pull request, which is why the rulesets wait for
    this step.
 5. **Apply the two rulesets,** from the root of a clone, with your own owner and repository name in the address

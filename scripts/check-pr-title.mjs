@@ -1,4 +1,4 @@
-// CI guard for the pull request title (see .github/workflows/ci.yml, job "guards", pull requests only).
+// CI guard for the pull request title (see .github/workflows/guards.yml, job "guards", pull requests only).
 //
 // Usage: PR_TITLE="fix(scan): refuse a point that is too far" node scripts/check-pr-title.mjs
 //

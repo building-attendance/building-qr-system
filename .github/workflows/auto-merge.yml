@@ -9,7 +9,8 @@
 # request. With LIVE false (the dry run) the merge job is skipped, and the decision is only written. Turning LIVE on or off
 # is the owner's decision, written in a pull request of its own (a P1 item of the Code Review Rules).
 #
-# When it runs: after every run of CI (workflow_run), and when the Codex review bot writes or edits a comment on a pull
+# When it runs: after every run of CI or of Guards (workflow_run: the tests, and the required check `guards`, which alone
+# runs again when the title or the labels change), and when the Codex review bot writes or edits a comment on a pull
 # request (issue_comment: a clean review ends with a new receipt comment and an edit of the bot's summary comment). Both
 # events run this file, and the decision script, as they are on the default branch, never a pull request's copies, so a
 # pull request cannot widen its own gate. There is no pull_request, pull_request_target or pull_request_review trigger:
@@ -41,7 +42,7 @@ name: Auto-merge
 
 on:
   workflow_run:
-    workflows: [CI]
+    workflows: [CI, Guards]
     types: [completed]
   issue_comment:
     types: [created, edited]
@@ -57,7 +58,8 @@ jobs:
   decide:
     name: decide
     # Evaluated before a runner starts, so a comment of anybody else costs nothing:
-    #   workflow_run   a CI run of a pull request from a branch of this repository (a fork's run carries no pull request);
+    #   workflow_run   a run of CI or Guards for a pull request from a branch of this repository (a fork's run carries no
+    #                  pull request);
     #   issue_comment  a comment of the Codex review bot on an open pull request (REST names the bot with [bot]).
     if: >-
       (github.event_name == 'workflow_run' && github.event.workflow_run.event == 'pull_request' &&

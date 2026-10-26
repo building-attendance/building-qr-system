@@ -1,0 +1,169 @@
+# The required check `guards` (.github/rulesets/): migrations only move forward, tests are not removed, AGENTS.md fits
+# what Codex reads, the PR title, ESLint, the type check, the size budget of the built app, an audit of the production
+# dependencies (and a warning, never a failure, for the development ones). The other three required checks, `unit`,
+# `e2e (android-chrome)` and `e2e (iphone-webkit)`, are in ci.yml.
+#
+# Why a workflow of its own: the guards read the pull request's title and labels, so they must run again when those
+# change, and the tests must not, because no code changed. One workflow cannot do both safely. Every job of a run
+# reports a check, a job that its `if:` skips reports `skipped`, and GitHub counts a skipped check as a passed required
+# check (GitHub's "Troubleshooting required status checks", read 26/10/2026). So a CI run on an edit either ran the
+# tests again (about 15 minutes, and it cancelled the run of the push that was still going: several runs on 26/10/2026),
+# or would report `unit` and the e2e checks as skipped, which would let a commit whose tests failed merge after an edit
+# of its title. Here `guards` is the only job and it is never skipped, and ci.yml, which has no `guards`, runs only for
+# a change of the code. A check named like a required one is one job of one workflow (tests/ci-triggers.test.js).
+# Every third-party action is pinned to a full commit SHA (the tag is in the comment), the same ones as in ci.yml.
+name: Guards
+
+# The events of ci.yml (master and main as there, and the merge queue), plus the pull request types that change what
+# the guards read, so that fixing the title or adding the allow-test-removal label runs them again (a plain re-run would
+# still see the old title and labels). `edited` covers a change of the description or of the base branch too.
+on:
+  pull_request:
+    branches: [master, main]
+    types: [opened, synchronize, reopened, edited, labeled, unlabeled]
+  push:
+    branches: [master, main]
+  merge_group:
+    types: [checks_requested]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# A newer run for the same pull request cancels the one that is still going, so that after an edit the run that
+# reports is the one that read the new title and labels. Its own group: an edit never cancels the tests of ci.yml.
+concurrency:
+  group: guards-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  guards:
+    name: guards
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # the guards diff against the base branch, so they need its history
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      # What to compare with: the target branch for a pull request, the previous tip for a push, and for a merge queue the
+      # commit that the queued pull request is merged onto (the default branch plus the pull requests ahead of it), so the
+      # diff is that pull request's own change. A branch that is new (all-zero SHA) or a force-pushed one (the old tip is
+      # gone) has nothing to compare with: the diff guards skip.
+      - name: Find the base commit
+        id: base
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE_SHA: ${{ github.event.before }}
+          MERGE_GROUP_BASE: ${{ github.event.merge_group.base_sha }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+        run: |
+          case "$EVENT_NAME" in
+            pull_request) base="origin/$BASE_REF" ;;
+            push) base="$BEFORE_SHA" ;;
+            merge_group) base="$MERGE_GROUP_BASE" ;;
+            *) base="origin/$DEFAULT_BRANCH" ;;
+          esac
+          if [ "$base" = "0000000000000000000000000000000000000000" ] || ! git rev-parse --verify --quiet "$base^{commit}" > /dev/null; then
+            echo "No base commit to compare with ($base): skipping the migration and test guards."
+            base=""
+          fi
+          echo "base=$base" >> "$GITHUB_OUTPUT"
+
+      - name: Migrations only move forward
+        if: steps.base.outputs.base != ''
+        env:
+          BASE: ${{ steps.base.outputs.base }}
+        run: node scripts/check-migrations.mjs --base "$BASE"
+
+      # Whether the branch that the change lands on (the target of a pull request, the pushed branch of a push) can only be
+      # changed by a pull request whose `guards` check passed, as its active rulesets say: a `pull_request` rule, and a
+      # `required_status_checks` rule that lists `guards` (GitHub returns each rule on its own, so both are looked for)
+      # from GitHub Actions, `integration_id` 15368 as in .github/rulesets/master-gates.json. A `guards` that a ruleset
+      # takes from another app, or from any source, could pass while this job failed, so it counts as "not required".
+      # Reading them needs only the metadata permission, which the job's token always has. Only a push uses the answer
+      # (the step below); a pull request prints it, so that every pull request run shows that the token can still read it.
+      # An answer that cannot be read counts as "not required".
+      - name: Rulesets require a pull request with guards green
+        id: rules
+        if: github.event_name == 'push' || github.event_name == 'pull_request'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPOSITORY: ${{ github.repository }}
+          BRANCH: ${{ github.base_ref || github.ref_name }}
+        run: |
+          query='any(.[]; .type == "pull_request") and
+            any(.[]; .type == "required_status_checks" and
+              any(.parameters.required_status_checks[]?; .context == "guards" and .integration_id == 15368))'
+          if required=$(gh api "repos/$REPOSITORY/rules/branches/$BRANCH" --jq "$query"); then
+            echo "A pull request with a green guards check is required to change $BRANCH: $required"
+          else
+            echo "::warning::Could not read the rulesets of $BRANCH: a push to it keeps the test guard."
+            required=false
+          fi
+          echo "required=$required" >> "$GITHUB_OUTPUT"
+
+      # PR_LABELS lets a pull request that has to remove a test say so with the allow-test-removal label.
+      # Titles and labels are text that anyone can write: they go in through env and are read from process.env, never
+      # pasted into the script of a `run:` step.
+      # Not in a merge queue, and not on a push to a branch whose rulesets require a pull request with this job green (the
+      # step above): neither run has pull request labels, so a removal that the owner allowed with the label would fail
+      # there for good (the push of #207's merge did, on 13/10/2026). The same change was already checked, with its labels,
+      # by the pull request's own run, which it needs green before it can join the queue or merge (like the title check
+      # below). Any other push is still checked: the one commit that docs/install.md pushes before the rulesets, a push to
+      # a copy without them or whose rulesets do not require `guards`, and a push whose rulesets could not be read.
+      - name: Tests are not removed or switched off
+        if: >-
+          steps.base.outputs.base != '' && github.event_name != 'merge_group' &&
+          (github.event_name != 'push' || steps.rules.outputs.required != 'true')
+        env:
+          BASE: ${{ steps.base.outputs.base }}
+          PR_LABELS: ${{ toJson(github.event.pull_request.labels.*.name) }}
+        run: node scripts/check-tests.mjs --base "$BASE"
+
+      # Codex reads only the first 32,768 bytes of the project's AGENTS.md files and drops the rest without a warning, so a
+      # rules change that makes AGENTS.md longer would cut off its end; any other AGENTS.md or AGENTS.override.md would
+      # change the rules, and is refused. On every event, with no input from it: the script reads the files of the
+      # checkout and prints how many bytes are left.
+      - name: AGENTS.md fits in what Codex reads
+        run: node scripts/check-agents-md.mjs
+
+      - name: Pull request title is a Conventional Commit
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: node scripts/check-pr-title.mjs
+
+      # The guard scripts above use Node built-ins only and `npm audit` reads the lock file: only ESLint and the type check
+      # need the dependencies, so the install sits right before them.
+      - run: npm ci
+      - name: Lint
+        run: npm run lint
+
+      - name: Type-check
+        run: npm run typecheck
+
+      # Builds the app and checks its size against scripts/check-bundle-size.json (the JavaScript and the CSS of each app and
+      # the precache that every phone downloads, brotli-compressed). It needs no secret and no environment variable.
+      - name: Build the app and check it against the size budget
+        run: npm run size
+
+      - name: Audit the production dependencies
+        run: npm audit --omit=dev --audit-level=high
+
+      # The development dependencies (Vite, Vitest, Playwright, ESLint and the rest) build and test the app but never reach
+      # a phone or the server, so an advisory in one of them does not block a merge: it becomes a warning on the run, and
+      # Dependabot's security update proposes the fix. This step runs only after the one above passed, so a high or
+      # critical advisory that it finds is in a development dependency.
+      - name: Report the development dependencies' advisories
+        run: |
+          if ! npm audit --audit-level=high > "$RUNNER_TEMP/audit.txt"; then
+            cat "$RUNNER_TEMP/audit.txt"
+            echo "::warning title=Development dependency advisory::npm audit found a high or critical advisory in a development dependency (the log of this step lists it). It does not block the merge; update it, or merge the Dependabot pull request that fixes it."
+          fi
