@@ -80,9 +80,10 @@ function PhoneScreen({ scene, strings }) {
   const frame = useCurrentFrame()
   const thenAt = scene.thenFrame == null ? null : scene.thenFrame - scene.startFrame
   const second = thenAt == null ? 0 : interpolate(frame, [thenAt, thenAt + CROSS_FADE_FRAMES], [0, 1], clamp)
+  const cameraFrames = thenAt ?? scene.endFrame - scene.startFrame // how long the camera is on the screen: until the change of picture, or the whole scene
   return (
     <>
-      {second < 1 ? scene.picture === 'camera' ? <CameraScene beat={signBeat(thenAt)} frame={frame} strings={strings} /> : <Picture file={scene.picture} /> : null}
+      {second < 1 ? scene.picture === 'camera' ? <CameraScene beat={signBeat(cameraFrames)} frame={frame} strings={strings} /> : <Picture file={scene.picture} /> : null}
       {second > 0 ? (
         <div style={{ position: 'absolute', inset: 0, opacity: second }}>
           <Picture file={scene.then} />

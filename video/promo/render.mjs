@@ -9,7 +9,7 @@
 // renders with (Chrome Headless Shell) is downloaded by it, once, into video/node_modules/.remotion.
 import { cpSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { exit, hrtime, stderr, stdout } from 'node:process'
+import process, { exit, hrtime, stderr, stdout } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { bundle } from '@remotion/bundler'
@@ -51,6 +51,7 @@ const outDir = path.join(videoDir, 'out', 'promo')
 const stillsDir = path.join(outDir, 'stills')
 const publicDir = path.join(videoDir, 'out', `.public-promo-${lang}`)
 rmSync(publicDir, { recursive: true, force: true })
+process.on('exit', () => rmSync(publicDir, { recursive: true, force: true })) // also when a step fails or fail() exits
 rmSync(stillsDir, { recursive: true, force: true })
 mkdirSync(publicDir, { recursive: true })
 mkdirSync(stillsDir, { recursive: true })
@@ -106,7 +107,6 @@ for (const [index, scene] of plan.scenes.entries()) {
     stills.push(output)
   }
 }
-rmSync(publicDir, { recursive: true, force: true })
 
 const bytes = statSync(mp4).size
 say(`rendered in ${elapsed().toFixed(1)} s: ${path.relative(videoDir, mp4)} ${(plan.totalFrames / FPS).toFixed(1)} seconds, ${(bytes / 1024 / 1024).toFixed(2)} MB, ${path.relative(videoDir, poster)}, ${stills.length} stills in ${path.relative(videoDir, stillsDir)}`)

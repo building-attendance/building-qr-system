@@ -6,8 +6,9 @@ import { PROMO, Promo, promoDefaultProps } from './Promo.jsx'
 import { planPromo } from './timing.js'
 
 // Rubik has a file per script. The browser fetches a file only when a letter of its script is drawn, so one sample of each script it
-// draws here (Latin for the address, Hebrew for the captions) is asked for before the first frame, in every weight that the promo uses.
-const SAMPLES = ['Abc', 'אבג'] // the second is three Hebrew letters
+// draws (Latin for the address, then the scripts of the video's languages) is asked for before the first frame, in every weight that the
+// promo uses. The samples are escapes: three Hebrew letters, three Cyrillic and three Arabic (a new language is a script file, not a change here).
+const SAMPLES = ['Abc', 'אבג', 'Абв', 'ابت']
 const handle = delayRender('Rubik, the font of the captions', { timeoutInMilliseconds: 60000 })
 Promise.all(SAMPLES.flatMap((text) => [400, 500, 700].map((weight) => globalThis.document.fonts.load(`${weight} 40px "Rubik Variable"`, text))))
   .then(() => globalThis.document.fonts.ready)
