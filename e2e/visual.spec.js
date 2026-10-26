@@ -563,7 +563,7 @@ function committeeSheet(width) {
     await page.getByRole('navigation', { name: 'ניווט ראשי (טלפון)' }).getByRole('button', { name: 'עוד', exact: true }).click()
     const sheet = page.getByRole('dialog', { name: 'עוד', exact: true })
     await expect(sheet).toBeVisible()
-    await expect(sheet.getByRole('button', { name: 'איך עובדים עם המערכת', exact: true })).toHaveAttribute('aria-current', 'page')
+    await expect(sheet.getByRole('button', { name: 'איך עובדים עם המערכת מדריך קצר', exact: true })).toHaveAttribute('aria-current', 'page')
     await page.mouse.move(0, 0) // the pointer is where "עוד" was tapped, over the last row of the sheet: its hover look is not what the picture is for
     await shotBothThemes(page, `committee-${width}-sheet`, { whole: false })
   })

@@ -84,7 +84,7 @@ jobs:
       id-token: write
     steps:
       - name: Harden the runner (audit only for now)
-        uses: step-security/harden-runner@ccd8616d44fd3846e67624a50d5aad6d37bf2d25 # v2.22.1
+        uses: step-security/harden-runner@dc2769abcc0fcfbadfc1df54081c1608579ef6b2 # v2.22.2
         with:
           egress-policy: audit
 
@@ -94,7 +94,7 @@ jobs:
           persist-credentials: false
 
       - name: Claude reviews the pull request
-        uses: anthropics/claude-code-action@1d6de8cb0c237e7c15e9e1bdf973826ebae490cc # v1.0.248
+        uses: anthropics/claude-code-action@db77d4d3c98f3f6380e7cd45ffba2342a3dbde3c # v1.0.254
         with:
           # The owner's Pro or Max subscription, made by `claude setup-token`. Never an API key: the project pays for none.
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}

@@ -123,10 +123,13 @@ export function formatMonth(ymd) {
   return full === '-' ? full : full.slice(3)
 }
 
-/** '2026-10-05' as '5', a day of the month grid; '-' when it is not a real day. Its button is named by its full date. */
+/**
+ * '2026-10-05' as '05', a day of the month grid; '-' when it is not a real day. Its button is named by its full date, and a name must contain
+ * the text that the button shows (WCAG 2.5.3): '05' is a part of '05/10/2026', where '5' is not.
+ */
 export function formatDayNumber(ymd) {
   const full = formatDay(ymd)
-  return full === '-' ? full : String(Number(full.slice(0, 2)))
+  return full === '-' ? full : full.slice(0, 2)
 }
 
 // The heads of the seven columns, Sunday first as the week runs in Israel: the first letter of each day's Hebrew name (alef, bet, gimel,

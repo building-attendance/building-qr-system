@@ -1,13 +1,14 @@
 // The cache of the browser's system packages in CI (scripts/ci-browser-packages.mjs, run by .github/workflows/e2e.yml): a
 // cached file reaches apt-get only under the name apt-get would give it and with the SHA256 of the Ubuntu index, the cache
-// keeps only the files of installed packages, and the key changes with the release, the browser, Playwright and the week.
+// keeps only the files of installed packages (those of a variant build such as amd64v3 too), and the key changes with the
+// format of the cache, the release, the browser, Playwright and the week.
 // The commands themselves run apt-get and sudo, so CI shows them; these are the parts that decide.
 import { describe, it, expect } from 'vitest'
 import {
   archiveName,
   cacheKey,
   indexHashes,
-  installedNames,
+  installedFiles,
   matchingFiles,
   parseArchiveName,
   parseOsRelease,
@@ -17,23 +18,35 @@ import {
 const HASH_A = 'a'.repeat(64)
 const HASH_B = 'b'.repeat(64)
 
-/** A record as `apt-cache show` prints it, with the fields that matter and a few that do not. */
-const record = ({ name, version, arch, sha256 }) =>
+/**
+ * A record as `apt-cache show` prints it, with the fields that matter and a few that do not. A variant build has its
+ * Architecture-Variant near the end, where resolute's amd64v3 index has it.
+ */
+const record = ({ name, version, arch, sha256, variant = '' }) =>
   [
     `Package: ${name}`,
     `Architecture: ${arch}`,
     `Version: ${version}`,
     'Priority: optional',
-    `Filename: pool/universe/${name[0]}/${name}/${name}_${version.replace(/^\d+:/, '')}_${arch}.deb`,
+    `Filename: pool/universe/${name[0]}/${name}/${name}_${version.replace(/^\d+:/, '')}_${variant || arch}.deb`,
     'Size: 107284',
     `SHA256: ${sha256}`,
     'Description: a package',
+    ...(variant ? [`Architecture-Variant: ${variant}`] : []),
+    'Multi-Arch: same',
   ].join('\n')
 
 describe('archiveName and parseArchiveName', () => {
   it('names a file as apt-get does, with the epoch colon quoted', () => {
     expect(archiveName({ name: 'fonts-tlwg-loma-otf', version: '1:0.7.3-1', arch: 'all' })).toBe('fonts-tlwg-loma-otf_1%3a0.7.3-1_all.deb')
     expect(archiveName({ name: 'libglib2.0-0t64', version: '2.80.0-6ubuntu3.10', arch: 'amd64' })).toBe('libglib2.0-0t64_2.80.0-6ubuntu3.10_amd64.deb')
+  })
+
+  it('names the file of a variant build after the variant, as apt-get does on Ubuntu 26.04', () => {
+    const version = { name: 'libproxy1v5', version: '0.5.12-1', arch: 'amd64', variant: 'amd64v3' }
+    expect(archiveName(version)).toBe('libproxy1v5_0.5.12-1_amd64v3.deb')
+    expect(archiveName({ ...version, variant: '' })).toBe('libproxy1v5_0.5.12-1_amd64.deb')
+    expect(parseArchiveName('libproxy1v5_0.5.12-1_amd64v3.deb')).toEqual({ name: 'libproxy1v5', version: '0.5.12-1', arch: 'amd64v3' })
   })
 
   it('quotes a %, a space and a byte outside ASCII like QuoteString, in lower case', () => {
@@ -87,6 +100,15 @@ describe('indexHashes', () => {
     })
   })
 
+  it('gives a variant build its SHA256 under the name with its variant, apart from a plain build of the same version', () => {
+    const version = { name: 'libproxy1v5', version: '0.5.12-1', arch: 'amd64' }
+    const text = [record({ ...version, variant: 'amd64v3', sha256: HASH_A }), record({ ...version, sha256: HASH_B })].join('\n\n')
+    expect(Object.fromEntries(indexHashes(text))).toEqual({
+      'libproxy1v5_0.5.12-1_amd64v3.deb': HASH_A,
+      'libproxy1v5_0.5.12-1_amd64.deb': HASH_B,
+    })
+  })
+
   it('keeps one hash for the same version listed twice, and none for a version with two different hashes', () => {
     const same = { name: 'libva2', version: '2.20.0-2ubuntu0.2', arch: 'amd64', sha256: HASH_A }
     const twice = indexHashes([record(same), record(same)].join('\n\n'))
@@ -125,10 +147,33 @@ describe('matchingFiles', () => {
   })
 })
 
-describe('installedNames', () => {
-  it('names the files of the installed packages only', () => {
-    const text = ['ii \tfonts-tlwg-loma-otf\t1:0.7.3-1\tall', 'rc \told-package\t1.0\tamd64', 'ii \tlibva2\t2.20.0-2ubuntu0.2\tamd64', ''].join('\n')
-    expect([...installedNames(text)].sort()).toEqual(['fonts-tlwg-loma-otf_1%3a0.7.3-1_all.deb', 'libva2_2.20.0-2ubuntu0.2_amd64.deb'])
+describe('installedFiles', () => {
+  const text = [
+    'ii \tfonts-tlwg-loma-otf\t1:0.7.3-1\tall',
+    'rc \told-package\t1.0\tamd64',
+    'ii \tlibva2\t2.20.0-2ubuntu0.2\tamd64',
+    'ii \tlibproxy1v5\t0.5.12-1\tamd64',
+    'ii \tlib32-only\t1.0\ti386',
+    '',
+  ].join('\n')
+
+  it('keeps the files of the installed packages only', () => {
+    const files = [
+      'fonts-tlwg-loma-otf_1%3a0.7.3-1_all.deb',
+      'libva2_2.20.0-2ubuntu0.2_amd64.deb',
+      'old-package_1.0_amd64.deb', // removed, its configuration left
+      'libva2_2.20.0-2ubuntu0.1_amd64.deb', // another version than the installed one
+      'not-installed_1.0_all.deb',
+    ]
+    expect(installedFiles(files, text)).toEqual(['fonts-tlwg-loma-otf_1%3a0.7.3-1_all.deb', 'libva2_2.20.0-2ubuntu0.2_amd64.deb'])
+  })
+
+  it('keeps the file of a variant build, which dpkg reports under its architecture', () => {
+    expect(installedFiles(['libproxy1v5_0.5.12-1_amd64v3.deb'], text)).toEqual(['libproxy1v5_0.5.12-1_amd64v3.deb'])
+  })
+
+  it('leaves out a file of another architecture than the installed one, and a name that apt-get would not have written', () => {
+    expect(installedFiles(['lib32-only_1.0_amd64.deb', 'libva2_2.20.0-2ubuntu0.2_i386.deb', 'libva2_2.20.0-2ubuntu0.2.deb'], text)).toEqual([])
   })
 })
 
@@ -136,12 +181,17 @@ describe('cacheKey', () => {
   const base = { id: 'ubuntu', versionId: '24.04', arch: 'x64', browser: 'webkit', playwright: '1.63.0' }
   const week = 7 * 24 * 60 * 60 * 1000
 
-  it('is the release, the architecture, the browser, the Playwright version and the week', () => {
+  it('is the format, the release, the architecture, the browser, the Playwright version and the week', () => {
     const now = 2911 * week + 1000
     expect(cacheKey({ ...base, now })).toEqual({
-      prefix: 'playwright-packages-ubuntu-24.04-x64-webkit-',
-      key: 'playwright-packages-ubuntu-24.04-x64-webkit-1.63.0-w2911',
+      prefix: 'playwright-packages-v2-ubuntu-24.04-x64-webkit-',
+      key: 'playwright-packages-v2-ubuntu-24.04-x64-webkit-1.63.0-w2911',
     })
+  })
+
+  it('finds no entry of the earlier format, whose files of a variant build are missing', () => {
+    const { prefix } = cacheKey({ ...base, versionId: '26.04', now: 2964 * week })
+    expect('playwright-packages-ubuntu-26.04-x64-webkit-1.63.0-w2964'.startsWith(prefix)).toBe(false)
   })
 
   it('changes at the turn of the week, and each key starts with the prefix of its browser', () => {

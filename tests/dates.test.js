@@ -166,7 +166,7 @@ describe('a calendar day', () => {
     expect(formatMonth('2026-10-14')).toBe('10/2026')
     expect(formatMonth('2026-01-01')).toBe('01/2026')
     expect(formatMonth('2028-02-29')).toBe('02/2028') // a leap year
-    expect(formatDayNumber('2026-10-05')).toBe('5')
+    expect(formatDayNumber('2026-10-05')).toBe('05') // two digits: a button's name (05/10/2026) must contain the text it shows (WCAG 2.5.3)
     expect(formatDayNumber('2026-10-25')).toBe('25')
     expect(formatDayNumber('2026-10-31')).toBe('31')
     for (const bad of ['', '1 Oct 2026', '2026-02-30', '2027-02-29', '2026-13-01', '01/10/2026', null, undefined]) {

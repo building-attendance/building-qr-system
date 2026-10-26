@@ -395,7 +395,7 @@ for (const size of PHONES) {
       await open(page, 'audit', 'יומן פעולות')
       await expect(dayHeads(page)).toHaveText(shown(DAYS)) // no date: every entry
       let filters = await openSheet(page)
-      await expect(fromField(filters)).toHaveAccessibleName('מתאריך לא נבחר')
+      await expect(fromField(filters)).toHaveAccessibleName('מתאריך לא נבחר DD/MM/YYYY')
 
       // an empty field opens on today; the keys move the day (up is earlier), Shift+Tab reaches the month, and Enter is "אישור"
       await fromField(filters).focus()
@@ -543,7 +543,7 @@ for (const size of PHONES) {
       expect(a.x, 'before it, at the right').toBeGreaterThan(b.x)
       await clear.tap()
       await expect(wheels).toHaveCount(0)
-      await expect(fromField(filters)).toHaveAccessibleName('מתאריך לא נבחר')
+      await expect(fromField(filters)).toHaveAccessibleName('מתאריך לא נבחר DD/MM/YYYY')
       await expect(fromField(filters)).toBeFocused()
       await expect(filters.getByLabel('מנהל מערכת', { exact: true })).toHaveValue(member)
       await filters.getByRole('button', { name: 'הצגת תוצאות' }).click()
