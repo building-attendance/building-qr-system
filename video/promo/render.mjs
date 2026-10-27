@@ -1,4 +1,4 @@
-// Renders the promo video of one language: `node video/promo/render.mjs he`, from the root of the repository, silent at 120 bpm, or with the
+// Renders the promo video of one language: `node video/promo/render.mjs he`, from the root of the repository, at 120 bpm with only the effect sounds, or with the
 // owner's licensed track on its own beat:
 //   node video/promo/render.mjs he --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
 // `--music` is a local .mp3, .wav or .m4a that is never committed (music.js refuses a path inside the repository except under video/out/);
@@ -107,7 +107,7 @@ const inputProps = {
 }
 say(
   `${plan.scenes.length} scenes, ${plan.bars} bars, ${plan.totalFrames} frames, ${(plan.totalFrames / FPS).toFixed(1)} seconds at ${tempo.bpm} bpm ` +
-    (music ? `(music: ${path.basename(music.path)} from ${music.start} s)` : '(silent)'),
+    (music ? `(music: ${path.basename(music.path)} from ${music.start} s)` : '(no music, the effect sounds only)'),
 )
 
 const started = hrtime.bigint()
@@ -150,7 +150,7 @@ await renderMedia({
   codec: 'h264',
   audioCodec: 'aac',
   audioBitrate: '96k',
-  enforceAudioTrack: true, // a silent render still has an audio track, so that every player and every mix treats it the same
+  enforceAudioTrack: true, // a render without music still has an audio track, so that every player and every mix treats it the same
   pixelFormat: 'yuv420p',
   crf: 23, // flat colours and large text: a lower crf than the tutorial's keeps the gradient from banding
   x264Preset: 'slow',

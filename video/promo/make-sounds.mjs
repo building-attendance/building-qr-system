@@ -34,7 +34,7 @@ function toWav(samples) {
   const data = Buffer.alloc(samples.length * 2)
   samples.forEach((value, index) => {
     const fade = Math.min(1, (samples.length - 1 - index) / tail)
-    data.writeInt16LE(Math.round((value / top) * PEAK * fade * 32767), index * 2)
+    data.writeInt16LE(Math.round((value / (top || 1)) * PEAK * fade * 32767), index * 2)
   })
   const header = Buffer.alloc(44)
   header.write('RIFF', 0)

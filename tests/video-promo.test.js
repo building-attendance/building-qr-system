@@ -446,6 +446,18 @@ describe('the effects are placed on the beats of the plan (D16)', () => {
     expect(WHIP_FRAMES).toBe(8)
   })
 
+  it.each(TEMPOS)('still gives every caption its reading time when the whip takes the last 8 frames of its scene and its last word lands a beat late, at %o', (tempo) => {
+    const plan = planPromo('he', tempo)
+    for (const scene of plan.scenes) {
+      const last = scene.phrases[scene.phrases.length - 1]
+      const lastWord = wordFrames(last.frame, wordsOf(last.text), tempo).at(-1)
+      const out = scene.endFrame - (scene === plan.scenes.at(-1) ? 0 : WHIP_FRAMES) // the last scene has no whip out
+      expect(lastWord, scene.id).toBeLessThan(out)
+      const caption = scene.phrases.map((phrase) => phrase.text).join(' ')
+      expect((out - scene.phrases[0].frame) / FPS, `${scene.id} from its first word until it slides out`).toBeGreaterThanOrEqual(readingSeconds(caption))
+    }
+  })
+
   it.each(TEMPOS)('keeps every whip shorter than the two beats between cuts, at %o', (tempo) => {
     expect(WHIP_FRAMES).toBeLessThan(MIN_CUT_BEATS * beatFrames(tempo))
   })

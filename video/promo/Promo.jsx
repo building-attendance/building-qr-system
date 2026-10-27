@@ -5,11 +5,11 @@
 // a picture. The effects of decision D16 are all placed on the beats of the plan by timing.js:
 // - W2: on every bar line the ground brightens a little and the phone grows by 2% for a beat; the first beat of the groove (scene 3) is a
 //   bigger punch. A pulse falls over a beat and the bar lines are at least 1.2 s apart, so never three changes of brightness in a second.
-// - W3: the phone enters tilted about 22 degrees to 0 in 3D over a beat, then pushes in slowly, from 1.0 to 1.06, through its scene.
+// - W3: the phone enters tilted about 22 degrees to 0 in 3D over a beat, then pushes in slowly, from 1.0 to 1.04, through its scene (1.06 would hide the bottom of the screen under the caption bar).
 // - W4: a whip of 8 frames at every scene boundary, ending on the bar line: the old scene slides out and the new one in, side by side.
 // - W5: the sounds of make-sounds.mjs (a whoosh at each whip, an impact on the groove, a ding at the check-in screen), when `sounds` is on.
 // - W6: the closing card's QR tile springs in and, on the first beat of the last bar, pops while a burst of confetti (drawn shapes, a fixed
-//   seed, so every render is the same) flies out from behind it and is gone before the last second and a half, so the code is clean again.
+//   seed, so every render is the same) flies out from behind it and is gone half a second before the end, so the code is clean again.
 // The change between the two pictures of a scene still cross-fades over a fifth of a second. The track is staged by render.mjs when it is
 // given one (music.js): started at the frame it names, faded in at the start and out over the last second and a half. The effect sounds
 // are quiet next to it and none plays in that last second and a half.
@@ -38,7 +38,7 @@ const KEYWORD_SPRING = { damping: 7, stiffness: 240, mass: 0.7 }
 const CROSS_FADE_FRAMES = 6
 /** The phone enters tilted by this many degrees (about 25 in the plan, 22 so the near edge stays in the frame), pushes in to this scale through its scene, and the camera of the 3D tilt is this far away. */
 const TILT_DEGREES = 22
-const PUSH_TO = 1.06
+const PUSH_TO = 1.04
 const PERSPECTIVE_PX = 3200
 /** The whip blurs its scenes by this much at its fastest. */
 const WHIP_BLUR_PX = 14
@@ -176,7 +176,7 @@ function PhoneScene({ scene, lang, strings, keyword }) {
           top: PHONE.top,
           width: PHONE.width * PHONE.scale,
           height: PHONE.height * PHONE.scale,
-          transformOrigin: '50% 30%',
+          transformOrigin: '50% 50%',
           transform: `rotateY(${TILT_DEGREES * (1 - landed)}deg) scale(${grow})`,
         }}
       >
@@ -224,7 +224,7 @@ function PhoneScene({ scene, lang, strings, keyword }) {
 }
 
 /** The confetti: drawn shapes from a fixed seed (the same at every render), in violets with a few of white and of the keyword's gold. */
-const CONFETTI_FRAMES = 52
+const CONFETTI_FRAMES = 44
 const CONFETTI_COLORS = ['#a79bff', '#8b7dff', '#c7bfff', '#7c6cff', '#ffffff', '#d9d4ff', KEYWORD_COLOR]
 const CONFETTI = (() => {
   let state = 20261026
@@ -247,7 +247,7 @@ const CONFETTI = (() => {
       rotation: next() * 360,
       spin: (next() - 0.5) * 34,
       flip: 0.2 + next() * 0.4,
-      life: 38 + Math.floor(next() * (CONFETTI_FRAMES - 38)),
+      life: 30 + Math.floor(next() * (CONFETTI_FRAMES - 30)),
     }
   })
 })()
@@ -271,7 +271,7 @@ function place(piece, since) {
 function Confetti({ since, top }) {
   if (since < 0 || since >= CONFETTI_FRAMES) return null
   return (
-    <div style={{ position: 'absolute', left: '50%', top, width: 0, height: 0 }}>
+    <div style={{ position: 'absolute', left: '50%', top, width: 0, height: 0, zIndex: -1 }}>
       {CONFETTI.map((piece, index) => {
         if (since >= piece.life) return null
         const { x, y } = place(piece, since)
@@ -310,12 +310,12 @@ function ClosingScene({ scene, lang, keyword, burst }) {
   const since = global - burst
   const pop = since >= 0 ? 1 - spring({ frame: since, fps: FPS, config: { damping: 6, stiffness: 240, mass: 0.6 } }) : 0
   return (
-    <AbsoluteFill style={{ background: COLORS.card, alignItems: 'center', justifyContent: 'center', padding: '0 80px', gap: 72 }}>
+    <AbsoluteFill style={{ background: COLORS.card, alignItems: 'center', justifyContent: 'center', padding: '0 80px', gap: 72, isolation: 'isolate' }}>
       <Glow amount={PULSE.ground * pulse} />
       <Caption scene={scene} lang={lang} size={96} weight={700} color={COLORS.cardText} keyword={keyword} />
       <div style={{ position: 'relative', opacity: shown, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
         <Confetti since={since} top={QR_SIZE / 2} />
-        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 48, transform: `scale(${(0.4 + 0.6 * landed) * (1 + 0.08 * pop)})` }}>
+        <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 48, transformOrigin: `50% ${QR_SIZE / 2}px`, transform: `scale(${(0.4 + 0.6 * landed) * (1 + 0.08 * pop)})` }}>
           <Img src={staticFile(REPOSITORY_QR.file)} style={{ width: QR_SIZE, height: QR_SIZE, borderRadius: 32, background: '#ffffff' }} />
           <div
             style={{
