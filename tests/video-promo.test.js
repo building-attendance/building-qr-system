@@ -59,7 +59,9 @@ import {
 } from '../video/promo/timing.js'
 import { COLORS } from '../video/src/theme.js'
 import { contrastRatio } from '../video/src/timing.js'
-import { REPOSITORY_QR, REPOSITORY_QR_OPTIONS, SIGN, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from '../video/promo/stage.js'
+import { REPOSITORY_QR, REPOSITORY_QR_OPTIONS, SIGN, checkFrames, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from '../video/promo/stage.js'
+import { BAR_HEIGHT, PICTURE_AREA, STRIP_HEIGHT, blendViews, cameraTransform, restView, stripStates, viewAt, zoomView } from '../video/promo/parts/moves.js'
+import { SHOWCASE, planShowcase, showcaseStills, walkingStage } from '../video/promo/parts/showcase.js'
 
 const SCREENSHOTS = fileURLToPath(new URL('../docs/screenshots/', import.meta.url))
 const TRACK = { bpm: 120, firstBeat: 0 }
@@ -627,6 +629,17 @@ describe('what the render stages (video/promo/stage.js)', () => {
     expect(stagedPictures([{ picture: 'a.png', then: 'b.png' }, { picture: 'a.png' }, { picture: 'text' }])).toEqual(['a.png', 'b.png'])
   })
 
+  it('stages the later pictures and the picture in picture too: every recorded picture of the long cut, and none of the drawn ones', () => {
+    expect(stagedPictures([{ picture: 'a.png', then: 'b.png', later: [{ picture: 'c.png' }, { picture: 'a.png' }], inset: { picture: 'd.png' } }, { picture: 'agent', inset: { picture: 'e.png' } }])).toEqual([
+      'a.png',
+      'b.png',
+      'c.png',
+      'd.png',
+      'e.png',
+    ])
+    expect([...stagedPictures(LONG.scenes)].sort()).toEqual([...PROMO_PICTURES].sort())
+  })
+
   it('makes the QR code of the closing card byte for byte from the repository address (no phone scan was done)', async () => {
     expect(REPOSITORY_QR.text).toBe(REPOSITORY_URL)
     const svg = await repositoryQrSvg()
@@ -644,6 +657,149 @@ describe('what the render stages (video/promo/stage.js)', () => {
     expect(svg).toMatch(/^[\x20-\x7e]+$/) // plain ASCII: no word of any language
     expect(SIGN.qr.x + SIGN.qr.w).toBeLessThanOrEqual(SIGN.width)
     expect(SIGN.qr.y + SIGN.qr.h).toBeLessThanOrEqual(SIGN.height)
+  })
+})
+
+describe("the check of the recorder's frames.json (video/promo/stage.js, checkFrames)", () => {
+  /** A frames.json with every picture and box the long cut needs, all of them invented numbers. */
+  const sample = () => ({
+    day: '2026-01-04',
+    pictures: Object.fromEntries(
+      PROMO_PICTURES.map((name) => {
+        const keys = BOXES[name] ?? []
+        const rects = (rect) => Object.fromEntries(keys.map((key) => [key, { ...rect }]))
+        return [name, { width: 780, height: 1688, scale: 2, boxes: rects({ x: 40, y: 500, width: 700, height: 200 }), zooms: rects({ x: 0, y: 0, width: 780, height: 1387 }) }]
+      }),
+    ),
+  })
+  const RECORD = /npm run promo:frames/
+
+  it('returns a frames.json that has every picture of PROMO_PICTURES and every box of BOXES', () => {
+    const frames = sample()
+    expect(checkFrames(JSON.stringify(frames))).toEqual(frames)
+  })
+
+  it('refuses, naming the picture, the box and npm run promo:frames, a file that lacks one or is not JSON', () => {
+    const without = (change) => {
+      const frames = sample()
+      change(frames)
+      return () => checkFrames(JSON.stringify(frames))
+    }
+    expect(() => checkFrames('{')).toThrow(RECORD)
+    expect(() => checkFrames('null')).toThrow(RECORD)
+    expect(without((frames) => delete frames.pictures['committee-agent.png'])).toThrow(/"committee-agent\.png".*npm run promo:frames/)
+    expect(without((frames) => delete frames.pictures['committee-home.png'].width)).toThrow(/"committee-home\.png"/)
+    expect(without((frames) => delete frames.pictures['committee-home.png'].boxes['empty-day'])).toThrow(/box "empty-day" inside the picture "committee-home\.png".*npm run promo:frames/)
+    expect(without((frames) => delete frames.pictures['provider-list.png'].zooms.privacy)).toThrow(/zoom "privacy" inside the picture "provider-list\.png"/)
+    expect(without((frames) => (frames.pictures['computer-history.png'].zooms.excel.height = 2000))).toThrow(/zoom "excel"/)
+    expect(without((frames) => (frames.pictures['computer-history.png'].boxes.filters.width = 0))).toThrow(/box "filters"/)
+    expect(without((frames) => (frames.pictures['committee-home.png'].width = '780'))).toThrow(/"committee-home\.png" with its size/)
+    // A zoom that is not the frame's 9:16 would show far more than its rectangle.
+    expect(without((frames) => (frames.pictures['committee-home.png'].zooms['provider-row'].height = 600))).toThrow(/zoom "provider-row"/)
+    // A composition that shows only some pictures checks only those.
+    expect(without((frames) => delete frames.pictures['computer-history.png'])).toThrow(/computer-history/)
+    const some = sample()
+    delete some.pictures['computer-history.png']
+    expect(() => checkFrames(JSON.stringify(some), { pictures: ['committee-home.png'] })).not.toThrow()
+  })
+})
+
+describe('the camera of the zoom and the progress strip (video/promo/parts/moves.js)', () => {
+  const picture = { width: 780, height: 1688 }
+  const rest = { x: 212.25, y: 57, scale: 0.84 }
+  const close = (a, b) => {
+    for (const key of Object.keys(b)) expect(a[key], key).toBeCloseTo(b[key], 6)
+  }
+
+  it('leaves the drawing as it is at rest', () => {
+    close(cameraTransform(restView(rest), rest), { scale: 1, x: 0, y: 0 })
+    // The area is the frame between the progress strip and the caption bar.
+    expect(PICTURE_AREA).toEqual({ top: STRIP_HEIGHT, width: WIDTH, height: HEIGHT - BAR_HEIGHT - STRIP_HEIGHT })
+  })
+
+  it('makes a 9:16 rectangle as wide as the picture area and keeps the whole element in view, inside the picture', () => {
+    const rect = { x: 213, y: 850, width: 390, height: 693 }
+    const view = zoomView(rect, { x: 396, y: 1185, width: 24, height: 24 }, picture)
+    expect(view.scale).toBeCloseTo(WIDTH / 390, 9)
+    expect(view.cx).toBe(213 + 195)
+    // The picture's left edge of the rectangle lands on the frame's left edge, its right edge on the right one.
+    const { scale, x } = cameraTransform(view, rest)
+    expect(x + scale * (rest.x + rest.scale * rect.x)).toBeCloseTo(0, 6)
+    expect(x + scale * (rest.x + rest.scale * (rect.x + rect.width))).toBeCloseTo(WIDTH, 6)
+    // The window that the area shows starts just under the strip and ends on the caption bar.
+    const { y } = cameraTransform(view, rest)
+    const tallHere = PICTURE_AREA.height / view.scale
+    expect(y + scale * (rest.y + rest.scale * (view.cy - tallHere / 2))).toBeCloseTo(STRIP_HEIGHT, 6)
+    expect(y + scale * (rest.y + rest.scale * (view.cy + tallHere / 2))).toBeCloseTo(HEIGHT - BAR_HEIGHT, 6)
+    // A box near the bottom of a rectangle that the area cannot show whole moves the window down to it.
+    const tall = PICTURE_AREA.height / (WIDTH / 780)
+    const low = zoomView({ x: 0, y: 0, width: 780, height: 1387 }, { x: 40, y: 1250, width: 700, height: 130 }, picture)
+    expect(low.cy + tall / 2).toBeCloseTo(1380, 6)
+    // And the window never leaves the picture.
+    const top = zoomView({ x: 0, y: 0, width: 780, height: 1387 }, { x: 40, y: 0, width: 700, height: 10 }, picture)
+    expect(top.cy - tall / 2).toBeCloseTo(0, 6)
+    const bottom = zoomView({ x: 0, y: 301, width: 780, height: 1387 }, null, picture)
+    expect(bottom.cy + tall / 2).toBeLessThanOrEqual(picture.height + 1e-9)
+  })
+
+  it('moves over its length from where the camera is, starts zoomed on the first frame of the scene, and a second move starts from the first', () => {
+    const at = restView(rest)
+    const a = zoomView({ x: 0, y: 301, width: 780, height: 1387 }, null, picture)
+    const b = zoomView({ x: 213, y: 850, width: 390, height: 693 }, null, picture)
+    expect(viewAt(100, 90, at, [{ frame: 105, view: a }], 15)).toEqual(at)
+    expect(viewAt(105, 90, at, [{ frame: 105, view: a }], 15)).toEqual(at)
+    close(viewAt(120, 90, at, [{ frame: 105, view: a }], 15), a)
+    close(viewAt(500, 90, at, [{ frame: 105, view: a }], 15), a)
+    const half = viewAt(112.5, 90, at, [{ frame: 105, view: a }], 15)
+    expect(half.scale).toBeCloseTo(Math.sqrt(at.scale * a.scale), 9)
+    // On the scene's first frame, and during the whip before it, the camera is there already.
+    close(viewAt(82, 90, at, [{ frame: 90, view: a }], 15), a)
+    close(viewAt(90, 90, at, [{ frame: 90, view: a }], 15), a)
+    const moves = [{ frame: 90, view: a }, { frame: 150, view: b }]
+    close(viewAt(140, 90, at, moves, 15), a)
+    close(blendViews(a, b, 0.5), viewAt(157.5, 90, at, moves, 15))
+    close(viewAt(170, 90, at, moves, 15), b)
+  })
+
+  it('lights the stage of the scene, marks the ones before it done, and lights none on the opening and the AI (D3)', () => {
+    expect(stripStates('opening')).toEqual(['dim', 'dim', 'dim', 'dim'])
+    expect(stripStates('prepare')).toEqual(['lit', 'dim', 'dim', 'dim'])
+    expect(stripStates('scan')).toEqual(['done', 'lit', 'dim', 'dim'])
+    expect(stripStates('see')).toEqual(['done', 'done', 'lit', 'dim'])
+    expect(stripStates('ai')).toEqual(['done', 'done', 'done', 'dim'])
+    expect(stripStates('need')).toEqual(['done', 'done', 'done', 'lit'])
+    expect(() => stripStates('closing')).toThrow(/"closing"/)
+  })
+})
+
+describe('the showcase of the parts (video/promo/parts/showcase.js)', () => {
+  const plan = planShowcase(TRACK)
+
+  it('plans its scenes like a cut, on the long scenes it borrows, and shows every box and picture it names', () => {
+    expect(plan.scenes.map((scene) => scene.id)).toEqual(SHOWCASE.scenes.map((scene) => scene.id))
+    for (const scene of SHOWCASE.scenes) {
+      expect(LONG.scripts.he[scene.caption], scene.id).toBeTypeOf('string')
+      for (const { box } of [...(scene.zoom ?? []), ...(scene.ring ?? [])]) expect(BOXES[scene.picture] ?? [], `${scene.id} ${box}`).toContain(box)
+      for (const picture of stagedPictures([scene])) expect(PROMO_PICTURES, scene.id).toContain(picture)
+    }
+    // A zoom that starts with its scene, a second zoom, and a picture in picture are all there.
+    const twice = plan.scenes.find((scene) => scene.id === 'zoom-twice')
+    expect(twice.zoom[0].frame).toBe(twice.startFrame)
+    expect(twice.zoom).toHaveLength(2)
+    expect(plan.scenes.some((scene) => scene.inset)).toBe(true)
+  })
+
+  it('takes every still inside the composition, frame 0 first, and walks the strip through every stage', () => {
+    const stills = showcaseStills(plan, TRACK)
+    expect(stills[0]).toEqual(['01-first-frame-0', 0])
+    expect(new Set(stills.map(([name]) => name)).size).toBe(stills.length)
+    for (const [name, frame] of stills) {
+      expect(frame, name).toBeGreaterThanOrEqual(0)
+      expect(frame, name).toBeLessThan(plan.totalFrames)
+    }
+    const strip = plan.scenes.find((scene) => scene.id === 'strip')
+    const shown = stills.filter(([name]) => name.includes('-strip-')).map(([, frame]) => walkingStage(strip, frame, TRACK))
+    expect(shown).toEqual([...STAGES])
   })
 })
 
