@@ -1,8 +1,13 @@
-// Renders the promo video of one language, silent (the music is a later step): `node video/promo/render.mjs he`, from the root of the repository.
+// Renders the promo video of one language: `node video/promo/render.mjs he`, from the root of the repository, silent at 120 bpm, or with the
+// owner's licensed track on its own beat:
+//   node video/promo/render.mjs he --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
+// `--music` is a local .mp3, .wav or .m4a that is never committed (music.js refuses a path inside the repository except under video/out/);
+// `--bpm` and `--first-beat` (the second of the first beat after the start) are required with it and make the plan; `--start` is the second
+// of the file where the music starts (default 0). The track is copied into the staged public folder, faded in and out by music.js.
 //
 // Writes video/out/promo/promo-<lang>.mp4 (1080x1920 at 30 fps, H.264 and AAC), promo-<lang>.jpg (the poster) and, in stills/, one picture
 // per scene taken at its last frame (and, for a scene that changes its picture, one just before the change), for looking at each scene.
-// The plan is video/promo/timing.js at the default tempo of 120 bpm. The pictures that the scenes name are copied from docs/screenshots/
+// The plan is video/promo/timing.js at the tempo it is given (120 bpm without a track). The pictures that the scenes name are copied from docs/screenshots/
 // into a staged public folder with the drawn sign and the two QR codes (stage.js), which is the only folder the bundle reads.
 //
 // Node built-ins, Remotion's bundler and renderer, and the pure modules of video/promo/. Nothing is sent anywhere: the browser that Remotion
@@ -13,8 +18,9 @@ import process, { exit, hrtime, stderr, stdout } from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { parseArgs } from 'node:util'
 import { bundle } from '@remotion/bundler'
-import { renderMedia, renderStill, selectComposition } from '@remotion/renderer'
+import { RenderInternals, renderMedia, renderStill, selectComposition } from '@remotion/renderer'
 import { DEMO_QR } from '../src/timing.js'
+import { checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf } from './music.js'
 import { LANGUAGES } from './script/index.js'
 import { REPOSITORY_QR, SIGN, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from './stage.js'
 import { DEFAULT_TEMPO, FPS, HEIGHT, WIDTH, planPromo } from './timing.js'
@@ -29,19 +35,77 @@ const fail = (line) => {
   exit(1)
 }
 
+const repositoryRoot = path.resolve(videoDir, '..')
+
+/** A number option, read strictly: `Number('')` is 0 and `Number('1e3')` is 1000, so the text must be a plain decimal, and none is negative. */
+function numberOption(name, text) {
+  if (!/^\d+(\.\d+)?$/.test(text)) throw new Error(`--${name} needs a number of zero or more, not "${text}"`)
+  return Number(text)
+}
+
 let lang
+let tempo = DEFAULT_TEMPO
+let music = null // { path, start } when a track is given
 try {
-  const { positionals } = parseArgs({ allowPositionals: true, options: {}, strict: true })
+  const { positionals, values } = parseArgs({
+    allowPositionals: true,
+    options: { music: { type: 'string' }, bpm: { type: 'string' }, 'first-beat': { type: 'string' }, start: { type: 'string' } },
+    strict: true,
+  })
   if (positionals.length !== 1) throw new Error('one language is needed')
   lang = positionals[0]
   if (!LANGUAGES.includes(lang)) throw new Error(`no script in "${lang}"`)
+  if (values.music === undefined) {
+    if (values.bpm !== undefined || values['first-beat'] !== undefined || values.start !== undefined) throw new Error('--bpm, --first-beat and --start go with --music')
+  } else {
+    if (values.bpm === undefined || values['first-beat'] === undefined) throw new Error('--music needs --bpm and --first-beat (the tempo of the track and the second of its first beat after the start)')
+    tempo = { bpm: numberOption('bpm', values.bpm), firstBeat: numberOption('first-beat', values['first-beat']) }
+    music = { path: checkMusicPath(values.music, repositoryRoot), start: values.start === undefined ? 0 : numberOption('start', values.start) }
+  }
 } catch (error) {
-  fail(`${error.message}\nUsage: node video/promo/render.mjs <language>   (from the root of the repository; the languages: ${LANGUAGES.join(', ')})`)
+  fail(
+    `${error.message}\nUsage: node video/promo/render.mjs <language> [--music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]]\n` +
+      `(from the root of the repository; the languages: ${LANGUAGES.join(', ')}; a track is a local .mp3, .wav or .m4a that is never committed)`,
+  )
 }
 
-const inputProps = { lang, bpm: DEFAULT_TEMPO.bpm, firstBeat: DEFAULT_TEMPO.firstBeat }
-const plan = planPromo(lang, DEFAULT_TEMPO)
-say(`${plan.scenes.length} scenes, ${plan.bars} bars, ${plan.totalFrames} frames, ${(plan.totalFrames / FPS).toFixed(1)} seconds at ${DEFAULT_TEMPO.bpm} bpm (silent)`)
+let plan
+try {
+  plan = planPromo(lang, tempo) // refuses a tempo at which a caption does not fit, naming its scene
+} catch (error) {
+  fail(error.message)
+}
+
+if (music) {
+  // The length of the file, by the ffprobe that Remotion ships, so that a start that leaves too little of the track is refused before the render.
+  try {
+    const probe = await RenderInternals.callFf({
+      bin: 'ffprobe',
+      args: ['-v', 'error', '-show_entries', 'format=duration', '-of', 'default=nw=1:nk=1', music.path],
+      indent: false,
+      logLevel: 'error',
+      binariesDirectory: null,
+      cancelSignal: undefined,
+    })
+    const seconds = Number(probe.stdout.trim())
+    if (!Number.isFinite(seconds)) throw new Error('no length')
+    // The start is snapped to a frame, as the audio takes it, and the check is made on that.
+    checkMusicStart(startFrameOf(music.start) / FPS, seconds, plan.totalFrames / FPS)
+  } catch (error) {
+    fail(/^The (track|start)/.test(error.message) ? error.message : `The length of the music file "${path.basename(music.path)}" could not be read: is it a sound file?`)
+  }
+}
+
+const inputProps = {
+  lang,
+  bpm: tempo.bpm,
+  firstBeat: tempo.firstBeat,
+  music: music ? { file: stagedMusicFile(music.path), startFrame: startFrameOf(music.start) } : null,
+}
+say(
+  `${plan.scenes.length} scenes, ${plan.bars} bars, ${plan.totalFrames} frames, ${(plan.totalFrames / FPS).toFixed(1)} seconds at ${tempo.bpm} bpm ` +
+    (music ? `(music: ${path.basename(music.path)} from ${music.start} s)` : '(silent)'),
+)
 
 const started = hrtime.bigint()
 const elapsed = () => Number((hrtime.bigint() - started) / 1000000n) / 1000
@@ -50,17 +114,24 @@ const elapsed = () => Number((hrtime.bigint() - started) / 1000000n) / 1000
 const outDir = path.join(videoDir, 'out', 'promo')
 const stillsDir = path.join(outDir, 'stills')
 const publicDir = path.join(videoDir, 'out', `.public-promo-${lang}`)
-rmSync(publicDir, { recursive: true, force: true })
-process.on('exit', () => rmSync(publicDir, { recursive: true, force: true })) // also when a step fails or fail() exits
+// The bundle copies the public folder, so it is written here too (not to the system's temp folder) and removed with it: the track is left nowhere.
+const bundleDir = path.join(videoDir, 'out', `.bundle-promo-${lang}`)
+const cleanUp = () => {
+  rmSync(publicDir, { recursive: true, force: true })
+  rmSync(bundleDir, { recursive: true, force: true })
+}
+cleanUp()
+process.on('exit', cleanUp) // also when a step fails or fail() exits
 rmSync(stillsDir, { recursive: true, force: true })
 mkdirSync(publicDir, { recursive: true })
 mkdirSync(stillsDir, { recursive: true })
 for (const file of stagedPictures()) cpSync(path.join(screenshotsDir, file), path.join(publicDir, file))
+if (music) cpSync(music.path, path.join(publicDir, inputProps.music.file)) // the staged folder is removed on exit, so the track stays only where it was
 writeFileSync(path.join(publicDir, SIGN.file), signSvg())
 writeFileSync(path.join(publicDir, DEMO_QR.file), await demoQrSvg())
 writeFileSync(path.join(publicDir, REPOSITORY_QR.file), await repositoryQrSvg()) // from the repository's address, at every render
 
-const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir })
+const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir, outDir: bundleDir })
 const composition = await selectComposition({ serveUrl, id: 'Promo', inputProps })
 if (composition.width !== WIDTH || composition.height !== HEIGHT || composition.durationInFrames !== plan.totalFrames) {
   fail(`The composition is ${composition.width}x${composition.height} for ${composition.durationInFrames} frames, not the plan's ${WIDTH}x${HEIGHT} for ${plan.totalFrames}.`)

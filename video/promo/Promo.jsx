@@ -2,13 +2,15 @@
 // phone with its caption in a solid bar under it, the camera scene (the tutorial's `CameraScene`, over a drawn sign), or the closing card
 // with the repository's address and its QR code. The caption comes in phrase by phrase, each phrase on its beat. Every cut is a hard cut
 // on a beat, except the change between the two pictures of a scene, which cross-fades over a fifth of a second (less than one beat). The
-// text is always on a flat colour, never over a picture. No sound: the music is T5.
+// text is always on a flat colour, never over a picture. The only sound is the track that render.mjs stages when it is given one (music.js):
+// started at the frame it names, faded in at the start and out over the last second and a half. Without a track the video is silent.
 import { Fragment } from 'react'
-import { AbsoluteFill, Easing, Img, Sequence, interpolate, staticFile, useCurrentFrame } from 'remotion'
+import { AbsoluteFill, Easing, Html5Audio, Img, Sequence, interpolate, staticFile, useCurrentFrame } from 'remotion'
 import { DRAWN } from '../script/drawn.js'
 import { CameraScene } from '../src/Screens.jsx'
 import { COLORS, FONT_FAMILY } from '../src/theme.js'
 import { LAYOUT, isRtl } from '../src/timing.js'
+import { volumeAt } from './fade.js'
 import { REPOSITORY_URL } from './script/index.js'
 import { REPOSITORY_QR, SIGN } from './stage.js'
 import { DEFAULT_TEMPO, FPS, HEIGHT, WIDTH, planPromo } from './timing.js'
@@ -169,13 +171,15 @@ function ClosingScene({ scene, lang }) {
 }
 
 /**
- * @param {{ lang: string, bpm: number, firstBeat: number }} props
+ * @param {{ lang: string, bpm: number, firstBeat: number, music?: { file: string, startFrame: number } | null }} props `music` is the staged
+ * track and the frame of it where the music starts; without it the video is silent.
  */
-export function Promo({ lang, bpm, firstBeat }) {
+export function Promo({ lang, bpm, firstBeat, music = null }) {
   const plan = planPromo(lang, { bpm, firstBeat })
   const strings = DRAWN[lang] ?? DRAWN.en
   return (
     <AbsoluteFill style={{ background: COLORS.groundTo, fontFamily: FONT_FAMILY }}>
+      {music ? <Html5Audio src={staticFile(music.file)} trimBefore={music.startFrame} volume={(frame) => volumeAt(frame, plan)} /> : null}
       {plan.scenes.map((scene) => (
         <Sequence key={scene.id} from={scene.startFrame} durationInFrames={scene.endFrame - scene.startFrame} name={scene.id}>
           {scene.picture === 'text' ? <TextScene scene={scene} lang={lang} /> : scene.picture === 'closing' ? <ClosingScene scene={scene} lang={lang} /> : <PhoneScene scene={scene} lang={lang} strings={strings} />}
@@ -185,4 +189,4 @@ export function Promo({ lang, bpm, firstBeat }) {
   )
 }
 
-export const promoDefaultProps = Object.freeze({ lang: 'he', bpm: DEFAULT_TEMPO.bpm, firstBeat: DEFAULT_TEMPO.firstBeat })
+export const promoDefaultProps = Object.freeze({ lang: 'he', bpm: DEFAULT_TEMPO.bpm, firstBeat: DEFAULT_TEMPO.firstBeat, music: null })

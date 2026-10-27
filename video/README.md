@@ -52,6 +52,33 @@ is more than 8 MB (it is about 3 MB).
   tap mark or an outline is on the screen (`isCalm` in `timing.js`), and none of it changes the length of the video.
 - `src/render.mjs`: the render. It writes next to the pictures, in `video/out/<lang>/` (ignored by git).
 
+## The promo video
+
+A 34-second vertical video (1080x1920) that shows the two apps and where to find the repository, for a committee that has not
+seen them. It is separate from the tutorial: the code is in `video/promo/` (its own entry point and composition, built on the same
+pinned Remotion), the tutorial never reads it, and nothing is published by a workflow: the owner renders it and publishes it.
+
+```
+npm --prefix video ci                     # once, as above
+node video/promo/render.mjs he            # silent, on a 120 bpm grid
+node video/promo/render.mjs he --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
+```
+
+It writes `video/out/promo/promo-he.mp4`, `promo-he.jpg` (the poster) and, in `stills/`, one picture per scene. The scenes are
+whole bars of the music, every cut falls on a beat and the video ends on a bar (`promo/timing.js`).
+
+- `--music` is a local `.mp3`, `.wav` or `.m4a`. `--bpm` and `--first-beat` (the second of the first beat after the start) are
+  required with it, and the plan is made at that tempo: a tempo at which a caption cannot be read is refused with the scene's
+  name. `--start` is the second of the file where the music starts (default 0); it must leave at least the video's length of the
+  file. The music fades in over half a second and out over the last second and a half, so it is silent at the last frame.
+- **The track is the owner's licensed file and is never committed.** Keep it outside the repository, or under `video/out/` (ignored
+  by git); the render refuses any other path inside the repository. Its page, author and licence are in `ASSETS.md`. The render
+  copies it into a staged folder that it deletes at the end.
+- The track now used is "Afrobeat 01" by vjgalaxy (Pixabay): `--bpm 120 --first-beat 0 --start 2.435`, which starts it on its
+  second bar so that the full groove comes in with the scan scene.
+- A copy of this repository that renders the promo falls under the same Remotion terms as the tutorial (the next section and
+  [docs/video.md](../docs/video.md), "The Remotion licence").
+
 ## Licence
 
 Remotion is not open source: its licence (https://www.remotion.pro/license, `LICENSE.md` of the package) is free for an
