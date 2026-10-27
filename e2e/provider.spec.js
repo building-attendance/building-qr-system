@@ -39,6 +39,11 @@ test('the sign-in list links to the tutorial video from its start, and its first
       const box = await rows.nth(index).boundingBox()
       expect(box.y + box.height, `${code}: the bottom of account ${index + 1} of the list, in a screen 844 px high`).toBeLessThanOrEqual(844)
     }
+    // The committee's way in is in the top bar, so a list of any length never pushes it out of view (owner, 27/10/2026).
+    const entry = page.getByRole('link', { name: words['footer.admin'] })
+    await expect(entry).toHaveAttribute('href', '/admin')
+    const box = await entry.boundingBox()
+    expect(box.y + box.height, `${code}: the bottom of the committee's way in, above the first account`).toBeLessThanOrEqual((await rows.first().boundingBox()).y)
   }
 })
 
@@ -120,6 +125,8 @@ test('signing in checks in at the point, names who signed in, and lists the visi
 
   await expect(page.getByRole('heading', { name: he['checkin.success.title'] })).toBeVisible()
   await expect(page.getByText(/משתמש:/)).toContainText(`${PEOPLE.ploni.name} · ניקיון`)
+  // The outcome of a check-in has nothing else on its screen: the committee's way in is on the sign-in list and home only.
+  await expect(page.getByRole('link', { name: he['footer.admin'] })).toHaveCount(0)
 
   await page.getByRole('button', { name: he['checkin.done'] }).click()
   await expect(page.getByRole('heading', { name: /שלום/ })).toContainText(PEOPLE.ploni.name)
@@ -147,6 +154,15 @@ test('signing in checks in at the point, names who signed in, and lists the visi
     await page.evaluate(() => document.fonts.ready) // the letters of a language that was not on the screen yet change the line breaks
     const box = await visits.boundingBox()
     expect(box.y + box.height, `${code}: the bottom of today's visits, in a screen 844 px high`).toBeLessThanOrEqual(844)
+    // "Switch person" and the committee's way in were under the visits, and a visit or two pushed them out of view (owner, 27/10/2026):
+    // now the first is under the greeting and the second in the top bar, both above today's visits however many there are.
+    for (const [what, control] of [
+      ['"switch person"', page.getByRole('button', { name: words['home.switchWorker'] })],
+      ["the committee's way in", page.getByRole('link', { name: words['footer.admin'] })],
+    ]) {
+      const at = await control.boundingBox()
+      expect(at.y + at.height, `${code}: the bottom of ${what}, above today's visits`).toBeLessThanOrEqual(box.y)
+    }
   }
 })
 

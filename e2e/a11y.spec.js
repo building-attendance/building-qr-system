@@ -84,6 +84,10 @@ test.describe('provider app', () => {
     await expect(page.getByRole('list').getByText('לובי')).toBeVisible()
     await scanBothThemes(page, 'provider he: home with a visit')
 
+    await page.getByRole('button', { name: he['privacy.title'] }).click()
+    await expect(page.getByRole('dialog', { name: he['privacy.title'] })).toBeVisible()
+    await scanBothThemes(page, 'provider he: privacy sheet')
+
     await page.goto(scanLink(POINTS.lobby)) // still signed in on this phone
     await expect(page.getByRole('heading', { name: he['checkin.duplicate.title'] })).toBeVisible()
     await scanBothThemes(page, 'provider he: check-in already recorded')
@@ -141,6 +145,10 @@ test.describe('provider app', () => {
     await expect(page.getByRole('heading', { name: /Hello/ })).toContainText(PEOPLE.john.name)
     await expect(page.getByRole('list').getByText('לובי')).toBeVisible()
     await scanBothThemes(page, 'provider en: home with a visit')
+
+    await page.getByRole('button', { name: en['privacy.title'] }).click()
+    await expect(page.getByRole('dialog', { name: en['privacy.title'] })).toBeVisible()
+    await scanBothThemes(page, 'provider en: privacy sheet')
 
     await page.goto(scanLink(POINTS.gym)) // the gym is Ploni's only
     await expect(page.getByText(en['error.not_assigned'])).toBeVisible()

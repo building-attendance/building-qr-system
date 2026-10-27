@@ -5,6 +5,7 @@ export default {
   'footer.admin': 'Вход для администраторов',
   'common.loading': 'Загрузка…',
   'common.retry': 'Попробовать снова',
+  'common.close': 'Закрыть',
 
   'login.pointBanner': 'Точка сканирования: {name}',
   'login.title': 'Выберите свой аккаунт',
@@ -38,7 +39,7 @@ export default {
   'home.pendingCount': 'Ожидают отправки: {count}',
   'home.syncNow': 'Отправить сейчас',
   'home.syncing': 'Отправка…',
-  'home.switchWorker': 'Сменить сотрудника',
+  'home.switchWorker': 'Сменить аккаунт',
 
   'checkin.locating': 'Проверяю местоположение…',
   'checkin.locatingHint': 'Обычно это занимает несколько секунд. Лучше стоять рядом с кодом.',

@@ -427,7 +427,11 @@ test.describe('T2 reflow at 320 px: the provider app', () => {
       await expect(page.getByRole('list').getByText(POINT_NAME.slice(0, 20))).toBeVisible()
       await check(`provider ${lang}: home`)
 
-      await page.getByRole('link', { name: words['privacy.title'] }).click()
+      await page.getByRole('button', { name: words['privacy.title'] }).click()
+      const sheet = page.getByRole('dialog', { name: words['privacy.title'] })
+      await expect(sheet.getByText(words['login.privacy'])).toBeVisible()
+      await check(`provider ${lang}: privacy sheet`)
+      await sheet.getByRole('link', { name: words['privacy.open'] }).click()
       await expect(page.getByRole('heading', { level: 1, name: words['privacy.title'] })).toBeVisible()
       await expect(page.getByText(PRIVACY_CONTACT).first()).toBeVisible()
       await check(`provider ${lang}: privacy notice`)

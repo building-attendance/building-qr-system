@@ -53,13 +53,17 @@ describe('the home screen of the provider app', () => {
     expect(new Set(words).size).toBe(4)
   })
 
-  it('shows it once, in the foot of the screen, after the committee entry link', () => {
+  it('shows it once, in the foot of the screen: after today\'s visits and after every control', () => {
+    // The committee's link and the privacy link were the lines above it until both moved up (owner, 27/10/2026).
     home('en')
     expect(screen.getAllByText(BUILD)).toHaveLength(1)
     const p = line('Version')
     expect(p.className).toContain('w-build')
-    const entry = screen.getByRole('link', { name: DICTS.en['footer.admin'] })
-    expect(entry.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const visits = screen.getByRole('region', { name: DICTS.en['home.today'] })
+    expect(visits.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    for (const control of [...screen.getAllByRole('link'), ...screen.getAllByRole('button')]) {
+      expect(control.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING, control.textContent).toBeTruthy()
+    }
   })
 })
 
