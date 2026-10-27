@@ -21,6 +21,7 @@
     "ui-review:pictures": "playwright test --config playwright.ui-review.config.js",
     "video:frames": "playwright test --config playwright.video.config.js",
     "video:voice": "node scripts/video/voice.mjs",
+    "promo:frames": "playwright test --config playwright.promo.config.js",
     "perf:scan": "playwright test --config playwright.perf.config.js",
     "perf:scan:baseline": "playwright test --config playwright.perf.config.js && node scripts/perf/baseline.mjs",
     "perf:api": "node scripts/perf/api-timing.mjs",
