@@ -13,6 +13,8 @@ import { MUSIC_FADE_IN_SECONDS, checkMusicNotCleared, checkMusicPath, checkMusic
 import {
   BOXES,
   DRAWN_PICTURES,
+  SHEET_BOXES,
+  WIDE_ZOOMS,
   KEYWORDS,
   KEYWORD_COLOR,
   LANGUAGES,
@@ -59,8 +61,22 @@ import {
 } from '../video/promo/timing.js'
 import { COLORS } from '../video/src/theme.js'
 import { contrastRatio } from '../video/src/timing.js'
-import { REPOSITORY_QR, REPOSITORY_QR_OPTIONS, SIGN, checkFrames, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from '../video/promo/stage.js'
-import { BAR_HEIGHT, PICTURE_AREA, STRIP_HEIGHT, blendViews, cameraTransform, restView, stripStates, viewAt, zoomView } from '../video/promo/parts/moves.js'
+import { REPOSITORY_QR, REPOSITORY_QR_OPTIONS, SIGN, agentAnswer, checkFrames, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from '../video/promo/stage.js'
+import {
+  BAR_HEIGHT,
+  MAX_ZOOM_SCALE,
+  PICTURE_AREA,
+  STRIP_HEIGHT,
+  blendViews,
+  cameraTransform,
+  capZoom,
+  restView,
+  spanRect,
+  stripStates,
+  viewAt,
+  zoomView,
+} from '../video/promo/parts/moves.js'
+import { OVER_FRAME, cameraOf, inDevice, pictureAt, pictureEnd, pictureTimeline, ringsOf } from '../video/promo/parts/screens.js'
 import { SHOWCASE, planShowcase, showcaseStills, walkingStage } from '../video/promo/parts/showcase.js'
 
 const SCREENSHOTS = fileURLToPath(new URL('../docs/screenshots/', import.meta.url))
@@ -454,6 +470,12 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
         }
       }
     }
+    // The boxes of a picture drawn over the whole frame (the printed sign) are read by the composition, not by a zoom or a ring.
+    for (const [picture, boxes] of Object.entries(SHEET_BOXES)) {
+      expect(LONG.scenes.some((scene) => scene.then === picture || scene.picture === picture), picture).toBe(true)
+      for (const box of boxes) used.add(`${picture} ${box}`)
+    }
+    expect(SHEET_BOXES['committee-print-sign.png']).toEqual(['sign', 'qr'])
     const listed = Object.entries(BOXES).flatMap(([picture, boxes]) => boxes.map((box) => `${picture} ${box}`))
     expect([...used].sort()).toEqual(listed.sort())
   })
@@ -484,6 +506,9 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
     const places = [...agentChat.answer.matchAll(/\{(\w+)\}/g)].map((match) => match[1])
     expect(places.sort()).toEqual([...agentChat.placeholders].sort())
     expect(agentChat.answer.replace(/\{\w+\}/g, '')).not.toMatch(/\d{2,}/) // no number is written here: the sample's own numbers fill the places
+    // The answer counts days, reads right for a provider of either gender, and never puts a parenthesis after the name (which has the company in its own).
+    expect(agentChat.answer).toMatch(/נרשמו ביקורים של \{provider\} ב-\{days\} ימים מתוך 5/)
+    expect(agentChat.answer).not.toMatch(/\{provider\}\s*\(/)
     expect(LONG_LABELS.illustration).toBe('המחשה, נתוני דוגמה')
     expect(LONG_LABELS.guide).toBe('המדריך באנגלית')
     for (const text of [agentChat.question, agentChat.answer, ...Object.values(LONG_LABELS.stages)]) expect(text).not.toMatch(/[‒-―]/)
@@ -761,6 +786,27 @@ describe('the camera of the zoom and the progress strip (video/promo/parts/moves
     close(viewAt(170, 90, at, moves, 15), b)
   })
 
+  it('widens a zoom rectangle that would enlarge the picture beyond MAX_ZOOM_SCALE, around its centre and inside the picture, and leaves a wide one alone', () => {
+    expect(MAX_ZOOM_SCALE).toBeLessThan(2)
+    const wide = { x: 0, y: 301, width: 780, height: 1387 }
+    expect(capZoom(wide, picture)).toBe(wide)
+    const tight = capZoom({ x: 213, y: 500, width: 390, height: 693 }, picture)
+    expect(WIDTH / tight.width).toBeCloseTo(MAX_ZOOM_SCALE, 9)
+    expect(tight.width / tight.height).toBeCloseTo(9 / 16, 9)
+    expect(tight.x + tight.width / 2).toBeCloseTo(213 + 195, 9)
+    expect(tight.y + tight.height / 2).toBeCloseTo(500 + 693 / 2, 9)
+    // Near an edge it stays inside the picture.
+    const corner = capZoom({ x: 0, y: 1300, width: 200, height: 356 }, picture)
+    expect(corner.x).toBe(0)
+    expect(corner.y + corner.height).toBeCloseTo(picture.height, 9)
+  })
+
+  it('spans boxes side by side with a margin, inside the picture', () => {
+    const computer = { width: 2560, height: 1600 }
+    expect(spanRect([{ x: 1092, y: 276, width: 732, height: 391 }, { x: 80, y: 80, width: 88, height: 88 }], computer)).toEqual({ x: 56, y: 56, width: 1848 - 56, height: 691 - 56 })
+    expect(spanRect([{ x: 10, y: 10, width: 2540, height: 100 }], computer)).toEqual({ x: 0, y: 0, width: 2560, height: 134 })
+  })
+
   it('lights the stage of the scene, marks the ones before it done, and lights none on the opening and the AI (D3)', () => {
     expect(stripStates('opening')).toEqual(['dim', 'dim', 'dim', 'dim'])
     expect(stripStates('prepare')).toEqual(['lit', 'dim', 'dim', 'dim'])
@@ -800,6 +846,121 @@ describe('the showcase of the parts (video/promo/parts/showcase.js)', () => {
     const strip = plan.scenes.find((scene) => scene.id === 'strip')
     const shown = stills.filter(([name]) => name.includes('-strip-')).map(([, frame]) => walkingStage(strip, frame, TRACK))
     expect(shown).toEqual([...STAGES])
+  })
+})
+
+describe('what the long cut shows (video/promo/parts/screens.js, and the AI answer of stage.js)', () => {
+  const plan = planPromo('he', TRACK, LONG)
+  const scene = (id) => plan.scenes.find((one) => one.id === id)
+  /** A frames.json with every picture and box, all of them invented numbers: the phone's pictures, the computer's and the printed sheet. */
+  const frames = () => ({
+    pictures: Object.fromEntries(
+      PROMO_PICTURES.map((name) => {
+        const size = name === 'computer-history.png' ? { width: 2560, height: 1600 } : name === 'committee-print-sign.png' ? { width: 1800, height: 2400 } : { width: 780, height: 1688 }
+        const keys = BOXES[name] ?? []
+        const rects = (rect) => Object.fromEntries(keys.map((key, n) => [key, { ...rect, x: rect.x + n }]))
+        return [name, { ...size, boxes: rects({ x: 40, y: 500, width: 300, height: 200 }), zooms: rects({ x: 0, y: 0, width: 390, height: 693 }) }]
+      }),
+    ),
+  })
+
+  it('follows the pictures of a scene in order and knows until when each one shows', () => {
+    const languages = scene('languages')
+    expect(pictureTimeline(languages).map((one) => one.picture)).toEqual(['provider-home.png', 'provider-lang-en.png', 'provider-lang-ru.png', 'provider-lang-ar.png'])
+    expect(pictureAt(languages, languages.startFrame)).toBe('provider-home.png')
+    expect(pictureAt(languages, languages.thenFrame)).toBe('provider-lang-en.png')
+    expect(pictureEnd(languages, languages.startFrame)).toBe(languages.thenFrame)
+    expect(pictureEnd(languages, languages.later[1].frame)).toBe(languages.endFrame)
+    // The printed sign and the chat are drawn over the whole frame, the device keeps its picture under them.
+    expect(OVER_FRAME).toEqual(['committee-print-sign.png', 'agent'])
+    expect(inDevice('committee-print-sign.png')).toBe(false)
+    expect(inDevice('camera-checked')).toBe(false)
+    expect(inDevice('computer-history.png')).toBe(true)
+  })
+
+  it('zooms every recorded screen within a beat of its scene, and shows a screen with the version line at its bottom only zoomed (D3)', () => {
+    const versionLine = ['provider-home.png', 'provider-sent.png', 'provider-lang-en.png', 'provider-lang-ru.png', 'provider-lang-ar.png']
+    for (const one of plan.scenes.filter((planned) => inDevice(planned.picture))) {
+      expect(one.zoom?.[0]?.frame, one.id).toBeLessThanOrEqual(one.startFrame + beatFrames(TRACK))
+      for (const shown of pictureTimeline(one).filter((picture) => versionLine.includes(picture.picture))) {
+        // The camera starts on its rectangle with the scene, or has landed on one before the picture comes in.
+        const first = one.zoom[0].frame
+        expect(first === one.startFrame || first + beatFrames(TRACK) <= shown.frame, `${one.id}: ${shown.picture}`).toBe(true)
+      }
+    }
+  })
+
+  it('zooms no tighter than MAX_ZOOM_SCALE, spans the filters to the Excel button, and keeps each ring to its picture', () => {
+    const f = frames()
+    // The filters of the computer at one end of the page and the Excel button at the other, as the recorder finds them.
+    Object.assign(f.pictures['computer-history.png'].boxes, { filters: { x: 1092, y: 276, width: 732, height: 391 }, excel: { x: 80, y: 80, width: 88, height: 88 } })
+    for (const one of plan.scenes.filter((planned) => planned.zoom)) {
+      for (const move of cameraOf(one, f).moves) expect(WIDTH / move.rect.width, one.id).toBeLessThanOrEqual(MAX_ZOOM_SCALE + 1e-9)
+    }
+    for (const [picture, zooms] of Object.entries(WIDE_ZOOMS)) {
+      for (const [box, boxes] of Object.entries(zooms)) for (const one of [box, ...boxes]) expect(BOXES[picture], `${picture} ${one}`).toContain(one)
+    }
+    const computer = f.pictures['computer-history.png']
+    const filters = cameraOf(scene('filters'), f)
+    expect(filters.picture).toEqual({ width: 2560, height: 1600 })
+    expect(filters.moves[0].rect).toEqual(spanRect([computer.boxes.filters, computer.boxes.excel], computer))
+    expect(filters.moves[0].box).toEqual(computer.boxes.filters)
+    // The ring around the map's circle goes when the printed sign comes in; the ring on the home row stays to the end of the AI scene.
+    const map = scene('map')
+    expect(ringsOf(map, f).map((ring) => ring.until)).toEqual([map.thenFrame])
+    const agent = scene('agent')
+    expect(ringsOf(agent, f).map((ring) => [ring.picture, ring.until])).toEqual([
+      ['committee-agent.png', agent.thenFrame],
+      ['committee-home.png', agent.endFrame],
+    ])
+    expect(cameraOf(agent, f).moves.map((move) => move.box)).toEqual([f.pictures['committee-agent.png'].boxes['read-only'], f.pictures['committee-home.png'].boxes['provider-row']])
+    // A zoom on what the device does not show, or pictures of two sizes in one device, are refused.
+    expect(() => cameraOf({ ...map, zoom: [{ box: 'qr', frame: map.thenFrame }] }, f)).toThrow(/does not show/)
+    expect(() => cameraOf({ ...map, then: 'computer-history.png' }, f)).toThrow(/different sizes/)
+    expect(cameraOf(scene('closing'), f)).toBeNull()
+    // A ring on the first beat starts with its scene: the thumbnail (frame 0) has it whole when the track's first beat is late.
+    const late = planPromo('he', { bpm: 120, firstBeat: 0.4 }, LONG).scenes[0]
+    expect(late.ring[0].frame).toBe(12)
+    expect(ringsOf(late, f)[0].frame).toBe(0)
+  })
+
+  it('answers the AI question from the sample: the cleaning provider, the days with a visit (not the check-ins) and the empty day as DD/MM/YYYY', () => {
+    const cleaner = 'נועה כהן (חברה לדוגמה)'
+    const sample = () => ({
+      missingDay: '2026-01-06',
+      agentSample: {
+        days: ['2026-01-04', '2026-01-05', '2026-01-06', '2026-01-07', '2026-01-08', '2026-01-09', '2026-01-10'],
+        byProvider: [
+          { provider_name: cleaner, service_type: 'cleaning', count: 8 },
+          { provider_name: 'דנה לוי (גינה לדוגמה)', service_type: 'gardening', count: 1 },
+        ],
+        byDay: [
+          ...['2026-01-04', '2026-01-05', '2026-01-07', '2026-01-08'].map((day) => ({ day, provider_name: cleaner, count: 2 })),
+          { day: '2026-01-06', provider_name: 'דנה לוי (גינה לדוגמה)', count: 1 },
+        ],
+      },
+    })
+    const chat = agentAnswer(sample())
+    expect(chat.question).toBe(agentChat.question)
+    expect(chat.answer).toBe(`בשבוע האחרון נרשמו ביקורים של ${cleaner} ב-4 ימים מתוך 5. היום בלי ביקור: 06/01/2026.`)
+    expect(chat.parts.filter((part) => part.place).map((part) => part.place)).toEqual(['provider', 'days', 'missingDate'])
+    expect(chat.parts.map((part) => part.text).join('')).toBe(chat.answer)
+    const RECORD = /npm run promo:frames/
+    expect(() => agentAnswer({})).toThrow(/agentSample.*npm run promo:frames/)
+    expect(() => agentAnswer({ ...sample(), missingDay: '2026-01-05' })).toThrow(RECORD)
+    expect(() => agentAnswer({ ...sample(), missingDay: '2026-02-01' })).toThrow(RECORD)
+    expect(() => agentAnswer({ ...sample(), missingDay: '2026-01-09' })).toThrow(/workday/) // a Friday: the agreement does not cover it
+    // A day outside the sample's week is not counted, and a week with the five agreed days has no answer to give.
+    const outside = sample()
+    outside.agentSample.byDay.push({ day: '2025-12-31', provider_name: cleaner, count: 2 })
+    expect(agentAnswer(outside).answer).toMatch(/ב-4 ימים/)
+    const full = sample()
+    full.agentSample.byDay.push({ day: '2026-01-09', provider_name: cleaner, count: 2 })
+    expect(() => agentAnswer(full)).toThrow(/on 5 days, not fewer than 5/)
+    const twoCleaners = sample()
+    twoCleaners.agentSample.byProvider[1].service_type = 'cleaning'
+    expect(() => agentAnswer(twoCleaners)).toThrow(/2 cleaning providers/)
+    expect(() => agentAnswer(sample(), { question: 'q', answer: '{unknown}' })).toThrow(/\{unknown\}/)
   })
 })
 

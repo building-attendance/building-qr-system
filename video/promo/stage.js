@@ -1,11 +1,13 @@
 // What the promo render stages beside the composition, as plain functions (no Remotion, no browser, no file system), so that the unit run
 // of the repository can test them (tests/video-promo.test.js) and render.mjs and Promo.jsx read the same names: which pictures the scenes
 // use, the check of the recorder's frames.json (the long cut's boxes and zooms), the drawn sign of the camera scene, and the two QR codes.
-// Only `qrcode` is imported (a dependency of the root package and of video/).
+// Only `qrcode` is imported (a dependency of the root package and of video/), and shared/datetime.js, which writes the date of the
+// AI's answer as the app does.
 import QRCode from 'qrcode'
+import { formatDay } from '../../shared/datetime.js'
 import { COLORS } from '../src/theme.js'
 import { DEMO_QR } from '../src/timing.js'
-import { BOXES, DRAWN_PICTURES, PROMO_PICTURES, REPOSITORY_URL, SCENES } from './script/index.js'
+import { BOXES, DRAWN_PICTURES, PROMO_PICTURES, REPOSITORY_URL, SCENES, agentChat } from './script/index.js'
 
 /**
  * The picture files that the scenes name (the first, the second, the later ones and the picture in picture), each once, in the order of
@@ -58,6 +60,46 @@ export function checkFrames(text, { pictures = PROMO_PICTURES, boxes = BOXES } =
     }
   }
   return frames
+}
+
+/** The visits a week of the agreement that the AI's question names (`agentChat.question`, its 5). */
+export const AGREED_DAYS = 5
+
+/**
+ * The drawn chat of the long cut's AI scene (decision D8): the question as the script writes it, and the answer's template filled from
+ * `agentSample` of frames.json, the agent API's own counts of the sample week. The provider is the one cleaning provider (the question
+ * is about the cleaning), `days` the days of that week on which a visit of theirs was recorded (the API counts check-ins, two a day,
+ * so the days are counted from `byDay`), fewer than AGREED_DAYS, and `missingDate` the recorder's `missingDay`, which must be a workday
+ * (Sunday to Thursday) of the sample without one. Returns the question and the answer as parts, each place marked by its name so that
+ * the composition can isolate it; refuses, naming `npm run promo:frames`, a frames.json without the sample or with a sample that does
+ * not hold the story.
+ * @param {{ agentSample?: { days: string[], byProvider: { provider_name: string, service_type: string }[], byDay: { day: string, provider_name: string, count: number }[] }, missingDay?: string }} frames
+ * @param {{ question: string, answer: string }} [chat]
+ */
+export function agentAnswer(frames, chat = agentChat) {
+  const sample = frames?.agentSample
+  if (!sample || !Array.isArray(sample.days) || !Array.isArray(sample.byProvider) || !Array.isArray(sample.byDay)) {
+    throw new Error(`frames.json has no agentSample (the agent API's counts of the sample week), which the AI scene's answer is made of. ${RECORD}`)
+  }
+  const cleaners = sample.byProvider.filter((row) => row.service_type === 'cleaning')
+  if (cleaners.length !== 1) throw new Error(`The agentSample of frames.json has ${cleaners.length} cleaning providers, not one. ${RECORD}`)
+  const provider = cleaners[0].provider_name
+  const days = new Set(sample.byDay.filter((row) => row.provider_name === provider && row.count > 0 && sample.days.includes(row.day)).map((row) => row.day))
+  // The question's agreement is five visits a week, Sunday to Thursday: the answer is true only for a week with fewer, and an empty workday.
+  if (days.size >= AGREED_DAYS) throw new Error(`The agentSample of frames.json has the cleaning on ${days.size} days, not fewer than ${AGREED_DAYS}. ${RECORD}`)
+  const missing = frames.missingDay
+  const workday = typeof missing === 'string' && new Date(`${missing}T12:00:00Z`).getUTCDay() <= 4
+  if (!sample.days.includes(missing) || days.has(missing) || !workday) throw new Error(`The missingDay of frames.json is not a workday of the sample without a visit. ${RECORD}`)
+  const values = { provider, days: String(days.size), missingDate: formatDay(missing) }
+  const parts = chat.answer
+    .split(/(\{\w+\})/)
+    .filter(Boolean)
+    .map((part) => {
+      const place = /^\{(\w+)\}$/.exec(part)?.[1]
+      if (place && !Object.hasOwn(values, place)) throw new Error(`The answer of the AI chat has the place {${place}}, which the sample does not fill.`)
+      return place ? { text: values[place], place } : { text: part }
+    })
+  return { question: chat.question, parts, answer: parts.map((part) => part.text).join('') }
 }
 
 /** The QR code of the closing card: dark violet on white with the four-module quiet zone of the standard, so that a phone reads it off a screen. */

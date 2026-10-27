@@ -14,10 +14,11 @@ const LOOK = Object.freeze({
 })
 
 /**
- * @param {{ stage: string, labels: Record<string, string>, lang: string, strip?: readonly string[], stages?: readonly string[] }} props
- * `labels` are the words of the four stages (`labels.stages` of the script), keyed by stage.
+ * @param {{ stage: string, labels: Record<string, string>, lang: string, strip?: readonly string[], stages?: readonly string[], size?: number }} props
+ * `labels` are the words of the four stages (`labels.stages` of the script), keyed by stage, and `size` the size of their words (the
+ * long cut sets it larger, to read on a phone).
  */
-export function ProgressStrip({ stage, labels, lang, strip = STRIP_STAGES, stages = STAGES }) {
+export function ProgressStrip({ stage, labels, lang, strip = STRIP_STAGES, stages = STAGES, size = 27 }) {
   const states = stripStates(stage, strip, stages)
   return (
     <div
@@ -40,7 +41,7 @@ export function ProgressStrip({ stage, labels, lang, strip = STRIP_STAGES, stage
         const look = LOOK[states[index]]
         return (
           <div key={one} style={{ flex: '1 1 auto', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 }}>
-            <div style={{ fontSize: 27, lineHeight: 1.2, fontWeight: look.weight, color: look.text, opacity: look.textOpacity, whiteSpace: 'nowrap' }}>{labels[one]}</div>
+            <div style={{ fontSize: size, lineHeight: 1.2, fontWeight: look.weight, color: look.text, opacity: look.textOpacity, whiteSpace: 'nowrap' }}>{labels[one]}</div>
             <div style={{ alignSelf: 'stretch', height: 7, borderRadius: 4, background: look.bar, opacity: look.barOpacity }} />
           </div>
         )

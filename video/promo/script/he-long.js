@@ -74,12 +74,14 @@ export const keywords = {
 
 // The drawn chat of the AI scene (decision D8): the question as it is, and the answer as a template. The composition fills the
 // `{...}` places from `agentSample` in L1's frames.json (the sample data's own counts, so the answer is true to what the video shows):
-// {provider} the provider's name, {type} the service type, {visits} the visits that week, {missingDate} the one day without a visit, as
-// DD/MM/YYYY (shared/datetime.js). The 5 is the question's own (the agreement). Nothing here is a real number.
+// {provider} the cleaning provider's name as the agent API writes it (the company is already in it, in parentheses), {days} the days of
+// the week with a visit of theirs (the API counts check-ins, two a day, so the composition counts the days of `byDay`), {missingDate} the
+// workday without one, as DD/MM/YYYY (formatDay of shared/datetime.js). The answer reads right for a provider of either gender ("visits
+// were recorded", never "he was recorded"). The 5 is the question's own (the agreement). Nothing here is a real number.
 export const agentChat = {
   question: 'לפי ההסכם הניקיון מגיע 5 פעמים בשבוע. מתי הוא לא הגיע?',
-  answer: 'בשבוע האחרון {provider} ({type}) נרשם {visits} פעמים מתוך 5. היום החסר: {missingDate}.',
-  placeholders: ['provider', 'type', 'visits', 'missingDate'],
+  answer: 'בשבוע האחרון נרשמו ביקורים של {provider} ב-{days} ימים מתוך 5. היום בלי ביקור: {missingDate}.',
+  placeholders: ['provider', 'days', 'missingDate'],
 }
 
 // The words that are not captions: the tag over the drawn chat, the label of the guide on the closing card, and the stages of the

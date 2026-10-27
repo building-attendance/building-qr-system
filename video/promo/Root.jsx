@@ -1,11 +1,13 @@
 // The Remotion root of the promo: the composition "Promo", whose length comes from the plan (timing.js) at the tempo it is given, and the
 // Rubik of the app, which the frames wait for. Copied from the tutorial's root (video/src/Root.jsx), which registers its own composition.
-// It also registers "PromoParts" (parts/PromoParts.jsx), which shows the parts of the long cut for their stills (parts/stills.mjs) and
+// It registers "PromoLong" (PromoLong.jsx), the long cut, whose length is the long script's plan, and "PromoParts" (parts/PromoParts.jsx), which shows the parts of the long cut for their stills (parts/stills.mjs) and
 // which render.mjs never renders.
 import '@fontsource-variable/rubik'
 import { Composition, cancelRender, continueRender, delayRender } from 'remotion'
 import { PROMO, Promo, promoDefaultProps } from './Promo.jsx'
+import { PROMO_LONG, PromoLong, promoLongDefaultProps } from './PromoLong.jsx'
 import { PROMO_PARTS, PromoParts, promoPartsDefaultProps, showcasePlan } from './parts/PromoParts.jsx'
+import { LONG } from './script/index.js'
 import { planPromo } from './timing.js'
 
 // Rubik has a file per script. The browser fetches a file only when a letter of its script is drawn, so one sample of each script it
@@ -30,6 +32,16 @@ export function Root() {
         durationInFrames={1}
         defaultProps={promoDefaultProps}
         calculateMetadata={({ props }) => ({ durationInFrames: planPromo(props.lang, { bpm: props.bpm, firstBeat: props.firstBeat }).totalFrames })}
+      />
+      <Composition
+        id={PROMO_LONG.id}
+        component={PromoLong}
+        width={PROMO_LONG.width}
+        height={PROMO_LONG.height}
+        fps={PROMO_LONG.fps}
+        durationInFrames={1}
+        defaultProps={promoLongDefaultProps}
+        calculateMetadata={({ props }) => ({ durationInFrames: planPromo(props.lang, { bpm: props.bpm, firstBeat: props.firstBeat }, LONG).totalFrames })}
       />
       <Composition
         id={PROMO_PARTS.id}

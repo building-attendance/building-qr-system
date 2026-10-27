@@ -1,19 +1,24 @@
 // Renders the promo video of one language: `node video/promo/render.mjs he`, from the root of the repository, at 120 bpm with only the effect sounds, or with the
 // owner's licensed track on its own beat:
-//   node video/promo/render.mjs he --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
+//   node video/promo/render.mjs he [--cut short|long] --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
 // `--music` is a local .mp3, .wav or .m4a that is never committed (music.js refuses a path inside the repository except under video/out/);
 // `--bpm` and `--first-beat` (the second of the first beat after the start) are required with it and make the plan; `--start` is the second
 // of the file where the music starts (default 0). The track is copied into the staged public folder, faded in and out by music.js.
+// `--cut` is the short promo (34 s, the default, the approved video that does not change) or the long one (2:16, PromoLong.jsx).
 //
 // Writes video/out/promo/promo-<lang>.mp4 (1080x1920 at 30 fps, H.264 and AAC), promo-<lang>.jpg (the poster) and, in stills/, one picture
-// per scene taken at its last frame (and, for a scene that changes its picture, one just before the change), for looking at each scene,
-// and one per effect (effect-*.jpg). The sounds of the effects (make-sounds.mjs) are made at every render and staged with the pictures.
-// The plan is video/promo/timing.js at the tempo it is given (120 bpm without a track). The pictures that the scenes name are copied from docs/screenshots/
-// into a staged public folder with the drawn sign and the two QR codes (stage.js), which is the only folder the bundle reads.
+// per scene taken at its last frame (and, for a scene that changes its picture, one just before each change), for looking at each scene,
+// and one per effect (effect-*.jpg). The long cut writes promo-long-<lang>.mp4, promo-long-<lang>.jpg (its frame 0, the thumbnail) and
+// stills-long/, so the short cut's files are never overwritten. The sounds of the effects (make-sounds.mjs) are made at every render and
+// staged with the pictures. The plan is video/promo/timing.js at the tempo it is given (120 bpm without a track). The pictures that the
+// scenes name are copied into a staged public folder with the drawn sign and the two QR codes (stage.js), which is the only folder the
+// bundle reads: from docs/screenshots/ for the short cut, from the recorder's video/out/promo-frames/<lang>/ for the long one, whose
+// frames.json is checked first (stage.js, checkFrames and agentAnswer); the long cut refuses to run, naming `npm run promo:frames`,
+// when a picture or a box is missing.
 //
 // Node built-ins, Remotion's bundler and renderer, and the pure modules of video/promo/. Nothing is sent anywhere: the browser that Remotion
 // renders with (Chrome Headless Shell) is downloaded by it, once, into video/node_modules/.remotion.
-import { cpSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import process, { exit, hrtime, stderr, stdout } from 'node:process'
 import { fileURLToPath } from 'node:url'
@@ -23,8 +28,9 @@ import { RenderInternals, renderMedia, renderStill, selectComposition } from '@r
 import { DEMO_QR } from '../src/timing.js'
 import { writeSounds } from './make-sounds.mjs'
 import { checkMusicNotCleared, checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf } from './music.js'
-import { LANGUAGES } from './script/index.js'
-import { REPOSITORY_QR, SIGN, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from './stage.js'
+import { pictureTimeline } from './parts/screens.js'
+import { LANGUAGES, LONG } from './script/index.js'
+import { REPOSITORY_QR, SIGN, agentAnswer, checkFrames, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from './stage.js'
 import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, HEIGHT, WHIP_FRAMES, WIDTH, burstFrame, planPromo } from './timing.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
@@ -39,6 +45,9 @@ const fail = (line) => {
 
 const repositoryRoot = path.resolve(videoDir, '..')
 
+/** The two cuts of the promo: the short one is the default. */
+const CUTS = Object.freeze(['short', 'long'])
+
 /** A number option, read strictly: `Number('')` is 0 and `Number('1e3')` is 1000, so the text must be a plain decimal, and none is negative. */
 function numberOption(name, text) {
   if (!/^\d+(\.\d+)?$/.test(text)) throw new Error(`--${name} needs a number of zero or more, not "${text}"`)
@@ -46,17 +55,22 @@ function numberOption(name, text) {
 }
 
 let lang
+let cut = 'short'
 let tempo = DEFAULT_TEMPO
 let music = null // { path, start } when a track is given
 try {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
-    options: { music: { type: 'string' }, bpm: { type: 'string' }, 'first-beat': { type: 'string' }, start: { type: 'string' } },
+    options: { cut: { type: 'string' }, music: { type: 'string' }, bpm: { type: 'string' }, 'first-beat': { type: 'string' }, start: { type: 'string' } },
     strict: true,
   })
   if (positionals.length !== 1) throw new Error('one language is needed')
   lang = positionals[0]
   if (!LANGUAGES.includes(lang)) throw new Error(`no script in "${lang}"`)
+  if (values.cut !== undefined) {
+    if (!CUTS.includes(values.cut)) throw new Error(`--cut is ${CUTS.join(' or ')}, not "${values.cut}"`)
+    cut = values.cut
+  }
   if (values.music === undefined) {
     if (values.bpm !== undefined || values['first-beat'] !== undefined || values.start !== undefined) throw new Error('--bpm, --first-beat and --start go with --music')
   } else {
@@ -66,16 +80,35 @@ try {
   }
 } catch (error) {
   fail(
-    `${error.message}\nUsage: node video/promo/render.mjs <language> [--music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]]\n` +
+    `${error.message}\nUsage: node video/promo/render.mjs <language> [--cut short|long] [--music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]]\n` +
       `(from the root of the repository; the languages: ${LANGUAGES.join(', ')}; a track is a local .mp3, .wav or .m4a that is never committed)`,
   )
 }
+const long = cut === 'long'
 
 let plan
 try {
-  plan = planPromo(lang, tempo) // refuses a tempo at which a caption does not fit, naming its scene
+  plan = long ? planPromo(lang, tempo, LONG) : planPromo(lang, tempo) // refuses a tempo at which a caption does not fit, naming its scene
 } catch (error) {
   fail(error.message)
+}
+
+// The long cut's pictures and their boxes: the recorder's folder, checked before anything is touched.
+const framesDir = path.join(videoDir, 'out', 'promo-frames', lang)
+const RECORD = 'Run `npm run promo:frames` to record the pictures of the long promo.'
+let frames = null
+if (long) {
+  const framesFile = path.join(framesDir, 'frames.json')
+  if (!existsSync(framesFile)) fail(`No ${path.relative(videoDir, framesFile)}. ${RECORD}`)
+  try {
+    frames = checkFrames(readFileSync(framesFile, 'utf8'))
+    agentAnswer(frames) // the AI scene's answer is made of the sample's counts: refused here rather than in the browser
+  } catch (error) {
+    fail(error.message)
+  }
+  for (const file of stagedPictures(LONG.scenes)) {
+    if (!existsSync(path.join(framesDir, file))) fail(`No ${file} in ${path.relative(videoDir, framesDir)}. ${RECORD}`)
+  }
 }
 
 if (music) {
@@ -104,25 +137,27 @@ const inputProps = {
   firstBeat: tempo.firstBeat,
   music: music ? { file: stagedMusicFile(music.path), startFrame: startFrameOf(music.start) } : null,
   sounds: true, // the effect sounds of make-sounds.mjs, written to the staged folder below
+  ...(long ? { frames } : {}),
 }
 say(
-  `${plan.scenes.length} scenes, ${plan.bars} bars, ${plan.totalFrames} frames, ${(plan.totalFrames / FPS).toFixed(1)} seconds at ${tempo.bpm} bpm ` +
+  `${long ? 'The long cut: ' : ''}${plan.scenes.length} scenes, ${plan.bars} bars, ${plan.totalFrames} frames, ${(plan.totalFrames / FPS).toFixed(1)} seconds at ${tempo.bpm} bpm ` +
     (music ? `(music: ${path.basename(music.path)} from ${music.start} s)` : '(no music, the effect sounds only)'),
 )
 
 const started = hrtime.bigint()
 const elapsed = () => Number((hrtime.bigint() - started) / 1000000n) / 1000
 
-// staticFile('...') is read from a copy of what the composition needs, never from docs/screenshots/ itself.
+// staticFile('...') is read from a copy of what the composition needs, never from docs/screenshots/ or the recorder's folder itself.
+const name = long ? `promo-long-${lang}` : `promo-${lang}`
 const outDir = path.join(videoDir, 'out', 'promo')
-const stillsDir = path.join(outDir, 'stills')
-const publicDir = path.join(videoDir, 'out', `.public-promo-${lang}`)
+const stillsDir = path.join(outDir, long ? 'stills-long' : 'stills')
+const publicDir = path.join(videoDir, 'out', `.public-${name}`)
 // The bundle copies the public folder, so it is written here too (not to the system's temp folder) and removed with it: the track is left nowhere.
-const bundleDir = path.join(videoDir, 'out', `.bundle-promo-${lang}`)
+const bundleDir = path.join(videoDir, 'out', `.bundle-${name}`)
 // The render clears the stills folder and the two staged folders and overwrites its two output files, so a track kept in any of them would be
 // deleted before it is copied: refused here, before anything is touched.
-const mp4 = path.join(outDir, `promo-${lang}.mp4`)
-const poster = path.join(outDir, `promo-${lang}.jpg`)
+const mp4 = path.join(outDir, `${name}.mp4`)
+const poster = path.join(outDir, `${name}.jpg`)
 if (music) {
   try {
     checkMusicNotCleared(music.path, [stillsDir, publicDir, bundleDir, mp4, poster])
@@ -139,7 +174,8 @@ process.on('exit', cleanUp) // also when a step fails or fail() exits
 rmSync(stillsDir, { recursive: true, force: true })
 mkdirSync(publicDir, { recursive: true })
 mkdirSync(stillsDir, { recursive: true })
-for (const file of stagedPictures()) cpSync(path.join(screenshotsDir, file), path.join(publicDir, file))
+if (long) for (const file of stagedPictures(LONG.scenes)) cpSync(path.join(framesDir, file), path.join(publicDir, file))
+else for (const file of stagedPictures()) cpSync(path.join(screenshotsDir, file), path.join(publicDir, file))
 if (music) cpSync(music.path, path.join(publicDir, inputProps.music.file)) // the staged folder is removed on exit, so the track stays only where it was
 writeSounds(publicDir) // the whoosh, the impact and the ding: made from code at every render, never committed
 writeFileSync(path.join(publicDir, SIGN.file), signSvg())
@@ -147,7 +183,7 @@ writeFileSync(path.join(publicDir, DEMO_QR.file), await demoQrSvg())
 writeFileSync(path.join(publicDir, REPOSITORY_QR.file), await repositoryQrSvg()) // from the repository's address, at every render
 
 const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir, outDir: bundleDir })
-const composition = await selectComposition({ serveUrl, id: 'Promo', inputProps })
+const composition = await selectComposition({ serveUrl, id: long ? 'PromoLong' : 'Promo', inputProps })
 if (composition.width !== WIDTH || composition.height !== HEIGHT || composition.durationInFrames !== plan.totalFrames) {
   fail(`The composition is ${composition.width}x${composition.height} for ${composition.durationInFrames} frames, not the plan's ${WIDTH}x${HEIGHT} for ${plan.totalFrames}.`)
 }
@@ -177,35 +213,44 @@ await renderMedia({
   },
 })
 
-// The poster: the opening question, once its caption is in.
-await renderStill({ composition, serveUrl, inputProps, frame: plan.scenes[0].phrases[0].frame + 24, imageFormat: 'jpeg', jpegQuality: 90, output: poster, overwrite: true })
+// The poster: the opening question, once its caption is in (the long cut: its frame 0, which is drawn settled for the thumbnail).
+await renderStill({ composition, serveUrl, inputProps, frame: long ? 0 : plan.scenes[0].phrases[0].frame + 24, imageFormat: 'jpeg', jpegQuality: 90, output: poster, overwrite: true })
 
-// One still per scene at its last frame before the whip that takes it out (the last scene: its last frame), and one just before the change of
-// picture of a scene that has two.
+// One still per scene at its last frame before the whip that takes it out (the last scene: its last frame), and one just before each change
+// of picture of a scene that has more than one.
 const stills = []
 for (const [index, scene] of plan.scenes.entries()) {
-  const name = `${String(index + 1).padStart(2, '0')}-${scene.id}`
+  const label = `${String(index + 1).padStart(2, '0')}-${scene.id}`
   const settled = scene.endFrame - 1 - (index < plan.scenes.length - 1 ? WHIP_FRAMES : 0)
-  const frames = scene.thenFrame == null ? [[name, settled]] : [[`${name}-first`, scene.thenFrame - 1], [name, settled]]
-  for (const [still, frame] of frames) {
+  const changes = pictureTimeline(scene).slice(1).map((one) => one.frame)
+  const before = changes.length === 1 && !long ? [[`${label}-first`, changes[0] - 1]] : changes.map((frame, n) => [`${label}-${String.fromCharCode(97 + n)}`, frame - 1])
+  // The long cut: also where the camera is just before each move after the first (the computer's filters before the Excel button).
+  const views = long ? (scene.zoom ?? []).slice(1).filter((move) => !changes.includes(move.frame)).map((move, n) => [`${label}-zoom-${n + 1}`, move.frame - 1]) : []
+  for (const [still, frame] of [...before, ...views, [label, settled]]) {
     const output = path.join(stillsDir, `${still}.jpg`)
     await renderStill({ composition, serveUrl, inputProps, frame, imageFormat: 'jpeg', jpegQuality: 90, output, overwrite: true })
     stills.push(output)
   }
 }
 
-// One still per effect, for looking at it: the whip halfway, the punch of the groove with the phone still tilted, the phone settling, and the
-// confetti twice (just after the burst and as it falls).
-const groove = plan.scenes.find((scene) => scene.id === GROOVE_SCENE)
+// One still per effect, for looking at it. The short cut: the whip halfway, the punch of the groove with the phone still tilted, the phone
+// settling, and the confetti twice (just after the burst and as it falls). The long cut: its frame 0, the check mark landing on the groove,
+// and the confetti.
 const burst = burstFrame(plan, tempo)
-const effects = [
-  ['whip', plan.scenes[1].endFrame - WHIP_FRAMES / 2],
-  ...[-2, 0, 1, 4, 10].map((after) => [`phone-${groove.startFrame + after}`, groove.startFrame + after]), // the whip's end, the punch, the tilt settling
-  ['confetti-burst', burst + 6],
-  ['confetti-fall', burst + 24],
-]
-for (const [name, frame] of effects) {
-  const output = path.join(stillsDir, `effect-${name}.jpg`)
+const effects = []
+if (long) {
+  const sign = plan.scenes.find((scene) => scene.id === 'sign')
+  effects.push(['frame-0', 0], ['check-landing', sign.thenFrame + 3], ['check-landed', sign.thenFrame + 12])
+} else {
+  const groove = plan.scenes.find((scene) => scene.id === GROOVE_SCENE)
+  effects.push(
+    ['whip', plan.scenes[1].endFrame - WHIP_FRAMES / 2],
+    ...[-2, 0, 1, 4, 10].map((after) => [`phone-${groove.startFrame + after}`, groove.startFrame + after]), // the whip's end, the punch, the tilt settling
+  )
+}
+effects.push(['confetti-burst', burst + 6], ['confetti-fall', burst + 24])
+for (const [effect, frame] of effects) {
+  const output = path.join(stillsDir, `effect-${effect}.jpg`)
   await renderStill({ composition, serveUrl, inputProps, frame, imageFormat: 'jpeg', jpegQuality: 90, output, overwrite: true })
   stills.push(output)
 }
