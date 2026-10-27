@@ -126,30 +126,16 @@ let bodyOverflow = '' // what the page's scroll was before the first dialog lock
 const STYLESHEET_WAIT_MS = 5000
 
 /** The stylesheets of the page that are still loading: a <link> whose sheet has not arrived. */
-const loadingStylesheets = () => [...document.querySelectorAll('link[rel="stylesheet"]')].filter((link) => !link.sheet)
+const loadingStylesheets = () => [...document.querySelectorAll('link[rel=stylesheet]')].filter((link) => !link.sheet)
 
-/** Calls `then` once each of `links` has loaded or failed, or after STYLESHEET_WAIT_MS, whichever comes first. Returns what cancels it. */
-function afterStylesheets(links, then) {
-  let left = links.length
-  const cancel = () => {
-    clearTimeout(timer)
-    for (const link of links) {
-      link.removeEventListener('load', one)
-      link.removeEventListener('error', one)
-    }
-  }
-  const finish = () => {
-    cancel()
-    then()
-  }
-  const one = () => { if (--left === 0) finish() }
-  const timer = setTimeout(finish, STYLESHEET_WAIT_MS)
-  for (const link of links) {
-    link.addEventListener('load', one)
-    link.addEventListener('error', one)
-  }
-  return cancel
-}
+/** Settles once each of `links` has loaded or failed (a link sends one of the two, once), or after STYLESHEET_WAIT_MS, whichever is first. */
+const stylesheetsSettled = (links) => Promise.race([
+  Promise.all(links.map((link) => new Promise((settle) => {
+    link.addEventListener('load', settle)
+    link.addEventListener('error', settle)
+  }))),
+  new Promise((settle) => setTimeout(settle, STYLESHEET_WAIT_MS)),
+])
 
 // What two values of a field are compared as. The database gives a coordinate as a number and a field gives text once it is typed
 // over; a name can be missing there and empty here; a list of choices (ids) is in the order they were chosen in. None of those is a
@@ -259,18 +245,17 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
     // Prefer the first form field over the close button, unless the dialog asks to start on itself or names where to start.
     const first = typeof initialFocus === 'function' ? initialFocus(el) : null
     const target = first ?? (initialFocus === 'dialog' ? el : el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el)
-    // A field does not take the focus while a stylesheet of the page is still loading: the dialog holds it until the stylesheet has
+    // Nothing in the dialog takes the focus while a stylesheet of the page is still loading: the dialog holds it until the stylesheet has
     // arrived. WebKit gives an element that is put in the page then no box until it arrives, and a field focused without a box tells iOS
     // a font size of 0, so iOS zooms the page in to its limit (5 times) on its top left corner, and the page stays zoomed (the owner's
     // iPhone, 27/10/2026). The map's stylesheet loads that way the first time the point form opens: it comes with the map's own file
-    // (src/admin/views/PointsView.jsx). The focus moves to the field afterwards only if it is still where the dialog left it and the
-    // dialog is the top one (the person may have tapped a field meanwhile, or opened a confirmation).
-    const loading = target.matches('input, select, textarea') ? loadingStylesheets() : []
-    let stopWaiting = null
+    // (src/admin/views/PointsView.jsx). The focus moves on afterwards only if the dialog is still the top one (a dialog that closed is
+    // no longer in the stack) and the focus is still where the dialog left it (the person may have tapped a field meanwhile).
+    const loading = loadingStylesheets()
     if (!loading.length) target.focus()
     else {
       el.focus()
-      stopWaiting = afterStylesheets(loading, () => {
+      stylesheetsSettled(loading).then(() => {
         const active = document.activeElement
         if (modalStack[modalStack.length - 1] === me && (active === el || !el.contains(active))) target.focus()
       })
@@ -297,7 +282,6 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
     }
     document.addEventListener('keydown', onKey)
     return () => {
-      stopWaiting?.()
       document.removeEventListener('keydown', onKey)
       modalStack.splice(modalStack.indexOf(me), 1)
       if (!modalStack.length) document.body.style.overflow = bodyOverflow
