@@ -14,7 +14,7 @@ end-to-end tests use.
 
 | Image | What it shows |
 |---|---|
-| `provider-phone-sign-in.png` | The provider app on a phone: a scan link opens the list of accounts to pick from ("choose your account"), with the link to the tutorial video ("watch the tutorial video (a minute and a half)") above the list and the privacy note on what a scan records below it (the note is cut by the bottom of the screen, as it is on a phone before the person scrolls) |
+| `provider-phone-sign-in.png` | The provider app on a phone: a scan link opens the list of accounts to pick from ("choose your account"), with the committee's entry as a lock in the top bar beside the language and theme buttons, the link to the tutorial video ("watch the tutorial video (a minute and a half)") above the list and the privacy note on what a scan records below it (the note is cut by the bottom of the screen, as it is on a phone before the person scrolls) |
 | `provider-phone-check-in.png` | The same app after signing in: the check-in is recorded |
 | `provider-phone-saved-offline.png` | The same app with no network: the visit is kept on the phone and is sent by itself later |
 | `committee-phone-home.png` | The committee app on a phone: the Home screen, the summary card of the week (the screen that opens first) |
