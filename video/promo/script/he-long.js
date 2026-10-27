@@ -4,6 +4,8 @@
 // composition isolates it. The terms are fixed: always "נותני שירות" (never "ספקים"), and never "free", "you cannot cheat", "working
 // hours", "in real time" or "our AI" (tests/video-promo.test.js holds them). Every caption must get its reading time in its scene.
 export default {
+  // The title card: the short cut's opening question, word for word (he.js)
+  question: 'מי היה היום בבניין?',
   // The opening
   pays: 'הוועד משלם על ניקיון וגינון. ומי בודק שהם הגיעו?',
   sign: 'שלט בכל נקודה. סורקים עם המצלמה, בלי להוריד אפליקציה.',
@@ -42,6 +44,7 @@ export default {
 
 // The keyword of each caption (the same field as he.js): one or two consecutive words of it, exactly as the caption writes them.
 export const keywords = {
+  question: 'מי',
   pays: 'בודק',
   sign: 'סורקים',
   sees: 'רואה',

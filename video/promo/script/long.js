@@ -1,6 +1,6 @@
-// The long promo's scenes: 28 scenes in 68 bars (2:16 at 120 bpm), the script of the topic plan "promo-long" (README, "the recommended
-// script"; decisions D1 to D4 and D7). Plain data, like index.js: video/promo/timing.js plans it (planPromo with this script) and
-// tests/video-promo.test.js holds its rules. The captions are in he-long.js, keyed by scene id.
+// The long promo's scenes: 29 scenes in 69 bars (2:18 at 120 bpm), the script of the topic plan "promo-long" (README, "the recommended
+// script"; decisions D1 to D4 and D7) behind a title card. Plain data, like index.js: video/promo/timing.js plans it (planPromo with this
+// script) and tests/video-promo.test.js holds its rules. The captions are in he-long.js, keyed by scene id.
 //
 // A scene is `{ id, bars, stage, picture, ... }` and may carry, all of them optional:
 // - `then`: a second picture that replaces the first on a beat, `thenBeat` beats after the scene starts (the middle of the scene when
@@ -106,18 +106,24 @@ export const WIDE_ZOOMS = Object.freeze({
 /** @type {readonly LongScene[]} */
 export const LONG_SCENES = Object.freeze(
   [
-    // The opening: money and a provider, the answer within 16 seconds (bars 1 to 8)
-    // A ring on one dot of a whole screen cannot be seen: the scene starts on the rows of the providers (frame 0 is the thumbnail).
+    // The title card (bars 1 and 2): the short cut's opening question alone on the violet ground, without the strip, so that frame 0,
+    // the poster and the thumbnail that a platform takes from frame 0 are the same clean card as the short cut's poster (the owner,
+    // 27/10/2026). Two bars, because one would not give its caption its reading time. The track starts a bar earlier under it (the
+    // render's `--start`), and the camera of the sign has one bar instead of two, so that every scene from the check mark on keeps the
+    // bar of the music it had.
+    { id: 'question', bars: 2, stage: 'opening', picture: 'text' },
+    // The opening: money and a provider, the answer within 16 seconds (bars 3 to 9)
+    // A ring on one dot of a whole screen cannot be seen: the scene starts on the rows of the providers.
     { id: 'pays', bars: 2, stage: 'opening', picture: 'committee-home.png', zoom: [{ box: 'provider-row', beat: 0 }], ring: [{ box: 'empty-day', beat: 0 }] },
-    // The groove of the track enters on bar 5, with the check mark of the scan.
-    { id: 'sign', bars: 3, stage: 'opening', picture: 'camera', then: 'camera-checked', thenBeat: 8 },
+    // The groove of the track enters on bar 6, with the check mark of the scan.
+    { id: 'sign', bars: 2, stage: 'opening', picture: 'camera', then: 'camera-checked', thenBeat: 4 },
     { id: 'sees', bars: 3, stage: 'opening', picture: 'committee-history.png', zoom: [{ box: 'first-row', beat: 1 }] },
-    // The committee prepares (bars 9 to 17)
+    // The committee prepares (bars 10 to 18)
     { id: 'points', bars: 2, stage: 'prepare', picture: 'committee-points.png', zoom: [{ box: 'point-row', beat: 1 }] },
     { id: 'map', bars: 3, stage: 'prepare', picture: 'committee-points-map.png', then: 'committee-print-sign.png', zoom: [{ box: 'pin', beat: 0 }], ring: [{ box: 'circle', beat: 2 }] },
     { id: 'access', bars: 2, stage: 'prepare', picture: 'committee-access.png', zoom: [{ box: 'access-list', beat: 1 }] },
     { id: 'provider', bars: 2, stage: 'prepare', picture: 'committee-providers-password.png', zoom: [{ box: 'password', beat: 0 }], ring: [{ box: 'password', beat: 2 }] },
-    // The providers scan (bars 18 to 37)
+    // The providers scan (bars 19 to 38)
     {
       id: 'signin',
       bars: 2,
@@ -129,7 +135,7 @@ export const LONG_SCENES = Object.freeze(
     },
     { id: 'notice', bars: 2, stage: 'scan', picture: 'provider-list.png', zoom: [{ box: 'privacy', beat: 0 }] },
     { id: 'recorded', bars: 3, stage: 'scan', picture: 'provider-recorded.png', zoom: [{ box: 'verified-line', beat: 1 }], ring: [{ box: 'verified-line', beat: 2 }] },
-    // The track's quiet break (bars 25 and 26) is the lost connection; the groove is back on bar 27, when the visit is sent.
+    // The track's quiet break (bars 26 and 27) is the lost connection; the groove is back on bar 28, when the visit is sent.
     // The sent screen and the home and language screens below show the app's version at their bottom: they are never shown whole.
     {
       id: 'offline',
@@ -175,7 +181,7 @@ export const LONG_SCENES = Object.freeze(
       ],
     },
     { id: 'tutorial', bars: 2, stage: 'scan', picture: 'provider-home.png', zoom: [{ box: 'tutorial-link', beat: 0 }], ring: [{ box: 'tutorial-link', beat: 1 }] },
-    // The committee sees (bars 38 to 57)
+    // The committee sees (bars 39 to 58)
     { id: 'week', bars: 2, stage: 'see', picture: 'committee-home.png', zoom: [{ box: 'week', beat: 1 }] },
     { id: 'counts', bars: 3, stage: 'see', picture: 'committee-home.png', zoom: [{ box: 'provider-row', beat: 0 }], ring: [{ box: 'empty-day', beat: 2 }] },
     {
@@ -211,7 +217,7 @@ export const LONG_SCENES = Object.freeze(
     { id: 'audit', bars: 2, stage: 'see', picture: 'committee-audit.png', zoom: [{ box: 'audit-row', beat: 0 }] },
     // The members' box is most of the screen, so it is zoomed and not ringed (a ring that large points at nothing).
     { id: 'admins', bars: 2, stage: 'see', picture: 'committee-admins.png', zoom: [{ box: 'google-button', beat: 0 }] },
-    // The committee's AI (bars 58 to 61): "read only" for a beat, the drawn chat (decision D8) long enough to read its answer, then back
+    // The committee's AI (bars 59 to 62): "read only" for a beat, the drawn chat (decision D8) long enough to read its answer, then back
     // to the home row that proves it, with its empty day.
     {
       id: 'agent',
@@ -230,7 +236,7 @@ export const LONG_SCENES = Object.freeze(
         { box: 'empty-day', beat: 14 },
       ],
     },
-    // What it takes, and the closing card (bars 62 to 68)
+    // What it takes, and the closing card (bars 63 to 69)
     { id: 'open', bars: 2, stage: 'need', picture: 'text' },
     { id: 'install', bars: 2, stage: 'need', picture: 'text' },
     { id: 'closing', bars: 3, stage: 'need', picture: 'closing' },

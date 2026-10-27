@@ -36,7 +36,7 @@ export const DEFAULT_TEMPO = Object.freeze({ bpm: 120, firstBeat: 0 })
 /**
  * The tempos that the plan accepts at all (a sanity range). The reading rule is stricter and depends on the script: with today's
  * captions, the two-bar scene that holds a caption of eight words cannot be planned above 138 bpm (the whip of its last 8 frames is not reading
- * time), and the long promo's "pays" scene (nine words in two bars) not above 124 bpm.
+ * time), and the long promo's scenes of nine words in two bars ("pays" first, then "sign") not above 124 bpm.
  */
 export const MIN_BPM = 60
 export const MAX_BPM = 200

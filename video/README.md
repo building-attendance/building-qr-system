@@ -75,23 +75,26 @@ whole bars of the music, every cut falls on a beat and the video ends on a bar (
   by git); the render refuses any other path inside the repository. Its page, author and licence are in `ASSETS.md`. The render
   copies it into a staged folder that it deletes at the end.
 - The track now used is "Afrobeat 01" by vjgalaxy (Pixabay): `--bpm 120 --first-beat 0 --start 2.435`, which starts it on its
-  second bar so that the full groove comes in with the scan scene.
+  second bar so that the full groove comes in with the scan scene. The long cut starts it on its first bar (`--start 0.435`), under
+  its title card.
 - A copy of this repository that renders the promo falls under the same Remotion terms as the tutorial (the next section and
   [docs/video.md](../docs/video.md), "The Remotion licence").
 
 ### The long promo
 
-A 2:16 cut of the same promo (68 bars at 120 bpm, `promo/PromoLong.jsx`, its script in `promo/script/long.js` and
+A 2:18 cut of the same promo (69 bars at 120 bpm, `promo/PromoLong.jsx`, its script in `promo/script/long.js` and
 `he-long.js`) shows both sides of the app, end to end, to a committee member who knows nothing about it: what the committee
-prepares, what a service provider does and sees, what the committee sees, its AI, and what it takes. The short cut stays as it
-is: `--cut` is `short` when it is not given.
+prepares, what a service provider does and sees, what the committee sees, its AI, and what it takes. It opens on the short cut's
+question alone on the violet ground, for two bars and without the progress strip, so that its poster and the thumbnail that a
+platform takes from its first frame are the same clean card as the short cut's. The short cut stays as it is: `--cut` is `short`
+when it is not given.
 
 ```
 npm run promo:frames                      # records the screens of both apps, on invented sample data (scripts/promo/)
-node video/promo/render.mjs he --cut long --music <file> --bpm 120 --first-beat 0 --start 2.435
+node video/promo/render.mjs he --cut long --music <file> --bpm 120 --first-beat 0 --start 0.435
 ```
 
-It writes `video/out/promo/promo-long-he.mp4`, `promo-long-he.jpg` (its frame 0, drawn settled for the thumbnail) and, in
+It writes `video/out/promo/promo-long-he.mp4`, `promo-long-he.jpg` (its frame 0, the title card drawn settled for the thumbnail) and, in
 `stills-long/`, one picture per scene and one just before each change of picture. It reads the recorder's pictures and
 `frames.json` from `video/out/promo-frames/he/` and refuses to run, naming `npm run promo:frames`, when a picture, a box or the
 sample counts of the AI scene are missing. A screen is whole for a beat at most, then zoomed (`promo/parts/screens.js` and

@@ -6,7 +6,7 @@
 // zoomed picture never reads as half under the strip). A device (the phone, the
 // computer) is drawn at rest by its scene; the camera is a scale and a shift of that drawing, so the device and its picture move together.
 import { STAGES, STRIP_STAGES } from '../script/index.js'
-import { HEIGHT, WIDTH } from '../timing.js'
+import { HEIGHT, WHIP_FRAMES, WIDTH } from '../timing.js'
 
 /** The caption bar at the bottom of a scene with a picture is this tall, and the progress strip at the top this tall (strip.jsx). */
 export const BAR_HEIGHT = 400
@@ -156,4 +156,17 @@ export function stripStates(stage, strip = STRIP_STAGES, stages = STAGES) {
     const index = stages.indexOf(one)
     return index < at ? 'done' : index === at ? 'lit' : 'dim'
   })
+}
+
+/**
+ * How much of the progress strip shows on `frame`, from 0 to 1. A cut that opens on a text scene (the long cut's title card) opens
+ * without it, so that frame 0, the poster and the thumbnail that a platform takes from it are the card alone: the strip fades in over the
+ * whip that ends that first scene. A cut that opens on a screen shows it from frame 0.
+ * @param {{ scenes: readonly { picture: string, endFrame: number }[] }} plan
+ * @param {number} frame
+ */
+export function stripOpacity(plan, frame) {
+  const first = plan.scenes[0]
+  if (first.picture !== 'text') return 1
+  return Math.min(1, Math.max(0, (frame - (first.endFrame - WHIP_FRAMES)) / WHIP_FRAMES))
 }
