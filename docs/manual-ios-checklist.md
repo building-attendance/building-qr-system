@@ -49,7 +49,9 @@ Mark each item OK or write what you saw. Take a screenshot of anything that look
 10. [ ] Language: Hebrew, English, Russian, Arabic. Right-to-left screens (Hebrew, Arabic) are mirrored, the
     arrows point the right way, and no text is cut off.
 11. [ ] Typing a password: the keyboard does not zoom the page, the password manager offers the saved login, and the
-    show/hide eye works.
+    show/hide eye works. In the committee app, close the app fully, open it again and go straight to Points: New point
+    ("נקודה חדשה") opens its sheet at the page's normal size, not zoomed in on the top corner, and so does a tap on its
+    name field. (The first opening loads the map's stylesheet; a field focused before it arrives zoomed the page 5 times.)
 12. [ ] Committee app (`/admin`) on the phone: it opens on Home ("בית"), and the bar at the bottom floats like a pill
     above the home indicator, with five buttons (Home, History, Points, Providers, More). Only the current one shows its
     name, whole on one line; the others are icons, and VoiceOver reads the name of each. The page fades out behind the
