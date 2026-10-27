@@ -121,6 +121,22 @@ function placePopover(box, anchor) {
 const modalStack = []
 let bodyOverflow = '' // what the page's scroll was before the first dialog locked it
 
+// The longest that a dialog waits for a stylesheet before it puts the focus in its first field anyway (Modal, below). A stylesheet that
+// failed before the dialog opened looks like one that is loading (it has no `sheet`) and sends no more events, so the wait has a limit.
+const STYLESHEET_WAIT_MS = 5000
+
+/** The stylesheets of the page that are still loading: a <link> whose sheet has not arrived. */
+const loadingStylesheets = () => [...document.querySelectorAll('link[rel=stylesheet]')].filter((link) => !link.sheet)
+
+/** Settles once each of `links` has loaded or failed (a link sends one of the two, once), or after STYLESHEET_WAIT_MS, whichever is first. */
+const stylesheetsSettled = (links) => Promise.race([
+  Promise.all(links.map((link) => new Promise((settle) => {
+    link.addEventListener('load', settle)
+    link.addEventListener('error', settle)
+  }))),
+  new Promise((settle) => setTimeout(settle, STYLESHEET_WAIT_MS)),
+])
+
 // What two values of a field are compared as. The database gives a coordinate as a number and a field gives text once it is typed
 // over; a name can be missing there and empty here; a list of choices (ids) is in the order they were chosen in. None of those is a
 // change the person made, so each is written in one way before the comparison. A false, a 0 and a space still differ from nothing.
@@ -228,7 +244,22 @@ export function Modal({ title, onClose, dirty = false, busy = false, question, i
     const items = () => [...el.querySelectorAll(FOCUSABLE)].filter((item) => item.tabIndex >= 0) // what Tab reaches
     // Prefer the first form field over the close button, unless the dialog asks to start on itself or names where to start.
     const first = typeof initialFocus === 'function' ? initialFocus(el) : null
-    ;(first ?? (initialFocus === 'dialog' ? el : el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el)).focus()
+    const target = first ?? (initialFocus === 'dialog' ? el : el.querySelector('input:not([disabled]),select:not([disabled]),textarea:not([disabled])') ?? items()[1] ?? items()[0] ?? el)
+    // Nothing in the dialog takes the focus while a stylesheet of the page is still loading: the dialog holds it until the stylesheet has
+    // arrived. WebKit gives an element that is put in the page then no box until it arrives, and a field focused without a box tells iOS
+    // a font size of 0, so iOS zooms the page in to its limit (5 times) on its top left corner, and the page stays zoomed (the owner's
+    // iPhone, 27/10/2026). The map's stylesheet loads that way the first time the point form opens: it comes with the map's own file
+    // (src/admin/views/PointsView.jsx). The focus moves on afterwards only if the dialog is still the top one (a dialog that closed is
+    // no longer in the stack) and the focus is still where the dialog left it (the person may have tapped a field meanwhile).
+    const loading = loadingStylesheets()
+    if (!loading.length) target.focus()
+    else {
+      el.focus()
+      stylesheetsSettled(loading).then(() => {
+        const active = document.activeElement
+        if (modalStack[modalStack.length - 1] === me && (active === el || !el.contains(active))) target.focus()
+      })
+    }
 
     const onKey = (e) => {
       if (modalStack[modalStack.length - 1] !== me) return
