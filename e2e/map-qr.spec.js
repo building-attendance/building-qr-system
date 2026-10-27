@@ -85,6 +85,60 @@ test('the point form shows the map with the marker and the circle at the point, 
   await expect(dialog).toHaveCount(0)
 })
 
+// The map's stylesheet comes with the map's own file, so it is still loading when the point form is put in the page for the first time.
+// Until it arrives WebKit gives the new elements no box, and a text field that takes the focus without a box tells iOS a font size of 0:
+// iOS then zooms the page in to its limit (5 times) on the top left corner, and the page stays zoomed (the owner's iPhone, 27/10/2026).
+// The browser's own zoom is not something a test can see, so this test holds the stylesheet back and checks what leads to it: the field
+// must not take the focus while the stylesheet loads, and it must not have the focus at a moment it has no box. The box is read by a
+// ResizeObserver, which reports the layout of each rendering update and does not make one (a size read from the page would make WebKit
+// lay the dialog out at once, and hide what is measured). Then the stylesheet arrives and the field gets the focus.
+test('the first opening of the point form focuses the name field only after the map stylesheet has loaded', async ({ page }) => {
+  await stubMapImages(page)
+  let requested
+  const asked = new Promise((resolve) => { requested = resolve })
+  let release
+  const held = new Promise((resolve) => { release = resolve })
+  await page.route(/\/assets\/MapPicker-[^/]+\.css$/, async (route) => {
+    requested()
+    await held
+    await route.continue()
+  })
+  await adminSignIn(page, 'points')
+  // Every size that the name field has at a rendering update, from the moment the dialog is put in the page, and whether it had the focus.
+  await page.evaluate(() => {
+    window.__nameField = []
+    const watch = new MutationObserver(() => {
+      const label = [...document.querySelectorAll('[role="dialog"] label')].find((l) => l.textContent === 'שם הנקודה')
+      if (!label?.control) return
+      const field = label.control
+      new ResizeObserver(([entry]) => {
+        window.__nameField.push({ size: `${entry.contentRect.width}x${entry.contentRect.height}`, focused: document.activeElement === field })
+      }).observe(field)
+      watch.disconnect()
+    })
+    watch.observe(document.body, { childList: true, subtree: true })
+  })
+
+  await page.getByRole('button', { name: 'נקודה חדשה' }).click()
+  await asked
+  const whileLoading = await page.evaluate(() => {
+    const active = document.activeElement
+    return { onDialog: active?.getAttribute('role') === 'dialog', onField: active?.tagName === 'INPUT' }
+  })
+  expect(whileLoading, 'while the stylesheet loads, the dialog holds the focus and no field has it').toEqual({ onDialog: true, onField: false })
+
+  release()
+  const dialog = page.getByRole('dialog', { name: 'נקודה חדשה' })
+  await expect(dialog.getByRole('application', { name: 'מפה לסימון מיקום הנקודה' })).toHaveClass(/leaflet-container/)
+  await expect(dialog.getByLabel('שם הנקודה')).toBeFocused()
+  const sizes = await page.evaluate(() => window.__nameField)
+  expect(sizes.length, 'the name field was measured').toBeGreaterThan(0)
+  expect(sizes.filter((s) => s.focused && s.size === '0x0'), 'the name field never has the focus without a box').toEqual([])
+
+  await dialog.getByRole('button', { name: 'ביטול' }).click()
+  await expect(dialog).toHaveCount(0)
+})
+
 test('the QR dialog draws the QR image of the point as a PNG and shows the address it holds', async ({ page }) => {
   await adminSignIn(page, 'points')
   await chooseFromMenu(lobbyTile(page), 'QR והדפסה')
