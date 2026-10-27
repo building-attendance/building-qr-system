@@ -73,8 +73,9 @@ export const SHORT = Object.freeze({
 })
 
 /**
- * The long promo (2:16, 68 bars at 120 bpm). The groove of the track enters on bar 5, where the check mark of the scan comes in (the
- * impact); the ding is the first beat of the "recorded" screen; the track's quiet break (bars 25 and 26) is the offline scene.
+ * The long promo (2:18, 69 bars at 120 bpm), opening on a title card of two bars. The groove of the track enters on bar 6, where the
+ * check mark of the scan comes in (the impact); the ding is the first beat of the "recorded" screen; the track's quiet break (bars 26
+ * and 27) is the offline scene.
  */
 export const LONG = Object.freeze({
   name: 'long',

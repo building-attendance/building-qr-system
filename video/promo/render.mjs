@@ -4,7 +4,7 @@
 // `--music` is a local .mp3, .wav or .m4a that is never committed (music.js refuses a path inside the repository except under video/out/);
 // `--bpm` and `--first-beat` (the second of the first beat after the start) are required with it and make the plan; `--start` is the second
 // of the file where the music starts (default 0). The track is copied into the staged public folder, faded in and out by music.js.
-// `--cut` is the short promo (34 s, the default, the approved video that does not change) or the long one (2:16, PromoLong.jsx).
+// `--cut` is the short promo (34 s, the default, the approved video that does not change) or the long one (2:18, PromoLong.jsx).
 //
 // Writes video/out/promo/promo-<lang>.mp4 (1080x1920 at 30 fps, H.264 and AAC), promo-<lang>.jpg (the poster) and, in stills/, one picture
 // per scene taken at its last frame (and, for a scene that changes its picture, one just before each change), for looking at each scene,

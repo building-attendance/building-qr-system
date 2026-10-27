@@ -1,6 +1,7 @@
-// The composition of the long promo (1080x1920, 2:16 at 120 bpm): both sides of the app for a committee member who knows nothing about it
+// The composition of the long promo (1080x1920, 2:18 at 120 bpm): both sides of the app for a committee member who knows nothing about it
 // (topic "promo-long", decisions D1 to D4 and D8). It plans the long script (script/long.js) with timing.js and draws each scene with the
-// parts that the short cut shares (parts/), under the progress strip of the four stages, which stays still over the whole track:
+// parts that the short cut shares (parts/), under the progress strip of the four stages, which comes in after the title card and then
+// stays still over the rest of the track:
 // - a recorded screen of either app in the drawn phone, standing under the strip, with its zooms, rings, later pictures and the picture
 //   in picture (parts/screens.js reads them from the plan and from the recorder's frames.json, which render.mjs checks and passes);
 // - the computer's history in a drawn laptop (parts/laptop.jsx), its zoom spanning the filters, then the Excel button;
@@ -8,7 +9,8 @@
 // - the printed sign over the whole picture area, the demo code over the sample point's code (parts/drawn.jsx);
 // - the drawn chat of the committee's AI, made of the sample's own counts (stage.js, agentAnswer), then the home row that proves it;
 // - the text scenes and the closing card of the short cut, the card with the address large and the label of the guide by its code.
-// Frame 0 is drawn settled, its caption whole (the thumbnail). The music and the effect sounds are staged by render.mjs, as for the short cut.
+// Frame 0 is the title card, the short cut's opening question alone on the violet ground, drawn settled with its caption whole (the poster
+// and the thumbnail). The music and the effect sounds are staged by render.mjs, as for the short cut.
 import { useMemo } from 'react'
 import { AbsoluteFill, Html5Audio, Img, Sequence, interpolate, staticFile, useCurrentFrame } from 'remotion'
 import { DRAWN } from '../script/drawn.js'
@@ -20,7 +22,7 @@ import { ClosingScene } from './parts/closing.jsx'
 import { AgentChat, CheckMark, PrintedSign } from './parts/drawn.jsx'
 import { Inset, insetTop } from './parts/inset.jsx'
 import { LAPTOP, LaptopScene } from './parts/laptop.jsx'
-import { STRIP_HEIGHT } from './parts/moves.js'
+import { STRIP_HEIGHT, stripOpacity } from './parts/moves.js'
 import { CROSS_FADE_FRAMES, PhoneScene, SCREEN, signBeat } from './parts/phone.jsx'
 import { Ring } from './parts/ring.jsx'
 import { cameraOf, inDevice, pictureEnd, pictureTimeline, ringsOf } from './parts/screens.js'
@@ -43,11 +45,20 @@ const STRIP_SIZE = 34
 /** The picture in picture leaves this much room above it for the zoomed picture. */
 const INSET_GAP = 24
 
-/** The progress strip, over the whole track and outside the scenes' layers, so that it stays still through the whips: the stage of the scene on screen. */
+/**
+ * The progress strip, over the whole track and outside the scenes' layers, so that it stays still through the whips: the stage of the
+ * scene on screen. It is not on the title card, and fades in over the whip that ends it (moves.js, stripOpacity).
+ */
 function TrackStrip({ plan, lang }) {
   const frame = useCurrentFrame()
+  const opacity = stripOpacity(plan, frame)
+  if (opacity === 0) return null
   const scene = plan.scenes.find((one) => frame < one.endFrame) ?? plan.scenes[plan.scenes.length - 1]
-  return <ProgressStrip stage={scene.stage} labels={LONG_LABELS.stages} lang={lang} size={STRIP_SIZE} />
+  return (
+    <div style={{ opacity }}>
+      <ProgressStrip stage={scene.stage} labels={LONG_LABELS.stages} lang={lang} size={STRIP_SIZE} />
+    </div>
+  )
 }
 
 /** The recorded pictures of a scene in the device, each cross-fading in on its frame over the one before it. */

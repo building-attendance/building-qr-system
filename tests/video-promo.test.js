@@ -72,6 +72,7 @@ import {
   capZoom,
   restView,
   spanRect,
+  stripOpacity,
   stripStates,
   viewAt,
   zoomView,
@@ -411,25 +412,33 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
     return picture
   }
 
-  it('has the 28 scenes of the recommended script in 68 bars, each with a caption and a keyword', () => {
-    expect(ids).toHaveLength(28)
-    expect(new Set(ids).size).toBe(28)
-    expect(LONG.scenes.reduce((sum, scene) => sum + scene.bars, 0)).toBe(68)
-    expect(LONG.scenes.map((scene) => scene.bars)).toEqual([2, 3, 3, 2, 3, 2, 2, 2, 2, 3, 4, 3, 2, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 4, 2, 2, 3])
+  it('has the 28 scenes of the recommended script behind its title card, 29 in 69 bars, each with a caption and a keyword', () => {
+    expect(ids).toHaveLength(29)
+    expect(new Set(ids).size).toBe(29)
+    expect(LONG.scenes.reduce((sum, scene) => sum + scene.bars, 0)).toBe(69)
+    expect(LONG.scenes.map((scene) => scene.bars)).toEqual([2, 2, 2, 3, 2, 3, 2, 2, 2, 2, 3, 4, 3, 2, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 4, 2, 2, 3])
     expect(Object.keys(captions).sort()).toEqual([...ids].sort())
     expect(Object.keys(LONG.keywords.he).sort()).toEqual([...ids].sort())
   })
 
-  it('keeps the first bar of each part of the story where the plan puts it: the groove on bar 5, the quiet break on the offline scene, the AI on bar 58', () => {
+  it("opens on the short cut's question alone for two bars, so that frame 0 (the poster and the thumbnail) is the same clean card", () => {
+    expect(LONG.scenes[0]).toEqual({ id: 'question', bars: 2, stage: 'opening', picture: 'text' })
+    expect(captions.question).toBe(SHORT.scripts.he.question)
+    expect(LONG.keywords.he.question).toBe(SHORT.keywords.he.question)
+  })
+
+  it('keeps the first bar of each part of the story where the plan puts it: the groove on bar 6, the quiet break on the offline scene, the AI on bar 59', () => {
     const startBar = (id) => barsBefore(ids.indexOf(id)) + 1
-    expect(startBar('pays')).toBe(1)
-    expect(startBar('points')).toBe(9) // the committee prepares
-    expect(startBar('signin')).toBe(18) // the providers scan
-    expect(startBar('offline')).toBe(25) // the quiet break of the track is bars 25 and 26 (decision D4)
-    expect(startBar('week')).toBe(38) // the committee sees
-    expect(startBar('agent')).toBe(58)
-    expect(startBar('open')).toBe(62) // what it takes
-    expect(startBar('closing')).toBe(66)
+    expect(startBar('question')).toBe(1) // the title card
+    expect(startBar('pays')).toBe(3)
+    expect(startBar('sign')).toBe(5) // one bar of the camera, then the check mark on bar 6
+    expect(startBar('points')).toBe(10) // the committee prepares
+    expect(startBar('signin')).toBe(19) // the providers scan
+    expect(startBar('offline')).toBe(26) // the quiet break of the track is bars 26 and 27 (decision D4), the track started on its bar 1
+    expect(startBar('week')).toBe(39) // the committee sees
+    expect(startBar('agent')).toBe(59)
+    expect(startBar('open')).toBe(63) // what it takes
+    expect(startBar('closing')).toBe(67)
   })
 
   it('marks every scene with a stage, in order, and labels the four stages of the progress strip', () => {
@@ -518,13 +527,13 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
 describe('planPromo with the long script', () => {
   const plan = planPromo('he', TRACK, LONG)
 
-  it('plans 68 bars in 136 seconds at 120 bpm: 4080 frames, 60 frames a bar, ending on a bar', () => {
-    expect(plan.bars).toBe(68)
-    expect(plan.totalFrames).toBe(4080)
-    expect(plan.totalFrames).toBe(68 * 60)
-    expect(plan.totalFrames).toBe(beatFrame(68 * BEATS_PER_BAR, TRACK))
-    expect(plan.fadeOutFrame).toBe(4080 - Math.round(MUSIC_FADE_OUT_SECONDS * FPS))
-    expect(plan.scenes).toHaveLength(28)
+  it('plans 69 bars in 138 seconds at 120 bpm: 4140 frames, 60 frames a bar, ending on a bar', () => {
+    expect(plan.bars).toBe(69)
+    expect(plan.totalFrames).toBe(4140)
+    expect(plan.totalFrames).toBe(69 * 60)
+    expect(plan.totalFrames).toBe(beatFrame(69 * BEATS_PER_BAR, TRACK))
+    expect(plan.fadeOutFrame).toBe(4140 - Math.round(MUSIC_FADE_OUT_SECONDS * FPS))
+    expect(plan.scenes).toHaveLength(29)
     expect(plan.scenes[0].startFrame).toBe(0)
     plan.scenes.forEach((scene, index) => {
       expect(scene.startFrame, scene.id).toBe(LONG.scenes.slice(0, index).reduce((sum, one) => sum + one.bars, 0) * 60)
@@ -592,24 +601,25 @@ describe('planPromo with the long script', () => {
     expect([languages.picture, languages.then, ...languages.later.map((later) => later.picture)]).toEqual(['provider-home.png', 'provider-lang-en.png', 'provider-lang-ru.png', 'provider-lang-ar.png'])
   })
 
-  it('puts the groove on bar 5 with the check mark, the quiet break on the offline scene and the visit sent on bar 27', () => {
+  it('puts the groove on bar 6 with the check mark, the quiet break on the offline scene and the visit sent on bar 28', () => {
     const sign = plan.scenes.find((scene) => scene.id === 'sign')
     expect(sign.then).toBe('camera-checked')
-    expect(sign.thenFrame).toBe(4 * 60) // bar 5
-    expect(grooveFrame(plan, LONG)).toBe(240)
+    expect(sign.thenFrame).toBe(5 * 60) // bar 6
+    expect(sign.thenFrame - sign.startFrame).toBe(60) // the camera has one bar before the check mark
+    expect(grooveFrame(plan, LONG)).toBe(300)
     const offline = plan.scenes.find((scene) => scene.id === 'offline')
-    expect(offline.startFrame).toBe(24 * 60) // bar 25: the quiet break begins (decision D4)
-    expect(offline.endFrame).toBe(28 * 60) // bar 28 is the last bar of the scene
-    expect(offline.thenFrame).toBe(26 * 60) // bar 27: the groove is back and the visit is sent
+    expect(offline.startFrame).toBe(25 * 60) // bar 26: the quiet break begins (decision D4)
+    expect(offline.endFrame).toBe(29 * 60) // bar 29 is the last bar of the scene
+    expect(offline.thenFrame).toBe(27 * 60) // bar 28: the groove is back and the visit is sent
     expect([offline.picture, offline.then]).toEqual(['provider-queued.png', 'provider-sent.png'])
     // The impact of the short promo is on its own scene, as it was.
     expect(grooveFrame(planPromo('he', TRACK))).toBe(240)
   })
 
-  it('plans a whoosh before every scene, the impact on bar 5, the ding when the recorded screen appears, none in the fade out', () => {
+  it('plans a whoosh before every scene, the impact on bar 6, the ding when the recorded screen appears, none in the fade out', () => {
     const cues = soundCues(plan, LONG)
     expect(cues.filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)).toEqual(plan.scenes.slice(1).map((scene) => scene.startFrame))
-    expect(cues.filter((cue) => cue.kind === 'impact').map((cue) => cue.hit)).toEqual([240])
+    expect(cues.filter((cue) => cue.kind === 'impact').map((cue) => cue.hit)).toEqual([300])
     expect(cues.filter((cue) => cue.kind === 'ding').map((cue) => cue.hit)).toEqual([plan.scenes.find((scene) => scene.id === 'recorded').startFrame])
     expect(plan.scenes.find((scene) => scene.id === 'recorded').picture).toBe('provider-recorded.png')
     for (const cue of cues) {
@@ -617,10 +627,10 @@ describe('planPromo with the long script', () => {
       expect(cue.frame).toBeGreaterThanOrEqual(0)
       expect(cue.frame + cue.frames, `${cue.kind} at ${cue.hit} plays into the fade out`).toBeLessThanOrEqual(plan.fadeOutFrame)
     }
-    expect(burstFrame(plan, TRACK)).toBe(67 * 60)
+    expect(burstFrame(plan, TRACK)).toBe(68 * 60)
   })
 
-  it('is readable up to 124 bpm and refuses 125 bpm naming the nine-word opening scene', () => {
+  it('is readable up to 124 bpm and refuses 125 bpm naming the first scene of nine words in two bars', () => {
     expect(() => planPromo('he', { bpm: 124, firstBeat: 0 }, LONG)).not.toThrow()
     expect(() => planPromo('he', { bpm: 125, firstBeat: 0 }, LONG)).toThrow(/scene "pays".*before it slides out/)
   })
@@ -816,6 +826,18 @@ describe('the camera of the zoom and the progress strip (video/promo/parts/moves
     expect(stripStates('need')).toEqual(['done', 'done', 'done', 'lit'])
     expect(() => stripStates('closing')).toThrow(/"closing"/)
   })
+
+  it('leaves the strip off the title card and fades it in over the whip that ends the card, and shows it from frame 0 on a cut that opens on a screen', () => {
+    const plan = planPromo('he', TRACK, LONG)
+    const card = plan.scenes[0]
+    expect(card.picture).toBe('text')
+    expect(stripOpacity(plan, 0)).toBe(0)
+    expect(stripOpacity(plan, card.endFrame - WHIP_FRAMES)).toBe(0)
+    expect(stripOpacity(plan, card.endFrame - WHIP_FRAMES / 2)).toBe(0.5)
+    expect(stripOpacity(plan, card.endFrame)).toBe(1)
+    expect(stripOpacity(plan, plan.totalFrames - 1)).toBe(1)
+    expect(stripOpacity(planPromo('he', TRACK, { ...LONG, scenes: LONG.scenes.slice(1) }), 0)).toBe(1)
+  })
 })
 
 describe('the showcase of the parts (video/promo/parts/showcase.js)', () => {
@@ -918,8 +940,10 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
     expect(() => cameraOf({ ...map, zoom: [{ box: 'qr', frame: map.thenFrame }] }, f)).toThrow(/does not show/)
     expect(() => cameraOf({ ...map, then: 'computer-history.png' }, f)).toThrow(/different sizes/)
     expect(cameraOf(scene('closing'), f)).toBeNull()
-    // A ring on the first beat starts with its scene: the thumbnail (frame 0) has it whole when the track's first beat is late.
-    const late = planPromo('he', { bpm: 120, firstBeat: 0.4 }, LONG).scenes[0]
+    // A ring on the first beat starts with its scene: a cut that opens on a screen with a ring (the long cut without its title card)
+    // has it whole on frame 0 when the track's first beat is late.
+    const late = planPromo('he', { bpm: 120, firstBeat: 0.4 }, { ...LONG, scenes: LONG.scenes.slice(1) }).scenes[0]
+    expect(late.id).toBe('pays')
     expect(late.ring[0].frame).toBe(12)
     expect(ringsOf(late, f)[0].frame).toBe(0)
   })

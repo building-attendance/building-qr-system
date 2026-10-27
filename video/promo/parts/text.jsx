@@ -1,5 +1,5 @@
-// The text scene: the caption alone on the violet ground, which brightens and grows a little on every bar line (W2). Moved from Promo.jsx
-// without a change.
+// The text scene: the caption alone on the violet ground, which brightens and grows a little on every bar line (W2). Moved from Promo.jsx;
+// on the settled frame 0 of the clock (clock.jsx, the long cut's title card) it is drawn at rest, without the pulse, as the phone is.
 import { AbsoluteFill } from 'remotion'
 import { COLORS } from '../../src/theme.js'
 import { PULSE, pulseAt } from '../timing.js'
@@ -7,8 +7,8 @@ import { Caption, captionSize } from './caption.jsx'
 import { GROUND, Glow, useClock } from './clock.jsx'
 
 export function TextScene({ scene, lang, keyword }) {
-  const { global, tempo } = useClock()
-  const pulse = pulseAt(global, tempo)
+  const { global, tempo, settled } = useClock()
+  const pulse = settled ? 0 : pulseAt(global, tempo)
   return (
     <AbsoluteFill style={{ background: GROUND, alignItems: 'center', justifyContent: 'center', padding: '0 96px' }}>
       <Glow amount={PULSE.text * pulse} />
