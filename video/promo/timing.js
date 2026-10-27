@@ -6,6 +6,7 @@
 // - The beats are computed, never detected (decision D13): beat n is at `firstBeat + n * 60 / bpm` seconds.
 // - Every scene starts and ends on a bar, so every cut falls on the first beat of a bar (the first scene starts at frame 0, which is the
 //   first bar when the first beat is 0). The video ends on a bar, and the music fades out over its last MUSIC_FADE_OUT_SECONDS.
+// - The effects of decision D16 (pulses, whips, the landing of words, the sounds) are placed here too, from the same beats (the last section).
 // - A caption comes in by phrases (cut at `.`, `,`, `?`, `:`), one phrase per beat from the first beat of its scene, all of them by the
 //   middle of the scene. A caption that does not get its reading time at the tempo is refused (decision D9): fix the script, not the time.
 import { SCENES, SCRIPTS } from './script/index.js'
@@ -23,12 +24,18 @@ export const SECONDS_PER_WORD = 0.4
 /** The music fades out over this long before the end of the video (D13). */
 export const MUSIC_FADE_OUT_SECONDS = 1.5
 
+/**
+ * The whip between two scenes lasts this many frames and ends on the bar line, where the new scene's first phrase lands. The scene that goes
+ * out slides and blurs during those frames, so they are not reading time: planPromo counts a caption's time up to where its whip starts.
+ */
+export const WHIP_FRAMES = 8
+
 /** The tempo that plans the video when the track is not known: 120 bpm makes a bar two seconds. */
 export const DEFAULT_TEMPO = Object.freeze({ bpm: 120, firstBeat: 0 })
 
 /**
  * The tempos that the plan accepts at all (a sanity range). The reading rule is stricter and depends on the script: with today's
- * captions, the two-bar scene that holds a caption of eight words cannot be planned above about 150 bpm.
+ * captions, the two-bar scene that holds a caption of eight words cannot be planned above 138 bpm (the whip of its last 8 frames is not reading time).
  */
 export const MIN_BPM = 60
 export const MAX_BPM = 200
@@ -97,7 +104,7 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
   let bar = 0
   /** The beats (counted from the first beat) where the picture changes, with the scene each belongs to. */
   const cuts = []
-  const scenes = SCENES.map((scene) => {
+  const scenes = SCENES.map((scene, index) => {
     const caption = captions[scene.id]
     if (typeof caption !== 'string' || !caption.trim()) throw new Error(`Scene "${scene.id}" has no caption in "${lang}".`)
     const startBeat = bar * BEATS_PER_BAR
@@ -114,10 +121,12 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
     const phrases = texts.map((text, index) => ({ text, frame: beatFrame(startBeat + index, tempo) }))
 
     const needed = readingSeconds(caption)
-    const available = (endFrame - phrases[0].frame) / FPS
+    // A scene that another follows slides out during its last WHIP_FRAMES frames: the caption cannot be read then.
+    const readableUntil = index < SCENES.length - 1 ? endFrame - WHIP_FRAMES : endFrame
+    const available = (readableUntil - phrases[0].frame) / FPS
     if (available < needed) {
       throw new Error(
-        `The caption of scene "${scene.id}" needs ${needed.toFixed(2)} s to be read, and its scene of ${scene.bars} bars gives it ${available.toFixed(2)} s at ${tempo.bpm} bpm.`,
+        `The caption of scene "${scene.id}" needs ${needed.toFixed(2)} s to be read, and its scene of ${scene.bars} bars gives it ${available.toFixed(2)} s before it slides out at ${tempo.bpm} bpm.`,
       )
     }
 
@@ -140,3 +149,114 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
   const totalFrames = scenes[scenes.length - 1].endFrame
   return { scenes, totalFrames, fadeOutFrame: totalFrames - Math.round(MUSIC_FADE_OUT_SECONDS * FPS), bars: bar }
 }
+
+// ---- The effects of decision D16 (W1 to W6): every one of them is placed by these functions, on a beat of the plan. ----
+
+/** The scene where the groove of the track enters (frame 240 at 120 bpm): it gets the big punch and the impact sound. */
+export const GROOVE_SCENE = 'scan'
+
+/**
+ * How strong the pulses are. `ground` is the share of white laid over the ground at the first frame of a bar (it fades over the beat),
+ * `text` the same over the ground of a text scene, which is kept small so that the words stay AA on it (the test holds the contrast),
+ * `phone` how much the phone grows, and the `punch` values are the bigger hit on the first beat of the groove (they fade over two beats).
+ */
+export const PULSE = Object.freeze({ ground: 0.1, text: 0.04, phone: 0.02, punchGround: 0.22, punchPhone: 0.06 })
+
+/**
+ * The gain of the whole mix, the track and the effect sounds alike (the effects keep their balance under the music): the track alone peaks
+ * at +0.2 dBFS (true peak) and is -13.8 LUFS, so the mix is brought down by 2.5 dB to peak under -1 dBFS, the ceiling for a published
+ * video. It is applied in Promo.jsx, on top of the fades of fade.js (`volumeAt`), which stay as they were.
+ */
+export const MIX_GAIN = 0.75
+
+/** The frames of a beat (a whole number, for effects that last "a beat"). */
+export const beatFrames = (tempo = DEFAULT_TEMPO) => Math.round((FPS * 60) / tempo.bpm)
+
+/**
+ * The bar that a frame is in and the frames since its first beat, or null before the first bar.
+ * @param {number} frame
+ * @param {{ bpm: number, firstBeat: number }} tempo
+ */
+export function barPhase(frame, tempo = DEFAULT_TEMPO) {
+  let bar = Math.floor((frame / FPS - tempo.firstBeat) / ((BEATS_PER_BAR * 60) / tempo.bpm))
+  while (bar >= 0 && beatFrame(bar * BEATS_PER_BAR, tempo) > frame) bar -= 1
+  while (beatFrame((bar + 1) * BEATS_PER_BAR, tempo) <= frame) bar += 1
+  return bar < 0 ? null : { bar, since: frame - beatFrame(bar * BEATS_PER_BAR, tempo) }
+}
+
+/** The pulse of the bar line, from 1 on its first frame down to 0 a beat later (it falls fast, then slowly). */
+export function pulseAt(frame, tempo = DEFAULT_TEMPO) {
+  const phase = barPhase(frame, tempo)
+  const beat = beatFrames(tempo)
+  return phase && phase.since < beat ? (1 - phase.since / beat) ** 2 : 0
+}
+
+/** The bigger hit that starts at `hitFrame`: 1 on its first frame, 0 two beats later. */
+export function punchAt(frame, hitFrame, tempo = DEFAULT_TEMPO) {
+  const since = frame - hitFrame
+  const length = 2 * beatFrames(tempo)
+  return since >= 0 && since < length ? (1 - since / length) ** 2 : 0
+}
+
+/**
+ * The frames where the words of a phrase land (W1): the first on the phrase's beat, the others spread over the same beat, a half beat
+ * apart at the most (so two words land on the beat and the half beat, and a longer phrase lands in quicker steps inside its beat, never
+ * on the next phrase's).
+ * @param {number} phraseFrame the frame of the phrase (a beat of the plan)
+ * @param {number} count the words of the phrase
+ */
+export function wordFrames(phraseFrame, count, tempo = DEFAULT_TEMPO) {
+  const beat = beatFrames(tempo)
+  const step = Math.min(Math.round(beat / 2), Math.floor(beat / Math.max(2, count)))
+  return Array.from({ length: count }, (_, index) => phraseFrame + index * step)
+}
+
+/**
+ * Where a keyword sits in a caption: the index of its first word among the caption's words and its word count, or null when the keyword is
+ * not whole consecutive words of the caption (or is empty, or longer than two words).
+ * @param {string} caption
+ * @param {string} keyword
+ */
+export function keywordRange(caption, keyword) {
+  const words = String(caption).split(/\s+/).filter(Boolean)
+  const wanted = String(keyword ?? '').split(/\s+/).filter(Boolean)
+  if (wanted.length < 1 || wanted.length > 2) return null
+  for (let start = 0; start + wanted.length <= words.length; start += 1) {
+    if (wanted.every((word, offset) => words[start + offset] === word)) return { start, count: wanted.length }
+  }
+  return null
+}
+
+/**
+ * The sounds of W5, made from code at every render by make-sounds.mjs (their length is `seconds`), and how loud each plays under the music.
+ * The whoosh swells for the length of the whip and is loudest at its end, so it starts one whip before the bar line.
+ */
+export const SOUNDS = Object.freeze({
+  whoosh: Object.freeze({ file: 'whoosh.wav', seconds: 0.5, volume: 0.5 }),
+  impact: Object.freeze({ file: 'impact.wav', seconds: 1.1, volume: 0.35 }),
+  ding: Object.freeze({ file: 'ding.wav', seconds: 0.8, volume: 0.35 }),
+})
+
+/**
+ * When each sound plays: `frame` is where its file starts, `hit` the frame where it lands (a beat of the plan), `frames` how long it plays.
+ * A whoosh at every bar line between scenes, the impact on the first beat of the groove, the ding when the check-in screen appears.
+ * @param {ReturnType<typeof planPromo>} plan
+ */
+export function soundCues(plan) {
+  const cues = []
+  const add = (kind, hit, lead = 0) => {
+    const { file, seconds, volume } = SOUNDS[kind]
+    cues.push({ kind, file, frame: hit - lead, hit, frames: Math.ceil(seconds * FPS), volume })
+  }
+  for (const [index, scene] of plan.scenes.entries()) {
+    if (index > 0) add('whoosh', scene.startFrame, WHIP_FRAMES)
+    if (scene.id === GROOVE_SCENE) {
+      add('impact', scene.startFrame)
+      if (scene.thenFrame != null) add('ding', scene.thenFrame)
+    }
+  }
+  return cues
+}
+
+/** The first beat of the last bar: the closing card's burst of confetti and the pop of its QR tile. */
+export const burstFrame = (plan, tempo = DEFAULT_TEMPO) => beatFrame((plan.bars - 1) * BEATS_PER_BAR, tempo)

@@ -8,10 +8,18 @@
 // - `picture` is what the scene shows first: a file name of docs/screenshots/, 'camera' (the drawn sign and camera scene), 'text'
 //   (words on the violet ground) or 'closing' (the card with the repository's address and its QR code). `then` is an optional second
 //   screenshot that replaces the first at the middle of the scene (timing.js plans that cut, on a beat).
-import he from './he.js'
+import he, { keywords as heKeywords } from './he.js'
 
 /** The captions of each language, keyed by scene id. A new language is a file next to he.js and a line here. */
 export const SCRIPTS = Object.freeze({ he: Object.freeze(he) })
+
+/**
+ * The keyword of each caption, keyed like SCRIPTS: one or two consecutive words of the caption, as plain text (decision D16, W1). It is
+ * drawn in KEYWORD_COLOR, which must pass AA (4.5:1) on both backgrounds a caption sits on: the lightest point of the violet ground of
+ * the text scenes (with the brightest pulse of the ground over it, see PULSE in timing.js) and the dark caption bar (the test holds it).
+ */
+export const KEYWORDS = Object.freeze({ he: Object.freeze(heKeywords) })
+export const KEYWORD_COLOR = '#ffec8a'
 
 /** The languages of the video, the first one being the language that the video is made in first. */
 export const LANGUAGES = Object.freeze(Object.keys(SCRIPTS))

@@ -1,4 +1,4 @@
-// Renders the promo video of one language: `node video/promo/render.mjs he`, from the root of the repository, silent at 120 bpm, or with the
+// Renders the promo video of one language: `node video/promo/render.mjs he`, from the root of the repository, at 120 bpm with only the effect sounds, or with the
 // owner's licensed track on its own beat:
 //   node video/promo/render.mjs he --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
 // `--music` is a local .mp3, .wav or .m4a that is never committed (music.js refuses a path inside the repository except under video/out/);
@@ -6,7 +6,8 @@
 // of the file where the music starts (default 0). The track is copied into the staged public folder, faded in and out by music.js.
 //
 // Writes video/out/promo/promo-<lang>.mp4 (1080x1920 at 30 fps, H.264 and AAC), promo-<lang>.jpg (the poster) and, in stills/, one picture
-// per scene taken at its last frame (and, for a scene that changes its picture, one just before the change), for looking at each scene.
+// per scene taken at its last frame (and, for a scene that changes its picture, one just before the change), for looking at each scene,
+// and one per effect (effect-*.jpg). The sounds of the effects (make-sounds.mjs) are made at every render and staged with the pictures.
 // The plan is video/promo/timing.js at the tempo it is given (120 bpm without a track). The pictures that the scenes name are copied from docs/screenshots/
 // into a staged public folder with the drawn sign and the two QR codes (stage.js), which is the only folder the bundle reads.
 //
@@ -20,10 +21,11 @@ import { parseArgs } from 'node:util'
 import { bundle } from '@remotion/bundler'
 import { RenderInternals, renderMedia, renderStill, selectComposition } from '@remotion/renderer'
 import { DEMO_QR } from '../src/timing.js'
-import { checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf } from './music.js'
+import { writeSounds } from './make-sounds.mjs'
+import { checkMusicNotCleared, checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf } from './music.js'
 import { LANGUAGES } from './script/index.js'
 import { REPOSITORY_QR, SIGN, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from './stage.js'
-import { DEFAULT_TEMPO, FPS, HEIGHT, WIDTH, planPromo } from './timing.js'
+import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, HEIGHT, WHIP_FRAMES, WIDTH, burstFrame, planPromo } from './timing.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const videoDir = path.resolve(here, '..')
@@ -101,10 +103,11 @@ const inputProps = {
   bpm: tempo.bpm,
   firstBeat: tempo.firstBeat,
   music: music ? { file: stagedMusicFile(music.path), startFrame: startFrameOf(music.start) } : null,
+  sounds: true, // the effect sounds of make-sounds.mjs, written to the staged folder below
 }
 say(
   `${plan.scenes.length} scenes, ${plan.bars} bars, ${plan.totalFrames} frames, ${(plan.totalFrames / FPS).toFixed(1)} seconds at ${tempo.bpm} bpm ` +
-    (music ? `(music: ${path.basename(music.path)} from ${music.start} s)` : '(silent)'),
+    (music ? `(music: ${path.basename(music.path)} from ${music.start} s)` : '(no music, the effect sounds only)'),
 )
 
 const started = hrtime.bigint()
@@ -116,6 +119,17 @@ const stillsDir = path.join(outDir, 'stills')
 const publicDir = path.join(videoDir, 'out', `.public-promo-${lang}`)
 // The bundle copies the public folder, so it is written here too (not to the system's temp folder) and removed with it: the track is left nowhere.
 const bundleDir = path.join(videoDir, 'out', `.bundle-promo-${lang}`)
+// The render clears the stills folder and the two staged folders and overwrites its two output files, so a track kept in any of them would be
+// deleted before it is copied: refused here, before anything is touched.
+const mp4 = path.join(outDir, `promo-${lang}.mp4`)
+const poster = path.join(outDir, `promo-${lang}.jpg`)
+if (music) {
+  try {
+    checkMusicNotCleared(music.path, [stillsDir, publicDir, bundleDir, mp4, poster])
+  } catch (error) {
+    fail(error.message)
+  }
+}
 const cleanUp = () => {
   rmSync(publicDir, { recursive: true, force: true })
   rmSync(bundleDir, { recursive: true, force: true })
@@ -127,6 +141,7 @@ mkdirSync(publicDir, { recursive: true })
 mkdirSync(stillsDir, { recursive: true })
 for (const file of stagedPictures()) cpSync(path.join(screenshotsDir, file), path.join(publicDir, file))
 if (music) cpSync(music.path, path.join(publicDir, inputProps.music.file)) // the staged folder is removed on exit, so the track stays only where it was
+writeSounds(publicDir) // the whoosh, the impact and the ding: made from code at every render, never committed
 writeFileSync(path.join(publicDir, SIGN.file), signSvg())
 writeFileSync(path.join(publicDir, DEMO_QR.file), await demoQrSvg())
 writeFileSync(path.join(publicDir, REPOSITORY_QR.file), await repositoryQrSvg()) // from the repository's address, at every render
@@ -137,7 +152,6 @@ if (composition.width !== WIDTH || composition.height !== HEIGHT || composition.
   fail(`The composition is ${composition.width}x${composition.height} for ${composition.durationInFrames} frames, not the plan's ${WIDTH}x${HEIGHT} for ${plan.totalFrames}.`)
 }
 
-const mp4 = path.join(outDir, `promo-${lang}.mp4`)
 let lastTenth = -1
 await renderMedia({
   composition,
@@ -146,7 +160,7 @@ await renderMedia({
   codec: 'h264',
   audioCodec: 'aac',
   audioBitrate: '96k',
-  enforceAudioTrack: true, // a silent render still has an audio track, so that every player and every mix treats it the same
+  enforceAudioTrack: true, // a render without music still has an audio track, so that every player and every mix treats it the same
   pixelFormat: 'yuv420p',
   crf: 23, // flat colours and large text: a lower crf than the tutorial's keeps the gradient from banding
   x264Preset: 'slow',
@@ -164,19 +178,36 @@ await renderMedia({
 })
 
 // The poster: the opening question, once its caption is in.
-const poster = path.join(outDir, `promo-${lang}.jpg`)
 await renderStill({ composition, serveUrl, inputProps, frame: plan.scenes[0].phrases[0].frame + 24, imageFormat: 'jpeg', jpegQuality: 90, output: poster, overwrite: true })
 
-// One still per scene at its last frame, and one just before the change of picture of a scene that has two.
+// One still per scene at its last frame before the whip that takes it out (the last scene: its last frame), and one just before the change of
+// picture of a scene that has two.
 const stills = []
 for (const [index, scene] of plan.scenes.entries()) {
   const name = `${String(index + 1).padStart(2, '0')}-${scene.id}`
-  const frames = scene.thenFrame == null ? [[name, scene.endFrame - 1]] : [[`${name}-first`, scene.thenFrame - 1], [name, scene.endFrame - 1]]
+  const settled = scene.endFrame - 1 - (index < plan.scenes.length - 1 ? WHIP_FRAMES : 0)
+  const frames = scene.thenFrame == null ? [[name, settled]] : [[`${name}-first`, scene.thenFrame - 1], [name, settled]]
   for (const [still, frame] of frames) {
     const output = path.join(stillsDir, `${still}.jpg`)
     await renderStill({ composition, serveUrl, inputProps, frame, imageFormat: 'jpeg', jpegQuality: 90, output, overwrite: true })
     stills.push(output)
   }
+}
+
+// One still per effect, for looking at it: the whip halfway, the punch of the groove with the phone still tilted, the phone settling, and the
+// confetti twice (just after the burst and as it falls).
+const groove = plan.scenes.find((scene) => scene.id === GROOVE_SCENE)
+const burst = burstFrame(plan, tempo)
+const effects = [
+  ['whip', plan.scenes[1].endFrame - WHIP_FRAMES / 2],
+  ...[-2, 0, 1, 4, 10].map((after) => [`phone-${groove.startFrame + after}`, groove.startFrame + after]), // the whip's end, the punch, the tilt settling
+  ['confetti-burst', burst + 6],
+  ['confetti-fall', burst + 24],
+]
+for (const [name, frame] of effects) {
+  const output = path.join(stillsDir, `effect-${name}.jpg`)
+  await renderStill({ composition, serveUrl, inputProps, frame, imageFormat: 'jpeg', jpegQuality: 90, output, overwrite: true })
+  stills.push(output)
 }
 
 const bytes = statSync(mp4).size
