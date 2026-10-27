@@ -2,6 +2,7 @@
 // cut falls on a beat, the video ends on a bar, and a tempo or a caption that cannot work is refused with the scene's name. The render
 // itself (a browser, the music) is not run here.
 import { describe, it, expect, afterAll, beforeAll } from 'vitest'
+import crypto from 'node:crypto'
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -119,6 +120,127 @@ describe('the reading time', () => {
     expect(wordsOf('a  b c')).toBe(3)
     expect(readingSeconds('one two')).toBe(2)
     expect(readingSeconds('one two three four five six seven eight')).toBeCloseTo(3.2)
+  })
+})
+
+// The short promo is frozen (decision D7, the owner: "do not touch the current version"): its plan and its sound cues, frame by frame, as
+// they were before the long promo existed. A change here is a change to the approved video; it is never a fix for a failing test.
+const sortedKeys = (value) =>
+  Array.isArray(value)
+    ? value.map(sortedKeys)
+    : value && typeof value === 'object'
+      ? Object.fromEntries(Object.keys(value).sort().map((key) => [key, sortedKeys(value[key])]))
+      : value
+const fingerprintOf = (value) => crypto.createHash('sha256').update(JSON.stringify(sortedKeys(value))).digest('hex').slice(0, 16)
+
+describe('the short promo is frozen (D7)', () => {
+  it('plans exactly the same frames at 120 bpm', () => {
+    expect(planPromo('he', TRACK)).toEqual({
+      scenes: [
+        { id: 'question', picture: 'text', startFrame: 0, endFrame: 120, phrases: [{ text: 'מי היה היום בבניין?', frame: 0 }] },
+        {
+          id: 'providers',
+          picture: 'text',
+          startFrame: 120,
+          endFrame: 240,
+          phrases: [
+            { text: 'ספקים באים והולכים.', frame: 120 },
+            { text: 'ומי רושם?', frame: 135 },
+          ],
+        },
+        {
+          id: 'scan',
+          picture: 'camera',
+          startFrame: 240,
+          endFrame: 420,
+          phrases: [
+            { text: 'סורקים את השלט עם המצלמה.', frame: 240 },
+            { text: 'בלי להוריד אפליקציה.', frame: 255 },
+          ],
+          then: 'provider-phone-check-in.png',
+          thenFrame: 330,
+        },
+        {
+          id: 'offline',
+          picture: 'provider-phone-saved-offline.png',
+          startFrame: 420,
+          endFrame: 540,
+          phrases: [
+            { text: 'גם בלי קליטה:', frame: 420 },
+            { text: 'הנוכחות נשמרת ונשלחת כשהקליטה חוזרת.', frame: 435 },
+          ],
+        },
+        {
+          id: 'committee',
+          picture: 'committee-phone-home.png',
+          startFrame: 540,
+          endFrame: 720,
+          phrases: [
+            { text: 'הוועד רואה מי הגיע,', frame: 540 },
+            { text: 'מתי ולאיזו נקודה.', frame: 555 },
+          ],
+          then: 'committee-phone-history.png',
+          thenFrame: 630,
+        },
+        {
+          id: 'open',
+          picture: 'text',
+          startFrame: 720,
+          endFrame: 840,
+          phrases: [
+            { text: 'קוד פתוח.', frame: 720 },
+            { text: 'עותק משלכם,', frame: 735 },
+            { text: 'והנתונים בחשבונות שלכם.', frame: 750 },
+          ],
+        },
+        { id: 'closing', picture: 'closing', startFrame: 840, endFrame: 1020, phrases: [{ text: 'תעבירו למישהו טכני בבניין.', frame: 840 }] },
+      ],
+      totalFrames: 1020,
+      fadeOutFrame: 975,
+      bars: 17,
+    })
+  })
+
+  it('plays exactly the same sounds at 120 bpm, and bursts on the same frame', () => {
+    const whoosh = (hit) => ({ kind: 'whoosh', file: 'whoosh.wav', frame: hit - 8, hit, frames: 15, volume: 0.5 })
+    expect(soundCues(planPromo('he', TRACK))).toEqual([
+      whoosh(120),
+      whoosh(240),
+      { kind: 'impact', file: 'impact.wav', frame: 240, hit: 240, frames: 33, volume: 0.35 },
+      { kind: 'ding', file: 'ding.wav', frame: 330, hit: 330, frames: 24, volume: 0.35 },
+      whoosh(420),
+      whoosh(540),
+      whoosh(720),
+      whoosh(840),
+    ])
+    expect(burstFrame(planPromo('he', TRACK), TRACK)).toBe(960)
+    expect(GROOVE_SCENE).toBe('scan')
+  })
+
+  it.each([
+    [{ bpm: 100, firstBeat: 0 }, '303a2e9f94817609', '8a98ee7a651c70d1'],
+    [{ bpm: 120, firstBeat: 0 }, '5920d1df8896dab6', 'e6f9efb80fac27c2'],
+    [{ bpm: 122, firstBeat: 0 }, '2f9b8777d80b1b75', '78efc752721d7840'],
+    [{ bpm: 122, firstBeat: 0.265 }, '4e602019439d3698', '3c549ef52a426f05'],
+    [{ bpm: 132, firstBeat: 0 }, '6c1d3c8d0dbb5018', 'a7fd44439397ca18'],
+  ])('plans and sounds the same at %o (fingerprints of the plan and of the cues)', (tempo, planPrint, cuesPrint) => {
+    const plan = planPromo('he', tempo)
+    expect(fingerprintOf(plan)).toBe(planPrint)
+    expect(fingerprintOf(soundCues(plan))).toBe(cuesPrint)
+  })
+
+  it('keeps the scenes, the captions and the keywords of the short script as they were', () => {
+    expect(SCENES.map((scene) => ({ ...scene }))).toEqual([
+      { id: 'question', bars: 2, picture: 'text' },
+      { id: 'providers', bars: 2, picture: 'text' },
+      { id: 'scan', bars: 3, picture: 'camera', then: 'provider-phone-check-in.png' },
+      { id: 'offline', bars: 2, picture: 'provider-phone-saved-offline.png' },
+      { id: 'committee', bars: 3, picture: 'committee-phone-home.png', then: 'committee-phone-history.png' },
+      { id: 'open', bars: 2, picture: 'text' },
+      { id: 'closing', bars: 3, picture: 'closing' },
+    ])
+    expect(KEYWORDS.he).toEqual({ question: 'מי', providers: 'רושם?', scan: 'סורקים', offline: 'בלי קליטה:', committee: 'רואה', open: 'קוד פתוח.', closing: 'טכני' })
+    expect(DRAWN_PICTURES).toEqual(expect.arrayContaining(['camera', 'text', 'closing']))
   })
 })
 
