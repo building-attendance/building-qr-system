@@ -7,24 +7,39 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
+import { PEAK, RATE, makeSounds } from '../video/promo/make-sounds.mjs'
 import { MUSIC_FADE_IN_SECONDS, checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf, volumeAt } from '../video/promo/music.js'
-import { DRAWN_PICTURES, LANGUAGES, REPOSITORY_URL, SCENES, SCRIPTS } from '../video/promo/script/index.js'
+import { DRAWN_PICTURES, KEYWORDS, KEYWORD_COLOR, LANGUAGES, REPOSITORY_URL, SCENES, SCRIPTS } from '../video/promo/script/index.js'
 import {
   BEATS_PER_BAR,
   DEFAULT_TEMPO,
   FPS,
+  GROOVE_SCENE,
   HEIGHT,
   MAX_BPM,
   MIN_BPM,
   MIN_CUT_BEATS,
   MUSIC_FADE_OUT_SECONDS,
+  PULSE,
+  SOUNDS,
+  WHIP_FRAMES,
   WIDTH,
+  barPhase,
   beatFrame,
+  beatFrames,
+  burstFrame,
+  keywordRange,
   phrasesOf,
   planPromo,
+  pulseAt,
+  punchAt,
   readingSeconds,
+  soundCues,
+  wordFrames,
   wordsOf,
 } from '../video/promo/timing.js'
+import { COLORS } from '../video/src/theme.js'
+import { contrastRatio } from '../video/src/timing.js'
 import { REPOSITORY_QR, REPOSITORY_QR_OPTIONS, SIGN, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from '../video/promo/stage.js'
 
 const SCREENSHOTS = fileURLToPath(new URL('../docs/screenshots/', import.meta.url))
@@ -348,5 +363,168 @@ describe('the music (video/promo/music.js)', () => {
     it('ends on a bar: the video is 17 whole bars long, so the fade ends where the next bar would begin', () => {
       expect(plan.totalFrames).toBe(beatFrame(17 * BEATS_PER_BAR, tempo))
     })
+  })
+})
+
+/** The colour a share `amount` of white lays over `color`: what the pulse does to the ground at its first frame. */
+const brightened = (color, amount) =>
+  `#${[1, 3, 5].map((at) => Math.round(parseInt(color.slice(at, at + 2), 16) * (1 - amount) + 255 * amount).toString(16).padStart(2, '0')).join('')}`
+
+describe('the keywords (W1)', () => {
+  it('has one keyword per caption, one or two whole consecutive words of it', () => {
+    for (const lang of LANGUAGES) {
+      expect(Object.keys(KEYWORDS[lang]).sort()).toEqual(SCENES.map((scene) => scene.id).sort())
+      for (const [id, keyword] of Object.entries(KEYWORDS[lang])) {
+        const range = keywordRange(SCRIPTS[lang][id], keyword)
+        expect(range, `${lang}/${id}: "${keyword}" in "${SCRIPTS[lang][id]}"`).not.toBeNull()
+        expect(range.count).toBe(wordsOf(keyword))
+        expect(range.count).toBeLessThanOrEqual(2)
+      }
+    }
+  })
+
+  it('finds whole words only, and refuses a part of a word, a gap, an empty keyword and three words', () => {
+    expect(keywordRange('a b c d', 'b c')).toEqual({ start: 1, count: 2 })
+    expect(keywordRange('a b c d', 'a')).toEqual({ start: 0, count: 1 })
+    expect(keywordRange('aa bb', 'a')).toBeNull()
+    expect(keywordRange('a b c d', 'a c')).toBeNull()
+    expect(keywordRange('a b c d', 'b c d')).toBeNull()
+    expect(keywordRange('a b', '')).toBeNull()
+    expect(keywordRange('a b', undefined)).toBeNull()
+  })
+
+  it('draws the keyword in a colour with AA contrast (4.5:1) on every background it sits on, the brightest pulse included', () => {
+    // The lightest point of the violet ground of the text scenes at the first frame of a pulse; the dark caption bar; the closing card with its pulse.
+    const lightest = brightened(COLORS.groundFrom, PULSE.text)
+    expect(contrastRatio(KEYWORD_COLOR, lightest)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(COLORS.cardText, lightest)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(KEYWORD_COLOR, COLORS.barBackground)).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(KEYWORD_COLOR, brightened(COLORS.card, PULSE.ground))).toBeGreaterThanOrEqual(4.5)
+    expect(contrastRatio(COLORS.cardText, brightened(COLORS.card, PULSE.ground))).toBeGreaterThanOrEqual(4.5)
+  })
+})
+
+describe('the effects are placed on the beats of the plan (D16)', () => {
+  it.each(TEMPOS)('lands every word of a phrase inside its own beat, two words on the beat and the half beat, at %o', (tempo) => {
+    const beat = beatFrames(tempo)
+    const plan = planPromo('he', tempo)
+    for (const scene of plan.scenes) {
+      const middle = (scene.startFrame + scene.endFrame) / 2
+      for (const phrase of scene.phrases) {
+        const words = wordsOf(phrase.text)
+        const frames = wordFrames(phrase.frame, words, tempo)
+        expect(frames, `${scene.id} ${phrase.text}`).toHaveLength(words)
+        expect(frames[0]).toBe(phrase.frame)
+        frames.forEach((frame, n) => {
+          if (n > 0) expect(frame).toBeGreaterThan(frames[n - 1])
+          expect(frame).toBeLessThan(phrase.frame + beat)
+          expect(frame, `${scene.id} ${phrase.text}`).toBeLessThan(middle)
+        })
+        if (words === 2) expect(Math.abs(frames[1] - frames[0] - beat / 2)).toBeLessThanOrEqual(1)
+      }
+    }
+  })
+
+  it.each(TEMPOS)('puts the whip, the punch and the burst on bar lines, and the ding on a beat, at %o', (tempo) => {
+    const plan = planPromo('he', tempo)
+    const groove = plan.scenes.find((scene) => scene.id === GROOVE_SCENE)
+    expect(isBarFrame(groove.startFrame, tempo)).toBe(true)
+    expect(isBarFrame(burstFrame(plan, tempo), tempo)).toBe(true)
+    expect(burstFrame(plan, tempo)).toBe(beatFrame((plan.bars - 1) * BEATS_PER_BAR, tempo))
+    expect(burstFrame(plan, tempo)).toBeGreaterThanOrEqual(plan.scenes[plan.scenes.length - 1].startFrame)
+    for (const scene of plan.scenes.slice(1)) {
+      expect(isBarFrame(scene.startFrame, tempo), scene.id).toBe(true) // the whip ends on this frame
+      expect(scene.startFrame - WHIP_FRAMES, scene.id).toBeGreaterThanOrEqual(0)
+    }
+    expect(isBeatFrame(groove.thenFrame, tempo)).toBe(true)
+  })
+
+  it('at the chosen track, punches on frame 240 (8.0 s), bursts on frame 960 and whips between scenes in 8 frames', () => {
+    const plan = planPromo('he', TRACK)
+    expect(plan.scenes.find((scene) => scene.id === GROOVE_SCENE).startFrame).toBe(240)
+    expect(burstFrame(plan, TRACK)).toBe(960)
+    expect(WHIP_FRAMES).toBe(8)
+  })
+
+  it.each(TEMPOS)('keeps every whip shorter than the two beats between cuts, at %o', (tempo) => {
+    expect(WHIP_FRAMES).toBeLessThan(MIN_CUT_BEATS * beatFrames(tempo))
+  })
+
+  it.each(TEMPOS)('pulses once a bar: 1 on the bar line, falling to 0 a beat later, and never three brightness jumps in one second at %o', (tempo) => {
+    const plan = planPromo('he', tempo)
+    const beat = beatFrames(tempo)
+    const bars = Array.from({ length: plan.bars }, (_, bar) => beatFrame(bar * BEATS_PER_BAR, tempo))
+    for (const frame of bars) {
+      if (frame === 0 && tempo.firstBeat > 0) continue // a lead-in before the first bar line
+      expect(pulseAt(frame, tempo), `bar at ${frame}`).toBe(1)
+      for (let since = 1; since <= beat; since += 1) expect(pulseAt(frame + since, tempo)).toBeLessThan(pulseAt(frame + since - 1, tempo) + 1e-12)
+      expect(pulseAt(frame + beat, tempo)).toBe(0)
+    }
+    for (let frame = 0; frame < plan.totalFrames; frame += 1) {
+      expect(pulseAt(frame, tempo)).toBeGreaterThanOrEqual(0)
+      expect(pulseAt(frame, tempo)).toBeLessThanOrEqual(1)
+    }
+    // A jump is the first frame of a pulse (the punch starts on a bar line too), so these are all the jumps there are.
+    for (const start of bars) expect(bars.filter((frame) => frame >= start && frame < start + FPS).length).toBeLessThanOrEqual(2)
+  })
+
+  it('has no pulse before the first bar line when the first beat is late, and finds the bar of a frame', () => {
+    expect(barPhase(0, { bpm: 120, firstBeat: 0.5 })).toBeNull()
+    expect(pulseAt(0, { bpm: 120, firstBeat: 0.5 })).toBe(0)
+    expect(barPhase(15, { bpm: 120, firstBeat: 0.5 })).toEqual({ bar: 0, since: 0 })
+    expect(barPhase(75, TRACK)).toEqual({ bar: 1, since: 15 })
+  })
+
+  it('punches on the first beat of the groove and fades over two beats', () => {
+    expect(punchAt(240, 240, TRACK)).toBe(1)
+    expect(punchAt(239, 240, TRACK)).toBe(0)
+    expect(punchAt(240 + 30, 240, TRACK)).toBe(0)
+    for (let frame = 241; frame < 270; frame += 1) expect(punchAt(frame, 240, TRACK)).toBeLessThan(punchAt(frame - 1, 240, TRACK))
+    expect(PULSE.punchGround).toBeGreaterThan(PULSE.ground)
+    expect(PULSE.phone).toBe(0.02)
+  })
+
+  it.each(TEMPOS)('plans a whoosh before every scene, the impact on the groove and the ding at the check-in screen, none in the fade out, at %o', (tempo) => {
+    const plan = planPromo('he', tempo)
+    const groove = plan.scenes.find((scene) => scene.id === GROOVE_SCENE)
+    const cues = soundCues(plan)
+    expect(cues.filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)).toEqual(plan.scenes.slice(1).map((scene) => scene.startFrame))
+    expect(cues.filter((cue) => cue.kind === 'impact').map((cue) => cue.hit)).toEqual([groove.startFrame])
+    expect(cues.filter((cue) => cue.kind === 'ding').map((cue) => cue.hit)).toEqual([groove.thenFrame])
+    for (const cue of cues) {
+      expect(isBeatFrame(cue.hit, tempo), `${cue.kind} at ${cue.hit}`).toBe(true)
+      expect(cue.frame).toBeGreaterThanOrEqual(0)
+      expect(cue.frame + cue.frames, `${cue.kind} at ${cue.hit} plays into the fade out`).toBeLessThanOrEqual(plan.fadeOutFrame)
+      expect(cue.frames / FPS).toBeGreaterThanOrEqual(SOUNDS[cue.kind].seconds)
+      expect(cue.volume).toBeLessThan(1)
+    }
+    for (const cue of cues.filter((c) => c.kind === 'whoosh')) expect(cue.hit - cue.frame).toBe(WHIP_FRAMES)
+  })
+})
+
+describe('the sounds of the effects (video/promo/make-sounds.mjs)', () => {
+  const sounds = makeSounds()
+
+  it('makes the same bytes every time, from a fixed seed', () => {
+    const again = makeSounds()
+    for (const kind of Object.keys(SOUNDS)) expect(again[kind].equals(sounds[kind]), kind).toBe(true)
+    expect(sounds.whoosh.equals(sounds.impact)).toBe(false)
+  })
+
+  it.each(Object.keys(SOUNDS))('makes %s a 16-bit mono WAV of the planned length, under full scale and ending in silence', (kind) => {
+    const wav = sounds[kind]
+    const samples = Math.round(RATE * SOUNDS[kind].seconds)
+    expect(wav.toString('latin1', 0, 4)).toBe('RIFF')
+    expect(wav.toString('latin1', 8, 12)).toBe('WAVE')
+    expect(wav.readUInt16LE(22)).toBe(1) // mono
+    expect(wav.readUInt32LE(24)).toBe(RATE)
+    expect(wav.readUInt16LE(34)).toBe(16)
+    expect(wav.readUInt32LE(40)).toBe(samples * 2)
+    expect(wav.length).toBe(44 + samples * 2)
+    let top = 0
+    for (let at = 44; at < wav.length; at += 2) top = Math.max(top, Math.abs(wav.readInt16LE(at)))
+    expect(top).toBeLessThanOrEqual(Math.round(PEAK * 32767))
+    expect(top).toBeGreaterThan(0.7 * PEAK * 32767)
+    expect(wav.readInt16LE(wav.length - 2)).toBe(0)
   })
 })

@@ -18,3 +18,16 @@ export default {
   // 7. The closing card (the repository's address and its QR code)
   closing: 'תעבירו למישהו טכני בבניין.',
 }
+
+// The keyword of each caption (decision D16, W1): one or two consecutive words of it, exactly as the caption writes them (a mark stays with
+// its word), drawn in the accent colour (KEYWORD_COLOR in index.js). tests/video-promo.test.js fails on a keyword that is not whole words
+// of its caption.
+export const keywords = {
+  question: 'מי',
+  providers: 'רושם?',
+  scan: 'סורקים',
+  offline: 'בלי קליטה:',
+  committee: 'רואה',
+  open: 'קוד פתוח.',
+  closing: 'טכני',
+}
