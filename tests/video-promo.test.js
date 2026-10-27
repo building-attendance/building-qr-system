@@ -593,6 +593,11 @@ describe('planPromo with the long script', () => {
     expect(burstFrame(plan, TRACK)).toBe(67 * 60)
   })
 
+  it('is readable up to 124 bpm and refuses 125 bpm naming the nine-word opening scene', () => {
+    expect(() => planPromo('he', { bpm: 124, firstBeat: 0 }, LONG)).not.toThrow()
+    expect(() => planPromo('he', { bpm: 125, firstBeat: 0 }, LONG)).toThrow(/scene "pays".*before it slides out/)
+  })
+
   it('refuses, naming the scene, a picture or a move that falls outside its scene or out of order', () => {
     const base = { id: 'x', bars: 2, stage: 'opening', picture: 'text' }
     const script = (scene) => ({ ...SHORT, scenes: [scene], scripts: { he: { x: 'מילה אחת' } }, sounds: [] })
@@ -605,6 +610,10 @@ describe('planPromo with the long script', () => {
     expect(() => planPromo('he', TRACK, script({ ...base, zoom: [{ box: 'a', beat: 8 }] }))).toThrow(/scene "x"/)
     expect(() => planPromo('he', TRACK, script({ ...base, ring: [{ box: 'a', beat: 3 }, { box: 'b', beat: 3 }] }))).toThrow(/not after/)
     expect(() => planPromo('he', TRACK, script({ ...base, zoom: [{ box: 'a', beat: 0 }], ring: [{ box: 'a', beat: 7 }], inset: { picture: 'c.png', beat: 7 } }))).not.toThrow()
+    // A plan and the sounds of another script (a long plan passed without its script) are refused, not played as silence.
+    expect(() => soundCues(plan)).toThrow(/pass the script that made the plan/)
+    expect(() => soundCues(planPromo('he', TRACK), LONG)).toThrow(/scene "sign"/)
+    expect(() => grooveFrame(plan)).toThrow(/pass the script/)
     // A sound on a second picture that the scene does not have.
     expect(() => soundCues(planPromo('he', TRACK, script(base)), { ...SHORT, sounds: [{ kind: 'ding', scene: 'x', at: 'then' }] })).toThrow(/second picture/)
   })

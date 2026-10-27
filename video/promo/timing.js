@@ -35,7 +35,8 @@ export const DEFAULT_TEMPO = Object.freeze({ bpm: 120, firstBeat: 0 })
 
 /**
  * The tempos that the plan accepts at all (a sanity range). The reading rule is stricter and depends on the script: with today's
- * captions, the two-bar scene that holds a caption of eight words cannot be planned above 138 bpm (the whip of its last 8 frames is not reading time).
+ * captions, the two-bar scene that holds a caption of eight words cannot be planned above 138 bpm (the whip of its last 8 frames is not reading
+ * time), and the long promo's "pays" scene (nine words in two bars) not above 124 bpm.
  */
 export const MIN_BPM = 60
 export const MAX_BPM = 200
@@ -300,6 +301,10 @@ export function soundCues(plan, script = SHORT) {
   const add = (kind, hit, lead = 0) => {
     const { file, seconds, volume } = SOUNDS[kind]
     cues.push({ kind, file, frame: hit - lead, hit, frames: Math.ceil(seconds * FPS), volume })
+  }
+  // A plan made from one script and the sounds of another (a long plan passed without its script) would play nothing: refuse it.
+  for (const sound of script.sounds) {
+    if (!plan.scenes.some((scene) => scene.id === sound.scene)) throw new Error(`The ${sound.kind} of the ${script.name} script is on scene "${sound.scene}", which this plan does not have: pass the script that made the plan.`)
   }
   for (const [index, scene] of plan.scenes.entries()) {
     if (index > 0) add('whoosh', scene.startFrame, WHIP_FRAMES)
