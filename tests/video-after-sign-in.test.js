@@ -80,8 +80,8 @@ describe('the site step', () => {
     const page = fs.readFileSync(path.join(siteDir, 'video', 'he', AFTER_SIGN_IN_DIR, 'index.html'), 'utf8')
     expect(page).toBe(forwardPage('he', SITE))
     const main = fs.readFileSync(path.join(siteDir, 'video', 'he', 'index.html'), 'utf8')
-    expect(main).toBe(playerPage(fs.readFileSync(path.join(root, 'video', 'site', 'player.html'), 'utf8'), 'he', SITE))
-    expect(main).toContain('<source src="../he.mp4" type="video/mp4">')
+    expect(main).toBe(playerPage(fs.readFileSync(path.join(root, 'video', 'site', 'player.html'), 'utf8'), 'he', SITE, COMMIT))
+    expect(main).toContain(`<source src="../he.mp4?v=${COMMIT.slice(0, 12)}" type="video/mp4">`)
     expect(main).not.toContain('#t=')
     // The page it forwards to is where its relative address leads.
     expect(fs.existsSync(path.resolve(path.join(siteDir, 'video', 'he', AFTER_SIGN_IN_DIR), '..', 'index.html'))).toBe(true)

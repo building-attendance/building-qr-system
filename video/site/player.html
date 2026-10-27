@@ -3,6 +3,8 @@
   The player page of the provider tutorial video, one per language, at /video/<lang>/ of the published site. scripts/video/render-all.mjs
   fills the fields in double braces (each value HTML-escaped) and writes it beside the poster, the captions and the manifest. No script at all:
   the policy below lets the page load only its own files, and the preview of a shared link (WhatsApp) reads the Open Graph tags.
+  `{{version}}` is `?v=` and the start of the published commit: GitHub Pages lets a browser keep a file for 10 minutes and Safari keeps a
+  video longer, so each publish asks for its video, poster and captions by an address of their own, and a fresh page never plays a stale copy.
 -->
 <html lang="{{lang}}" dir="{{dir}}">
   <head>
@@ -32,10 +34,10 @@
     <main>
       <h1>{{title}}</h1>
       <p>{{description}}</p>
-      <video controls playsinline preload="metadata" width="{{width}}" height="{{height}}" poster="poster.jpg">
-        <source src="../{{lang}}.mp4" type="video/mp4">
-        <track kind="captions" src="captions.vtt" srclang="{{lang}}" label="{{languageName}}">
-        <a href="../{{lang}}.mp4">{{title}}</a>
+      <video controls playsinline preload="metadata" width="{{width}}" height="{{height}}" poster="poster.jpg{{version}}">
+        <source src="../{{lang}}.mp4{{version}}" type="video/mp4">
+        <track kind="captions" src="captions.vtt{{version}}" srclang="{{lang}}" label="{{languageName}}">
+        <a href="../{{lang}}.mp4{{version}}">{{title}}</a>
       </video>
     </main>
   </body>

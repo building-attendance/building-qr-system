@@ -15,7 +15,7 @@ import { ELEVENLABS_DEFAULTS } from '../scripts/video/voice-providers/elevenlabs
 import {
   PIXEL_THRESHOLD, PUBLISHED_SITE, VIDEO_SOURCES, changedScenes, checkLanguage, compareFrames, main, manifestOf, manifestUrl, siteUrl, sourcesFingerprint, summaryOf,
 } from '../scripts/video/gap.mjs'
-import { buildSite, playerPage, siteOnlyVoice, watchedSite, withoutKey } from '../scripts/video/render-all.mjs'
+import { buildSite, playerPage, siteOnlyVoice, versionQuery, watchedSite, withoutKey } from '../scripts/video/render-all.mjs'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const SITE = 'https://example.github.io/video-test/'
@@ -267,6 +267,24 @@ describe('the published site', () => {
     for (const [, url] of page.matchAll(/(?:src|href|content)="(https?:[^"]*)"/g)) expect(url.startsWith(SITE), url).toBe(true)
     expect(() => playerPage('{{nothing}}', 'he', SITE)).toThrow(/unknown field/)
     expect(playerPage('{{title}}', 'he', 'https://example.github.io/"<x>/')).not.toMatch(/[<>"]x/)
+  })
+
+  it('asks for the video, the poster and the captions of each publish by the start of its commit, so no browser plays a stale copy', () => {
+    const template = fs.readFileSync(path.join(root, 'video', 'site', 'player.html'), 'utf8')
+    const v = `?v=${COMMIT.slice(0, 12)}`
+    expect(versionQuery(COMMIT)).toBe(v)
+    // A local build outside git, or anything that is not a commit, adds nothing.
+    for (const none of [null, '', 'main', 'c'.repeat(39), `${'c'.repeat(39)}"`]) expect(versionQuery(none)).toBe('')
+    const page = playerPage(template, 'he', SITE, COMMIT)
+    expect(page).not.toMatch(/\{\{/)
+    expect(page).toContain(`poster="poster.jpg${v}"`)
+    expect(page).toContain(`<source src="../he.mp4${v}" type="video/mp4">`)
+    expect(page).toContain(`<track kind="captions" src="captions.vtt${v}"`)
+    expect(page).toContain(`<a href="../he.mp4${v}">`)
+    expect(page).toContain(`<meta property="og:image" content="${SITE}video/he/poster.jpg${v}">`)
+    expect(page).toContain(`<meta property="og:video" content="${SITE}video/he.mp4${v}">`)
+    // The page's own files keep their names: only the address that asks for them changes.
+    for (const [, url] of page.matchAll(/(?:src|href|content)="(https?:[^"]*)"/g)) expect(url.startsWith(SITE), url).toBe(true)
   })
 
   it('puts the video, its page, poster, captions, manifest, masked frames and voice where the site and the gap check expect them', () => {

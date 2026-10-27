@@ -206,15 +206,25 @@ export function forwardPage(lang, site) {
 }
 
 /**
+ * What the player page adds to the address of the video, the poster and the captions: `?v=` and the first 12 characters of the published
+ * commit, so that each publish has addresses of its own and a browser's copy of an earlier publish is never played (GitHub Pages lets a
+ * browser keep a file for 10 minutes, and Safari keeps a video longer). Nothing without a commit (a local build outside git).
+ * @param {string | null} commit
+ */
+export const versionQuery = (commit) => (COMMIT.test(commit ?? '') ? `?v=${commit.slice(0, 12)}` : '')
+
+/**
  * The player page of one language: video/site/player.html with its fields filled, each value escaped.
  * @param {string} template
  * @param {string} lang
  * @param {string} site  the address of the published site, with its closing slash
+ * @param {string | null} [commit]  the commit that the site is made of (versionQuery)
  */
-export function playerPage(template, lang, site) {
+export function playerPage(template, lang, site, commit = null) {
   const words = DRAWN[lang]
   const language = LANGS.find((entry) => entry.code === lang)
   if (!words || !language) throw new Error(`The video has no words for the language "${lang}" (video/script/drawn.js, src/i18n/core.js).`)
+  const version = versionQuery(commit)
   const fields = {
     lang,
     dir: language.dir,
@@ -223,8 +233,9 @@ export function playerPage(template, lang, site) {
     description: words.introSubtitle,
     languageName: language.label,
     pageUrl: new URL(`video/${lang}/`, site).href,
-    posterUrl: new URL(`video/${lang}/poster.jpg`, site).href,
-    videoUrl: new URL(`video/${lang}.mp4`, site).href,
+    posterUrl: new URL(`video/${lang}/poster.jpg${version}`, site).href,
+    videoUrl: new URL(`video/${lang}.mp4${version}`, site).href,
+    version,
     width: String(VIDEO_SIZE.width),
     height: String(VIDEO_SIZE.height),
   }
@@ -272,7 +283,7 @@ export function buildSite({ langs, site, commit, sources = null, outRoot = OUT_R
       fs.copyFileSync(need(path.basename(beat.masked)), path.join(pageDir, 'frames', `${beat.id}.masked.png`))
     }
     fs.writeFileSync(path.join(pageDir, 'manifest.json'), `${JSON.stringify(manifest, null, 2)}\n`)
-    fs.writeFileSync(path.join(pageDir, 'index.html'), playerPage(template, lang, site))
+    fs.writeFileSync(path.join(pageDir, 'index.html'), playerPage(template, lang, site, commit))
     fs.mkdirSync(path.join(pageDir, AFTER_SIGN_IN_DIR), { recursive: true })
     fs.writeFileSync(path.join(pageDir, AFTER_SIGN_IN_DIR, 'index.html'), forwardPage(lang, site))
   }
