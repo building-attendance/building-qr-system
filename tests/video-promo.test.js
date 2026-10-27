@@ -10,7 +10,23 @@ import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
 import { PEAK, RATE, makeSounds } from '../video/promo/make-sounds.mjs'
 import { MUSIC_FADE_IN_SECONDS, checkMusicNotCleared, checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf, volumeAt } from '../video/promo/music.js'
-import { DRAWN_PICTURES, KEYWORDS, KEYWORD_COLOR, LANGUAGES, REPOSITORY_URL, SCENES, SCRIPTS } from '../video/promo/script/index.js'
+import {
+  BOXES,
+  DRAWN_PICTURES,
+  KEYWORDS,
+  KEYWORD_COLOR,
+  LANGUAGES,
+  LONG,
+  LONG_LABELS,
+  PROMO_PICTURES,
+  REPOSITORY_URL,
+  SCENES,
+  SCRIPTS,
+  SHORT,
+  STAGES,
+  STRIP_STAGES,
+  agentChat,
+} from '../video/promo/script/index.js'
 import {
   BEATS_PER_BAR,
   DEFAULT_TEMPO,
@@ -30,6 +46,7 @@ import {
   beatFrame,
   beatFrames,
   burstFrame,
+  grooveFrame,
   keywordRange,
   phrasesOf,
   planPromo,
@@ -361,6 +378,235 @@ describe('planPromo', () => {
 
   it('refuses a language that has no script', () => {
     expect(() => planPromo('xx')).toThrow(/"xx"/)
+  })
+})
+
+describe('the long promo script (video/promo/script/long.js, he-long.js)', () => {
+  const ids = LONG.scenes.map((scene) => scene.id)
+  const captions = LONG.scripts.he
+  const barsBefore = (index) => LONG.scenes.slice(0, index).reduce((sum, scene) => sum + scene.bars, 0)
+  /** The picture on screen `beat` beats into a scene. */
+  const pictureAt = (scene, beat) => {
+    let picture = scene.picture
+    if (scene.then && beat >= (scene.thenBeat ?? scene.bars * 2)) picture = scene.then
+    for (const later of scene.later ?? []) if (beat >= later.beat) picture = later.picture
+    return picture
+  }
+
+  it('has the 28 scenes of the recommended script in 68 bars, each with a caption and a keyword', () => {
+    expect(ids).toHaveLength(28)
+    expect(new Set(ids).size).toBe(28)
+    expect(LONG.scenes.reduce((sum, scene) => sum + scene.bars, 0)).toBe(68)
+    expect(LONG.scenes.map((scene) => scene.bars)).toEqual([2, 3, 3, 2, 3, 2, 2, 2, 2, 3, 4, 3, 2, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 4, 2, 2, 3])
+    expect(Object.keys(captions).sort()).toEqual([...ids].sort())
+    expect(Object.keys(LONG.keywords.he).sort()).toEqual([...ids].sort())
+  })
+
+  it('keeps the first bar of each part of the story where the plan puts it: the groove on bar 5, the quiet break on the offline scene, the AI on bar 58', () => {
+    const startBar = (id) => barsBefore(ids.indexOf(id)) + 1
+    expect(startBar('pays')).toBe(1)
+    expect(startBar('points')).toBe(9) // the committee prepares
+    expect(startBar('signin')).toBe(18) // the providers scan
+    expect(startBar('offline')).toBe(25) // the quiet break of the track is bars 25 and 26 (decision D4)
+    expect(startBar('week')).toBe(38) // the committee sees
+    expect(startBar('agent')).toBe(58)
+    expect(startBar('open')).toBe(62) // what it takes
+    expect(startBar('closing')).toBe(66)
+  })
+
+  it('marks every scene with a stage, in order, and labels the four stages of the progress strip', () => {
+    for (const scene of LONG.scenes) expect(STAGES, scene.id).toContain(scene.stage)
+    const order = LONG.scenes.map((scene) => STAGES.indexOf(scene.stage))
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    expect(STRIP_STAGES).toEqual(['prepare', 'scan', 'see', 'need'])
+    for (const stage of STRIP_STAGES) expect(LONG.scenes.some((scene) => scene.stage === stage), stage).toBe(true)
+    expect(Object.keys(LONG_LABELS.stages)).toEqual([...STRIP_STAGES])
+    expect(LONG_LABELS.stages).toEqual({ prepare: 'הוועד מכין', scan: 'נותני השירות סורקים', see: 'הוועד רואה', need: 'מה צריך' })
+  })
+
+  it('names every picture by a recorded screen of the list that the recorder shares, or a drawn one', () => {
+    expect(new Set(PROMO_PICTURES).size).toBe(PROMO_PICTURES.length)
+    for (const name of PROMO_PICTURES) expect(name).toMatch(/^[a-z0-9-]+\.png$/)
+    const used = new Set()
+    for (const scene of LONG.scenes) {
+      const pictures = [scene.picture, scene.then, ...(scene.later ?? []).map((later) => later.picture), scene.inset?.picture].filter(Boolean)
+      for (const picture of pictures) {
+        expect(PROMO_PICTURES.includes(picture) || DRAWN_PICTURES.includes(picture), `${scene.id}: ${picture}`).toBe(true)
+        used.add(picture)
+      }
+    }
+    // The recorder is asked for nothing that no scene shows.
+    for (const name of PROMO_PICTURES) expect(used.has(name), name).toBe(true)
+    for (const drawn of DRAWN_PICTURES) expect(PROMO_PICTURES).not.toContain(drawn)
+  })
+
+  it('zooms and rings only a box that the picture on screen is asked to have, and every box is used', () => {
+    expect(Object.keys(BOXES).every((name) => PROMO_PICTURES.includes(name))).toBe(true)
+    const used = new Set()
+    for (const scene of LONG.scenes) {
+      for (const kind of ['zoom', 'ring']) {
+        for (const { box, beat } of scene[kind] ?? []) {
+          const picture = pictureAt(scene, beat)
+          expect(BOXES[picture], `${scene.id} ${kind} "${box}" on ${picture}`).toContain(box)
+          used.add(`${picture} ${box}`)
+        }
+      }
+    }
+    const listed = Object.entries(BOXES).flatMap(([picture, boxes]) => boxes.map((box) => `${picture} ${box}`))
+    expect([...used].sort()).toEqual(listed.sort())
+  })
+
+  it('writes the captions as plain text: no vowel points, no long dash, at most 11 words, and the fixed terms', () => {
+    for (const [id, caption] of Object.entries(captions)) {
+      expect(caption, id).toBe(caption.trim())
+      expect(caption, id).not.toMatch(/[֑-ׇֽֿׁׂׅׄ]/)
+      expect(caption, id).not.toMatch(/[‒-―]/)
+      expect(wordsOf(caption), id).toBeLessThanOrEqual(11)
+      expect(phrasesOf(caption).join(' '), id).toBe(caption)
+    }
+    const all = Object.values(captions).join(' ')
+    expect(all).not.toMatch(/ספק|חינם|אי אפשר לרמות|שעות עבודה|בזמן אמת|ה-AI שלנו|מוודא|מאמת|אימות/)
+    expect(all).toMatch(/נותן שירות/)
+  })
+
+  it('has one keyword per caption, one or two whole consecutive words of it', () => {
+    for (const [id, keyword] of Object.entries(LONG.keywords.he)) {
+      const range = keywordRange(captions[id], keyword)
+      expect(range, `${id}: "${keyword}" in "${captions[id]}"`).not.toBeNull()
+      expect(range.count).toBe(wordsOf(keyword))
+    }
+  })
+
+  it('draws the AI chat from a question and an answer template whose places are the ones the composition fills', () => {
+    expect(agentChat.question).toMatch(/^לפי ההסכם הניקיון מגיע 5 פעמים בשבוע/)
+    const places = [...agentChat.answer.matchAll(/\{(\w+)\}/g)].map((match) => match[1])
+    expect(places.sort()).toEqual([...agentChat.placeholders].sort())
+    expect(agentChat.answer.replace(/\{\w+\}/g, '')).not.toMatch(/\d{2,}/) // no number is written here: the sample's own numbers fill the places
+    expect(LONG_LABELS.illustration).toBe('המחשה, נתוני דוגמה')
+    expect(LONG_LABELS.guide).toBe('המדריך באנגלית')
+    for (const text of [agentChat.question, agentChat.answer, ...Object.values(LONG_LABELS.stages)]) expect(text).not.toMatch(/[‒-―]/)
+  })
+})
+
+describe('planPromo with the long script', () => {
+  const plan = planPromo('he', TRACK, LONG)
+
+  it('plans 68 bars in 136 seconds at 120 bpm: 4080 frames, 60 frames a bar, ending on a bar', () => {
+    expect(plan.bars).toBe(68)
+    expect(plan.totalFrames).toBe(4080)
+    expect(plan.totalFrames).toBe(68 * 60)
+    expect(plan.totalFrames).toBe(beatFrame(68 * BEATS_PER_BAR, TRACK))
+    expect(plan.fadeOutFrame).toBe(4080 - Math.round(MUSIC_FADE_OUT_SECONDS * FPS))
+    expect(plan.scenes).toHaveLength(28)
+    expect(plan.scenes[0].startFrame).toBe(0)
+    plan.scenes.forEach((scene, index) => {
+      expect(scene.startFrame, scene.id).toBe(LONG.scenes.slice(0, index).reduce((sum, one) => sum + one.bars, 0) * 60)
+      if (index > 0) expect(scene.startFrame).toBe(plan.scenes[index - 1].endFrame)
+    })
+  })
+
+  it('leaves the short promo to the default: no script given is the short script', () => {
+    expect(planPromo('he', TRACK)).toEqual(planPromo('he', TRACK, SHORT))
+    expect(soundCues(planPromo('he', TRACK))).toEqual(soundCues(planPromo('he', TRACK), SHORT))
+  })
+
+  it.each([TRACK, { bpm: 100, firstBeat: 0 }, { bpm: 90, firstBeat: 0 }, { bpm: MIN_BPM, firstBeat: 0 }])(
+    'gives every caption its reading time from its first phrase to the start of its whip, with fewer phrases than half its beats, at %o',
+    (tempo) => {
+      const planned = planPromo('he', tempo, LONG)
+      planned.scenes.forEach((scene, index) => {
+        const caption = LONG.scripts.he[scene.id]
+        const out = scene.endFrame - (index < planned.scenes.length - 1 ? WHIP_FRAMES : 0)
+        expect((out - scene.phrases[0].frame) / FPS, `${scene.id} at ${tempo.bpm} bpm`).toBeGreaterThanOrEqual(readingSeconds(caption))
+        expect(scene.phrases.length, scene.id).toBeLessThan(((LONG.scenes[index].bars * BEATS_PER_BAR) / 2))
+        scene.phrases.forEach((phrase, n) => {
+          expect(isBeatFrame(phrase.frame, tempo), `${scene.id} phrase ${n}`).toBe(true)
+          expect(phrase.frame).toBeLessThan((scene.startFrame + scene.endFrame) / 2)
+        })
+        const last = scene.phrases.at(-1)
+        expect(wordFrames(last.frame, wordsOf(last.text), tempo).at(-1), scene.id).toBeLessThan(out)
+      })
+    },
+  )
+
+  it('starts and ends every scene on a bar, and keeps every cut at least two beats from the last, with at most two in any second', () => {
+    const cuts = plan.scenes.flatMap((scene, index) => [
+      index > 0 ? scene.startFrame : null,
+      scene.thenFrame ?? null,
+      ...(scene.later ?? []).map((later) => later.frame),
+    ]).filter((frame) => frame !== null)
+    for (const scene of plan.scenes) {
+      expect(isBarFrame(scene.startFrame, TRACK), scene.id).toBe(true)
+      expect(isBarFrame(scene.endFrame, TRACK), scene.id).toBe(true)
+    }
+    expect(cuts).toEqual([...cuts].sort((a, b) => a - b))
+    for (let i = 1; i < cuts.length; i += 1) expect(cuts[i] - cuts[i - 1], `cut ${i}`).toBeGreaterThanOrEqual(2 * beatFrames(TRACK))
+    for (const start of cuts) expect(cuts.filter((frame) => frame >= start && frame < start + FPS).length).toBeLessThanOrEqual(2)
+    for (const cut of cuts) expect(isBeatFrame(cut, TRACK)).toBe(true)
+  })
+
+  it('carries the stage, the pictures, the zooms and the rings through as frames on beats, inside their scenes', () => {
+    plan.scenes.forEach((scene, index) => {
+      const source = LONG.scenes[index]
+      expect({ id: scene.id, picture: scene.picture, stage: scene.stage }, scene.id).toEqual({ id: source.id, picture: source.picture, stage: source.stage })
+      expect(scene.then, scene.id).toBe(source.then)
+      const frames = [scene.thenFrame, ...(scene.later ?? []).map((later) => later.frame), ...(scene.zoom ?? []).map((move) => move.frame), ...(scene.ring ?? []).map((move) => move.frame), scene.inset?.frame].filter((frame) => frame != null)
+      for (const frame of frames) {
+        expect(isBeatFrame(frame, TRACK), scene.id).toBe(true)
+        expect(frame, scene.id).toBeGreaterThanOrEqual(scene.startFrame)
+        expect(frame, scene.id).toBeLessThan(scene.endFrame)
+      }
+      if (scene.later) expect(scene.later.map((later) => later.picture)).toEqual(source.later.map((later) => later.picture))
+      if (scene.thenFrame != null) expect(scene.thenFrame, scene.id).toBeGreaterThanOrEqual(scene.phrases.at(-1).frame)
+    })
+    // The four languages swap on every second beat of their scene.
+    const languages = plan.scenes.find((scene) => scene.id === 'languages')
+    expect([languages.thenFrame, ...languages.later.map((later) => later.frame)].map((frame) => frame - languages.startFrame)).toEqual([30, 60, 90])
+    expect([languages.picture, languages.then, ...languages.later.map((later) => later.picture)]).toEqual(['provider-home.png', 'provider-lang-en.png', 'provider-lang-ru.png', 'provider-lang-ar.png'])
+  })
+
+  it('puts the groove on bar 5 with the check mark, the quiet break on the offline scene and the visit sent on bar 27', () => {
+    const sign = plan.scenes.find((scene) => scene.id === 'sign')
+    expect(sign.then).toBe('camera-checked')
+    expect(sign.thenFrame).toBe(4 * 60) // bar 5
+    expect(grooveFrame(plan, LONG)).toBe(240)
+    const offline = plan.scenes.find((scene) => scene.id === 'offline')
+    expect(offline.startFrame).toBe(24 * 60) // bar 25: the quiet break begins (decision D4)
+    expect(offline.endFrame).toBe(28 * 60) // bar 28 is the last bar of the scene
+    expect(offline.thenFrame).toBe(26 * 60) // bar 27: the groove is back and the visit is sent
+    expect([offline.picture, offline.then]).toEqual(['provider-queued.png', 'provider-sent.png'])
+    // The impact of the short promo is on its own scene, as it was.
+    expect(grooveFrame(planPromo('he', TRACK))).toBe(240)
+  })
+
+  it('plans a whoosh before every scene, the impact on bar 5, the ding when the recorded screen appears, none in the fade out', () => {
+    const cues = soundCues(plan, LONG)
+    expect(cues.filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)).toEqual(plan.scenes.slice(1).map((scene) => scene.startFrame))
+    expect(cues.filter((cue) => cue.kind === 'impact').map((cue) => cue.hit)).toEqual([240])
+    expect(cues.filter((cue) => cue.kind === 'ding').map((cue) => cue.hit)).toEqual([plan.scenes.find((scene) => scene.id === 'recorded').startFrame])
+    expect(plan.scenes.find((scene) => scene.id === 'recorded').picture).toBe('provider-recorded.png')
+    for (const cue of cues) {
+      expect(isBeatFrame(cue.hit, TRACK), `${cue.kind} at ${cue.hit}`).toBe(true)
+      expect(cue.frame).toBeGreaterThanOrEqual(0)
+      expect(cue.frame + cue.frames, `${cue.kind} at ${cue.hit} plays into the fade out`).toBeLessThanOrEqual(plan.fadeOutFrame)
+    }
+    expect(burstFrame(plan, TRACK)).toBe(67 * 60)
+  })
+
+  it('refuses, naming the scene, a picture or a move that falls outside its scene or out of order', () => {
+    const base = { id: 'x', bars: 2, stage: 'opening', picture: 'text' }
+    const script = (scene) => ({ ...SHORT, scenes: [scene], scripts: { he: { x: 'מילה אחת' } }, sounds: [] })
+    expect(() => planPromo('he', TRACK, script(base))).not.toThrow()
+    expect(() => planPromo('he', TRACK, script({ ...base, then: 'a.png', thenBeat: 8 }))).toThrow(/scene "x"/)
+    expect(() => planPromo('he', TRACK, script({ ...base, then: 'a.png', thenBeat: 0 }))).toThrow(/scene "x"/)
+    expect(() => planPromo('he', TRACK, script({ ...base, thenBeat: 4 }))).toThrow(/no second picture/)
+    expect(() => planPromo('he', TRACK, script({ ...base, then: 'a.png', thenBeat: 4, later: [{ picture: 'b.png', beat: 4 }] }))).toThrow(/not after/)
+    expect(() => planPromo('he', TRACK, script({ ...base, then: 'a.png', thenBeat: 2, later: [{ picture: 'b.png', beat: 3 }] }))).toThrow(/less than 2 beats/)
+    expect(() => planPromo('he', TRACK, script({ ...base, zoom: [{ box: 'a', beat: 8 }] }))).toThrow(/scene "x"/)
+    expect(() => planPromo('he', TRACK, script({ ...base, ring: [{ box: 'a', beat: 3 }, { box: 'b', beat: 3 }] }))).toThrow(/not after/)
+    expect(() => planPromo('he', TRACK, script({ ...base, zoom: [{ box: 'a', beat: 0 }], ring: [{ box: 'a', beat: 7 }], inset: { picture: 'c.png', beat: 7 } }))).not.toThrow()
+    // A sound on a second picture that the scene does not have.
+    expect(() => soundCues(planPromo('he', TRACK, script(base)), { ...SHORT, sounds: [{ kind: 'ding', scene: 'x', at: 'then' }] })).toThrow(/second picture/)
   })
 })
 

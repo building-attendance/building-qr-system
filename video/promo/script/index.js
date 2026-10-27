@@ -8,7 +8,12 @@
 // - `picture` is what the scene shows first: a file name of docs/screenshots/, 'camera' (the drawn sign and camera scene), 'text'
 //   (words on the violet ground) or 'closing' (the card with the repository's address and its QR code). `then` is an optional second
 //   screenshot that replaces the first at the middle of the scene (timing.js plans that cut, on a beat).
+//
+// The long promo (topic "promo-long") is a second script beside this one, LONG at the end of the file: its scenes are in long.js and its
+// captions in he-long.js. The short script above it does not change (decision D7): planPromo takes a script, and SHORT is its default.
 import he, { keywords as heKeywords } from './he.js'
+import heLong, { keywords as heLongKeywords } from './he-long.js'
+import { LONG_DRAWN_PICTURES, LONG_SCENES } from './long.js'
 
 /** The captions of each language, keyed by scene id. A new language is a file next to he.js and a line here. */
 export const SCRIPTS = Object.freeze({ he: Object.freeze(he) })
@@ -27,8 +32,8 @@ export const LANGUAGES = Object.freeze(Object.keys(SCRIPTS))
 /** The public address that the closing card shows and encodes (a repository, never the live app of a building). */
 export const REPOSITORY_URL = 'https://github.com/building-attendance/building-qr-system'
 
-/** The pictures that are not a file of docs/screenshots/. */
-export const DRAWN_PICTURES = Object.freeze(['camera', 'text', 'closing'])
+/** The pictures that are not a file (docs/screenshots/ for the short promo, the recorder's frames for the long one): drawn by the composition. */
+export const DRAWN_PICTURES = Object.freeze([...new Set(['camera', 'text', 'closing', ...LONG_DRAWN_PICTURES])])
 
 /** @typedef {{ id: string, bars: number, picture: string, then?: string }} Scene */
 
@@ -44,3 +49,40 @@ export const SCENES = Object.freeze(
     { id: 'closing', bars: 3, picture: 'closing' },
   ].map((scene) => Object.freeze(scene)),
 )
+
+export { BOXES, PROMO_PICTURES, STAGES, STRIP_STAGES } from './long.js'
+export { agentChat, labels as LONG_LABELS } from './he-long.js'
+
+/**
+ * A script is what planPromo plans: the scenes, the captions and the keywords of each language, and the sounds that are not the whoosh
+ * of a cut. A sound is `{ kind, scene, at }`: `at` is `start` (the first beat of the scene) or `then` (the beat where its second picture
+ * comes in). timing.js plays the sounds of a scene after its whoosh, in this order.
+ * @typedef {{ name: string, scenes: readonly object[], scripts: Record<string, Record<string, string>>, keywords: Record<string, Record<string, string>>, sounds: readonly { kind: string, scene: string, at: 'start' | 'then' }[] }} PromoScript
+ */
+
+/** The short promo (34 s): the approved video of 27/10/2026, which does not change. The impact is the first beat of the groove, the ding the check-in screen. */
+export const SHORT = Object.freeze({
+  name: 'short',
+  scenes: SCENES,
+  scripts: SCRIPTS,
+  keywords: KEYWORDS,
+  sounds: Object.freeze([
+    Object.freeze({ kind: 'impact', scene: 'scan', at: 'start' }),
+    Object.freeze({ kind: 'ding', scene: 'scan', at: 'then' }),
+  ]),
+})
+
+/**
+ * The long promo (2:16, 68 bars at 120 bpm). The groove of the track enters on bar 5, where the check mark of the scan comes in (the
+ * impact); the ding is the first beat of the "recorded" screen; the track's quiet break (bars 25 and 26) is the offline scene.
+ */
+export const LONG = Object.freeze({
+  name: 'long',
+  scenes: LONG_SCENES,
+  scripts: Object.freeze({ he: Object.freeze(heLong) }),
+  keywords: Object.freeze({ he: Object.freeze(heLongKeywords) }),
+  sounds: Object.freeze([
+    Object.freeze({ kind: 'impact', scene: 'sign', at: 'then' }),
+    Object.freeze({ kind: 'ding', scene: 'recorded', at: 'start' }),
+  ]),
+})
