@@ -64,3 +64,21 @@ export function checkMusicStart(start, trackSeconds, videoSeconds) {
 
 /** The frame of the track where the music starts, as Remotion's `trimBefore` takes it. */
 export const startFrameOf = (startSeconds) => Math.round(startSeconds * FPS)
+
+/**
+ * Refuses a track that sits inside a folder the render clears or overwrites (or is one of the files it writes): the render would delete it
+ * before it copies it. `checkMusicPath` lets video/out/ through, since it is ignored by git, and the render's own folders are in there.
+ * @param {string} file the track (an existing file, as `checkMusicPath` returns it)
+ * @param {string[]} cleared the folders and files that the render clears, deletes or overwrites; they need not exist yet
+ */
+export function checkMusicNotCleared(file, cleared) {
+  const real = realpathSync(path.resolve(file))
+  for (const target of cleared) {
+    const resolved = path.resolve(target)
+    // A folder that exists is compared by its real path, so a link or a different spelling cannot hide the track inside it.
+    const candidates = existsSync(resolved) ? [resolved, realpathSync(resolved)] : [resolved]
+    if (candidates.some((candidate) => inside(candidate, real))) {
+      throw new Error(`The music file "${path.basename(file)}" is inside "${path.basename(resolved)}", which the render clears or overwrites: move the track somewhere else.`)
+    }
+  }
+}

@@ -24,12 +24,18 @@ export const SECONDS_PER_WORD = 0.4
 /** The music fades out over this long before the end of the video (D13). */
 export const MUSIC_FADE_OUT_SECONDS = 1.5
 
+/**
+ * The whip between two scenes lasts this many frames and ends on the bar line, where the new scene's first phrase lands. The scene that goes
+ * out slides and blurs during those frames, so they are not reading time: planPromo counts a caption's time up to where its whip starts.
+ */
+export const WHIP_FRAMES = 8
+
 /** The tempo that plans the video when the track is not known: 120 bpm makes a bar two seconds. */
 export const DEFAULT_TEMPO = Object.freeze({ bpm: 120, firstBeat: 0 })
 
 /**
  * The tempos that the plan accepts at all (a sanity range). The reading rule is stricter and depends on the script: with today's
- * captions, the two-bar scene that holds a caption of eight words cannot be planned above about 150 bpm.
+ * captions, the two-bar scene that holds a caption of eight words cannot be planned above 138 bpm (the whip of its last 8 frames is not reading time).
  */
 export const MIN_BPM = 60
 export const MAX_BPM = 200
@@ -98,7 +104,7 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
   let bar = 0
   /** The beats (counted from the first beat) where the picture changes, with the scene each belongs to. */
   const cuts = []
-  const scenes = SCENES.map((scene) => {
+  const scenes = SCENES.map((scene, index) => {
     const caption = captions[scene.id]
     if (typeof caption !== 'string' || !caption.trim()) throw new Error(`Scene "${scene.id}" has no caption in "${lang}".`)
     const startBeat = bar * BEATS_PER_BAR
@@ -115,10 +121,12 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
     const phrases = texts.map((text, index) => ({ text, frame: beatFrame(startBeat + index, tempo) }))
 
     const needed = readingSeconds(caption)
-    const available = (endFrame - phrases[0].frame) / FPS
+    // A scene that another follows slides out during its last WHIP_FRAMES frames: the caption cannot be read then.
+    const readableUntil = index < SCENES.length - 1 ? endFrame - WHIP_FRAMES : endFrame
+    const available = (readableUntil - phrases[0].frame) / FPS
     if (available < needed) {
       throw new Error(
-        `The caption of scene "${scene.id}" needs ${needed.toFixed(2)} s to be read, and its scene of ${scene.bars} bars gives it ${available.toFixed(2)} s at ${tempo.bpm} bpm.`,
+        `The caption of scene "${scene.id}" needs ${needed.toFixed(2)} s to be read, and its scene of ${scene.bars} bars gives it ${available.toFixed(2)} s before it slides out at ${tempo.bpm} bpm.`,
       )
     }
 
@@ -143,9 +151,6 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
 }
 
 // ---- The effects of decision D16 (W1 to W6): every one of them is placed by these functions, on a beat of the plan. ----
-
-/** The whip between two scenes lasts this many frames and ends on the bar line, where the new scene's first phrase lands. */
-export const WHIP_FRAMES = 8
 
 /** The scene where the groove of the track enters (frame 240 at 120 bpm): it gets the big punch and the impact sound. */
 export const GROOVE_SCENE = 'scan'

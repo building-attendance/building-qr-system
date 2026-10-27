@@ -8,7 +8,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import QRCode from 'qrcode'
 import { PEAK, RATE, makeSounds } from '../video/promo/make-sounds.mjs'
-import { MUSIC_FADE_IN_SECONDS, checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf, volumeAt } from '../video/promo/music.js'
+import { MUSIC_FADE_IN_SECONDS, checkMusicNotCleared, checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf, volumeAt } from '../video/promo/music.js'
 import { DRAWN_PICTURES, KEYWORDS, KEYWORD_COLOR, LANGUAGES, REPOSITORY_URL, SCENES, SCRIPTS } from '../video/promo/script/index.js'
 import {
   BEATS_PER_BAR,
@@ -318,6 +318,30 @@ describe('the music (video/promo/music.js)', () => {
     expect(() => checkMusicPath(path.join(root, 'video', 'out', '..', 'src', 'sneaky.mp3'), root)).toThrow(/inside the repository/)
   })
 
+  it('refuses a track inside a folder or a file that the render clears or overwrites, naming it, and accepts the rest of video/out/ and anywhere outside the repository', () => {
+    const out = path.join(root, 'video', 'out')
+    const cleared = [path.join(out, 'promo', 'stills'), path.join(out, '.public-promo-he'), path.join(out, '.bundle-promo-he'), path.join(out, 'promo', 'promo-he.mp4'), path.join(out, 'promo', 'promo-he.jpg')]
+    for (const [where, name] of [
+      [path.join(out, 'promo', 'stills', 'track.mp3'), 'stills'],
+      [path.join(out, 'promo', 'stills', 'nested', 'track.mp3'), 'stills'],
+      [path.join(out, '.public-promo-he', 'track.mp3'), '.public-promo-he'],
+      [path.join(out, '.bundle-promo-he', 'deep', 'track.mp3'), '.bundle-promo-he'],
+    ]) {
+      const track = touch(where)
+      expect(checkMusicPath(track, root)).toBe(track) // video/out/ passes the first check
+      expect(() => checkMusicNotCleared(track, cleared), where).toThrow(`inside "${name}"`)
+    }
+    // A track that is one of the files the render writes (its extension is the render's own, so it is the function that must refuse it).
+    expect(() => checkMusicNotCleared(touch(path.join(out, 'promo', 'promo-he.mp4')), cleared)).toThrow('inside "promo-he.mp4"')
+    // The folders need not exist yet, and a spelling with .. does not hide the track.
+    expect(() => checkMusicNotCleared(path.join(out, 'promo', 'stills', '..', 'stills', 'track.mp3'), cleared)).toThrow(/stills/)
+    expect(() => checkMusicNotCleared(touch(path.join(out, 'track.mp3')), cleared)).not.toThrow()
+    expect(() => checkMusicNotCleared(touch(path.join(out, 'promo', 'track.mp3')), cleared)).not.toThrow()
+    expect(() => checkMusicNotCleared(touch(path.join(out, 'promo', 'stills-other', 'track.mp3')), cleared)).not.toThrow() // a folder that only starts with the same letters
+    expect(() => checkMusicNotCleared(touch(path.join(outside, 'track.mp3')), cleared)).not.toThrow()
+    expect(() => checkMusicNotCleared(touch(path.join(outside, 'track2.mp3')), [path.join(root, 'nothing-here')])).not.toThrow()
+  })
+
   it('stages the track under a fixed name that keeps its extension', () => {
     expect(stagedMusicFile('C:/anywhere/Minimal House (final).MP3')).toBe('music.mp3')
     expect(stagedMusicFile('a.m4a')).toBe('music.m4a')
@@ -445,6 +469,36 @@ describe('the effects are placed on the beats of the plan (D16)', () => {
     expect(plan.scenes.find((scene) => scene.id === GROOVE_SCENE).startFrame).toBe(240)
     expect(burstFrame(plan, TRACK)).toBe(960)
     expect(WHIP_FRAMES).toBe(8)
+  })
+
+  it('refuses, naming the scene, a tempo at which a caption is readable only while its scene slides out, such as 150 bpm for the offline caption', () => {
+    expect(() => planPromo('he', { bpm: 150, firstBeat: 0 })).toThrow(/scene "offline".*before it slides out/)
+    expect(() => planPromo('he', TRACK)).not.toThrow() // the chosen track
+    expect(planPromo('he', TRACK).totalFrames).toBe(1020)
+  })
+
+  it('gives every caption its reading time before its whip at every tempo the plan accepts, up to the highest', () => {
+    const accepted = []
+    for (let bpm = MIN_BPM; bpm <= MAX_BPM; bpm += 1) {
+      try {
+        planPromo('he', { bpm, firstBeat: 0 })
+        accepted.push(bpm)
+      } catch (error) {
+        expect(error.message, `${bpm} bpm`).toMatch(/needs .* to be read/)
+      }
+    }
+    expect(accepted).toContain(120)
+    expect(accepted).not.toContain(150)
+    expect(accepted.at(-1)).toBeLessThan(150)
+    for (const bpm of [accepted.at(-1), 120, MIN_BPM]) {
+      const tempo = { bpm, firstBeat: 0 }
+      const plan = planPromo('he', tempo)
+      plan.scenes.forEach((scene, index) => {
+        const out = scene.endFrame - (index < plan.scenes.length - 1 ? WHIP_FRAMES : 0)
+        const caption = scene.phrases.map((phrase) => phrase.text).join(' ')
+        expect((out - scene.phrases[0].frame) / FPS, `${scene.id} at ${bpm} bpm`).toBeGreaterThanOrEqual(readingSeconds(caption))
+      })
+    }
   })
 
   it.each(TEMPOS)('still gives every caption its reading time when the whip takes the last 8 frames of its scene and its last word lands a beat late, at %o', (tempo) => {

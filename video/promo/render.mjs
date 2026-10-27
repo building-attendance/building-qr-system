@@ -22,7 +22,7 @@ import { bundle } from '@remotion/bundler'
 import { RenderInternals, renderMedia, renderStill, selectComposition } from '@remotion/renderer'
 import { DEMO_QR } from '../src/timing.js'
 import { writeSounds } from './make-sounds.mjs'
-import { checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf } from './music.js'
+import { checkMusicNotCleared, checkMusicPath, checkMusicStart, stagedMusicFile, startFrameOf } from './music.js'
 import { LANGUAGES } from './script/index.js'
 import { REPOSITORY_QR, SIGN, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from './stage.js'
 import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, HEIGHT, WHIP_FRAMES, WIDTH, burstFrame, planPromo } from './timing.js'
@@ -119,6 +119,17 @@ const stillsDir = path.join(outDir, 'stills')
 const publicDir = path.join(videoDir, 'out', `.public-promo-${lang}`)
 // The bundle copies the public folder, so it is written here too (not to the system's temp folder) and removed with it: the track is left nowhere.
 const bundleDir = path.join(videoDir, 'out', `.bundle-promo-${lang}`)
+// The render clears the stills folder and the two staged folders and overwrites its two output files, so a track kept in any of them would be
+// deleted before it is copied: refused here, before anything is touched.
+const mp4 = path.join(outDir, `promo-${lang}.mp4`)
+const poster = path.join(outDir, `promo-${lang}.jpg`)
+if (music) {
+  try {
+    checkMusicNotCleared(music.path, [stillsDir, publicDir, bundleDir, mp4, poster])
+  } catch (error) {
+    fail(error.message)
+  }
+}
 const cleanUp = () => {
   rmSync(publicDir, { recursive: true, force: true })
   rmSync(bundleDir, { recursive: true, force: true })
@@ -141,7 +152,6 @@ if (composition.width !== WIDTH || composition.height !== HEIGHT || composition.
   fail(`The composition is ${composition.width}x${composition.height} for ${composition.durationInFrames} frames, not the plan's ${WIDTH}x${HEIGHT} for ${plan.totalFrames}.`)
 }
 
-const mp4 = path.join(outDir, `promo-${lang}.mp4`)
 let lastTenth = -1
 await renderMedia({
   composition,
@@ -168,7 +178,6 @@ await renderMedia({
 })
 
 // The poster: the opening question, once its caption is in.
-const poster = path.join(outDir, `promo-${lang}.jpg`)
 await renderStill({ composition, serveUrl, inputProps, frame: plan.scenes[0].phrases[0].frame + 24, imageFormat: 'jpeg', jpegQuality: 90, output: poster, overwrite: true })
 
 // One still per scene at its last frame before the whip that takes it out (the last scene: its last frame), and one just before the change of
