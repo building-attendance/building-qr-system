@@ -191,8 +191,7 @@ const groove = plan.scenes.find((scene) => scene.id === GROOVE_SCENE)
 const burst = burstFrame(plan, tempo)
 const effects = [
   ['whip', plan.scenes[1].endFrame - WHIP_FRAMES / 2],
-  ['punch-and-tilt', groove.startFrame + 1],
-  ['tilt-settling', groove.startFrame + 6],
+  ...[-2, 0, 1, 4, 10].map((after) => [`phone-${groove.startFrame + after}`, groove.startFrame + after]), // the whip's end, the punch, the tilt settling
   ['confetti-burst', burst + 6],
   ['confetti-fall', burst + 24],
 ]

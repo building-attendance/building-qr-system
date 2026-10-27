@@ -22,7 +22,7 @@ import { LAYOUT, isRtl } from '../src/timing.js'
 import { volumeAt } from './fade.js'
 import { KEYWORDS, KEYWORD_COLOR, REPOSITORY_URL } from './script/index.js'
 import { REPOSITORY_QR, SIGN } from './stage.js'
-import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, HEIGHT, PULSE, WHIP_FRAMES, WIDTH, beatFrames, burstFrame, keywordRange, planPromo, pulseAt, punchAt, soundCues, wordFrames } from './timing.js'
+import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, HEIGHT, MIX_GAIN, PULSE, WHIP_FRAMES, WIDTH, beatFrames, burstFrame, keywordRange, planPromo, pulseAt, punchAt, soundCues, wordFrames } from './timing.js'
 
 export const PROMO = Object.freeze({ id: 'Promo', fps: FPS, width: WIDTH, height: HEIGHT })
 
@@ -165,9 +165,13 @@ function PhoneScene({ scene, lang, strings, keyword }) {
   // The tilt starts on the bar line, as the whip ends (until then the phone is tilted), and takes a beat; the spring overshoots a little past flat. Then the slow push-in.
   const landed = spring({ frame: Math.max(0, frame), fps: FPS, durationInFrames: beatFrames(tempo), config: { damping: 11, stiffness: 120, mass: 0.9 } })
   const push = interpolate(frame, [0, scene.endFrame - scene.startFrame], [1, PUSH_TO], clamp)
-  const grow = push * (1 + PULSE.phone * pulse + PULSE.punchPhone * punch)
+  // Two layers, so that the phone stays in the frame at its largest: the punch and the tilt hang from the top edge (the phone is 36 px from
+  // the top of the frame, and the camera of the tilt is at the top too, so the near edge only moves down), and the push-in and the pulse
+  // grow from 40% of its height, which keeps its bottom close to the caption bar.
+  const hit = 1 + PULSE.punchPhone * punch
+  const grow = push * (1 + PULSE.phone * pulse)
   return (
-    <AbsoluteFill style={{ background: GROUND, perspective: PERSPECTIVE_PX, perspectiveOrigin: '50% 35%' }}>
+    <AbsoluteFill style={{ background: GROUND, perspective: PERSPECTIVE_PX, perspectiveOrigin: '50% 0%' }}>
       <Glow amount={Math.max(PULSE.ground * pulse, PULSE.punchGround * punch)} />
       <div
         style={{
@@ -176,10 +180,11 @@ function PhoneScene({ scene, lang, strings, keyword }) {
           top: PHONE.top,
           width: PHONE.width * PHONE.scale,
           height: PHONE.height * PHONE.scale,
-          transformOrigin: '50% 50%',
-          transform: `rotateY(${TILT_DEGREES * (1 - landed)}deg) scale(${grow})`,
+          transformOrigin: '50% 0',
+          transform: `rotateY(${TILT_DEGREES * (1 - landed)}deg) scale(${hit})`,
         }}
       >
+        <div style={{ position: 'absolute', left: 0, top: 0, width: '100%', height: '100%', transformOrigin: '50% 40%', transform: `scale(${grow})` }}>
         <div
           style={{
             position: 'absolute',
@@ -199,6 +204,7 @@ function PhoneScene({ scene, lang, strings, keyword }) {
           <div style={{ position: 'relative', width: SCREEN.width, height: SCREEN.height, borderRadius: 46, overflow: 'hidden', background: '#f7f5ff' }}>
             <PhoneScreen scene={scene} strings={strings} />
           </div>
+        </div>
         </div>
       </div>
       <div
@@ -371,11 +377,11 @@ export function Promo({ lang, bpm, firstBeat, music = null, sounds = false }) {
   const burst = burstFrame(plan, tempo)
   return (
     <AbsoluteFill style={{ background: COLORS.groundTo, fontFamily: FONT_FAMILY, overflow: 'hidden' }}>
-      {music ? <Html5Audio src={staticFile(music.file)} trimBefore={music.startFrame} volume={(frame) => volumeAt(frame, plan)} /> : null}
+      {music ? <Html5Audio src={staticFile(music.file)} trimBefore={music.startFrame} volume={(frame) => MIX_GAIN * volumeAt(frame, plan)} /> : null}
       {sounds
         ? soundCues(plan).map((cue) => (
             <Sequence key={`${cue.kind}-${cue.frame}`} from={cue.frame} durationInFrames={cue.frames} name={cue.kind}>
-              <Html5Audio src={staticFile(cue.file)} volume={cue.volume} />
+              <Html5Audio src={staticFile(cue.file)} volume={MIX_GAIN * cue.volume} />
             </Sequence>
           ))
         : null}

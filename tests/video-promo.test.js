@@ -17,6 +17,7 @@ import {
   GROOVE_SCENE,
   HEIGHT,
   MAX_BPM,
+  MIX_GAIN,
   MIN_BPM,
   MIN_CUT_BEATS,
   MUSIC_FADE_OUT_SECONDS,
@@ -456,6 +457,11 @@ describe('the effects are placed on the beats of the plan (D16)', () => {
       const caption = scene.phrases.map((phrase) => phrase.text).join(' ')
       expect((out - scene.phrases[0].frame) / FPS, `${scene.id} from its first word until it slides out`).toBeGreaterThanOrEqual(readingSeconds(caption))
     }
+  })
+
+  it('brings the whole mix down by at least 2 dB (the track alone peaks at +0.2 dBFS), so that it peaks under -1 dBFS', () => {
+    expect(MIX_GAIN).toBeGreaterThan(0.5) // the track stays the music of the video
+    expect(20 * Math.log10(MIX_GAIN)).toBeLessThanOrEqual(-2)
   })
 
   it.each(TEMPOS)('keeps every whip shorter than the two beats between cuts, at %o', (tempo) => {

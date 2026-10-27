@@ -157,6 +157,13 @@ export const GROOVE_SCENE = 'scan'
  */
 export const PULSE = Object.freeze({ ground: 0.1, text: 0.04, phone: 0.02, punchGround: 0.22, punchPhone: 0.06 })
 
+/**
+ * The gain of the whole mix, the track and the effect sounds alike (the effects keep their balance under the music): the track alone peaks
+ * at +0.2 dBFS (true peak) and is -13.8 LUFS, so the mix is brought down by 2.5 dB to peak under -1 dBFS, the ceiling for a published
+ * video. It is applied in Promo.jsx, on top of the fades of fade.js (`volumeAt`), which stay as they were.
+ */
+export const MIX_GAIN = 0.75
+
 /** The frames of a beat (a whole number, for effects that last "a beat"). */
 export const beatFrames = (tempo = DEFAULT_TEMPO) => Math.round((FPS * 60) / tempo.bpm)
 
@@ -221,7 +228,7 @@ export function keywordRange(caption, keyword) {
  */
 export const SOUNDS = Object.freeze({
   whoosh: Object.freeze({ file: 'whoosh.wav', seconds: 0.5, volume: 0.5 }),
-  impact: Object.freeze({ file: 'impact.wav', seconds: 1.1, volume: 0.7 }),
+  impact: Object.freeze({ file: 'impact.wav', seconds: 1.1, volume: 0.35 }),
   ding: Object.freeze({ file: 'ding.wav', seconds: 0.8, volume: 0.35 }),
 })
 
