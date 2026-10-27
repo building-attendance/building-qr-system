@@ -7,6 +7,7 @@ export default {
   'footer.admin': 'כניסת מנהלים',
   'common.loading': 'טוען…',
   'common.retry': 'נסו שוב',
+  'common.close': 'סגירה',
 
   'login.pointBanner': 'נקודת סריקה: {name}',
   'login.title': 'בחרו את החשבון שלכם',
@@ -40,7 +41,7 @@ export default {
   'home.pendingCount': 'ממתינות לשליחה: {count}',
   'home.syncNow': 'שליחה עכשיו',
   'home.syncing': 'שולח…',
-  'home.switchWorker': 'החלפת עובד',
+  'home.switchWorker': 'החלפת חשבון',
 
   'checkin.locating': 'בודק מיקום…',
   'checkin.locatingHint': 'בדרך כלל זה לוקח כמה שניות. כדאי לעמוד ליד הקוד.',

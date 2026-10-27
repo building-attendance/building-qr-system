@@ -295,6 +295,39 @@ describe('HomeView', () => {
     expect(screen.queryByRole('link', { name: he['footer.admin'] })).toBeNull()
   })
 
+  it('opens the privacy notice in a sheet beside the video link, and the close button, Esc and a tap outside close it, back on its link', () => {
+    for (const { code } of LANGS) {
+      window.localStorage.setItem(LANG_STORAGE_KEY, code)
+      const { unmount } = show()
+      try {
+        const words = DICTS[code]
+        const video = screen.getByRole('link', { name: words['home.tutorial'] })
+        const opener = screen.getByRole('button', { name: words['privacy.title'] })
+        expect(opener.parentElement, `${code}: the two links side by side`).toBe(video.parentElement)
+        expect(opener.compareDocumentPosition(screen.getByRole('region', { name: words['home.today'] })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+
+        const dismissals = [
+          () => fireEvent.click(screen.getByRole('button', { name: words['common.close'] })),
+          () => fireEvent.keyDown(document, { key: 'Escape' }),
+          () => fireEvent.mouseDown(screen.getByRole('dialog').parentElement),
+        ]
+        for (const dismiss of dismissals) {
+          opener.focus()
+          fireEvent.click(opener)
+          const sheet = screen.getByRole('dialog', { name: words['privacy.title'] })
+          expect(document.activeElement, `${code}: the focus is on the sheet, which a screen reader reads by its title`).toBe(sheet)
+          expect(sheet.textContent).toContain(words['login.privacy'])
+          expect(screen.getByRole('link', { name: words['privacy.open'] }).getAttribute('href')).toBe('/privacy')
+          dismiss()
+          expect(screen.queryByRole('dialog')).toBeNull()
+          expect(document.activeElement, `${code}: the focus is back on the link that opened it`).toBe(opener)
+        }
+      } finally {
+        unmount()
+      }
+    }
+  })
+
   it('links to the whole tutorial video, as the sign-in screen does, in the language of the person, in a new tab, and falls back to Hebrew where a language has no video yet', () => {
     // The addresses are written out, so that publishing another language is a deliberate edit here too (src/worker/tutorial.js).
     const HEBREW_PAGE = 'https://building-attendance.github.io/building-qr-system/video/he/'

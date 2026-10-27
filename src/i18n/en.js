@@ -5,6 +5,7 @@ export default {
   'footer.admin': 'Admin sign-in',
   'common.loading': 'Loading…',
   'common.retry': 'Try again',
+  'common.close': 'Close',
 
   'login.pointBanner': 'Scan point: {name}',
   'login.title': 'Choose your account',
@@ -38,7 +39,7 @@ export default {
   'home.pendingCount': 'Waiting to send: {count}',
   'home.syncNow': 'Send now',
   'home.syncing': 'Sending…',
-  'home.switchWorker': 'Switch person',
+  'home.switchWorker': 'Switch account',
 
   'checkin.locating': 'Checking location…',
   'checkin.locatingHint': 'This usually takes a few seconds. It helps to stand next to the code.',

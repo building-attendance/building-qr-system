@@ -10,6 +10,7 @@ import { DEVICE_LABEL_MAX_LENGTH } from '../../shared/contract.js'
 import { FLAG_LOCATION_OUTSIDE_RADIUS, FLAG_LOCATION_STALE, FLAG_LOCATION_UNVERIFIED } from '../../shared/flags.js'
 import ThemeSwitch from '../ui/ThemeSwitch.jsx'
 import BuildLabel from '../ui/BuildLabel.jsx'
+import { Sheet } from './Sheet.jsx'
 import {
   IconAlert, IconChevron, IconCheck, IconCloudOff, IconEye, IconEyeOff, IconGlobe, IconInfo, IconLock, IconPhoneCheck, IconPin,
   IconPinOff, IconQr, IconRefresh, IconSend, IconShield, IconUser, IconWifiOff, IconX,
@@ -247,6 +248,7 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
   const company = session.provider.contact_name ? session.provider.company : ''
   const updateReady = useSyncExternalStore(subscribeUpdate, isUpdateReady)
   const headingRef = useRef(null)
+  const [privacyOpen, setPrivacyOpen] = useState(false)
   // After "done" or a sign-in the focus would otherwise fall back to the page body; start at the greeting.
   useEffect(() => {
     headingRef.current?.focus()
@@ -309,8 +311,13 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
         </ol>
       </div>
 
-      {/* A quiet link, not a button: it leaves the app for the player page of the person's language (a navigation, nothing is loaded here). */}
-      <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
+      {/* The two things to read, side by side under the card (owner, 27/10/2026), one under the other where the words are long. The video
+          is a link: it leaves the app for the player page of the person's language. The privacy notice opens its short version in a sheet
+          over the screen, with the way to the whole of it. */}
+      <div className="w-links">
+        <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
+        <button type="button" className="w-link" aria-haspopup="dialog" onClick={() => setPrivacyOpen(true)}>{t('privacy.title')}</button>
+      </div>
 
       <section className="w-card" aria-labelledby="w-today">
         <h2 id="w-today" className="w-section-title">{t('home.today')}</h2>
@@ -329,10 +336,14 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
         )}
       </section>
 
-      <div className="w-foot">
-        <a className="w-link" href="/privacy">{t('privacy.title')}</a>
-        <BuildLabel label={t('app.version')} className="w-build--center" />
-      </div>
+      <BuildLabel label={t('app.version')} className="w-build--center w-foot" />
+
+      {privacyOpen && (
+        <Sheet title={t('privacy.title')} closeLabel={t('common.close')} onClose={() => setPrivacyOpen(false)}>
+          <p>{t('login.privacy')}</p>
+          <a className="w-link" href="/privacy">{t('privacy.open')}</a>
+        </Sheet>
+      )}
     </div>
   )
 }

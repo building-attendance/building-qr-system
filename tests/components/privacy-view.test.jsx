@@ -3,7 +3,7 @@
 // the committee and how to reach it from the building settings, falls back to "the committee's members" when no contact is set,
 // states the periods of the code with the plural of each language, and is dated DD/MM/YYYY. The sign-in and home screens link to it.
 import { describe, it, expect, afterEach, vi } from 'vitest'
-import { render, screen, cleanup } from '@testing-library/react'
+import { render, screen, cleanup, fireEvent, within } from '@testing-library/react'
 import { I18nProvider } from '../../src/i18n/index.jsx'
 import { LANGS, LANG_STORAGE_KEY } from '../../src/i18n/core.js'
 import { PrivacyView, PRIVACY_NOTICE_UPDATED } from '../../src/worker/PrivacyView.jsx'
@@ -96,9 +96,12 @@ describe('the way to the notice', () => {
     expect(screen.getByRole('link', { name: he['privacy.open'] }).getAttribute('href')).toBe('/privacy')
   })
 
-  it('is on the home screen, at any time after the sign-in', () => {
+  it('is on the home screen, at any time after the sign-in: the short notice in a sheet, and the way to the whole of it', () => {
     const session = { token: 'qrp_x', provider: { id: 'p1', contact_name: 'פלוני', company: 'ניקיון' } }
     render(<I18nProvider><HomeView session={session} visits={[]} pending={0} syncing={false} onSync={() => {}} onSwitch={() => {}} /></I18nProvider>)
-    expect(screen.getByRole('link', { name: he['privacy.title'] }).getAttribute('href')).toBe('/privacy')
+    fireEvent.click(screen.getByRole('button', { name: he['privacy.title'] }))
+    const sheet = screen.getByRole('dialog', { name: he['privacy.title'] })
+    expect(within(sheet).getByText(he['login.privacy'])).toBeTruthy()
+    expect(within(sheet).getByRole('link', { name: he['privacy.open'] }).getAttribute('href')).toBe('/privacy')
   })
 })

@@ -5,6 +5,7 @@ export default {
   'footer.admin': 'دخول المسؤولين',
   'common.loading': 'جارٍ التحميل…',
   'common.retry': 'حاول مرة أخرى',
+  'common.close': 'إغلاق',
 
   'login.pointBanner': 'نقطة المسح: {name}',
   'login.title': 'اختر حسابك',
@@ -38,7 +39,7 @@ export default {
   'home.pendingCount': 'بانتظار الإرسال: {count}',
   'home.syncNow': 'إرسال الآن',
   'home.syncing': 'جارٍ الإرسال…',
-  'home.switchWorker': 'تبديل الموظف',
+  'home.switchWorker': 'تبديل الحساب',
 
   'checkin.locating': 'جارٍ التحقق من الموقع…',
   'checkin.locatingHint': 'يستغرق هذا عادةً بضع ثوانٍ. يُفضَّل أن تقف بجانب الرمز.',

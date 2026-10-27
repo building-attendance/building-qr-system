@@ -175,24 +175,19 @@
    23px on the sign-in screen of the committee and by 30px in the provider app in Russian, and the page could be dragged
    sideways. The margin, padding and border that the browser gives a select are none of the picker's business, so they
    are reset as well. */
-.w-theme, .w-lang { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; color: var(--w-text-2); cursor: pointer; transition: color 0.12s; }
+/* The committee's way in (TopBar's `adminEntry`, .w-admin-entry) is a link dressed as the two pickers beside it, a lock in the same round
+   44px button, so it shares their rules. It keeps the ring of keyboard focus that every link has: it is not a picker whose icon turns
+   violet instead. */
+.w-theme, .w-lang, .w-admin-entry { position: relative; display: inline-flex; align-items: center; justify-content: center; flex: none; overflow: hidden; color: var(--w-text-2); cursor: pointer; transition: color 0.12s; }
 .w-theme select, .w-lang select { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; padding: 0; border: 0; opacity: 0; cursor: pointer; appearance: none; -webkit-appearance: none; }
-.w-theme--bare, .w-lang { width: 44px; height: 44px; border-radius: var(--w-radius-sm); }
-@media (hover: hover) { .w-theme--bare:hover, .w-lang:hover { color: var(--w-info); } }
-.w-theme--bare:active, .w-lang:active { color: var(--w-info); }
+.w-theme--bare, .w-lang, .w-admin-entry { width: 44px; height: 44px; border-radius: var(--w-radius-sm); }
+@media (hover: hover) { .w-theme--bare:hover, .w-lang:hover, .w-admin-entry:hover { color: var(--w-info); } }
+.w-theme--bare:active, .w-lang:active, .w-admin-entry:active { color: var(--w-info); }
 /* No frame around the two icons, even while their list is open or on keyboard focus: the icon itself turns violet. */
 .w-theme--bare:has(select:focus-visible), .w-lang:has(select:focus-visible) { color: var(--w-info); outline: none; }
 /* On the provider's bar the two pickers are round white buttons with a soft shadow (the design canvas). The committee's own bar keeps the
    bare icons: only the pickers inside .w-topbar take this. */
-.w-topbar .w-theme--bare, .w-topbar .w-lang { background: var(--w-surface); box-shadow: var(--w-shadow); border-radius: var(--w-radius-pill); }
-/* The committee's way in (TopBar's `adminEntry`): a link dressed as the two pickers beside it, a lock in a round 44px button. It keeps the
-   ring of keyboard focus that every link has: it is not a picker whose icon turns violet instead. */
-.w-admin-entry {
-  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; border-radius: var(--w-radius-pill);
-  background: var(--w-surface); box-shadow: var(--w-shadow); color: var(--w-text-2); transition: color 0.12s;
-}
-@media (hover: hover) { .w-admin-entry:hover { color: var(--w-info); } }
-.w-admin-entry:active { color: var(--w-info); }
+.w-topbar .w-theme--bare, .w-topbar .w-lang, .w-admin-entry { background: var(--w-surface); box-shadow: var(--w-shadow); border-radius: var(--w-radius-pill); }
 
 .w-main { flex: 1; display: flex; flex-direction: column; gap: var(--w-space-5); padding-block: var(--w-space-2) var(--w-space-4); }
 
@@ -204,8 +199,8 @@
    to AA in both themes. The id itself is a left-to-right run inside the line (a <bdi dir="ltr">). */
 .w-build { color: var(--w-text-3); font-size: var(--w-font-xs); line-height: 1.5; }
 .w-build--center { align-self: center; text-align: center; }
-/* The foot of home: the privacy notice and the build under it, at the bottom of a screen that has room to spare. */
-.w-foot { display: flex; flex-direction: column; align-items: center; margin-block-start: auto; }
+/* The build line, the foot of home: at the bottom of a screen that has room to spare. */
+.w-foot { margin-block-start: auto; }
 
 /* ----- buttons ----- */
 /* Pills (direction B, the design canvas): the main action is filled with the primary colour and 56px high, a secondary one (--quiet) is
@@ -232,12 +227,37 @@
 
 /* The same quiet link as an anchor (the tutorial video): a button centres its text in the 48px by itself, an anchor needs this. */
 a.w-link { display: inline-flex; align-items: center; text-align: center; }
+/* The two links of home to read (the video and the privacy notice): one line, centred, and one under the other when they do not fit. */
+.w-links { display: flex; flex-wrap: wrap; justify-content: center; column-gap: var(--w-space-2); }
 
-.w-admin-link {
-  display: inline-flex; align-items: center; gap: var(--w-space-2); align-self: center; min-height: 48px; padding-inline: var(--w-space-3-5);
-  color: var(--w-text-3); font-size: var(--w-font-md); text-decoration: none; border-radius: var(--w-radius-sm); margin-block-start: auto;
+
+/* ----- sheet ----- */
+/* A dialog of the provider app (src/worker/Sheet.jsx), drawn as the committee app's are (.a-overlay and .a-modal in admin.css, D7 of the
+   redesign): on a phone a sheet that rises from the bottom of the screen, its top corners rounded, with a handle over its head (only drawn:
+   the close button and a tap outside close it); from 640px a box in the middle, its handle hidden but its room kept. */
+.w-overlay { position: fixed; inset: 0; z-index: 50; display: flex; align-items: flex-end; justify-content: center; background: var(--w-overlay); }
+.w-sheet {
+  width: 100%; max-width: 480px; max-height: 92vh; max-height: 92dvh; display: flex; flex-direction: column; outline: none;
+  background: var(--w-surface); color: var(--w-text); border-radius: var(--w-radius-4xl) var(--w-radius-4xl) 0 0; box-shadow: var(--w-shadow-pop);
 }
-.w-admin-link:hover { color: var(--w-text-2); background: var(--w-surface); }
+.w-sheet::before { content: ''; flex: none; align-self: center; width: 44px; height: 5px; margin-block: var(--w-space-2-5) var(--w-space-1); border-radius: var(--w-radius-pill); background: var(--w-border); }
+.w-sheet__head { display: flex; align-items: center; justify-content: space-between; gap: var(--w-space-3); padding-block: var(--w-space-1-5); padding-inline: var(--w-space-5) var(--w-space-3); }
+.w-sheet__head h2 { min-width: 0; font-size: var(--w-font-3xl); font-weight: var(--w-weight-bold); overflow-wrap: anywhere; }
+/* The close button is round, on the background colour, at the top of the head when the title wraps (as .a-modal__head .a-icon-btn). */
+.w-sheet__close {
+  flex: none; align-self: flex-start; display: grid; place-items: center; width: 44px; height: 44px; border: 0; border-radius: 50%;
+  background: var(--w-bg); color: var(--w-text); cursor: pointer;
+}
+.w-sheet__body {
+  overflow: auto; display: flex; flex-direction: column; gap: var(--w-space-2); line-height: 1.55; overflow-wrap: anywhere;
+  padding: var(--w-space-2) var(--w-space-5) calc(var(--w-space-5) + env(safe-area-inset-bottom));
+}
+.w-sheet__body .w-link { align-self: flex-start; padding-inline: 0; text-align: start; }
+@media (min-width: 640px) {
+  .w-overlay { align-items: center; padding: var(--w-space-6); }
+  .w-sheet { border-radius: var(--w-radius-4xl); }
+  .w-sheet::before { visibility: hidden; }
+}
 
 /* ----- cards / banners ----- */
 /* A card is a surface with a soft shadow and no edge (direction B): it needs no 3:1 line, the text and the controls inside it carry it. */
