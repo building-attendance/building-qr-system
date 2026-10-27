@@ -53,13 +53,15 @@ describe('the home screen of the provider app', () => {
     expect(new Set(words).size).toBe(4)
   })
 
-  it('shows it once, in the foot of the screen, after the committee entry link', () => {
+  it('shows it once, in the foot of the screen, after the link to the privacy notice', () => {
+    // The committee's link was the line above it until it moved to the top bar (owner, 27/10/2026): the privacy link is the last one now.
     home('en')
     expect(screen.getAllByText(BUILD)).toHaveLength(1)
     const p = line('Version')
     expect(p.className).toContain('w-build')
-    const entry = screen.getByRole('link', { name: DICTS.en['footer.admin'] })
-    expect(entry.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
+    const privacy = screen.getByRole('link', { name: DICTS.en['privacy.title'] })
+    expect(screen.getAllByRole('link').at(-1)).toBe(privacy)
+    expect(privacy.compareDocumentPosition(p) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
   })
 })
 

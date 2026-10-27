@@ -26,24 +26,17 @@ const initial = (text) => Array.from((text || '?').trim())[0]?.toUpperCase() ?? 
 const AVATAR_TINTS = ['violet', 'mint', 'peach', 'sky']
 const tintOf = (name) => AVATAR_TINTS[Array.from(String(name)).reduce((sum, ch) => sum + ch.codePointAt(0), 0) % AVATAR_TINTS.length]
 
-/** Committee entry: a plain link to /admin, where the Google sign-in lives. Quiet on purpose. */
-export function AdminLink() {
-  const { t } = useI18n()
-  return (
-    <a className="w-admin-link" href="/admin">
-      <IconLock size={18} />
-      {t('footer.admin')}
-    </a>
-  )
-}
-
 /**
  * `name` and `address` are the building's name and address as the committee typed them (any language: dir="auto" lays out Hebrew and
- * Latin alike). The name is a line of its own above the address. With neither there is no line at all: the two icons stay at the
+ * Latin alike). The name is a line of its own above the address. With neither there is no line at all: the icons stay at the
  * end of the bar by themselves. The address stops at two lines with an ellipsis (`.w-brand--address`, ui.css); the whole of it stays in
  * the page.
+ *
+ * `adminEntry` adds the committee's way in, a plain link to /admin (where the Google sign-in lives), as a lock beside the two pickers. It
+ * was the last line of the sign-in list and of home, and a list of a few names or a visit or two pushed it below the fold (owner,
+ * 27/10/2026); in the bar it is in view on arrival however long the screen below grows.
  */
-export function TopBar({ name = '', address = '' }) {
+export function TopBar({ name = '', address = '', adminEntry = false }) {
   const { t, lang, setLang, langs } = useI18n()
   const themeLabels = { label: t('theme.label'), system: t('theme.system'), light: t('theme.light'), dark: t('theme.dark') }
   return (
@@ -55,6 +48,11 @@ export function TopBar({ name = '', address = '' }) {
         </div>
       )}
       <div className="w-topbar__tools">
+        {adminEntry && (
+          <a className="w-admin-entry" href="/admin" aria-label={t('footer.admin')} title={t('footer.admin')}>
+            <IconLock size={22} />
+          </a>
+        )}
         <ThemeSwitch labels={themeLabels} />
         <label className="w-lang">
           <span className="w-sr">{t('lang.label')}</span>
@@ -231,10 +229,12 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
           ))}
         </ul>
       )}
-      {/* The short privacy notice, before anyone signs in or scans, and the way to the whole of it (src/worker/PrivacyView.jsx). */}
-      <p className="w-note"><IconShield size={20} /><span>{t('login.privacy')}</span></p>
-      <a className="w-link" href="/privacy">{t('privacy.open')}</a>
-      <AdminLink />
+      {/* The short privacy notice, before anyone signs in or scans, and inside it the way to the whole of it (src/worker/PrivacyView.jsx):
+          one block, where the link was a row of its own under it. */}
+      <p className="w-note">
+        <IconShield size={20} />
+        <span>{t('login.privacy')}<a className="w-note__link" href="/privacy">{t('privacy.open')}</a></span>
+      </p>
     </div>
   )
 }
@@ -253,9 +253,14 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
   }, [])
   return (
     <div className="w-main">
+      {/* Who is signed in, and beside it the way to hand the phone to the next person: on a shared phone that is what they need first,
+          and under today's visits it went further down with every visit. */}
       <div className="w-greet__text">
         <h1 className="w-h1" tabIndex={-1} ref={headingRef} style={{ outline: 'none' }}>{t('home.hello', { name })}</h1>
-        {company && <p className="w-greet__sub"><bdi>{company}</bdi></p>}
+        <div className="w-greet__account">
+          {company && <p className="w-greet__sub"><bdi>{company}</bdi></p>}
+          <button className="w-link w-greet__switch" onClick={onSwitch}>{t('home.switchWorker')}</button>
+        </div>
       </div>
 
       {/* What needs attention comes before the how-to: a new version, the word that visits were refused, the visits that wait. */}
@@ -324,10 +329,10 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
         )}
       </section>
 
-      <button className="w-link" onClick={onSwitch}>{t('home.switchWorker')}</button>
-      <a className="w-link" href="/privacy">{t('privacy.title')}</a>
-      <AdminLink />
-      <BuildLabel label={t('app.version')} className="w-build--center" />
+      <div className="w-foot">
+        <a className="w-link" href="/privacy">{t('privacy.title')}</a>
+        <BuildLabel label={t('app.version')} className="w-build--center" />
+      </div>
     </div>
   )
 }

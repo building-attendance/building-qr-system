@@ -185,6 +185,14 @@
 /* On the provider's bar the two pickers are round white buttons with a soft shadow (the design canvas). The committee's own bar keeps the
    bare icons: only the pickers inside .w-topbar take this. */
 .w-topbar .w-theme--bare, .w-topbar .w-lang { background: var(--w-surface); box-shadow: var(--w-shadow); border-radius: var(--w-radius-pill); }
+/* The committee's way in (TopBar's `adminEntry`): a link dressed as the two pickers beside it, a lock in a round 44px button. It keeps the
+   ring of keyboard focus that every link has: it is not a picker whose icon turns violet instead. */
+.w-admin-entry {
+  display: inline-flex; align-items: center; justify-content: center; flex: none; width: 44px; height: 44px; border-radius: var(--w-radius-pill);
+  background: var(--w-surface); box-shadow: var(--w-shadow); color: var(--w-text-2); transition: color 0.12s;
+}
+@media (hover: hover) { .w-admin-entry:hover { color: var(--w-info); } }
+.w-admin-entry:active { color: var(--w-info); }
 
 .w-main { flex: 1; display: flex; flex-direction: column; gap: var(--w-space-5); padding-block: var(--w-space-2) var(--w-space-4); }
 
@@ -196,6 +204,8 @@
    to AA in both themes. The id itself is a left-to-right run inside the line (a <bdi dir="ltr">). */
 .w-build { color: var(--w-text-3); font-size: var(--w-font-xs); line-height: 1.5; }
 .w-build--center { align-self: center; text-align: center; }
+/* The foot of home: the privacy notice and the build under it, at the bottom of a screen that has room to spare. */
+.w-foot { display: flex; flex-direction: column; align-items: center; margin-block-start: auto; }
 
 /* ----- buttons ----- */
 /* Pills (direction B, the design canvas): the main action is filled with the primary colour and 56px high, a secondary one (--quiet) is
@@ -289,10 +299,20 @@ a.w-link { display: inline-flex; align-items: center; text-align: center; }
 .w-note { display: flex; align-items: flex-start; gap: var(--w-space-3); padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-2xl); background: var(--w-tint-violet); color: var(--w-tint-violet-ink); font-size: var(--w-font-md); line-height: 1.55; }
 .w-note svg { flex: none; margin-block-start: var(--w-space-0-5); }
 .w-note > span { min-width: 0; overflow-wrap: anywhere; }
+/* The way to the whole notice, the last line of the note (the sign-in list): the note's own ink, which tests/contrast.test.js holds to AA
+   on its tint, underlined. A 44px target, given back to the note's padding under it so the box does not grow taller than its text. */
+.w-note__link {
+  display: flex; align-items: center; width: fit-content; min-height: 44px; margin-block-end: calc(-1 * var(--w-space-2-5));
+  color: inherit; font-weight: var(--w-weight-semibold); text-decoration: underline; text-underline-offset: 3px;
+}
 /* The name above the form (the password screen: avatar, name, company) and above the home screen (name and company). */
 .w-greet { display: flex; align-items: center; gap: var(--w-space-3-5); }
 .w-greet__text { min-width: 0; display: flex; flex-direction: column; gap: var(--w-space-1); }
 .w-greet__sub { color: var(--w-text-3); font-size: var(--w-font-md); overflow-wrap: anywhere; }
+/* Under the greeting of home: the company and, on the same line, "switch person". The link keeps a 44px target and gives the extra back
+   with negative margins, so the line is as high as its text; a long company name or a longer language wraps it under the company. */
+.w-greet__account { display: flex; flex-wrap: wrap; align-items: center; column-gap: var(--w-space-3); }
+.w-greet__switch { min-height: 44px; margin-block: calc(-1 * var(--w-space-2-5)); padding-inline: 0; }
 /* The password form sits on a card of its own. */
 .w-formcard { display: flex; flex-direction: column; gap: var(--w-space-4-5); background: var(--w-surface); border-radius: var(--w-radius-3xl); padding: var(--w-space-5); box-shadow: var(--w-shadow); }
 

@@ -4,7 +4,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest'
 import { render, screen, fireEvent, waitFor, cleanup } from '@testing-library/react'
 import { I18nProvider } from '../../src/i18n/index.jsx'
-import { LoginView, ResultView, HomeView, WorkingView } from '../../src/worker/components.jsx'
+import { LoginView, ResultView, HomeView, WorkingView, TopBar } from '../../src/worker/components.jsx'
 import he from '../../src/i18n/he.js'
 import { DICTS, LANGS, LANG_STORAGE_KEY } from '../../src/i18n/core.js'
 import { tutorialUrl } from '../../src/worker/tutorial.js'
@@ -55,6 +55,16 @@ describe('LoginView', () => {
         unmount()
       }
     }
+  })
+
+  it('keeps the link to the whole privacy notice inside the note, after its words, and has no committee link of its own (it is in the top bar)', () => {
+    withI18n(view())
+    const link = screen.getByRole('link', { name: he['privacy.open'] })
+    expect(link.getAttribute('href')).toBe('/privacy')
+    const note = link.closest('.w-note')
+    expect(note, 'the link is part of the note, not a row under it').toBeTruthy()
+    expect(note.textContent.startsWith(he['login.privacy'])).toBe(true)
+    expect(screen.queryByRole('link', { name: he['footer.admin'] })).toBeNull()
   })
 
   it('leaves the link off the password screen', () => {
@@ -271,6 +281,20 @@ describe('HomeView', () => {
     expect([...document.querySelectorAll('.w-hero .w-step')].map((el) => el.textContent)).toEqual(stepsOf(he))
   })
 
+  it("puts \"switch person\" under the greeting, beside the company and before the violet card, and has no committee link of its own", () => {
+    const onSwitch = vi.fn()
+    show({ onSwitch })
+    const greeting = screen.getByRole('heading', { name: /שלום/ })
+    const company = screen.getByText(ploni.company)
+    const button = screen.getByRole('button', { name: he['home.switchWorker'] })
+    expect(button.parentElement, 'on the line of the company').toBe(company.closest('p').parentElement)
+    expect(greeting.compareDocumentPosition(button) & Node.DOCUMENT_POSITION_FOLLOWING, 'after the greeting').toBeTruthy()
+    expect(button.compareDocumentPosition(document.querySelector('.w-hero')) & Node.DOCUMENT_POSITION_FOLLOWING, 'before the card').toBeTruthy()
+    fireEvent.click(button)
+    expect(onSwitch).toHaveBeenCalledTimes(1)
+    expect(screen.queryByRole('link', { name: he['footer.admin'] })).toBeNull()
+  })
+
   it('links to the whole tutorial video, as the sign-in screen does, in the language of the person, in a new tab, and falls back to Hebrew where a language has no video yet', () => {
     // The addresses are written out, so that publishing another language is a deliberate edit here too (src/worker/tutorial.js).
     const HEBREW_PAGE = 'https://building-attendance.github.io/building-qr-system/video/he/'
@@ -326,6 +350,24 @@ describe('HomeView', () => {
     cleanup()
     show({ pending: 2 })
     expect(document.querySelector('.w-live').textContent).toContain('2')
+  })
+})
+
+describe("TopBar, the committee's way in", () => {
+  it('is a link to /admin beside the two pickers, named in each language, only on a screen that asks for it', () => {
+    for (const { code } of LANGS) {
+      window.localStorage.setItem(LANG_STORAGE_KEY, code)
+      const { unmount } = withI18n(<TopBar name="בניין הדוגמה" adminEntry />)
+      try {
+        const link = screen.getByRole('link', { name: DICTS[code]['footer.admin'] })
+        expect(link.getAttribute('href'), code).toBe('/admin')
+        expect(link.closest('.w-topbar__tools'), `${code}: in the bar, with the pickers`).toBeTruthy()
+      } finally {
+        unmount()
+      }
+    }
+    withI18n(<TopBar name="בניין הדוגמה" />)
+    expect(screen.queryByRole('link', { name: he['footer.admin'] })).toBeNull()
   })
 })
 

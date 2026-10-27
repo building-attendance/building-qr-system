@@ -240,7 +240,8 @@ function WorkerShell({ session, setSession, building }) {
   return (
     <div className="w-app">
       <div className="w-shell">
-        <TopBar name={building.name} address={building.address} />
+        {/* The committee's way in, on the two screens where a person lands: not on a check-in that is under way or its outcome. */}
+        <TopBar name={building.name} address={building.address} adminEntry={screen === 'login' || screen === 'home'} />
         <main style={{ flex: 1, display: 'flex', flexDirection: 'column' }}>
           {screen === 'login' ? (
             <LoginScreen pointName={pointState.point?.name} notice={loginNotice} onSignedIn={onSignedIn} />
