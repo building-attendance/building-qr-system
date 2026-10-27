@@ -3,6 +3,7 @@
 // confetti (drawn shapes, a fixed seed, so every render is the same) flies out from behind it and is gone half a second before the end.
 import { AbsoluteFill, Img, interpolate, spring, staticFile } from 'remotion'
 import { COLORS, FONT_FAMILY } from '../../src/theme.js'
+import { isRtl } from '../../src/timing.js'
 import { KEYWORD_COLOR, REPOSITORY_URL } from '../script/index.js'
 import { REPOSITORY_QR } from '../stage.js'
 import { FPS, PULSE, pulseAt } from '../timing.js'
@@ -85,8 +86,20 @@ function Confetti({ since, top }) {
 
 const QR_SIZE = 560
 
-/** The closing card: the caption, the QR code of the repository on a white tile that springs in, and its address under it without `https://`. */
-export function ClosingScene({ scene, lang, keyword, burst }) {
+/** The address without `https://`, in two lines for the long cut's large address: the owner's part (with its slash) and the repository. */
+const addressLines = (large) => {
+  const address = REPOSITORY_URL.replace(/^https:\/\//, '')
+  const cut = address.lastIndexOf('/') + 1
+  return large ? [address.slice(0, cut), address.slice(cut)] : [address]
+}
+
+/**
+ * The closing card: the caption, the QR code of the repository on a white tile that springs in, and its address under it without `https://`.
+ * The long cut gives `guide`, a label shown by the code (the guide is in English), and `large`, the address large on two lines, to be read
+ * off the screen (a phone that plays the video cannot scan it).
+ * @param {{ scene: object, lang: string, keyword?: string, burst: number, guide?: string | null, large?: boolean }} props
+ */
+export function ClosingScene({ scene, lang, keyword, burst, guide = null, large = false }) {
   const { frame, global, tempo } = useClock()
   const pulse = pulseAt(global, tempo)
   const at = scene.phrases[0].frame - scene.startFrame + 15
@@ -103,6 +116,11 @@ export function ClosingScene({ scene, lang, keyword, burst }) {
         <Confetti since={since} top={QR_SIZE / 2} />
         <div style={{ position: 'relative', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 48, transformOrigin: `50% ${QR_SIZE / 2}px`, transform: `scale(${(0.4 + 0.6 * landed) * (1 + 0.08 * pop)})` }}>
           <Img src={staticFile(REPOSITORY_QR.file)} style={{ width: QR_SIZE, height: QR_SIZE, borderRadius: 32, background: '#ffffff' }} />
+          {guide ? (
+            <div style={{ marginTop: -16, padding: '8px 28px', borderRadius: 40, background: COLORS.cardTextSecondary, color: COLORS.card, fontFamily: FONT_FAMILY, fontWeight: 700, fontSize: 40, direction: isRtl(lang) ? 'rtl' : 'ltr' }}>
+              {guide}
+            </div>
+          ) : null}
           <div
             style={{
               direction: 'ltr',
@@ -110,12 +128,15 @@ export function ClosingScene({ scene, lang, keyword, burst }) {
               textAlign: 'center',
               overflowWrap: 'anywhere',
               fontFamily: FONT_FAMILY,
-              fontWeight: 500,
-              fontSize: 34,
+              fontWeight: large ? 700 : 500,
+              fontSize: large ? 50 : 34,
+              lineHeight: large ? 1.25 : undefined,
+              // Each of the two large lines stays whole, wider than the code above it if it must.
+              whiteSpace: large ? 'nowrap' : undefined,
               color: COLORS.cardText,
             }}
           >
-            {REPOSITORY_URL.replace(/^https:\/\//, '')}
+            {large ? addressLines(true).map((line) => <div key={line}>{line}</div>) : addressLines(false)[0]}
           </div>
         </div>
       </div>

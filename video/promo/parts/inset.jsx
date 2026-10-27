@@ -3,25 +3,37 @@
 // camera does not move it.
 import { Img, interpolate, spring, staticFile } from 'remotion'
 import { COLORS } from '../../src/theme.js'
-import { FPS, WIDTH } from '../timing.js'
+import { FPS, HEIGHT, WIDTH } from '../timing.js'
 import { clamp, useClock } from './clock.jsx'
 import { BAR_HEIGHT, STRIP_HEIGHT } from './moves.js'
 
 const MARGIN = 48
 const BEZEL = 10
+/** The inset is this wide in the frame, with its bezel, when its scene does not say. */
+const INSET_WIDTH = Math.round(WIDTH / 3)
+
+/** The height of an inset of `width` in the frame, with its bezel, for a picture of this shape. */
+const insetHeight = (picture, width) => Math.round(((width - 2 * BEZEL) * picture.height) / picture.width) + 2 * BEZEL
+
+/**
+ * The top of an inset in a bottom corner, in pixels of the frame: the long cut frames its zoom above it, so that the picture in picture
+ * never covers what the camera shows.
+ * @param {{ width: number, height: number }} picture
+ * @param {number} [width]
+ */
+export const insetTop = (picture, width = INSET_WIDTH) => HEIGHT - BAR_HEIGHT - MARGIN - insetHeight(picture, width)
 
 /**
  * @param {{ file: string, picture: { width: number, height: number }, frame: number, corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', width?: number }} props
  * `file` is the staged picture, `picture` its size (for its shape), `frame` the frame of the video where it comes in (the plan's), and
  * `width` its width in the frame with the bezel. Bottom means just above the caption bar, top just under the progress strip.
  */
-export function Inset({ file, picture, frame, corner = 'bottom-left', width = Math.round(WIDTH / 3) }) {
+export function Inset({ file, picture, frame, corner = 'bottom-left', width = INSET_WIDTH }) {
   const { global } = useClock()
   if (global < frame) return null
   const landed = spring({ frame: global - frame, fps: FPS, config: { damping: 12, stiffness: 170, mass: 0.8 } })
   const shown = interpolate(global - frame, [0, 4], [0, 1], clamp)
-  const inner = width - 2 * BEZEL
-  const height = Math.round((inner * picture.height) / picture.width) + 2 * BEZEL
+  const height = insetHeight(picture, width)
   const [vertical, side] = corner.split('-')
   return (
     <div

@@ -7,7 +7,7 @@ import { createContext, useContext } from 'react'
 import { AbsoluteFill, Easing } from 'remotion'
 import { beatFrame, beatFrames } from '../timing.js'
 import { useClock } from './clock.jsx'
-import { cameraTransform, restView, viewAt, zoomView } from './moves.js'
+import { PICTURE_AREA, cameraTransform, restView, viewAt, zoomView } from './moves.js'
 
 /** How much larger than at rest the camera shows its device now (1 at rest): a ring reads it to keep its line as thick on screen. */
 const CameraScale = createContext(1)
@@ -21,19 +21,21 @@ const ZOOM_EASING = Easing.bezier(0.65, 0, 0.35, 1)
  *   picture: { width: number, height: number },
  *   rest: import('./moves.js').Rest,
  *   children: import('react').ReactNode,
+ *   area?: { top?: number, width: number, height: number },
  * }} props
  * `moves` are the scene's zooms in order: the frame of the video where each starts (the plan's), its rectangle (frames.json `zooms`) and
  * the element it is for (frames.json `boxes`), which the camera keeps in view. `picture` is the size of the picture on screen, `rest`
- * where that picture is drawn when the camera is at rest (phoneRest in phone.jsx).
+ * where that picture is drawn when the camera is at rest (phoneRest in phone.jsx). `area` is the part of the frame that the zoomed picture
+ * fills (the picture area of moves.js when not given; the long cut gives the part above its picture in picture).
  */
-export function Zoom({ moves, picture, rest, children }) {
+export function Zoom({ moves, picture, rest, children, area = PICTURE_AREA }) {
   const { frame, global, tempo } = useClock()
   // The scene's first beat: its first frame, or for the first scene of a track whose first beat is late, that beat (planPromo starts the
   // first scene at frame 0 and its beat 0 a little later), so a move on beat 0 starts there already in every scene.
   const start = Math.max(global - frame, beatFrame(0, tempo))
-  const views = moves.map((move) => ({ frame: move.frame, view: zoomView(move.rect, move.box ?? null, picture) }))
-  const view = viewAt(global, start, restView(rest), views, beatFrames(tempo), ZOOM_EASING)
-  const { scale, x, y } = cameraTransform(view, rest)
+  const views = moves.map((move) => ({ frame: move.frame, view: zoomView(move.rect, move.box ?? null, picture, area) }))
+  const view = viewAt(global, start, restView(rest, area), views, beatFrames(tempo), ZOOM_EASING)
+  const { scale, x, y } = cameraTransform(view, rest, area)
   return (
     <CameraScale.Provider value={scale}>
       <AbsoluteFill style={{ transformOrigin: '0 0', transform: `translate(${x}px, ${y}px) scale(${scale})` }}>{children}</AbsoluteFill>

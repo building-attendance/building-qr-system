@@ -57,19 +57,47 @@ export const PROMO_PICTURES = Object.freeze([
   'computer-history.png', // the history with its filters open and the Excel button
 ])
 
-/** The boxes (zoom and ring rectangles) that each picture must have in frames.json for the scenes below. */
+/**
+ * The boxes that a picture drawn over the whole frame needs (no zoom or ring uses them): the printed sign is cut to its `sign` box, and
+ * its `qr` box is where the demo code covers the sample point's code (parts/drawn.jsx). They are in BOXES, so that frames.json is
+ * checked for them before the render starts.
+ */
+export const SHEET_BOXES = Object.freeze({ 'committee-print-sign.png': Object.freeze(['sign', 'qr']) })
+
+/** The boxes (zoom and ring rectangles, and the boxes of SHEET_BOXES) that each picture must have in frames.json for the scenes below. */
 export const BOXES = Object.freeze({
-  'committee-home.png': Object.freeze(['empty-day', 'provider-row']),
+  'committee-home.png': Object.freeze(['empty-day', 'provider-row', 'week']),
   'provider-list.png': Object.freeze(['list-top', 'name-row', 'privacy']),
   'committee-points-map.png': Object.freeze(['pin', 'circle']),
   'committee-providers-password.png': Object.freeze(['password']),
   'provider-recorded.png': Object.freeze(['verified-line']),
-  'committee-history-from-home.png': Object.freeze(['row-0806', 'row-0824']),
+  'committee-history-from-home.png': Object.freeze(['row-0806', 'row-0824', 'offline-badge']),
   'committee-history-refused.png': Object.freeze(['refused-row']),
   'computer-history.png': Object.freeze(['filters', 'excel']),
   'committee-audit.png': Object.freeze(['audit-row']),
   'committee-admins.png': Object.freeze(['google-button']),
-  'provider-home.png': Object.freeze(['tutorial-link']),
+  'provider-home.png': Object.freeze(['tutorial-link', 'visits']),
+  'committee-history.png': Object.freeze(['first-row']),
+  'committee-points.png': Object.freeze(['point-row']),
+  'committee-access.png': Object.freeze(['access-list']),
+  'provider-queued.png': Object.freeze(['status']),
+  'provider-sent.png': Object.freeze(['status', 'visit']),
+  'provider-far.png': Object.freeze(['message', 'retry']),
+  'provider-lang-en.png': Object.freeze(['hello']),
+  'provider-lang-ru.png': Object.freeze(['hello']),
+  'provider-lang-ar.png': Object.freeze(['hello']),
+  'committee-void-dialog.png': Object.freeze(['reason']),
+  'committee-agent.png': Object.freeze(['read-only']),
+  ...SHEET_BOXES,
+})
+
+/**
+ * The zooms that do not take the rectangle of frames.json but span several boxes of the picture side by side: on the computer the
+ * filters (the dates, the point and the provider) run across the page to the Excel button at its other end, so the zoom on `filters`
+ * spans both, and the caption's "date, point and provider" are all in view (parts/moves.js, spanRect).
+ */
+export const WIDE_ZOOMS = Object.freeze({
+  'computer-history.png': Object.freeze({ filters: Object.freeze(['filters', 'excel']) }),
 })
 
 /** @typedef {{ box: string, beat: number }} Move */
@@ -79,15 +107,16 @@ export const BOXES = Object.freeze({
 export const LONG_SCENES = Object.freeze(
   [
     // The opening: money and a provider, the answer within 16 seconds (bars 1 to 8)
-    { id: 'pays', bars: 2, stage: 'opening', picture: 'committee-home.png', ring: [{ box: 'empty-day', beat: 0 }] },
+    // A ring on one dot of a whole screen cannot be seen: the scene starts on the rows of the providers (frame 0 is the thumbnail).
+    { id: 'pays', bars: 2, stage: 'opening', picture: 'committee-home.png', zoom: [{ box: 'provider-row', beat: 0 }], ring: [{ box: 'empty-day', beat: 0 }] },
     // The groove of the track enters on bar 5, with the check mark of the scan.
     { id: 'sign', bars: 3, stage: 'opening', picture: 'camera', then: 'camera-checked', thenBeat: 8 },
-    { id: 'sees', bars: 3, stage: 'opening', picture: 'committee-history.png' },
+    { id: 'sees', bars: 3, stage: 'opening', picture: 'committee-history.png', zoom: [{ box: 'first-row', beat: 1 }] },
     // The committee prepares (bars 9 to 17)
-    { id: 'points', bars: 2, stage: 'prepare', picture: 'committee-points.png' },
+    { id: 'points', bars: 2, stage: 'prepare', picture: 'committee-points.png', zoom: [{ box: 'point-row', beat: 1 }] },
     { id: 'map', bars: 3, stage: 'prepare', picture: 'committee-points-map.png', then: 'committee-print-sign.png', zoom: [{ box: 'pin', beat: 0 }], ring: [{ box: 'circle', beat: 2 }] },
-    { id: 'access', bars: 2, stage: 'prepare', picture: 'committee-access.png' },
-    { id: 'provider', bars: 2, stage: 'prepare', picture: 'committee-providers-password.png', zoom: [{ box: 'password', beat: 0 }] },
+    { id: 'access', bars: 2, stage: 'prepare', picture: 'committee-access.png', zoom: [{ box: 'access-list', beat: 1 }] },
+    { id: 'provider', bars: 2, stage: 'prepare', picture: 'committee-providers-password.png', zoom: [{ box: 'password', beat: 0 }], ring: [{ box: 'password', beat: 2 }] },
     // The providers scan (bars 18 to 37)
     {
       id: 'signin',
@@ -99,11 +128,33 @@ export const LONG_SCENES = Object.freeze(
       ring: [{ box: 'name-row', beat: 2 }],
     },
     { id: 'notice', bars: 2, stage: 'scan', picture: 'provider-list.png', zoom: [{ box: 'privacy', beat: 0 }] },
-    { id: 'recorded', bars: 3, stage: 'scan', picture: 'provider-recorded.png', zoom: [{ box: 'verified-line', beat: 1 }] },
+    { id: 'recorded', bars: 3, stage: 'scan', picture: 'provider-recorded.png', zoom: [{ box: 'verified-line', beat: 1 }], ring: [{ box: 'verified-line', beat: 2 }] },
     // The track's quiet break (bars 25 and 26) is the lost connection; the groove is back on bar 27, when the visit is sent.
-    { id: 'offline', bars: 4, stage: 'scan', picture: 'provider-queued.png', then: 'provider-sent.png', thenBeat: 8 },
-    { id: 'far', bars: 3, stage: 'scan', picture: 'provider-far.png' },
-    { id: 'today', bars: 2, stage: 'scan', picture: 'provider-home.png' },
+    // The sent screen and the home and language screens below show the app's version at their bottom: they are never shown whole.
+    {
+      id: 'offline',
+      bars: 4,
+      stage: 'scan',
+      picture: 'provider-queued.png',
+      then: 'provider-sent.png',
+      thenBeat: 8,
+      zoom: [
+        { box: 'status', beat: 1 },
+        { box: 'status', beat: 8 },
+        { box: 'visit', beat: 11 },
+      ],
+    },
+    {
+      id: 'far',
+      bars: 3,
+      stage: 'scan',
+      picture: 'provider-far.png',
+      zoom: [
+        { box: 'message', beat: 1 },
+        { box: 'retry', beat: 6 },
+      ],
+    },
+    { id: 'today', bars: 2, stage: 'scan', picture: 'provider-home.png', zoom: [{ box: 'visits', beat: 0 }] },
     {
       id: 'languages',
       bars: 2,
@@ -115,21 +166,36 @@ export const LONG_SCENES = Object.freeze(
         { picture: 'provider-lang-ru.png', beat: 4 },
         { picture: 'provider-lang-ar.png', beat: 6 },
       ],
+      // The visits, as the scene before left them, then the greeting and the instructions of each language, in the same place.
+      zoom: [
+        { box: 'visits', beat: 0 },
+        { box: 'hello', beat: 2 },
+        { box: 'hello', beat: 4 },
+        { box: 'hello', beat: 6 },
+      ],
     },
-    { id: 'tutorial', bars: 2, stage: 'scan', picture: 'provider-home.png', zoom: [{ box: 'tutorial-link', beat: 0 }] },
+    { id: 'tutorial', bars: 2, stage: 'scan', picture: 'provider-home.png', zoom: [{ box: 'tutorial-link', beat: 0 }], ring: [{ box: 'tutorial-link', beat: 1 }] },
     // The committee sees (bars 38 to 57)
-    { id: 'week', bars: 2, stage: 'see', picture: 'committee-home.png' },
+    { id: 'week', bars: 2, stage: 'see', picture: 'committee-home.png', zoom: [{ box: 'week', beat: 1 }] },
     { id: 'counts', bars: 3, stage: 'see', picture: 'committee-home.png', zoom: [{ box: 'provider-row', beat: 0 }], ring: [{ box: 'empty-day', beat: 2 }] },
     {
       id: 'visit',
       bars: 2,
       stage: 'see',
       picture: 'committee-history-from-home.png',
+      zoom: [{ box: 'row-0806', beat: 0 }],
       ring: [{ box: 'row-0806', beat: 0 }],
       inset: { picture: 'provider-recorded.png', beat: 2 },
     },
-    { id: 'late', bars: 2, stage: 'see', picture: 'committee-history-from-home.png', zoom: [{ box: 'row-0824', beat: 0 }] },
-    { id: 'refused', bars: 2, stage: 'see', picture: 'committee-history-refused.png', ring: [{ box: 'refused-row', beat: 0 }] },
+    { id: 'late', bars: 2, stage: 'see', picture: 'committee-history-from-home.png', zoom: [{ box: 'row-0824', beat: 0 }], ring: [{ box: 'offline-badge', beat: 1 }] },
+    {
+      id: 'refused',
+      bars: 2,
+      stage: 'see',
+      picture: 'committee-history-refused.png',
+      zoom: [{ box: 'refused-row', beat: 0 }],
+      ring: [{ box: 'refused-row', beat: 0 }],
+    },
     {
       id: 'filters',
       bars: 3,
@@ -139,20 +205,30 @@ export const LONG_SCENES = Object.freeze(
         { box: 'filters', beat: 1 },
         { box: 'excel', beat: 5 },
       ],
+      ring: [{ box: 'excel', beat: 6 }],
     },
-    { id: 'cancel', bars: 2, stage: 'see', picture: 'committee-void-dialog.png' },
+    { id: 'cancel', bars: 2, stage: 'see', picture: 'committee-void-dialog.png', zoom: [{ box: 'reason', beat: 1 }] },
     { id: 'audit', bars: 2, stage: 'see', picture: 'committee-audit.png', zoom: [{ box: 'audit-row', beat: 0 }] },
-    { id: 'admins', bars: 2, stage: 'see', picture: 'committee-admins.png', ring: [{ box: 'google-button', beat: 0 }] },
-    // The committee's AI (bars 58 to 61): "read only" once, the drawn chat (decision D8), then back to the home row that proves the answer.
+    // The members' box is most of the screen, so it is zoomed and not ringed (a ring that large points at nothing).
+    { id: 'admins', bars: 2, stage: 'see', picture: 'committee-admins.png', zoom: [{ box: 'google-button', beat: 0 }] },
+    // The committee's AI (bars 58 to 61): "read only" for a beat, the drawn chat (decision D8) long enough to read its answer, then back
+    // to the home row that proves it, with its empty day.
     {
       id: 'agent',
       bars: 4,
       stage: 'ai',
       picture: 'committee-agent.png',
       then: 'agent',
-      thenBeat: 6,
-      later: [{ picture: 'committee-home.png', beat: 12 }],
-      zoom: [{ box: 'provider-row', beat: 12 }],
+      thenBeat: 4,
+      later: [{ picture: 'committee-home.png', beat: 13 }],
+      zoom: [
+        { box: 'read-only', beat: 1 },
+        { box: 'provider-row', beat: 13 },
+      ],
+      ring: [
+        { box: 'read-only', beat: 2 },
+        { box: 'empty-day', beat: 14 },
+      ],
     },
     // What it takes, and the closing card (bars 62 to 68)
     { id: 'open', bars: 2, stage: 'need', picture: 'text' },

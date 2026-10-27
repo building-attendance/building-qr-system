@@ -53,6 +53,50 @@ export function zoomView(rect, box, picture, area = PICTURE_AREA) {
 }
 
 /**
+ * The most the long cut's camera enlarges a picture: this many pixels of the video per pixel of the picture (the recorder's pictures
+ * are at twice the density of the screen, so about twice the phone at rest). A tighter rectangle would look soft (decision D3).
+ */
+export const MAX_ZOOM_SCALE = 1.7
+
+/**
+ * A zoom rectangle widened around its centre, in the shape of the frame (9:16) and inside the picture, so that it fills the area at
+ * `maxScale` at the most; a rectangle that is wide enough already is returned as it is.
+ * @param {Rect} rect
+ * @param {{ width: number, height: number }} picture
+ * @param {number} [maxScale]
+ * @param {{ width: number }} [area]
+ * @returns {Rect}
+ */
+export function capZoom(rect, picture, maxScale = MAX_ZOOM_SCALE, area = PICTURE_AREA) {
+  if (area.width / rect.width <= maxScale) return rect
+  const width = Math.min(picture.width, area.width / maxScale)
+  const height = Math.min(picture.height, (width * 16) / 9)
+  const inside = (start, size, total) => Math.min(Math.max(start, 0), total - size)
+  return {
+    x: inside(rect.x + rect.width / 2 - width / 2, width, picture.width),
+    y: inside(rect.y + rect.height / 2 - height / 2, height, picture.height),
+    width,
+    height,
+  }
+}
+
+/**
+ * The rectangle that spans boxes side by side (the filters of the history and the Excel button at the other end of the page, on the
+ * computer), with `pad` pixels of the picture around them, inside the picture: a zoom that keeps every one of them in view.
+ * @param {Rect[]} boxes
+ * @param {{ width: number, height: number }} picture
+ * @param {number} [pad]
+ * @returns {Rect}
+ */
+export function spanRect(boxes, picture, pad = 24) {
+  const left = Math.max(0, Math.min(...boxes.map((box) => box.x)) - pad)
+  const top = Math.max(0, Math.min(...boxes.map((box) => box.y)) - pad)
+  const right = Math.min(picture.width, Math.max(...boxes.map((box) => box.x + box.width)) + pad)
+  const bottom = Math.min(picture.height, Math.max(...boxes.map((box) => box.y + box.height)) + pad)
+  return { x: left, y: top, width: right - left, height: bottom - top }
+}
+
+/**
  * The view between two views, `t` from 0 (a) to 1 (b): the scale changes by the same factor every frame (a zoom that does not slow down
  * as it closes in), the centre moves in a straight line.
  * @param {View} a

@@ -50,7 +50,7 @@ export const SCENES = Object.freeze(
   ].map((scene) => Object.freeze(scene)),
 )
 
-export { BOXES, PROMO_PICTURES, STAGES, STRIP_STAGES } from './long.js'
+export { BOXES, PROMO_PICTURES, SHEET_BOXES, STAGES, STRIP_STAGES, WIDE_ZOOMS } from './long.js'
 export { agentChat, labels as LONG_LABELS } from './he-long.js'
 
 /**
