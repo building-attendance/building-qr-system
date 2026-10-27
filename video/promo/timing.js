@@ -9,7 +9,7 @@
 // - The effects of decision D16 (pulses, whips, the landing of words, the sounds) are placed here too, from the same beats (the last section).
 // - A caption comes in by phrases (cut at `.`, `,`, `?`, `:`), one phrase per beat from the first beat of its scene, all of them by the
 //   middle of the scene. A caption that does not get its reading time at the tempo is refused (decision D9): fix the script, not the time.
-import { SCENES, SCRIPTS } from './script/index.js'
+import { SHORT } from './script/index.js'
 
 export const FPS = 30
 export const WIDTH = 1080
@@ -35,7 +35,8 @@ export const DEFAULT_TEMPO = Object.freeze({ bpm: 120, firstBeat: 0 })
 
 /**
  * The tempos that the plan accepts at all (a sanity range). The reading rule is stricter and depends on the script: with today's
- * captions, the two-bar scene that holds a caption of eight words cannot be planned above 138 bpm (the whip of its last 8 frames is not reading time).
+ * captions, the two-bar scene that holds a caption of eight words cannot be planned above 138 bpm (the whip of its last 8 frames is not reading
+ * time), and the long promo's "pays" scene (nine words in two bars) not above 124 bpm.
  */
 export const MIN_BPM = 60
 export const MAX_BPM = 200
@@ -86,25 +87,50 @@ export function beatFrame(beat, tempo = DEFAULT_TEMPO) {
 }
 
 /**
+ * A beat offset of a scene (`thenBeat`, a `later` picture, a move of the camera or a ring) as a frame, refusing one outside the scene.
+ * @param {string} id the scene
+ * @param {string} what what the beat belongs to, for the message
+ * @param {number} offset beats from the first beat of the scene
+ * @param {number} startBeat the scene's first beat, counted from the first beat of the video
+ * @param {number} beats the scene's length in beats
+ * @param {{ bpm: number, firstBeat: number }} tempo
+ * @param {number} [least] the smallest offset allowed (0 for a move that may start with the scene, 1 for a picture that replaces another)
+ */
+function sceneBeatFrame(id, what, offset, startBeat, beats, tempo, least = 0) {
+  if (!Number.isInteger(offset) || offset < least || offset >= beats) {
+    throw new Error(`The ${what} of scene "${id}" is on beat ${offset}, outside the beats ${least} to ${beats - 1} of its scene.`)
+  }
+  return beatFrame(startBeat + offset, tempo)
+}
+
+/**
  * The plan of the video in one language.
+ *
+ * A scene of the script may carry more than the short one's `then`: `thenBeat` (the beat of `then`, the middle of the scene when not
+ * given), `later` (more pictures), `zoom` and `ring` (moves of the camera and rings, by the name of a box), `inset` and `stage`; the plan
+ * carries each of them that the scene has, with beats turned into frames, and nothing else. The short script has none of them, so its plan
+ * is the one it always was.
  * @param {string} lang
  * @param {{ bpm: number, firstBeat: number }} [tempo]
+ * @param {import('./script/index.js').PromoScript} [script] the short promo when not given
  * @returns {{
- *   scenes: { id: string, picture: string, then?: string, startFrame: number, endFrame: number, thenFrame?: number, phrases: { text: string, frame: number }[] }[],
+ *   scenes: { id: string, picture: string, then?: string, startFrame: number, endFrame: number, thenFrame?: number, phrases: { text: string, frame: number }[],
+ *     stage?: string, later?: { picture: string, frame: number }[], zoom?: { box: string, frame: number }[], ring?: { box: string, frame: number }[], inset?: { picture: string, frame: number } }[],
  *   totalFrames: number,
  *   fadeOutFrame: number,
  *   bars: number,
  * }}
  */
-export function planPromo(lang, tempo = DEFAULT_TEMPO) {
+export function planPromo(lang, tempo = DEFAULT_TEMPO, script = SHORT) {
   checkTempo(tempo)
-  const captions = SCRIPTS[lang]
+  const sceneList = script.scenes
+  const captions = script.scripts[lang]
   if (!captions) throw new Error(`The promo has no script in "${lang}".`)
 
   let bar = 0
   /** The beats (counted from the first beat) where the picture changes, with the scene each belongs to. */
   const cuts = []
-  const scenes = SCENES.map((scene, index) => {
+  const scenes = sceneList.map((scene, index) => {
     const caption = captions[scene.id]
     if (typeof caption !== 'string' || !caption.trim()) throw new Error(`Scene "${scene.id}" has no caption in "${lang}".`)
     const startBeat = bar * BEATS_PER_BAR
@@ -122,7 +148,7 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
 
     const needed = readingSeconds(caption)
     // A scene that another follows slides out during its last WHIP_FRAMES frames: the caption cannot be read then.
-    const readableUntil = index < SCENES.length - 1 ? endFrame - WHIP_FRAMES : endFrame
+    const readableUntil = index < sceneList.length - 1 ? endFrame - WHIP_FRAMES : endFrame
     const available = (readableUntil - phrases[0].frame) / FPS
     if (available < needed) {
       throw new Error(
@@ -131,11 +157,36 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
     }
 
     const planned = { id: scene.id, picture: scene.picture, startFrame, endFrame, phrases }
+    if (scene.stage) planned.stage = scene.stage
     if (startBeat > 0) cuts.push({ beat: startBeat, id: scene.id })
+    let lastCut = 0
     if (scene.then) {
+      const thenBeat = scene.thenBeat ?? beats / 2
       planned.then = scene.then
-      planned.thenFrame = beatFrame(startBeat + beats / 2, tempo)
-      cuts.push({ beat: startBeat + beats / 2, id: scene.id })
+      planned.thenFrame = sceneBeatFrame(scene.id, 'second picture', thenBeat, startBeat, beats, tempo, 1)
+      cuts.push({ beat: startBeat + thenBeat, id: scene.id })
+      lastCut = thenBeat
+    } else if (scene.thenBeat != null || scene.later) {
+      throw new Error(`Scene "${scene.id}" changes its picture on a beat but has no second picture ("then").`)
+    }
+    if (scene.later) {
+      planned.later = scene.later.map(({ picture, beat }) => {
+        if (beat <= lastCut) throw new Error(`The picture "${picture}" of scene "${scene.id}" is on beat ${beat}, not after the picture before it (beat ${lastCut}).`)
+        lastCut = beat
+        cuts.push({ beat: startBeat + beat, id: scene.id })
+        return { picture, frame: sceneBeatFrame(scene.id, `picture "${picture}"`, beat, startBeat, beats, tempo, 1) }
+      })
+    }
+    for (const kind of ['zoom', 'ring']) {
+      if (scene[kind]) {
+        planned[kind] = scene[kind].map(({ box, beat }, n) => {
+          if (n > 0 && beat <= scene[kind][n - 1].beat) throw new Error(`The ${kind} on "${box}" of scene "${scene.id}" is not after the one before it.`)
+          return { box, frame: sceneBeatFrame(scene.id, `${kind} on "${box}"`, beat, startBeat, beats, tempo) }
+        })
+      }
+    }
+    if (scene.inset) {
+      planned.inset = { picture: scene.inset.picture, frame: sceneBeatFrame(scene.id, `inset "${scene.inset.picture}"`, scene.inset.beat, startBeat, beats, tempo) }
     }
     return planned
   })
@@ -152,7 +203,7 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO) {
 
 // ---- The effects of decision D16 (W1 to W6): every one of them is placed by these functions, on a beat of the plan. ----
 
-/** The scene where the groove of the track enters (frame 240 at 120 bpm): it gets the big punch and the impact sound. */
+/** The scene of the short promo where the groove of the track enters (frame 240 at 120 bpm): it gets the big punch and the impact sound. Another script says it in its `sounds`: see grooveFrame. */
 export const GROOVE_SCENE = 'scan'
 
 /**
@@ -239,23 +290,38 @@ export const SOUNDS = Object.freeze({
 
 /**
  * When each sound plays: `frame` is where its file starts, `hit` the frame where it lands (a beat of the plan), `frames` how long it plays.
- * A whoosh at every bar line between scenes, the impact on the first beat of the groove, the ding when the check-in screen appears.
+ * A whoosh at every bar line between scenes, the impact on the first beat of the groove, the ding when the check-in screen appears:
+ * the last two are the `sounds` of the script (each on the first beat of its scene or on the beat of its second picture), after the
+ * whoosh of their scene and in the script's order.
  * @param {ReturnType<typeof planPromo>} plan
+ * @param {import('./script/index.js').PromoScript} [script] the script that the plan was made from (the short promo when not given)
  */
-export function soundCues(plan) {
+export function soundCues(plan, script = SHORT) {
   const cues = []
   const add = (kind, hit, lead = 0) => {
     const { file, seconds, volume } = SOUNDS[kind]
     cues.push({ kind, file, frame: hit - lead, hit, frames: Math.ceil(seconds * FPS), volume })
   }
+  // A plan made from one script and the sounds of another (a long plan passed without its script) would play nothing: refuse it.
+  for (const sound of script.sounds) {
+    if (!plan.scenes.some((scene) => scene.id === sound.scene)) throw new Error(`The ${sound.kind} of the ${script.name} script is on scene "${sound.scene}", which this plan does not have: pass the script that made the plan.`)
+  }
   for (const [index, scene] of plan.scenes.entries()) {
     if (index > 0) add('whoosh', scene.startFrame, WHIP_FRAMES)
-    if (scene.id === GROOVE_SCENE) {
-      add('impact', scene.startFrame)
-      if (scene.thenFrame != null) add('ding', scene.thenFrame)
+    for (const sound of script.sounds.filter((one) => one.scene === scene.id)) {
+      const hit = sound.at === 'then' ? scene.thenFrame : scene.startFrame
+      if (hit == null) throw new Error(`The ${sound.kind} of scene "${scene.id}" is on its second picture, which the scene does not have.`)
+      add(sound.kind, hit)
     }
   }
   return cues
+}
+
+/** The frame where the groove of the track enters: the impact sound of the script, on a beat of the plan. */
+export function grooveFrame(plan, script = SHORT) {
+  const cue = soundCues(plan, script).find((one) => one.kind === 'impact')
+  if (!cue) throw new Error(`The ${script.name} script has no impact sound, so no groove.`)
+  return cue.hit
 }
 
 /** The first beat of the last bar: the closing card's burst of confetti and the pop of its QR tile. */
