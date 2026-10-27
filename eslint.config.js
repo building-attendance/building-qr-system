@@ -113,6 +113,10 @@ export default defineConfig([
     'playwright-report/',
     'blob-report/',
     '**/node_modules/',
+    // The git worktrees of the coding agents' sessions (git ignores them): each is a whole copy of this repository on
+    // another branch, half edited by another session, never part of this one. Linted, they made the local result depend on
+    // what other sessions were doing and a run take minutes. CI checks out a clean copy, which has none.
+    '.claude/worktrees/',
   ]),
 
   {
