@@ -2,9 +2,10 @@
 // test them (tests/video-promo.test.js) and PromoLong.jsx reads the same answers: which picture is on screen at a frame and until when,
 // which pictures are drawn over the whole frame instead of in the device, and the camera and the rings of a scene, measured on the
 // recorder's frames.json, the device each scene stands in and where its camera is at a frame (moves.js), and the bezel of each app's phone.
+import { VERTICAL } from '../format.js'
 import { DRAWN_PICTURES, WIDE_ZOOMS } from '../script/index.js'
 import { screenOf } from '../timing.js'
-import { BEZELS, LAPTOP_OUTLINE, LONG_PHONE, PHONE, PICTURE_AREA, insetArea, laptopRest, phoneRest, sceneView, spanRect, viewInArea } from './moves.js'
+import { BEZELS, PHONE, insetArea, laptopOutline, laptopRest, phoneRest, sceneView, spanRect, viewInArea } from './moves.js'
 
 /**
  * The pictures that the long cut draws over the whole frame, not in the device: the printed sign (a sheet of paper, with the demo code
@@ -94,11 +95,12 @@ export const bezelOf = (picture) => (screenOf(picture)?.app === 'committee' ? BE
 /**
  * Where a scene with zooms stands and what its camera frames: on the laptop (a computer's picture) or the long cut's phone, its rest, its
  * width at rest in the frame (`outline`), and the area its camera frames (above a picture in picture, from the start of the scene, so
- * that the camera does not move when the inset lands). Null for a scene without a zoom.
+ * that the camera does not move when the inset lands), all in the frame of `format`. Null for a scene without a zoom.
  * @param {ReturnType<typeof import('../timing.js').planPromo>['scenes'][number]} scene
  * @param {Parameters<typeof cameraOf>[1]} frames
+ * @param {import('../format.js').Format} [format]
  */
-export function stageOf(scene, frames) {
+export function stageOf(scene, frames, format = VERTICAL) {
   const camera = cameraOf(scene, frames)
   if (!camera) return null
   const laptop = screenOf(scene.picture)?.device === 'computer'
@@ -106,9 +108,9 @@ export function stageOf(scene, frames) {
   return {
     camera,
     laptop,
-    rest: laptop ? laptopRest(camera.picture) : phoneRest(camera.picture, LONG_PHONE),
-    outline: laptop ? LAPTOP_OUTLINE : PHONE.width * LONG_PHONE.scale,
-    area: inset ? insetArea(inset) : PICTURE_AREA,
+    rest: laptop ? laptopRest(camera.picture, format) : phoneRest(camera.picture, format.longPhone, format),
+    outline: laptop ? laptopOutline(format.laptop) : PHONE.width * format.longPhone.scale,
+    area: inset ? insetArea(inset, format) : format.pictureArea,
   }
 }
 
@@ -122,17 +124,18 @@ export function stageOf(scene, frames) {
  * @param {Parameters<typeof cameraOf>[1]} frames
  * @param {{ bpm: number, firstBeat: number }} tempo
  * @param {(t: number) => number} [ease] the easing of the moves (zoom.jsx), for a scene before that ends during a move
+ * @param {import('../format.js').Format} [format]
  */
-export function continuityOf(scenes, index, frames, tempo, ease) {
+export function continuityOf(scenes, index, frames, tempo, ease, format = VERTICAL) {
   const scene = scenes[index]
   if (!scene.continues) return null
   const before = scenes[index - 1]
-  const [was, is] = [stageOf(before, frames), stageOf(scene, frames)]
+  const [was, is] = [stageOf(before, frames, format), stageOf(scene, frames, format)]
   const last = pictureAt(before, before.endFrame)
   if (!was || !is || !inDevice(last) || was.laptop !== is.laptop || was.camera.picture.width !== is.camera.picture.width || was.camera.picture.height !== is.camera.picture.height) {
     throw new Error(`Scene "${scene.id}" continues "${before.id}", which does not end on a zoomed screen of the same device and size.`)
   }
-  const end = sceneView({ frame: before.endFrame, scene: before, ...was, from: continuityOf(scenes, index - 1, frames, tempo, ease)?.from, tempo, ease, pulse: false })
+  const end = sceneView({ frame: before.endFrame, scene: before, ...was, from: continuityOf(scenes, index - 1, frames, tempo, ease, format)?.from, tempo, ease, pulse: false })
   return { from: viewInArea(end, was.area, is.area), picture: last }
 }
 

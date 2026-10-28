@@ -24,7 +24,12 @@ export function stagedPictures(scenes = SCENES) {
 /** What to run when the recorder's pictures are missing or out of date. */
 const RECORD = 'Run `npm run promo:frames` to record the pictures of the long promo.'
 
-/** The shape of a zoom rectangle: the video's frame (1080x1920), as the recorder cuts it (scripts/promo/settings.mjs, FRAME_ASPECT). */
+/**
+ * The shape of a zoom rectangle as the recorder cuts it (scripts/promo/settings.mjs, FRAME_ASPECT): 9:16, the shape of the vertical frame
+ * it was made for. It is a check of the recording, not a size of the frame, and no format (format.js) reads it: since decision E2 the
+ * camera reads only a rectangle's vertical middle (parts/moves.js, pushView) and pushes the device in by its own limit, so the same
+ * recording serves a frame of any shape.
+ */
 const ZOOM_ASPECT = 9 / 16
 
 const isRect = (rect) => rect != null && ['x', 'y', 'width', 'height'].every((key) => Number.isFinite(rect[key]) && rect[key] >= 0) && rect.width > 0 && rect.height > 0
