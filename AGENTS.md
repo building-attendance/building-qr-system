@@ -209,10 +209,10 @@ Both layers run against the non-production database of `.env.local`, in a throwa
   `server/`, `vite.config.js` or the PWA files. `npm test` runs both before a release.
 - An E2E test fails on an unexpected `console.error` or page error; one provoked on purpose is allowed with
   `allowConsoleErrors` (`e2e/fixtures.js`), with the pattern as narrow as the message allows.
-- CI (`.github/workflows/ci.yml`) runs `guards` (with the size budgets of `scripts/check-bundle-size.json`: the owner
-  decides a raise, and a budget is lowered when the app gets smaller), `unit` and `e2e` (both projects); all four are
-  required to merge. A test that really has to go is the owner's call: say why in the pull request, with the label
-  `allow-test-removal`.
+- CI runs `guards` (`.github/workflows/guards.yml`, with the size budgets of `scripts/check-bundle-size.json`: the owner
+  decides a raise, and a budget is lowered when the app gets smaller), `unit` and `e2e` (both projects, `ci.yml`); all
+  four are required to merge. A test that really has to go is the owner's call: say why in the pull request, with the
+  label `allow-test-removal`.
 - Not automated, on purpose: install to the Home Screen, standalone mode, the status bar, offline use on a real iPhone,
   push. Check them by hand with `docs/manual-ios-checklist.md` before a release that touches the PWA files, the layout
   or the location flow.
