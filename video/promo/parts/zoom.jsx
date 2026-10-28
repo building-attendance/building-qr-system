@@ -7,7 +7,8 @@
 import { createContext, useContext } from 'react'
 import { AbsoluteFill, Easing } from 'remotion'
 import { useClock } from './clock.jsx'
-import { PICTURE_AREA, cameraTransform, sceneView } from './moves.js'
+import { useFormat } from './format.jsx'
+import { cameraTransform, sceneView } from './moves.js'
 
 /** How much larger than at rest the camera shows its device now (1 at rest): a ring reads it to keep its line as thick on screen. */
 const CameraScale = createContext(1)
@@ -30,11 +31,13 @@ export const ZOOM_EASING = Easing.bezier(0.65, 0, 0.35, 1)
  * the element it is for (frames.json `boxes`), which the camera keeps in view. `picture` is the size of the picture on screen, `rest`
  * where that picture is drawn when the camera is at rest (phoneRest in moves.js), `outline` the device's width at rest in pixels of the
  * frame (its bezel and a laptop's base included), and `from` the view where a scene that continues the one before it starts. `area` is
- * the part of the frame that the camera frames (the picture area of moves.js when not given; the long cut gives the part above its
+ * the part of the frame that the camera frames (the picture area of the format when not given; the long cut gives the part above its
  * picture in picture).
  */
-export function Zoom({ scene, moves, picture, rest, outline, from = null, children, area = PICTURE_AREA }) {
+export function Zoom({ scene, moves, picture, rest, outline, from = null, children, area: given = null }) {
   const { global, tempo, settled } = useClock()
+  const format = useFormat()
+  const area = given ?? format.pictureArea
   const view = sceneView({ frame: global, scene, camera: { picture, moves }, rest, outline, area, from, tempo, ease: ZOOM_EASING, settled })
   const { scale, x, y } = cameraTransform(view, rest, area)
   return (
