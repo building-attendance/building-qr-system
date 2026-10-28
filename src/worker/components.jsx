@@ -13,7 +13,7 @@ import BuildLabel from '../ui/BuildLabel.jsx'
 import { Sheet } from './Sheet.jsx'
 import {
   IconAlert, IconChevron, IconCheck, IconCloudOff, IconEye, IconEyeOff, IconGlobe, IconInfo, IconLock, IconPhoneCheck, IconPin,
-  IconPinOff, IconQr, IconRefresh, IconSend, IconShield, IconUser, IconWifiOff, IconX,
+  IconPinOff, IconQr, IconRefresh, IconSend, IconUser, IconWifiOff, IconX,
 } from './icons.jsx'
 
 const initial = (text) => Array.from((text || '?').trim())[0]?.toUpperCase() ?? '?'
@@ -69,10 +69,38 @@ export function TopBar({ name = '', address = '', adminEntry = false }) {
   )
 }
 
+/* ---------------------------------------------------------- reading links */
+
+/**
+ * The two things to read, side by side, one under the other where the words are long: the tutorial video and the privacy notice. One
+ * component for the sign-in list and home, so the two rows never drift apart (owner, 28/10/2026: "exactly like on screen 2"). The video is a
+ * link: it leaves the app for the player page of the person's language. The privacy notice opens its short version in a sheet over the
+ * screen, with the way to the whole of it at /privacy. On the sign-in list it is above the names, so a list of any length never pushes it
+ * out of view before the first sign-in (privacy topic D20, which replaced the note under the list).
+ */
+function ReadingLinks() {
+  const { t, lang } = useI18n()
+  const [privacyOpen, setPrivacyOpen] = useState(false)
+  return (
+    <>
+      <div className="w-links">
+        <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
+        <button type="button" className="w-link" aria-haspopup="dialog" onClick={() => setPrivacyOpen(true)}>{t('privacy.title')}</button>
+      </div>
+      {privacyOpen && (
+        <Sheet title={t('privacy.title')} closeLabel={t('common.close')} onClose={() => setPrivacyOpen(false)}>
+          <p>{t('login.privacy')}</p>
+          <a className="w-link" href="/privacy">{t('privacy.open')}</a>
+        </Sheet>
+      )}
+    </>
+  )
+}
+
 /* ---------------------------------------------------------------- sign in */
 
 export function LoginView({ providers, pointName, notice, onSignedIn }) {
-  const { t, lang } = useI18n()
+  const { t } = useI18n()
   const [selected, setSelected] = useState(null)
   const [password, setPassword] = useState('')
   const [show, setShow] = useState(false)
@@ -196,8 +224,8 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
         <p className="w-lead">{t('login.subtitle')}</p>
       </div>
 
-      {/* The video teaches this very sign-in, so its link is here too, from the start. */}
-      <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
+      {/* The video teaches this very sign-in, and the privacy notice comes before the first scan: both from the start, above the names. */}
+      <ReadingLinks />
 
       {providers.status === 'loading' && (
         <div className="w-list" role="status" aria-busy="true" aria-label={t('common.loading')}>
@@ -230,12 +258,6 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
           ))}
         </ul>
       )}
-      {/* The short privacy notice, before anyone signs in or scans, and inside it the way to the whole of it (src/worker/PrivacyView.jsx):
-          one block, where the link was a row of its own under it. */}
-      <p className="w-note">
-        <IconShield size={20} />
-        <span>{t('login.privacy')}<a className="w-note__link" href="/privacy">{t('privacy.open')}</a></span>
-      </p>
     </div>
   )
 }
@@ -243,12 +265,11 @@ export function LoginView({ providers, pointName, notice, onSignedIn }) {
 /* ------------------------------------------------------------------- home */
 
 export function HomeView({ session, visits, pending, syncing, onSync, notice, onDismissNotice, onSwitch }) {
-  const { t, time, lang } = useI18n()
+  const { t, time } = useI18n()
   const name = session.provider.contact_name || session.provider.company
   const company = session.provider.contact_name ? session.provider.company : ''
   const updateReady = useSyncExternalStore(subscribeUpdate, isUpdateReady)
   const headingRef = useRef(null)
-  const [privacyOpen, setPrivacyOpen] = useState(false)
   // After "done" or a sign-in the focus would otherwise fall back to the page body; start at the greeting.
   useEffect(() => {
     headingRef.current?.focus()
@@ -311,13 +332,8 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
         </ol>
       </div>
 
-      {/* The two things to read, side by side under the card (owner, 27/10/2026), one under the other where the words are long. The video
-          is a link: it leaves the app for the player page of the person's language. The privacy notice opens its short version in a sheet
-          over the screen, with the way to the whole of it. */}
-      <div className="w-links">
-        <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
-        <button type="button" className="w-link" aria-haspopup="dialog" onClick={() => setPrivacyOpen(true)}>{t('privacy.title')}</button>
-      </div>
+      {/* The two things to read, under the card (owner, 27/10/2026). */}
+      <ReadingLinks />
 
       <section className="w-card" aria-labelledby="w-today">
         <h2 id="w-today" className="w-section-title">{t('home.today')}</h2>
@@ -337,13 +353,6 @@ export function HomeView({ session, visits, pending, syncing, onSync, notice, on
       </section>
 
       <BuildLabel label={t('app.version')} className="w-build--center w-foot" />
-
-      {privacyOpen && (
-        <Sheet title={t('privacy.title')} closeLabel={t('common.close')} onClose={() => setPrivacyOpen(false)}>
-          <p>{t('login.privacy')}</p>
-          <a className="w-link" href="/privacy">{t('privacy.open')}</a>
-        </Sheet>
-      )}
     </div>
   )
 }

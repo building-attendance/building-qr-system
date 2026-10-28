@@ -20,6 +20,35 @@ afterEach(() => {
 })
 
 const withI18n = (ui) => render(<I18nProvider>{ui}</I18nProvider>)
+
+/**
+ * The privacy notice's button of the sign-in list and of home, in the language `code`: beside the video link, it opens the short notice in a
+ * sheet with the link to the whole of it, the focus on the sheet; the close button, Esc and a tap outside close it, back on the button.
+ * Returns the button.
+ */
+function expectPrivacySheet(code) {
+  const words = DICTS[code]
+  const video = screen.getByRole('link', { name: words['home.tutorial'] })
+  const opener = screen.getByRole('button', { name: words['privacy.title'] })
+  expect(opener.parentElement, `${code}: the two links side by side`).toBe(video.parentElement)
+  const dismissals = [
+    () => fireEvent.click(screen.getByRole('button', { name: words['common.close'] })),
+    () => fireEvent.keyDown(document, { key: 'Escape' }),
+    () => fireEvent.mouseDown(screen.getByRole('dialog').parentElement),
+  ]
+  for (const dismiss of dismissals) {
+    opener.focus()
+    fireEvent.click(opener)
+    const sheet = screen.getByRole('dialog', { name: words['privacy.title'] })
+    expect(document.activeElement, `${code}: the focus is on the sheet, which a screen reader reads by its title`).toBe(sheet)
+    expect(sheet.textContent).toContain(words['login.privacy'])
+    expect(screen.getByRole('link', { name: words['privacy.open'] }).getAttribute('href')).toBe('/privacy')
+    dismiss()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement, `${code}: the focus is back on the link that opened it`).toBe(opener)
+  }
+  return opener
+}
 const ploni = { id: 'p1', contact_name: SAMPLE_PROVIDER_NAMES.cleaner, company: 'ניקיון' }
 const almoni = { id: 'p2', contact_name: SAMPLE_PROVIDER_NAMES.gardener, company: 'גינון' }
 
@@ -57,13 +86,24 @@ describe('LoginView', () => {
     }
   })
 
-  it('keeps the link to the whole privacy notice inside the note, after its words, and has no committee link of its own (it is in the top bar)', () => {
+  it('opens the privacy notice in a sheet from beside the video link, above the first account, as home does, in every language', () => {
+    // Above the names, so that a list of any length never pushes it out of view before the first sign-in (owner, 28/10/2026).
+    for (const { code } of LANGS) {
+      window.localStorage.setItem(LANG_STORAGE_KEY, code)
+      const { unmount } = withI18n(view())
+      try {
+        const opener = expectPrivacySheet(code)
+        const first = screen.getByRole('button', { name: new RegExp(ploni.contact_name) })
+        expect(opener.compareDocumentPosition(first) & Node.DOCUMENT_POSITION_FOLLOWING, `${code}: before the first account`).toBeTruthy()
+        expect(screen.queryByRole('link', { name: DICTS[code]['privacy.open'] }), `${code}: the whole notice is reached through the sheet only`).toBeNull()
+      } finally {
+        unmount()
+      }
+    }
+  })
+
+  it('has no committee link of its own (it is in the top bar)', () => {
     withI18n(view())
-    const link = screen.getByRole('link', { name: he['privacy.open'] })
-    expect(link.getAttribute('href')).toBe('/privacy')
-    const note = link.closest('.w-note')
-    expect(note, 'the link is part of the note, not a row under it').toBeTruthy()
-    expect(note.textContent.startsWith(he['login.privacy'])).toBe(true)
     expect(screen.queryByRole('link', { name: he['footer.admin'] })).toBeNull()
   })
 
@@ -71,6 +111,7 @@ describe('LoginView', () => {
     withI18n(view())
     fireEvent.click(screen.getByRole('button', { name: new RegExp(ploni.contact_name) }))
     expect(screen.queryByRole('link', { name: he['home.tutorial'] })).toBeNull()
+    expect(screen.queryByRole('button', { name: he['privacy.title'] }), 'nor the privacy button, which the password screen never had').toBeNull()
   })
 
   it("starts the privacy note with the account's name in every language: a scan keeps the name of the account, not the person's own (owner decision of 15/10/2026)", () => {
@@ -85,6 +126,7 @@ describe('LoginView', () => {
     for (const { code } of LANGS) {
       window.localStorage.setItem('qr.lang', code)
       withI18n(view())
+      fireEvent.click(screen.getByRole('button', { name: DICTS[code]['privacy.title'] })) // the note is in the sheet of the privacy button
       // Exactly one element must hold the note's own text, and it must start with the sentence.
       const note = screen.getByText((content) => content.startsWith(firstSentence[code]))
       expect(note.textContent.slice(0, firstSentence[code].length), code).toBe(firstSentence[code])
@@ -300,28 +342,8 @@ describe('HomeView', () => {
       window.localStorage.setItem(LANG_STORAGE_KEY, code)
       const { unmount } = show()
       try {
-        const words = DICTS[code]
-        const video = screen.getByRole('link', { name: words['home.tutorial'] })
-        const opener = screen.getByRole('button', { name: words['privacy.title'] })
-        expect(opener.parentElement, `${code}: the two links side by side`).toBe(video.parentElement)
-        expect(opener.compareDocumentPosition(screen.getByRole('region', { name: words['home.today'] })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
-
-        const dismissals = [
-          () => fireEvent.click(screen.getByRole('button', { name: words['common.close'] })),
-          () => fireEvent.keyDown(document, { key: 'Escape' }),
-          () => fireEvent.mouseDown(screen.getByRole('dialog').parentElement),
-        ]
-        for (const dismiss of dismissals) {
-          opener.focus()
-          fireEvent.click(opener)
-          const sheet = screen.getByRole('dialog', { name: words['privacy.title'] })
-          expect(document.activeElement, `${code}: the focus is on the sheet, which a screen reader reads by its title`).toBe(sheet)
-          expect(sheet.textContent).toContain(words['login.privacy'])
-          expect(screen.getByRole('link', { name: words['privacy.open'] }).getAttribute('href')).toBe('/privacy')
-          dismiss()
-          expect(screen.queryByRole('dialog')).toBeNull()
-          expect(document.activeElement, `${code}: the focus is back on the link that opened it`).toBe(opener)
-        }
+        const opener = expectPrivacySheet(code)
+        expect(opener.compareDocumentPosition(screen.getByRole('region', { name: DICTS[code]['home.today'] })) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy()
       } finally {
         unmount()
       }
