@@ -91,9 +91,12 @@ describe('the privacy notice', () => {
 })
 
 describe('the way to the notice', () => {
-  it('is on the sign-in list, after the short notice', () => {
+  it('is on the sign-in list, before the first sign-in: the short notice in a sheet, and the way to the whole of it', () => {
     render(<I18nProvider><LoginView providers={{ status: 'ready', providers: [], reload: () => {} }} onSignedIn={() => {}} /></I18nProvider>)
-    expect(screen.getByRole('link', { name: he['privacy.open'] }).getAttribute('href')).toBe('/privacy')
+    fireEvent.click(screen.getByRole('button', { name: he['privacy.title'] }))
+    const sheet = screen.getByRole('dialog', { name: he['privacy.title'] })
+    expect(within(sheet).getByText(he['login.privacy'])).toBeTruthy()
+    expect(within(sheet).getByRole('link', { name: he['privacy.open'] }).getAttribute('href')).toBe('/privacy')
   })
 
   it('is on the home screen, at any time after the sign-in: the short notice in a sheet, and the way to the whole of it', () => {

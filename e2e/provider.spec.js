@@ -15,7 +15,39 @@ test('a scan link opens the sign-in list, in Hebrew, naming the point', async ({
   await expect(page.getByRole('list').getByRole('button')).toHaveCount(5) // the five sample providers
   await expect(page.locator('html')).toHaveAttribute('lang', 'he')
   await expect(page.locator('html')).toHaveAttribute('dir', 'rtl')
-  await expect(page.getByText(he['login.privacy'])).toBeVisible()
+  await expect(page.getByRole('button', { name: he['privacy.title'] })).toBeVisible()
+})
+
+test('with five accounts on the list, the privacy notice is above the first one and in view on a 390 x 844 phone in every language, and opens the short notice with the way to the whole of it', async ({ page }) => {
+  // Under the list it went out of view once a building had a few providers (owner, 28/10/2026): it is now beside the video link, as on home.
+  await page.setViewportSize({ width: 390, height: 844 })
+  await page.goto(scanLink(POINTS.lobby))
+  let now = he
+  for (const [code, words] of [['he', he], ['en', en], ['ru', ru], ['ar', ar]]) {
+    await page.getByLabel(now['lang.label']).selectOption(code)
+    now = words
+    await expect(page.getByRole('heading', { name: words['login.title'] })).toBeVisible()
+    await page.evaluate(() => document.fonts.ready)
+    const rows = page.getByRole('list').getByRole('button')
+    await expect(rows).toHaveCount(5) // the five sample providers
+    const opener = page.getByRole('button', { name: words['privacy.title'] })
+    await expect(opener).toBeInViewport({ ratio: 1 })
+    const box = await opener.boundingBox()
+    expect(box.y + box.height, `${code}: the bottom of the privacy button, above the first account`).toBeLessThanOrEqual((await rows.first().boundingBox()).y)
+    expect(box.y + box.height, `${code}: the bottom of the privacy button, in a screen 844 px high`).toBeLessThanOrEqual(844)
+
+    await opener.click()
+    const sheet = page.getByRole('dialog', { name: words['privacy.title'] })
+    await expect(sheet.getByText(words['login.privacy'])).toBeVisible()
+    await expect(sheet.getByRole('link', { name: words['privacy.open'] })).toHaveAttribute('href', '/privacy')
+    await sheet.getByRole('button', { name: words['common.close'] }).click()
+    await expect(sheet).toBeHidden()
+    await expect(opener).toBeFocused()
+  }
+  await page.getByRole('button', { name: now['privacy.title'] }).click()
+  await page.getByRole('dialog', { name: now['privacy.title'] }).getByRole('link', { name: now['privacy.open'] }).click()
+  await expect(page).toHaveURL(/\/privacy$/)
+  await expect(page.getByRole('heading', { level: 1, name: now['privacy.title'] })).toBeVisible()
 })
 
 test('the sign-in list links to the tutorial video from its start, and its first accounts stay above the fold of a 390 x 844 phone in every language', async ({ page }) => {
@@ -47,24 +79,24 @@ test('the sign-in list links to the tutorial video from its start, and its first
   }
 })
 
-test('the privacy note under the list gets the padding that its class declares', async ({ page }) => {
-  // The reset of paragraphs (`.w-app p`) once outranked the class and cancelled this padding: the shield touched the edge of the box and
-  // the text touched its top and bottom. tests/design-css.test.js holds the reset at no specificity; this is what the browser lays out.
-  await page.goto(scanLink(POINTS.lobby))
-  const note = page.getByText(he['login.privacy']).locator('xpath=..')
-  await expect(note).toBeVisible()
-  const { declared, computed, expected } = await note.evaluate((el) => {
-    const rule = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).find((r) => r.selectorText === '.w-note')
-    const sides = (style) => [style.paddingTop, style.paddingRight, style.paddingBottom, style.paddingLeft]
-    const probe = document.body.appendChild(document.createElement('div')) // the declared padding, with its tokens resolved
-    probe.style.padding = rule?.style.padding ?? ''
-    const out = { declared: rule?.style.padding ?? '', computed: sides(getComputedStyle(el)), expected: sides(getComputedStyle(probe)) }
+test('a section title of the privacy notice gets the margin that its class declares', async ({ page }) => {
+  // The reset of headings and paragraphs (`.w-app p`, `.w-app h2`) once outranked a single class and cancelled what it declared: the privacy
+  // note that the sign-in list had then lost its padding. tests/design-css.test.js holds the reset at no specificity; this is what the
+  // browser lays out, on an h2 whose one class declares a margin (the note is gone since the notice opens in a sheet, owner 28/10/2026).
+  await page.goto('/privacy')
+  const title = page.getByRole('heading', { level: 2 }).first()
+  await expect(title).toBeVisible()
+  const { declared, computed, expected } = await title.evaluate((el) => {
+    const rule = [...document.styleSheets].flatMap((sheet) => [...sheet.cssRules]).find((r) => r.selectorText === '.w-section-title')
+    const probe = document.body.appendChild(document.createElement('div')) // the declared margin, with its token resolved
+    probe.style.marginBlockEnd = rule?.style.marginBlockEnd ?? ''
+    const out = { declared: rule?.style.marginBlockEnd ?? '', computed: getComputedStyle(el).marginBottom, expected: getComputedStyle(probe).marginBottom }
     probe.remove()
     return out
   })
-  expect(declared, 'the stylesheet declares a padding for the note').not.toBe('')
-  expect(expected, 'the declared padding resolves to a length on every side').not.toContain('0px')
-  expect(computed, `the padding that the note gets is the one its class declares (${declared})`).toEqual(expected)
+  expect(declared, 'the stylesheet declares a margin under the title').not.toBe('')
+  expect(expected, 'the declared margin resolves to a length').not.toBe('0px')
+  expect(computed, `the margin that the title gets is the one its class declares (${declared})`).toBe(expected)
 })
 
 // A name that wraps onto many lines (owner decision of 16/10/2026): the letter circle sits level with the FIRST line of the name, at the top of
