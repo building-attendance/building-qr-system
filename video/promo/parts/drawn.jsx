@@ -4,13 +4,14 @@
 //   the sample point's code, as the camera scene does, so that nobody scans a sample code off a screen;
 // - AgentChat: the drawn chat of the committee's AI (decision D8), neutral and without a brand: the question, then the answer on the next
 //   beat but one, with the tag that says it is an illustration on sample data, above the words.
-// Their words come from the script and the sample (stage.js, agentAnswer), never from here.
+// Their words come from the script and the sample (stage.js, agentAnswer), never from here. No camera moves the sign or the chat, so each
+// has the camera's life of its own (moves.js, lifeScale): a slow push of 3% until it goes, and the 2% pulse of the bar line.
 import { AbsoluteFill, Img, interpolate, spring, staticFile } from 'remotion'
 import { COLORS, FONT_FAMILY } from '../../src/theme.js'
 import { DEMO_QR, isRtl } from '../../src/timing.js'
 import { FPS, WIDTH, beatFrames } from '../timing.js'
 import { GROUND, clamp, useClock } from './clock.jsx'
-import { BAR_HEIGHT, PICTURE_AREA, STRIP_HEIGHT } from './moves.js'
+import { BAR_HEIGHT, PICTURE_AREA, STRIP_HEIGHT, lifeScale } from './moves.js'
 import { CROSS_FADE_FRAMES, SCREEN } from './phone.jsx'
 import { Tag } from './tag.jsx'
 
@@ -57,12 +58,12 @@ export function CheckMark({ at }) {
 const SHEET_WIDTH = 900
 
 /**
- * @param {{ file: string, entry: { width: number, height: number, boxes: Record<string, { x: number, y: number, width: number, height: number }> }, from: number }} props
+ * @param {{ file: string, entry: { width: number, height: number, boxes: Record<string, { x: number, y: number, width: number, height: number }> }, from: number, until: number }} props
  * `entry` is the picture's entry of frames.json: its `sign` box is the sheet, its `qr` box the code that the demo code covers. `from` is
- * the frame of the video where it comes in.
+ * the frame of the video where it comes in, and `until` the one where it goes (its life drifts until then).
  */
-export function PrintedSign({ file, entry, from }) {
-  const { global } = useClock()
+export function PrintedSign({ file, entry, from, until }) {
+  const { global, tempo, settled } = useClock()
   if (global < from) return null
   const { sign, qr } = entry.boxes
   const k = SHEET_WIDTH / sign.width
@@ -82,7 +83,7 @@ export function PrintedSign({ file, entry, from }) {
           borderRadius: 14,
           background: '#ffffff',
           boxShadow: '0 24px 60px rgba(0, 0, 0, 0.45)',
-          transform: `scale(${0.92 + 0.08 * landed})`,
+          transform: `scale(${(0.92 + 0.08 * landed) * lifeScale(global, from, until, tempo, settled)})`,
         }}
       >
         <Img src={staticFile(file)} style={{ position: 'absolute', left: -sign.x * k, top: -sign.y * k, width: entry.width * k, height: entry.height * k }} />
@@ -129,7 +130,7 @@ function Bubble({ at, mine, children }) {
  * `label` the words of the tag. The answer's places are bold and isolated (a name in parentheses, a date), so their order never changes.
  */
 export function AgentChat({ chat, from, until, lang, label }) {
-  const { global, tempo } = useClock()
+  const { global, tempo, settled } = useClock()
   if (global < from || global >= until + CROSS_FADE_FRAMES) return null
   const shown = Math.min(interpolate(global, [from, from + CROSS_FADE_FRAMES], [0, 1], clamp), interpolate(global, [until, until + CROSS_FADE_FRAMES], [1, 0], clamp))
   const rtl = isRtl(lang)
@@ -151,6 +152,7 @@ export function AgentChat({ chat, from, until, lang, label }) {
           justifyContent: 'center',
           gap: 44,
           padding: '140px 44px 56px',
+          transform: `scale(${lifeScale(global, from, until, tempo, settled)})`,
         }}
       >
         <Tag text={label} lang={lang} corner={rtl ? 'top-right' : 'top-left'} size={36} offset={40} />

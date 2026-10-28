@@ -1,9 +1,10 @@
 // What the long cut shows in a scene of its plan, as plain functions (no Remotion, no React), so that the unit run of the repository can
 // test them (tests/video-promo.test.js) and PromoLong.jsx reads the same answers: which picture is on screen at a frame and until when,
 // which pictures are drawn over the whole frame instead of in the device, and the camera and the rings of a scene, measured on the
-// recorder's frames.json (the zoom rectangles widened so that no zoom looks soft, moves.js).
+// recorder's frames.json, the device each scene stands in and where its camera is at a frame (moves.js), and the bezel of each app's phone.
 import { DRAWN_PICTURES, WIDE_ZOOMS } from '../script/index.js'
-import { MAX_ZOOM_SCALE, capZoom, spanRect } from './moves.js'
+import { screenOf } from '../timing.js'
+import { BEZELS, LAPTOP_OUTLINE, LONG_PHONE, PHONE, PICTURE_AREA, insetArea, laptopRest, phoneRest, sceneView, spanRect, viewInArea } from './moves.js'
 
 /**
  * The pictures that the long cut draws over the whole frame, not in the device: the printed sign (a sheet of paper, with the demo code
@@ -36,14 +37,37 @@ export function pictureEnd(scene, frame) {
 }
 
 /**
- * The camera of a scene with zooms: the size of the device's pictures and each move, its rectangle (frames.json `zooms`, widened to
- * `maxScale` at the most, or the span of WIDE_ZOOMS) and the element it keeps in view (frames.json `boxes`). Null for a scene without
- * a zoom. Refuses a zoom on a picture that the device does not show, or device pictures of different sizes in one scene.
+ * The pictures that the device draws at a frame of the video, each with its opacity, under the ones after it: the scene's first picture
+ * from the first frame of its sequence (so the whip brings the screen in already drawn), each later one cross-fading in over `fade`
+ * frames from its own frame, and none that a later one covers whole. `before` is the picture that the scene before it ended on, for a scene
+ * that continues it on another picture: drawn whole under the first one, which cross-fades in on the scene's first frame.
+ * @param {{ picture: string, startFrame: number, then?: string, thenFrame?: number, later?: { picture: string, frame: number }[] }} scene
+ * @param {number} global
+ * @param {number} fade
+ * @param {string | null} [before]
+ * @returns {{ picture: string, frame: number, opacity: number }[]}
+ */
+export function drawnPictures(scene, global, fade, before = null) {
+  const own = pictureTimeline(scene).filter((one) => inDevice(one.picture))
+  const shown = before && before !== own[0]?.picture ? [{ picture: before, frame: -Infinity }, ...own] : own
+  const drawn = []
+  shown.forEach((one, index) => {
+    if (index > 0 && global < one.frame) return
+    if (index + 1 < shown.length && global >= shown[index + 1].frame + fade) return // covered whole by the next one
+    const opacity = index === 0 ? 1 : Math.min(1, Math.max(0, (global - one.frame) / fade))
+    drawn.push({ picture: one.picture, frame: one.frame, opacity })
+  })
+  return drawn
+}
+
+/**
+ * The camera of a scene with zooms: the size of the device's pictures and each move, its rectangle (frames.json `zooms`, or the span
+ * of WIDE_ZOOMS) and the element it keeps in view (frames.json `boxes`). Null for a scene without a zoom. Refuses a zoom on a picture
+ * that the device does not show, or device pictures of different sizes in one scene.
  * @param {ReturnType<typeof import('../timing.js').planPromo>['scenes'][number]} scene
  * @param {{ pictures: Record<string, { width: number, height: number, boxes: Record<string, object>, zooms: Record<string, object> }> }} frames
- * @param {number} [maxScale]
  */
-export function cameraOf(scene, frames, maxScale = MAX_ZOOM_SCALE) {
+export function cameraOf(scene, frames) {
   if (!scene.zoom) return null
   const shown = pictureTimeline(scene).filter((one) => inDevice(one.picture))
   const size = frames.pictures[shown[0]?.picture]
@@ -57,10 +81,59 @@ export function cameraOf(scene, frames, maxScale = MAX_ZOOM_SCALE) {
     if (!inDevice(picture)) throw new Error(`The zoom on "${move.box}" of scene "${scene.id}" is on "${picture}", which the device does not show.`)
     const entry = frames.pictures[picture]
     const wide = WIDE_ZOOMS[picture]?.[move.box]
-    const rect = capZoom(wide ? spanRect(wide.map((box) => entry.boxes[box]), entry) : entry.zooms[move.box], entry, maxScale)
+    const rect = wide ? spanRect(wide.map((box) => entry.boxes[box]), entry) : entry.zooms[move.box]
     return { frame: move.frame, rect, box: entry.boxes[move.box] }
   })
   return { picture: { width: size.width, height: size.height }, moves }
+}
+
+export { BEZELS }
+/** The bezel of the phone that shows `picture` (the provider's, dark, for a drawn picture such as the camera). */
+export const bezelOf = (picture) => (screenOf(picture)?.app === 'committee' ? BEZELS.committee : BEZELS.provider)
+
+/**
+ * Where a scene with zooms stands and what its camera frames: on the laptop (a computer's picture) or the long cut's phone, its rest, its
+ * width at rest in the frame (`outline`), and the area its camera frames (above a picture in picture, from the start of the scene, so
+ * that the camera does not move when the inset lands). Null for a scene without a zoom.
+ * @param {ReturnType<typeof import('../timing.js').planPromo>['scenes'][number]} scene
+ * @param {Parameters<typeof cameraOf>[1]} frames
+ */
+export function stageOf(scene, frames) {
+  const camera = cameraOf(scene, frames)
+  if (!camera) return null
+  const laptop = screenOf(scene.picture)?.device === 'computer'
+  const inset = scene.inset ? frames.pictures[scene.inset.picture] : null
+  return {
+    camera,
+    laptop,
+    rest: laptop ? laptopRest(camera.picture) : phoneRest(camera.picture, LONG_PHONE),
+    outline: laptop ? LAPTOP_OUTLINE : PHONE.width * LONG_PHONE.scale,
+    area: inset ? insetArea(inset) : PICTURE_AREA,
+  }
+}
+
+/**
+ * Where a scene that continues the one before it (`continues`) starts: the view of that one's camera on its last frame (without the
+ * pulse of the bar line, which this scene's camera adds), in this scene's area, and the picture it ended on, which this one cross-fades
+ * from (drawnPictures). Null for a scene that does not continue. Refuses a scene before it that has no camera, that ends on a picture
+ * drawn over the whole frame, or whose device or picture size differs.
+ * @param {ReturnType<typeof import('../timing.js').planPromo>['scenes']} scenes
+ * @param {number} index
+ * @param {Parameters<typeof cameraOf>[1]} frames
+ * @param {{ bpm: number, firstBeat: number }} tempo
+ * @param {(t: number) => number} [ease] the easing of the moves (zoom.jsx), for a scene before that ends during a move
+ */
+export function continuityOf(scenes, index, frames, tempo, ease) {
+  const scene = scenes[index]
+  if (!scene.continues) return null
+  const before = scenes[index - 1]
+  const [was, is] = [stageOf(before, frames), stageOf(scene, frames)]
+  const last = pictureAt(before, before.endFrame)
+  if (!was || !is || !inDevice(last) || was.laptop !== is.laptop || was.camera.picture.width !== is.camera.picture.width || was.camera.picture.height !== is.camera.picture.height) {
+    throw new Error(`Scene "${scene.id}" continues "${before.id}", which does not end on a zoomed screen of the same device and size.`)
+  }
+  const end = sceneView({ frame: before.endFrame, scene: before, ...was, from: continuityOf(scenes, index - 1, frames, tempo, ease)?.from, tempo, ease, pulse: false })
+  return { from: viewInArea(end, was.area, is.area), picture: last }
 }
 
 /**

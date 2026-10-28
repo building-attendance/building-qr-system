@@ -104,12 +104,28 @@ function sceneBeatFrame(id, what, offset, startBeat, beats, tempo, least = 0) {
 }
 
 /**
+ * The app and the device that show a recorded screen, by the prefix of its name (the recorder's names, script/long.js): the provider's
+ * app or the committee's, on a phone or on a computer. Null for a picture that the composition draws (the camera, a text, the chat).
+ * @param {string} picture
+ * @returns {{ app: 'provider' | 'committee', device: 'phone' | 'computer' } | null}
+ */
+export function screenOf(picture) {
+  const prefix = /^(provider|committee|computer)-[a-z0-9-]+\.png$/.exec(picture)?.[1]
+  if (!prefix) return null
+  return prefix === 'computer' ? { app: 'committee', device: 'computer' } : { app: prefix, device: 'phone' }
+}
+
+/** The picture that a scene of the script ends on: its last `later`, its `then`, or its first. */
+const lastPicture = (scene) => scene.later?.at(-1)?.picture ?? scene.then ?? scene.picture
+
+/**
  * The plan of the video in one language.
  *
  * A scene of the script may carry more than the short one's `then`: `thenBeat` (the beat of `then`, the middle of the scene when not
- * given), `later` (more pictures), `zoom` and `ring` (moves of the camera and rings, by the name of a box), `inset` and `stage`; the plan
- * carries each of them that the scene has, with beats turned into frames, and nothing else. The short script has none of them, so its plan
- * is the one it always was.
+ * given), `later` (more pictures), `zoom` and `ring` (moves of the camera and rings, by the name of a box), `inset`, `stage` and
+ * `continues` (no whip from the scene before it, which must end on a screen of the same app on the same device as this one starts on); the
+ * plan carries each of them that the scene has, with beats turned into frames, and nothing else. The short script has none of them, so its
+ * plan is the one it always was.
  * @param {string} lang
  * @param {{ bpm: number, firstBeat: number }} [tempo]
  * @param {import('./script/index.js').PromoScript} [script] the short promo when not given
@@ -147,7 +163,8 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO, script = SHORT) {
     const phrases = texts.map((text, index) => ({ text, frame: beatFrame(startBeat + index, tempo) }))
 
     const needed = readingSeconds(caption)
-    // A scene that another follows slides out during its last WHIP_FRAMES frames: the caption cannot be read then.
+    // A scene that another follows slides out during its last WHIP_FRAMES frames, or its caption fades out then when the next one continues
+    // it: the caption cannot be read then.
     const readableUntil = index < sceneList.length - 1 ? endFrame - WHIP_FRAMES : endFrame
     const available = (readableUntil - phrases[0].frame) / FPS
     if (available < needed) {
@@ -158,6 +175,15 @@ export function planPromo(lang, tempo = DEFAULT_TEMPO, script = SHORT) {
 
     const planned = { id: scene.id, picture: scene.picture, startFrame, endFrame, phrases }
     if (scene.stage) planned.stage = scene.stage
+    if (scene.continues) {
+      if (index === 0) throw new Error(`Scene "${scene.id}" continues the scene before it, and it is the first scene.`)
+      const before = lastPicture(sceneList[index - 1])
+      const [was, is] = [screenOf(before), screenOf(scene.picture)]
+      if (!was || !is || was.app !== is.app || was.device !== is.device) {
+        throw new Error(`Scene "${scene.id}" continues the scene before it, which ends on "${before}": a scene continues only a screen of the same app on the same device.`)
+      }
+      planned.continues = true
+    }
     if (startBeat > 0) cuts.push({ beat: startBeat, id: scene.id })
     let lastCut = 0
     if (scene.then) {
@@ -290,7 +316,7 @@ export const SOUNDS = Object.freeze({
 
 /**
  * When each sound plays: `frame` is where its file starts, `hit` the frame where it lands (a beat of the plan), `frames` how long it plays.
- * A whoosh at every bar line between scenes, the impact on the first beat of the groove, the ding when the check-in screen appears:
+ * A whoosh at every bar line between scenes (but the one before a scene that continues: no whip there), the impact on the first beat of the groove, the ding when the check-in screen appears:
  * the last two are the `sounds` of the script (each on the first beat of its scene or on the beat of its second picture), after the
  * whoosh of their scene and in the script's order.
  * @param {ReturnType<typeof planPromo>} plan
@@ -307,7 +333,7 @@ export function soundCues(plan, script = SHORT) {
     if (!plan.scenes.some((scene) => scene.id === sound.scene)) throw new Error(`The ${sound.kind} of the ${script.name} script is on scene "${sound.scene}", which this plan does not have: pass the script that made the plan.`)
   }
   for (const [index, scene] of plan.scenes.entries()) {
-    if (index > 0) add('whoosh', scene.startFrame, WHIP_FRAMES)
+    if (index > 0 && !scene.continues) add('whoosh', scene.startFrame, WHIP_FRAMES) // no whip, no whoosh
     for (const sound of script.sounds.filter((one) => one.scene === scene.id)) {
       const hit = sound.at === 'then' ? scene.thenFrame : scene.startFrame
       if (hit == null) throw new Error(`The ${sound.kind} of scene "${scene.id}" is on its second picture, which the scene does not have.`)

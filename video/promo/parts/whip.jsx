@@ -12,9 +12,10 @@ const WHIP_EASING = Easing.bezier(0.7, 0, 0.25, 1)
 /**
  * A scene on its layer of the whip: it slides in over the first WHIP_FRAMES of its sequence (which starts that many frames before the bar
  * line) and, when another scene follows, out over its last WHIP_FRAMES; the strip moves towards the side a right-to-left page turns to.
- * `firstFrameWhole` (frame 0, see clock.jsx): on frame 0 of the video the scene is drawn settled, its caption already whole.
+ * `firstFrameWhole` (frame 0, see clock.jsx): on frame 0 of the video the scene is drawn settled, its caption already whole. `captionOut`:
+ * the next scene continues this one without a whip, so nothing slides and the caption fades out over the last WHIP_FRAMES instead (clock.jsx).
  */
-export function SceneLayer({ scene, lang, lead, hasNext, tempo, firstFrameWhole = false, children }) {
+export function SceneLayer({ scene, lang, lead, hasNext, captionOut = false, tempo, firstFrameWhole = false, children }) {
   const local = useCurrentFrame()
   const frame = local - lead
   const length = scene.endFrame - scene.startFrame
@@ -25,8 +26,11 @@ export function SceneLayer({ scene, lang, lead, hasNext, tempo, firstFrameWhole 
   const moving = leaving > 0 ? leaving : entering
   const blur = moving > 0 && moving < 1 ? WHIP_BLUR_PX * Math.sin(Math.PI * moving) : 0
   const global = scene.startFrame + frame
+  const clock = { frame, global, tempo, settled: firstFrameWhole && global === 0 }
+  // Gone on the scene's last frame, so that nothing of it is cut off on the bar line.
+  if (captionOut) clock.captionShown = 1 - Math.min(1, Math.max(0, (frame + 1 - (length - WHIP_FRAMES)) / WHIP_FRAMES))
   return (
-    <Clock.Provider value={{ frame, global, tempo, settled: firstFrameWhole && global === 0 }}>
+    <Clock.Provider value={clock}>
       <AbsoluteFill style={{ transform: `translateX(${x}px)`, filter: blur > 0.5 ? `blur(${blur}px)` : undefined }}>{children}</AbsoluteFill>
     </Clock.Provider>
   )

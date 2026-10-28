@@ -11,6 +11,11 @@
 // - `ring`: `[{ box, beat }]`, a ring that draws around the rectangle `box` of the picture on screen, on `beat`.
 // - `inset`: `{ picture, beat }`, a second picture that shows small in a corner from `beat` to the end of the scene (scene 18).
 // - `stage`: where the progress strip stands (STAGES).
+// - `continues: true`: the scene follows the one before it on the same device without a whip (topic "promo-web-flow", decision E2):
+//   neither scene slides or blurs, the camera starts where the scene before ended and glides to this scene's first move over one beat
+//   (a move on beat 0 glides from the scene's first frame), the old caption fades out over its last 8 frames and the new one comes in on
+//   the bar line. The scene before must end on a recorded screen of the same app on the same device as this one starts on (timing.js,
+//   planPromo refuses it otherwise, and on the first scene), zoomed and not under a picture drawn over the whole frame (parts/screens.js).
 // Beats are counted from the first beat of the scene. A `box` is a key of `boxes` in the picture's entry of L1's frames.json; BOXES
 // lists the keys each picture must have, so that the recorder (L1) and the composition (L3) read one list.
 
@@ -101,7 +106,7 @@ export const WIDE_ZOOMS = Object.freeze({
 })
 
 /** @typedef {{ box: string, beat: number }} Move */
-/** @typedef {{ id: string, bars: number, stage: string, picture: string, then?: string, thenBeat?: number, later?: { picture: string, beat: number }[], zoom?: Move[], ring?: Move[], inset?: { picture: string, beat: number } }} LongScene */
+/** @typedef {{ id: string, bars: number, stage: string, picture: string, then?: string, thenBeat?: number, later?: { picture: string, beat: number }[], zoom?: Move[], ring?: Move[], inset?: { picture: string, beat: number }, continues?: boolean }} LongScene */
 
 /** @type {readonly LongScene[]} */
 export const LONG_SCENES = Object.freeze(

@@ -3,25 +3,11 @@
 // camera does not move it.
 import { Img, interpolate, spring, staticFile } from 'remotion'
 import { COLORS } from '../../src/theme.js'
-import { FPS, HEIGHT, WIDTH } from '../timing.js'
+import { FPS } from '../timing.js'
 import { clamp, useClock } from './clock.jsx'
-import { BAR_HEIGHT, STRIP_HEIGHT } from './moves.js'
+import { BAR_HEIGHT, INSET, STRIP_HEIGHT, insetHeight } from './moves.js'
 
-const MARGIN = 48
-const BEZEL = 10
-/** The inset is this wide in the frame, with its bezel, when its scene does not say. */
-const INSET_WIDTH = Math.round(WIDTH / 3)
-
-/** The height of an inset of `width` in the frame, with its bezel, for a picture of this shape. */
-const insetHeight = (picture, width) => Math.round(((width - 2 * BEZEL) * picture.height) / picture.width) + 2 * BEZEL
-
-/**
- * The top of an inset in a bottom corner, in pixels of the frame: the long cut frames its zoom above it, so that the picture in picture
- * never covers what the camera shows.
- * @param {{ width: number, height: number }} picture
- * @param {number} [width]
- */
-export const insetTop = (picture, width = INSET_WIDTH) => HEIGHT - BAR_HEIGHT - MARGIN - insetHeight(picture, width)
+const { margin: MARGIN, bezel: BEZEL, width: INSET_WIDTH } = INSET
 
 /**
  * @param {{ file: string, picture: { width: number, height: number }, frame: number, corner?: 'top-left' | 'top-right' | 'bottom-left' | 'bottom-right', width?: number }} props
@@ -29,10 +15,12 @@ export const insetTop = (picture, width = INSET_WIDTH) => HEIGHT - BAR_HEIGHT - 
  * `width` its width in the frame with the bezel. Bottom means just above the caption bar, top just under the progress strip.
  */
 export function Inset({ file, picture, frame, corner = 'bottom-left', width = INSET_WIDTH }) {
-  const { global } = useClock()
-  if (global < frame) return null
-  const landed = spring({ frame: global - frame, fps: FPS, config: { damping: 12, stiffness: 170, mass: 0.8 } })
-  const shown = interpolate(global - frame, [0, 4], [0, 1], clamp)
+  const { frame: local, global } = useClock()
+  // An inset on the scene's first beat is there, landed, from the first frame of its sequence (the whip brings it in with its scene).
+  const since = frame <= global - local ? Infinity : global - frame
+  if (since < 0) return null
+  const landed = since === Infinity ? 1 : spring({ frame: since, fps: FPS, config: { damping: 12, stiffness: 170, mass: 0.8 } })
+  const shown = since === Infinity ? 1 : interpolate(since, [0, 4], [0, 1], clamp)
   const height = insetHeight(picture, width)
   const [vertical, side] = corner.split('-')
   return (
