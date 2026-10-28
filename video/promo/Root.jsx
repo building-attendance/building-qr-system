@@ -1,11 +1,11 @@
 // The Remotion root of the promo: the composition "Promo", whose length comes from the plan (timing.js) at the tempo it is given, and the
 // Rubik of the app, which the frames wait for. Copied from the tutorial's root (video/src/Root.jsx), which registers its own composition.
 // It registers "PromoLong" (PromoLong.jsx), the long cut, whose length is the long script's plan, and "PromoParts" (parts/PromoParts.jsx), which shows the parts of the long cut for their stills (parts/stills.mjs) and
-// which render.mjs never renders.
+// which render.mjs never renders. "PromoWide" and "PromoLongWide" are the two cuts on the wide frame (format.js, WIDE), for a web screen.
 import '@fontsource-variable/rubik'
 import { Composition, cancelRender, continueRender, delayRender } from 'remotion'
-import { PROMO, Promo, promoDefaultProps } from './Promo.jsx'
-import { PROMO_LONG, PromoLong, promoLongDefaultProps } from './PromoLong.jsx'
+import { PROMO, PROMO_WIDE, Promo, PromoWide, promoDefaultProps } from './Promo.jsx'
+import { PROMO_LONG, PROMO_LONG_WIDE, PromoLong, PromoLongWide, promoLongDefaultProps } from './PromoLong.jsx'
 import { PROMO_PARTS, PromoParts, promoPartsDefaultProps, showcasePlan } from './parts/PromoParts.jsx'
 import { LONG } from './script/index.js'
 import { planPromo } from './timing.js'
@@ -21,28 +21,28 @@ Promise.all(SAMPLES.flatMap((text) => [400, 500, 700].map((weight) => globalThis
   .catch((error) => cancelRender(error))
 
 export function Root() {
+  // Each cut in each format (format.js): the vertical one, and the wide one for a web screen, from the same plan.
+  const cuts = [
+    [PROMO, Promo, promoDefaultProps, undefined],
+    [PROMO_WIDE, PromoWide, promoDefaultProps, undefined],
+    [PROMO_LONG, PromoLong, promoLongDefaultProps, LONG],
+    [PROMO_LONG_WIDE, PromoLongWide, promoLongDefaultProps, LONG],
+  ]
   return (
     <>
-      <Composition
-        id={PROMO.id}
-        component={Promo}
-        width={PROMO.width}
-        height={PROMO.height}
-        fps={PROMO.fps}
-        durationInFrames={1}
-        defaultProps={promoDefaultProps}
-        calculateMetadata={({ props }) => ({ durationInFrames: planPromo(props.lang, { bpm: props.bpm, firstBeat: props.firstBeat }).totalFrames })}
-      />
-      <Composition
-        id={PROMO_LONG.id}
-        component={PromoLong}
-        width={PROMO_LONG.width}
-        height={PROMO_LONG.height}
-        fps={PROMO_LONG.fps}
-        durationInFrames={1}
-        defaultProps={promoLongDefaultProps}
-        calculateMetadata={({ props }) => ({ durationInFrames: planPromo(props.lang, { bpm: props.bpm, firstBeat: props.firstBeat }, LONG).totalFrames })}
-      />
+      {cuts.map(([cut, component, defaultProps, script]) => (
+        <Composition
+          key={cut.id}
+          id={cut.id}
+          component={component}
+          width={cut.width}
+          height={cut.height}
+          fps={cut.fps}
+          durationInFrames={1}
+          defaultProps={defaultProps}
+          calculateMetadata={({ props }) => ({ durationInFrames: planPromo(props.lang, { bpm: props.bpm, firstBeat: props.firstBeat }, script).totalFrames })}
+        />
+      ))}
       <Composition
         id={PROMO_PARTS.id}
         component={PromoParts}

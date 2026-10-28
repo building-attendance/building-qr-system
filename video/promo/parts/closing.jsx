@@ -7,8 +7,11 @@ import { isRtl } from '../../src/timing.js'
 import { KEYWORD_COLOR, REPOSITORY_URL } from '../script/index.js'
 import { REPOSITORY_QR } from '../stage.js'
 import { FPS, PULSE, pulseAt } from '../timing.js'
+import { closingCode, closingLayout, wideAddress } from '../wide.js'
 import { Caption } from './caption.jsx'
 import { Glow, clamp, useClock } from './clock.jsx'
+import { useFormat } from './format.jsx'
+import { WideBlock } from './wide.jsx'
 
 /** The confetti: drawn shapes from a fixed seed (the same at every render), in violets with a few of white and of the keyword's gold. */
 const CONFETTI_FRAMES = 44
@@ -94,6 +97,56 @@ const addressLines = (large) => {
 }
 
 /**
+ * The closing card of the wide frame (format.js, WIDE): the code on the stage, springing in and popping with the confetti as in the
+ * vertical card, the guide's label under it, and in the column the caption with the address large under it, still, to be read and typed
+ * off the screen (wide.js, closingLayout and closingCode). `motion` is the vertical card's own springs, at this frame.
+ */
+function WideClosing({ scene, lang, keyword, guide, motion }) {
+  const format = useFormat()
+  const { closing, column, stage } = format
+  const address = wideAddress(REPOSITORY_URL)
+  const words = closingLayout(scene.phrases.map((phrase) => phrase.text).join(' '), address, format)
+  const code = closingCode(format)
+  return (
+    <AbsoluteFill style={{ background: COLORS.card, isolation: 'isolate', fontFamily: FONT_FAMILY }}>
+      <Glow amount={PULSE.ground * motion.pulse} />
+      <WideBlock box={words.caption.box} width={column.right - column.left}>
+        <Caption scene={scene} lang={lang} size={closing.caption} weight={700} color={COLORS.cardText} keyword={keyword} align="start" lineHeight={closing.lineHeight} />
+      </WideBlock>
+      <div
+        style={{
+          position: 'absolute',
+          top: words.address.box.top,
+          right: format.width - column.right,
+          opacity: motion.shown,
+          direction: 'ltr',
+          unicodeBidi: 'isolate',
+          textAlign: 'right',
+          whiteSpace: 'nowrap',
+          fontWeight: 700,
+          fontSize: closing.address,
+          lineHeight: closing.lineHeight,
+          color: COLORS.cardText,
+        }}
+      >
+        {address.map((line) => (
+          <div key={line}>{line}</div>
+        ))}
+      </div>
+      <div style={{ position: 'absolute', left: code.qr.left, top: code.qr.top, width: closing.qr, height: closing.qr, opacity: motion.shown }}>
+        <Confetti since={motion.since} top={closing.qr / 2} />
+        <Img src={staticFile(REPOSITORY_QR.file)} style={{ display: 'block', width: closing.qr, height: closing.qr, borderRadius: 32, background: '#ffffff', transform: `scale(${(0.4 + 0.6 * motion.landed) * (1 + 0.08 * motion.pop)})` }} />
+      </div>
+      {guide ? (
+        <div style={{ position: 'absolute', left: stage.left, width: stage.width, top: code.guideTop, display: 'flex', justifyContent: 'center', opacity: motion.shown }}>
+          <div style={{ padding: '8px 28px', borderRadius: 40, background: COLORS.cardTextSecondary, color: COLORS.card, fontWeight: 700, fontSize: closing.guide, lineHeight: 1.2, direction: isRtl(lang) ? 'rtl' : 'ltr' }}>{guide}</div>
+        </div>
+      ) : null}
+    </AbsoluteFill>
+  )
+}
+
+/**
  * The closing card: the caption, the QR code of the repository on a white tile that springs in, and its address under it without `https://`.
  * The long cut gives `guide`, a label shown by the code (the guide is in English), and `large`, the address large on two lines, to be read
  * off the screen (a phone that plays the video cannot scan it).
@@ -108,6 +161,8 @@ export function ClosingScene({ scene, lang, keyword, burst, guide = null, large 
   // On the first beat of the last bar the tile pops (it jumps up in size, then rings back) as the confetti bursts.
   const since = global - burst
   const pop = since >= 0 ? 1 - spring({ frame: since, fps: FPS, config: { damping: 6, stiffness: 240, mass: 0.6 } }) : 0
+  const format = useFormat()
+  if (format.column) return <WideClosing scene={scene} lang={lang} keyword={keyword} guide={guide} motion={{ pulse, landed, shown, since, pop }} />
   return (
     <AbsoluteFill style={{ background: COLORS.card, alignItems: 'center', justifyContent: 'center', padding: '0 80px', gap: 72, isolation: 'isolate' }}>
       <Glow amount={PULSE.ground * pulse} />

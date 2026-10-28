@@ -82,7 +82,7 @@ whole bars of the music, every cut falls on a beat and the video ends on a bar (
 
 ### The long promo
 
-A 2:18 cut of the same promo (69 bars at 120 bpm, `promo/PromoLong.jsx`, its script in `promo/script/long.js` and
+A 1:56 cut of the same promo (58 bars at 120 bpm, `promo/PromoLong.jsx`, its script in `promo/script/long.js` and
 `he-long.js`) shows both sides of the app, end to end, to a committee member who knows nothing about it: what the committee
 prepares, what a service provider does and sees, what the committee sees, its AI, and what it takes. It opens on the short cut's
 question alone on the violet ground, for two bars and without the progress strip, so that its poster and the thumbnail that a
@@ -110,6 +110,33 @@ The device stays in the frame and the picture never stops moving, as in the shor
 - A whip brings the next screen in already drawn. The committee's phone has a light bezel and the provider's a dark one.
 - A scene with `continues: true` (`promo/script/long.js`) follows the one before it on the same app and device without a whip: the
   camera goes on from where it was, and the caption changes on the bar line.
+
+### The wide version, for a web screen
+
+`--format wide` renders either cut at 1920x1080 for a web page, a README or YouTube, from the same plan, script and music: a new layout
+of the same scenes, never a crop of the vertical one. Without `--format` (or with `--format vertical`) the vertical files are rendered as
+before.
+
+```
+node video/promo/render.mjs he --format wide --music <file> --bpm 120 --first-beat 0 --start 2.435
+node video/promo/render.mjs he --cut long --format wide --music <file> --bpm 120 --first-beat 0 --start 0.435
+```
+
+They write `promo-he-wide.mp4` and `promo-long-he-wide.mp4` next to the vertical files, each with its poster (`-wide.jpg`, frame 0) and its
+stills (`stills-wide/`, `stills-long-wide/`), so no vertical file is ever overwritten. The wide short cut is refused over 9.5 MB, the most
+that the README can show (GitHub takes a video of 10 MB on a free plan).
+
+The layout is `WIDE` in `promo/format.js`, and the place of every word is a plain function of `promo/wide.js`:
+
+- **The stage** (x 96 to 861): the phone, 860 px tall at rest, with the same push (1.5 times at the most, both sides always in view), drift
+  and pulse as the vertical cut; the laptop and its magnifier, whose lens stays on the stage; the printed sign and the drawn chat.
+- **The caption column** (x 1010 to 1824, right-aligned, where a reader of Hebrew starts): Rubik 600 at 72 px, or 64 px for a caption that
+  would take a fourth line, at most three lines, its phrases landing on the beats with the yellow keyword. The long cut puts the name of the
+  scene's stage above it, in place of the progress strip.
+- **The safe area**: no word below y 930 (the bottom 150 px stay free for a player's controls) or above y 80, or outside x 96 to 1824.
+- **Frame 0** is the title card, settled: the question in the column and the phone on the stage with the green check of a scan, for the
+  thumbnail. The other text cards stand across the middle; the closing card puts the code on the stage and the address, large, in the
+  column.
 
 ## Licence
 

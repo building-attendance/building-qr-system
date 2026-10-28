@@ -9,12 +9,28 @@
 import { AbsoluteFill, Img, interpolate, spring, staticFile } from 'remotion'
 import { COLORS, FONT_FAMILY } from '../../src/theme.js'
 import { DEMO_QR, isRtl } from '../../src/timing.js'
-import { FPS, beatFrames } from '../timing.js'
-import { GROUND, clamp, useClock } from './clock.jsx'
-import { useFormat } from './format.jsx'
-import { lifeScale } from './moves.js'
+import { FPS, PULSE, beatFrames, pulseAt } from '../timing.js'
+import { Glow, clamp, useClock } from './clock.jsx'
+import { useFormat, useGround } from './format.jsx'
+import { chatBox, lifeScale } from './moves.js'
 import { CROSS_FADE_FRAMES, SCREEN } from './phone.jsx'
 import { Tag } from './tag.jsx'
+
+/**
+ * The ground of a layer that covers the device. On a stage it is the frame's gradient where the stage is, with the ground's pulse over it,
+ * as the frame around the stage has (format.jsx, useGround); on the vertical frame, the ground alone, as before.
+ */
+function Cover({ style, children }) {
+  const { global, tempo, settled } = useClock()
+  const ground = useGround()
+  const staged = useFormat().left !== undefined
+  return (
+    <AbsoluteFill style={{ ...ground, ...style }}>
+      {staged ? <Glow amount={settled ? 0 : PULSE.ground * pulseAt(global, tempo)} /> : null}
+      {children}
+    </AbsoluteFill>
+  )
+}
 
 /** The success colours of the app (--w-success and --w-success-bg of its light theme). */
 const SUCCESS = '#0f7b4f'
@@ -71,7 +87,7 @@ export function PrintedSign({ file, entry, from, until }) {
   const shown = interpolate(global, [from, from + CROSS_FADE_FRAMES], [0, 1], clamp)
   const landed = spring({ frame: global - from, fps: FPS, config: LANDING })
   return (
-    <AbsoluteFill style={{ background: GROUND, opacity: shown }}>
+    <Cover style={{ opacity: shown }}>
       <div
         style={{
           position: 'absolute',
@@ -91,7 +107,7 @@ export function PrintedSign({ file, entry, from, until }) {
           <Img src={staticFile(DEMO_QR.file)} style={{ display: 'block', width: '100%', height: '100%' }} />
         </div>
       </div>
-    </AbsoluteFill>
+    </Cover>
   )
 }
 
@@ -132,19 +148,16 @@ function Bubble({ at, mine, children }) {
  */
 export function AgentChat({ chat, from, until, lang, label }) {
   const { global, tempo, settled } = useClock()
-  const { strip, bar, chat: margin } = useFormat()
+  const { zoom, place } = chatBox(useFormat())
   if (global < from || global >= until + CROSS_FADE_FRAMES) return null
   const shown = Math.min(interpolate(global, [from, from + CROSS_FADE_FRAMES], [0, 1], clamp), interpolate(global, [until, until + CROSS_FADE_FRAMES], [1, 0], clamp))
   const rtl = isRtl(lang)
   return (
-    <AbsoluteFill style={{ background: GROUND, opacity: shown, fontFamily: FONT_FAMILY }}>
+    <Cover style={{ opacity: shown, fontFamily: FONT_FAMILY }}>
       <div
         style={{
           position: 'absolute',
-          left: margin.side,
-          right: margin.side,
-          top: strip + margin.gap,
-          bottom: bar + margin.gap,
+          ...place,
           borderRadius: 48,
           background: '#f4f2fa',
           boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',
@@ -154,7 +167,7 @@ export function AgentChat({ chat, from, until, lang, label }) {
           justifyContent: 'center',
           gap: 44,
           padding: '140px 44px 56px',
-          transform: `scale(${lifeScale(global, from, until, tempo, settled)})`,
+          transform: `scale(${zoom * lifeScale(global, from, until, tempo, settled)})`,
         }}
       >
         <Tag text={label} lang={lang} corner={rtl ? 'top-right' : 'top-left'} size={36} offset={40} />
@@ -173,6 +186,6 @@ export function AgentChat({ chat, from, until, lang, label }) {
           )}
         </Bubble>
       </div>
-    </AbsoluteFill>
+    </Cover>
   )
 }

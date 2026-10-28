@@ -17,11 +17,11 @@ import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { DRAWN } from '../script/drawn.js'
 import { COLORS, FONT_FAMILY } from '../src/theme.js'
 import { volumeAt } from './fade.js'
-import { VERTICAL } from './format.js'
+import { VERTICAL, WIDE } from './format.js'
 import { ClosingScene } from './parts/closing.jsx'
 import { FormatFrame } from './parts/format.jsx'
 import { PhoneScene } from './parts/phone.jsx'
-import { TextScene } from './parts/text.jsx'
+import { TextScene, TitleCard } from './parts/text.jsx'
 import { SceneTrack } from './parts/track.jsx'
 import { KEYWORDS } from './script/index.js'
 import { DEFAULT_TEMPO, FPS, MIX_GAIN, burstFrame, planPromo, soundCues } from './timing.js'
@@ -32,7 +32,7 @@ export const PROMO = Object.freeze({ id: 'Promo', fps: FPS, width: VERTICAL.widt
  * @param {{ lang: string, bpm: number, firstBeat: number, music?: { file: string, startFrame: number } | null, sounds?: boolean }} props
  * `music` is the staged track and the frame of it where the music starts; without it there is no music. `sounds` plays the effect sounds
  * that render.mjs stages (make-sounds.mjs); off, the composition is silent apart from the track. `format` is the frame and the layout that
- * the parts read (format.js): VERTICAL, the only one so far.
+ * the parts read (format.js): VERTICAL when not given; WIDE draws the same plan for a web screen, its frame 0 the settled title card.
  */
 export function Promo({ lang, bpm, firstBeat, music = null, sounds = false, format = VERTICAL }) {
   const tempo = { bpm, firstBeat }
@@ -54,8 +54,11 @@ export function Promo({ lang, bpm, firstBeat, music = null, sounds = false, form
         plan={plan}
         lang={lang}
         tempo={tempo}
-        render={(scene) =>
-          scene.picture === 'text' ? (
+        firstFrameWhole={format.column !== undefined}
+        render={(scene, index) =>
+          scene.picture === 'text' && index === 0 && format.column ? (
+            <TitleCard scene={scene} lang={lang} keyword={keywords[scene.id]} strings={strings} />
+          ) : scene.picture === 'text' ? (
             <TextScene scene={scene} lang={lang} keyword={keywords[scene.id]} />
           ) : scene.picture === 'closing' ? (
             <ClosingScene scene={scene} lang={lang} keyword={keywords[scene.id]} burst={burst} />
@@ -67,5 +70,9 @@ export function Promo({ lang, bpm, firstBeat, music = null, sounds = false, form
     </FormatFrame>
   )
 }
+
+/** The short cut on the wide frame (format.js, WIDE): the same plan, laid out for a web screen, its frame 0 the settled title card. */
+export const PROMO_WIDE = Object.freeze({ id: 'PromoWide', fps: FPS, width: WIDE.width, height: WIDE.height })
+export const PromoWide = (props) => <Promo {...props} format={WIDE} />
 
 export const promoDefaultProps = Object.freeze({ lang: 'he', bpm: DEFAULT_TEMPO.bpm, firstBeat: DEFAULT_TEMPO.firstBeat, music: null, sounds: false })

@@ -14,8 +14,8 @@
 //
 // Every size of the frame comes from a format (../format.js): a function that places a device or a picture in picture takes the format as
 // its last parameter, and one that frames a camera takes the area it frames (the format's picture area, or the band above a picture in
-// picture); either is VERTICAL's when not given. The constants below are VERTICAL's numbers under their old names, for the tests and for
-// laptop.jsx, which still reads them; every other part reads its format (format.jsx, useFormat).
+// picture); either is VERTICAL's when not given. The constants below are VERTICAL's numbers under their old names, for the tests; every
+// part reads its format (format.jsx, useFormat), and on the wide frame its stage's (format.jsx, Stage).
 import { COLORS } from '../../src/theme.js'
 import { LAYOUT } from '../../src/timing.js'
 import { VERTICAL } from '../format.js'
@@ -118,6 +118,21 @@ export const insetTop = (picture, width = undefined, format = VERTICAL) => forma
  * @param {import('../format.js').Format} [format]
  */
 export const insetArea = (picture, format = VERTICAL) => Object.freeze({ top: format.strip, width: format.width, height: insetTop(picture, undefined, format) - format.inset.gap - format.strip })
+
+/**
+ * Where the drawn chat stands (drawn.jsx, AgentChat): its room between the strip and the caption bar, as far from them and from the
+ * frame's sides as the format's `chat` says; with a `zoom` (the wide frame's stage), a box 1/zoom as large in the middle of that room,
+ * which the chat scales down to it, so that its words are `zoom` times their vertical size.
+ * @param {import('../format.js').Format} [format]
+ */
+export function chatBox(format = VERTICAL) {
+  const { width, height, strip, bar, chat } = format
+  const zoom = chat.zoom ?? 1
+  if (zoom === 1) return { zoom, place: { left: chat.side, right: chat.side, top: strip + chat.gap, bottom: bar + chat.gap } }
+  const room = { width: width - 2 * chat.side, height: height - strip - bar - 2 * chat.gap }
+  const [w, h] = [room.width / zoom, room.height / zoom]
+  return { zoom, place: { left: chat.side + (room.width - w) / 2, top: strip + chat.gap + (room.height - h) / 2, width: w, height: h } }
+}
 
 /**
  * @typedef {{ x: number, y: number, width: number, height: number }} Rect a rectangle in the picture's own pixels

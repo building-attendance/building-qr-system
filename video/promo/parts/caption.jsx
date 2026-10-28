@@ -49,13 +49,16 @@ function Word({ at, keyword, children }) {
   )
 }
 
-/** The caption of a scene: its words in logical order, each one on its frame (the space is kept from the start, so nothing moves). */
-export function Caption({ scene, lang, size, weight, color, keyword }) {
+/**
+ * The caption of a scene: its words in logical order, each one on its frame (the space is kept from the start, so nothing moves). `align`
+ * and `lineHeight` are the vertical cut's when not given; the wide frame's column sets its own (wide.jsx).
+ */
+export function Caption({ scene, lang, size, weight, color, keyword, align = 'center', lineHeight = 1.3 }) {
   const { tempo } = useClock()
   const range = keywordRange(scene.phrases.map((phrase) => phrase.text).join(' '), keyword)
   let before = 0 // the words of the caption before this phrase
   return (
-    <div style={{ direction: isRtl(lang) ? 'rtl' : 'ltr', textAlign: 'center', fontFamily: FONT_FAMILY, fontWeight: weight, fontSize: size, lineHeight: 1.3, color, textWrap: 'balance' }}>
+    <div style={{ direction: isRtl(lang) ? 'rtl' : 'ltr', textAlign: align, fontFamily: FONT_FAMILY, fontWeight: weight, fontSize: size, lineHeight, color, textWrap: 'balance' }}>
       {scene.phrases.map((phrase, index) => {
         const words = phrase.text.split(/\s+/).filter(Boolean)
         const frames = wordFrames(phrase.frame, words.length, tempo)
