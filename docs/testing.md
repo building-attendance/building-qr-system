@@ -185,8 +185,12 @@ icon that is not the background lies inside the centre circle of 80 percent of t
 
 ## CI
 
-`.github/workflows/ci.yml` has the four checks that are required to merge (`guards`, `unit`, `e2e (android-chrome)`,
-`e2e (iphone-webkit)`), and its header lists what `guards` covers. The guards that protect the history of the project
+Four checks are required to merge: `guards` in `.github/workflows/guards.yml`, whose header lists what it covers, and
+`unit`, `e2e (android-chrome)` and `e2e (iphone-webkit)` in `.github/workflows/ci.yml`. Both workflows run for every push
+to a pull request; a change of its title, description, labels or base branch runs `guards` alone, because a check that a
+workflow skipped counts as passed, and the tests must not seem green for a commit that they did not pass (the header of
+`guards.yml` has the details, and `tests/ci-triggers.test.js` pins it). A pull request moved to another base branch runs
+the tests at its next push, or when it is closed and reopened. The guards that protect the history of the project
 are `scripts/check-migrations.mjs` (a migration is a new file only, and destructive SQL carries a `-- contract: <reason>`
 line) and `scripts/check-tests.mjs` (a test is not deleted, renamed away or skipped). They catch the common ways of
 breaking those rules; they are heuristics, not a replacement for reading the diff. The rules about removing a test and
@@ -236,8 +240,9 @@ everyone to ignore it.
 
 ## Auto-merge of tests and docs
 
-`.github/workflows/auto-merge.yml` decides, after every CI run and after every comment of the Codex review bot, whether a
-pull request may merge without the owner's click. The class is narrow: a `test` or `docs` title, opened by the owner from
+`.github/workflows/auto-merge.yml` decides, after every run of CI or Guards and after every comment of the Codex review
+bot, whether a pull request may merge without the owner's click. The class is narrow: a `test` or `docs` title, opened
+by the owner from
 a branch of this repository that is not `claude/` or `codex/`, with only added or modified component tests
 (`tests/components/`), E2E tests and documents, every commit by a person's GitHub account (committed by that person, or by
 GitHub's `web-flow` for the "update branch" merge) with no Codex co-author, and clean in every way: the four checks green

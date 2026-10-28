@@ -1,6 +1,6 @@
 # Dependabot: weekly version updates for the npm dependencies and for the GitHub Actions used in .github/workflows/.
-# The pull requests it opens are checked by the same four CI checks as any other (see ci.yml), and the owner reviews
-# and merges them like any other.
+# The pull requests it opens are checked by the same four CI checks as any other (see guards.yml and ci.yml), and the
+# owner reviews and merges them like any other.
 #
 # There is no `ignore` rule anywhere in this file, on purpose: an ignore rule also blocks the security updates for that
 # dependency, and a security update is the one we never want to hold back.

@@ -1,4 +1,4 @@
-// CI guard for the size of AGENTS.md (see .github/workflows/ci.yml, job "guards", every event).
+// CI guard for the size of AGENTS.md (see .github/workflows/guards.yml, job "guards", every event).
 //
 // Usage: node scripts/check-agents-md.mjs
 //        (`--root <dir>` checks another git checkout instead of this one: only the tests use it.)

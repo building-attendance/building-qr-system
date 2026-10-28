@@ -41,7 +41,7 @@ export const CODEX_LOGIN = 'chatgpt-codex-connector'
 export const ACTIONS_LOGIN = 'github-actions'
 /** The GitHub Actions app: the only source of the four required checks, as in .github/rulesets/master-gates.json. */
 export const GITHUB_ACTIONS_APP_ID = 15368
-/** The four checks that master-gates requires, by their job names in .github/workflows/ci.yml. */
+/** The four checks that master-gates requires, by their job names in .github/workflows/guards.yml and ci.yml. */
 export const REQUIRED_CHECKS = Object.freeze(['guards', 'unit', 'e2e (android-chrome)', 'e2e (iphone-webkit)'])
 /** One page of the files API. A pull request with more files is refused rather than read in parts. */
 export const MAX_FILES = 100

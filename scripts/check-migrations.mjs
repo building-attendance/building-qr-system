@@ -1,4 +1,4 @@
-// CI guard for the database migrations in db/migrations (see .github/workflows/ci.yml, job "guards").
+// CI guard for the database migrations in db/migrations (see .github/workflows/guards.yml, job "guards").
 //
 // Usage: node scripts/check-migrations.mjs --base origin/master
 //

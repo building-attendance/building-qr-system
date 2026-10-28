@@ -6,7 +6,8 @@ copy needs no edit to them. The file names keep `master` from this repository.
 `master-gates.json` protects the default branch for everybody, with no bypass: it cannot be deleted or force-pushed,
 every change arrives through a pull request that is squash-merged (no approval is needed, so you can merge your own),
 and the branch must be up to date with the default branch with all four CI checks green: `guards`, `unit`, `e2e (android-chrome)`
-and `e2e (iphone-webkit)` (the job names in `.github/workflows/ci.yml`; `unit` and each e2e check are jobs that pass
+and `e2e (iphone-webkit)` (the job names in `.github/workflows/guards.yml` and `ci.yml`; `unit` and each e2e check are
+jobs that pass
 only when every one of their parts passed, and the parts, `unit part <n>` and `e2e (<project>) part <n>`, are not
 required by name). Each check is bound to GitHub Actions
 (`integration_id` 15368 is the GitHub Actions app), so nothing else can report a status under the same name.
@@ -129,7 +130,7 @@ pull request that turns `LIVE` on (the owner's decision of 18/10/2026, after the
 
 `master-merge-queue.json` makes every pull request merge through GitHub's merge queue. A pull request is added with
 "Merge when ready"; the queue builds it on top of the default branch and of the pull requests ahead of it, runs the four
-checks there (the `merge_group` trigger in `ci.yml`), and squash-merges it only if they pass ("all green"; one pull request
+checks there (the `merge_group` trigger in `guards.yml` and `ci.yml`), and squash-merges it only if they pass ("all green"; one pull request
 is enough to start, with no waiting). So nobody brings a pull request up to date by hand any more, and two pull requests
 that pass alone but fail together never reach the default branch. It has no bypass.
 

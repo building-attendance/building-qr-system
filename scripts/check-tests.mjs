@@ -1,4 +1,4 @@
-// CI guard against weakening the test suite (see .github/workflows/ci.yml, job "guards").
+// CI guard against weakening the test suite (see .github/workflows/guards.yml, job "guards").
 //
 // Usage: node scripts/check-tests.mjs --base origin/master      (a JSON array of the PR's labels may be in PR_LABELS)
 //

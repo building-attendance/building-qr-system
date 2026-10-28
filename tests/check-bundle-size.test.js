@@ -1,5 +1,5 @@
 // The size budget that CI checks on every pull request (scripts/check-bundle-size.mjs, its budgets in
-// scripts/check-bundle-size.json, run by `npm run size` in the guards job of .github/workflows/ci.yml).
+// scripts/check-bundle-size.json, run by `npm run size` in the guards job of .github/workflows/guards.yml).
 // No build happens here: the pure functions are tried on a fake built folder that is made in a temporary directory and
 // removed afterwards, and the command is run on it as a child process.
 import { describe, it, expect, afterEach } from 'vitest'
@@ -661,7 +661,7 @@ describe('check-bundle-size: the guards job of CI', () => {
     return result.map((step) => step.join('\n'))
   }
 
-  const ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'ci.yml'), 'utf8')
+  const ci = fs.readFileSync(path.join(root, '.github', 'workflows', 'guards.yml'), 'utf8')
   const guards = steps(jobLines(ci, 'guards'))
   const indexOfRun = (command) => guards.findIndex((step) => new RegExp(`^\\s+(?:- )?run: ${command}\\s*$`, 'm').test(step))
 
