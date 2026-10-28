@@ -267,3 +267,38 @@ describe('the boxes of frames.json', () => {
     expect(tall.height).toBeLessThanOrEqual(1688)
   })
 })
+
+// ---- what the pictures leave out ----------------------------------------------------------------------------------------------------
+
+describe('the pictures leave the build label out', () => {
+  const spec = fs.readFileSync(path.join(root, 'scripts/promo/capture.spec.mjs'), 'utf8')
+
+  const bodyOf = (signature) => {
+    const start = spec.indexOf(signature)
+    expect(start, signature).toBeGreaterThan(-1)
+    return spec.slice(start, spec.indexOf('\n}\n', start))
+  }
+
+  it('finds the label by the class of the real component, and hides it without taking it out of the layout', () => {
+    const label = fs.readFileSync(path.join(root, 'src/ui/BuildLabel.jsx'), 'utf8')
+    expect(label).toMatch(/className=\{`w-build\b/)
+    expect(label).not.toMatch(/style=/) // so that taking the hiding away gives the label its own look back
+    expect(spec).toMatch(/^const BUILD_LABEL = '\.w-build'$/m)
+    const set = bodyOf('async function setBuildLabels(')
+    expect(set).toContain('page.locator(BUILD_LABEL).evaluateAll(')
+    // visibility, not display: nothing on the screen moves, so every box stays where it was measured; through each label's own style,
+    // since the preview's Content-Security-Policy refuses the <style> element that the `style` option of page.screenshot would add
+    expect(set).toContain("label.style.setProperty('visibility', value, 'important')")
+    expect(set).toContain("label.style.removeProperty('visibility')")
+    expect(set).not.toMatch(/\bdisplay\b/)
+  })
+
+  it('takes every picture in shot, with the labels hidden right before it and shown again right after it', () => {
+    expect(spec.match(/\.screenshot\(/g)).toHaveLength(1) // no other picture is taken anywhere in the spec
+    const lines = bodyOf('async function shot(').split('\n').map((line) => line.trim())
+    const at = lines.findIndex((line) => line.startsWith('await page.screenshot('))
+    expect(at, 'shot takes the picture').toBeGreaterThan(0)
+    expect(lines[at - 1]).toMatch(/^await setBuildLabels\(page, 'hidden'\)/)
+    expect(lines[at + 1]).toBe("await setBuildLabels(page, '')")
+  })
+})

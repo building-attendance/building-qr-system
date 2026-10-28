@@ -9,7 +9,8 @@
 // Everything happens in one run, on one morning (the story's day, scripts/promo/settings.mjs): the browser's clock is set with
 // page.clock and the API's is moved with it (scripts/promo/clock.mjs), so the visit that the provider app records at 08:06 is the 08:06
 // row of the committee's history. assertLocalPromo refuses to run on anything but a local address and the run's own scratch schema.
-// Nothing is masked for comparison (these pictures are not compared), with one exception for safety: the prefix of the agent's key.
+// Nothing is masked for comparison (these pictures are not compared), with one exception for safety: the prefix of the agent's key. And
+// one thing is left out of every picture: the build label, which a local build writes as "dev" (setBuildLabels).
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { devices } from '@playwright/test'
@@ -40,6 +41,22 @@ const standing = (metres) => {
 
 /** The text of an i18n line up to its first placeholder, as a pattern for the start of the text on the screen. */
 const startOf = (line) => new RegExp(`^${line.split('{')[0].replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+
+// What every picture leaves out: the build label (src/ui/BuildLabel.jsx), which a local build writes as "dev" and a viewer would read as a
+// test. It is hidden for the picture only and shown again right after, and hidden, not removed, so that nothing on the screen moves and
+// every box is where it was measured. Through each label's own style (the CSSOM, the way Playwright hides the caret), not a style sheet:
+// the preview's Content-Security-Policy refuses a <style> element, so the `style` option of page.screenshot would hide nothing.
+const BUILD_LABEL = '.w-build'
+
+/** Sets the `visibility` of every build label on the screen (`hidden`, or '' for the app's own; BuildLabel sets no style of its own). */
+async function setBuildLabels(page, visibility) {
+  await page.locator(BUILD_LABEL).evaluateAll((labels, value) => {
+    for (const label of labels) {
+      if (value) label.style.setProperty('visibility', value, 'important')
+      else label.style.removeProperty('visibility')
+    }
+  }, visibility)
+}
 
 /** @type {Record<string, { width: number, height: number, scale: number, boxes: Record<string, object>, zooms: Record<string, object> }>} */
 const frames = {}
@@ -98,7 +115,9 @@ async function shot(page, name, targets = {}, { fullPage = false, mask = [], mas
     css[key] = { ...box, x: box.x + scroll.x, y: box.y + scroll.y }
   }
   const file = path.join(OUT, name)
+  await setBuildLabels(page, 'hidden') // (a picture that fails ends its test, and its page is not used again)
   await page.screenshot({ path: file, animations: 'disabled', caret: 'hide', fullPage, mask, ...(maskColor ? { maskColor } : {}) })
+  await setBuildLabels(page, '')
   const png = readFileSync(file)
   const picture = { width: png.readUInt32BE(16), height: png.readUInt32BE(20) } // the IHDR chunk of the PNG
   const scale = await page.evaluate(() => globalThis.devicePixelRatio)
