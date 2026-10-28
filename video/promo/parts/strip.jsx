@@ -1,11 +1,12 @@
 // The progress strip (decision D3, instead of chapter cards): a thin band at the top of the frame with the four labelled stages in order,
 // right to left; the scene's stage is lit, the stages before it done, the ones after it dim, and the opening and the AI light none
-// (stripStates in moves.js). Its ground is solid, and a zoom fills the frame below it (PICTURE_AREA in moves.js). The words come from the
-// script's labels (he-long.js), never from here.
+// (stripStates in moves.js). Its ground is solid, and a zoom fills the frame below it (the picture area of its format, format.js). The
+// words come from the script's labels (he-long.js), never from here.
 import { COLORS, FONT_FAMILY } from '../../src/theme.js'
 import { isRtl } from '../../src/timing.js'
 import { KEYWORD_COLOR, STAGES, STRIP_STAGES } from '../script/index.js'
-import { STRIP_HEIGHT, stripStates } from './moves.js'
+import { useFormat } from './format.jsx'
+import { stripStates } from './moves.js'
 
 const LOOK = Object.freeze({
   lit: { text: COLORS.barText, weight: 700, bar: KEYWORD_COLOR, barOpacity: 1, textOpacity: 1 },
@@ -20,6 +21,7 @@ const LOOK = Object.freeze({
  */
 export function ProgressStrip({ stage, labels, lang, strip = STRIP_STAGES, stages = STAGES, size = 27 }) {
   const states = stripStates(stage, strip, stages)
+  const { strip: height } = useFormat()
   return (
     <div
       style={{
@@ -27,7 +29,7 @@ export function ProgressStrip({ stage, labels, lang, strip = STRIP_STAGES, stage
         left: 0,
         right: 0,
         top: 0,
-        height: STRIP_HEIGHT,
+        height,
         boxSizing: 'border-box',
         padding: '16px 40px 0',
         display: 'flex',

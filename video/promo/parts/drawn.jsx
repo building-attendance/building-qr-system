@@ -9,9 +9,10 @@
 import { AbsoluteFill, Img, interpolate, spring, staticFile } from 'remotion'
 import { COLORS, FONT_FAMILY } from '../../src/theme.js'
 import { DEMO_QR, isRtl } from '../../src/timing.js'
-import { FPS, WIDTH, beatFrames } from '../timing.js'
+import { FPS, beatFrames } from '../timing.js'
 import { GROUND, clamp, useClock } from './clock.jsx'
-import { BAR_HEIGHT, PICTURE_AREA, STRIP_HEIGHT, lifeScale } from './moves.js'
+import { useFormat } from './format.jsx'
+import { lifeScale } from './moves.js'
 import { CROSS_FADE_FRAMES, SCREEN } from './phone.jsx'
 import { Tag } from './tag.jsx'
 
@@ -54,19 +55,18 @@ export function CheckMark({ at }) {
   )
 }
 
-/** The printed sign drawn this wide in the frame. */
-const SHEET_WIDTH = 900
-
 /**
  * @param {{ file: string, entry: { width: number, height: number, boxes: Record<string, { x: number, y: number, width: number, height: number }> }, from: number, until: number }} props
  * `entry` is the picture's entry of frames.json: its `sign` box is the sheet, its `qr` box the code that the demo code covers. `from` is
- * the frame of the video where it comes in, and `until` the one where it goes (its life drifts until then).
+ * the frame of the video where it comes in, and `until` the one where it goes (its life drifts until then). It is drawn the format's
+ * `sheetWidth` wide, in the middle of its picture area.
  */
 export function PrintedSign({ file, entry, from, until }) {
   const { global, tempo, settled } = useClock()
+  const { width: frameWidth, sheetWidth, pictureArea: area } = useFormat()
   if (global < from) return null
   const { sign, qr } = entry.boxes
-  const k = SHEET_WIDTH / sign.width
+  const k = sheetWidth / sign.width
   const height = sign.height * k
   const shown = interpolate(global, [from, from + CROSS_FADE_FRAMES], [0, 1], clamp)
   const landed = spring({ frame: global - from, fps: FPS, config: LANDING })
@@ -75,9 +75,9 @@ export function PrintedSign({ file, entry, from, until }) {
       <div
         style={{
           position: 'absolute',
-          left: (WIDTH - SHEET_WIDTH) / 2,
-          top: PICTURE_AREA.top + (PICTURE_AREA.height - height) / 2,
-          width: SHEET_WIDTH,
+          left: (frameWidth - sheetWidth) / 2,
+          top: area.top + (area.height - height) / 2,
+          width: sheetWidth,
           height,
           overflow: 'hidden',
           borderRadius: 14,
@@ -128,9 +128,11 @@ function Bubble({ at, mine, children }) {
  * @param {{ chat: { question: string, parts: { text: string, place?: string }[] }, from: number, until: number, lang: string, label: string }} props
  * `chat` is the question and the answer (stage.js, agentAnswer), `from` and `until` the frames of the video between which it shows, and
  * `label` the words of the tag. The answer's places are bold and isolated (a name in parentheses, a date), so their order never changes.
+ * It stands between the strip and the caption bar, as far from them and from the frame's sides as the format's `chat` says.
  */
 export function AgentChat({ chat, from, until, lang, label }) {
   const { global, tempo, settled } = useClock()
+  const { strip, bar, chat: margin } = useFormat()
   if (global < from || global >= until + CROSS_FADE_FRAMES) return null
   const shown = Math.min(interpolate(global, [from, from + CROSS_FADE_FRAMES], [0, 1], clamp), interpolate(global, [until, until + CROSS_FADE_FRAMES], [1, 0], clamp))
   const rtl = isRtl(lang)
@@ -139,10 +141,10 @@ export function AgentChat({ chat, from, until, lang, label }) {
       <div
         style={{
           position: 'absolute',
-          left: 48,
-          right: 48,
-          top: STRIP_HEIGHT + 40,
-          bottom: BAR_HEIGHT + 40,
+          left: margin.side,
+          right: margin.side,
+          top: strip + margin.gap,
+          bottom: bar + margin.gap,
           borderRadius: 48,
           background: '#f4f2fa',
           boxShadow: '0 24px 60px rgba(0, 0, 0, 0.35)',

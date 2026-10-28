@@ -2,11 +2,12 @@
 // frame 0 with its caption whole, and the tag) on the recorder's real pictures, for the stills of parts/stills.mjs. Its scenes are planned
 // in showcase.js; the rectangles come from frames.json, which the stills script checks (stage.js, checkFrames) and passes as `frames`.
 // The parts take everything as props; reading the plan and frames.json is this composition's job.
-import { AbsoluteFill } from 'remotion'
 import { COLORS, FONT_FAMILY } from '../../src/theme.js'
 import { LONG_LABELS } from '../script/index.js'
-import { DEFAULT_TEMPO, FPS, HEIGHT, WIDTH } from '../timing.js'
+import { VERTICAL } from '../format.js'
+import { DEFAULT_TEMPO, FPS } from '../timing.js'
 import { useClock } from './clock.jsx'
+import { FormatFrame } from './format.jsx'
 import { Inset } from './inset.jsx'
 import { PhoneScene, SCREEN } from './phone.jsx'
 import { Ring } from './ring.jsx'
@@ -16,7 +17,7 @@ import { Tag } from './tag.jsx'
 import { TextScene } from './text.jsx'
 import { SceneTrack } from './track.jsx'
 
-export const PROMO_PARTS = Object.freeze({ id: 'PromoParts', fps: FPS, width: WIDTH, height: HEIGHT })
+export const PROMO_PARTS = Object.freeze({ id: 'PromoParts', fps: FPS, width: VERTICAL.width, height: VERTICAL.height })
 /** The tag sits this far into the screen, under the app's header (the strip covers the top of the phone in this showcase). */
 const TAG_OFFSET = 84
 
@@ -64,12 +65,13 @@ function ShowcaseScene({ scene, source, lang, frames }) {
 
 /**
  * @param {{ lang: string, frames: { pictures: Record<string, { width: number, height: number, boxes: object, zooms: object }> } | null, firstFrameWhole?: boolean }} props
- * `frames` is the recorder's frames.json; `firstFrameWhole` draws frame 0 settled (decision "frame 0" of the long cut).
+ * `frames` is the recorder's frames.json; `firstFrameWhole` draws frame 0 settled (decision "frame 0" of the long cut). It is drawn in the
+ * vertical format (format.js).
  */
 export function PromoParts({ lang, frames, firstFrameWhole = true }) {
   if (!frames) throw new Error('PromoParts needs the frames.json of the recorder as its `frames`: run node video/promo/parts/stills.mjs.')
   return (
-    <AbsoluteFill style={{ background: COLORS.groundTo, fontFamily: FONT_FAMILY, overflow: 'hidden' }}>
+    <FormatFrame format={VERTICAL} style={{ background: COLORS.groundTo, fontFamily: FONT_FAMILY, overflow: 'hidden' }}>
       <SceneTrack
         plan={showcasePlan()}
         lang={lang}
@@ -77,6 +79,6 @@ export function PromoParts({ lang, frames, firstFrameWhole = true }) {
         firstFrameWhole={firstFrameWhole}
         render={(scene, index) => <ShowcaseScene scene={scene} source={SHOWCASE.scenes[index]} lang={lang} frames={frames} />}
       />
-    </AbsoluteFill>
+    </FormatFrame>
   )
 }

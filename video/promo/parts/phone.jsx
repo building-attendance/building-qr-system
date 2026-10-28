@@ -7,8 +7,9 @@
 // - `screen`: what the screen shows instead of the scene's picture (more pictures, a drawn chat).
 // - `overlay`: what is drawn over the screen in its own space, so it follows the zoom (a ring, the tag).
 // - `children`: what is drawn over the whole frame, above the phone and under the caption bar (the picture in picture).
-// - `place`: where the phone stands at rest and how large (PHONE when not given; the long cut stands it under its progress strip), and
-//   `area`: the part of the frame that a zoom frames (zoom.jsx).
+// - `place`: where the phone stands at rest and how large (the format's `phone` when not given; the long cut stands it under its progress
+//   strip), and `area`: the part of the frame that a zoom frames (zoom.jsx; the format's picture area when not given). The sizes of the
+//   frame come from the composition's format (format.jsx).
 // - `bezel`: the colour of the phone's bezel (the dark one when not given; the long cut gives the committee's phone a light one).
 // - `punchFrame`: the frame of the bigger punch of the groove (the first frame of the short cut's scan scene when not given).
 // The effects (D16): the phone enters tilted about 22 degrees to 0 in 3D over a beat (W3), then pushes in slowly from 1.0 to 1.04 (1.06
@@ -19,10 +20,11 @@ import { CameraScene } from '../../src/Screens.jsx'
 import { COLORS } from '../../src/theme.js'
 import { LAYOUT } from '../../src/timing.js'
 import { SIGN } from '../stage.js'
-import { FPS, GROOVE_SCENE, PULSE, WIDTH, beatFrames, pulseAt, punchAt } from '../timing.js'
+import { FPS, GROOVE_SCENE, PULSE, beatFrames, pulseAt, punchAt } from '../timing.js'
 import { Caption, captionSize } from './caption.jsx'
 import { GROUND, Glow, clamp, useClock } from './clock.jsx'
-import { BAR_HEIGHT, BEZELS, PHONE, PICTURE_AREA, SCREEN, phoneRest } from './moves.js'
+import { useFormat } from './format.jsx'
+import { BEZELS, PHONE, SCREEN, phoneBox, phoneRest } from './moves.js'
 import { Zoom } from './zoom.jsx'
 
 export { PHONE, SCREEN }
@@ -60,6 +62,7 @@ function PhoneScreen({ scene, strings }) {
 export function CaptionBar({ scene, lang, keyword }) {
   // At a boundary without a whip (a scene that the next one continues) the caption fades out over the frames where its whip would be.
   const { captionShown = 1 } = useClock()
+  const { bar } = useFormat()
   const caption = <Caption scene={scene} lang={lang} size={captionSize(scene, 66, 84)} weight={500} color={COLORS.barText} keyword={keyword} />
   return (
     <div
@@ -68,7 +71,7 @@ export function CaptionBar({ scene, lang, keyword }) {
         left: 0,
         right: 0,
         bottom: 0,
-        height: BAR_HEIGHT,
+        height: bar,
         boxSizing: 'border-box',
         background: COLORS.barBackground,
         borderTop: `6px solid ${COLORS.barAccent}`,
@@ -90,11 +93,13 @@ export function CaptionBar({ scene, lang, keyword }) {
  *   from?: import('./moves.js').View | null, bezel?: { color: string, ring: string, screen?: string } }} props
  * `bezel` is the colour of the bezel, of the thin ring around the phone and of a line around its screen (none when not given).
  */
-export function PhoneScene({ scene, lang, strings, keyword, camera = null, from = null, screen, overlay, children, place = PHONE, area = PICTURE_AREA, bezel = BEZELS.provider, punchFrame }) {
+export function PhoneScene({ scene, lang, strings, keyword, camera = null, from = null, screen, overlay, children, place = null, area = null, bezel = BEZELS.provider, punchFrame }) {
   const { frame, global, tempo, settled, captionShown = 1 } = useClock()
   // At a boundary without a whip, what belongs to this scene alone (its rings, its picture in picture) fades out with its caption.
   const fading = (layer) => (captionShown < 1 && layer ? <div style={{ position: 'absolute', inset: 0, opacity: captionShown }}>{layer}</div> : layer)
-  const left = (WIDTH - PHONE.width * place.scale) / 2
+  const format = useFormat()
+  const at = place ?? format.phone
+  const box = phoneBox(at, format)
   const hitFrame = punchFrame === undefined ? (scene.id === GROOVE_SCENE ? scene.startFrame : null) : punchFrame
   const pulse = settled ? 0 : pulseAt(global, tempo)
   const punch = hitFrame == null ? 0 : punchAt(global, hitFrame, tempo)
@@ -111,10 +116,10 @@ export function PhoneScene({ scene, lang, strings, keyword, camera = null, from 
     <div
       style={{
         position: 'absolute',
-        left,
-        top: place.top,
-        width: PHONE.width * place.scale,
-        height: PHONE.height * place.scale,
+        left: box.left,
+        top: box.top,
+        width: box.width,
+        height: box.height,
         transformOrigin: '50% 0',
         transform: `rotateY(${TILT_DEGREES * (1 - landed)}deg) scale(${hit})`,
       }}
@@ -133,7 +138,7 @@ export function PhoneScene({ scene, lang, strings, keyword, camera = null, from 
           background: bezel.color,
           boxShadow: `0 16px 40px rgba(0, 0, 0, 0.4), 0 0 0 2px ${bezel.ring}`,
           transformOrigin: '0 0',
-          transform: `scale(${place.scale})`,
+          transform: `scale(${at.scale})`,
         }}
       >
         <div style={{ position: 'relative', width: SCREEN.width, height: SCREEN.height, borderRadius: 46, overflow: 'hidden', background: '#f7f5ff', ...(bezel.screen ? { boxShadow: `0 0 0 2px ${bezel.screen}` } : {}) }}>
@@ -149,7 +154,7 @@ export function PhoneScene({ scene, lang, strings, keyword, camera = null, from 
       <Glow amount={Math.max(PULSE.ground * pulse, PULSE.punchGround * punch)} />
       {camera ? (
         // The camera's layer has no perspective of its own, so the tilt gets its perspective from a layer inside it, as at rest.
-        <Zoom scene={scene} moves={camera.moves} picture={camera.picture} rest={phoneRest(camera.picture, place)} outline={PHONE.width * place.scale} from={from} area={area}>
+        <Zoom scene={scene} moves={camera.moves} picture={camera.picture} rest={phoneRest(camera.picture, at, format)} outline={box.width} from={from} area={area ?? format.pictureArea}>
           <AbsoluteFill style={{ perspective: PERSPECTIVE_PX, perspectiveOrigin: '50% 0%' }}>{phone}</AbsoluteFill>
         </Zoom>
       ) : (

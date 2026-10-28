@@ -9,11 +9,13 @@
 // - The effects of decision D16 (pulses, whips, the landing of words, the sounds) are placed here too, from the same beats (the last section).
 // - A caption comes in by phrases (cut at `.`, `,`, `?`, `:`), one phrase per beat from the first beat of its scene, all of them by the
 //   middle of the scene. A caption that does not get its reading time at the tempo is refused (decision D9): fix the script, not the time.
+import { VERTICAL } from './format.js'
 import { SHORT } from './script/index.js'
 
 export const FPS = 30
-export const WIDTH = 1080
-export const HEIGHT = 1920
+/** The frame of the vertical format (format.js), the one both cuts are drawn in today. The parts read their format, never these. */
+export const WIDTH = VERTICAL.width
+export const HEIGHT = VERTICAL.height
 
 export const BEATS_PER_BAR = 4
 

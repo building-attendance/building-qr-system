@@ -15,17 +15,19 @@
 // device at the most, drifts and pulses (parts/moves.js); a whip brings its screen in already drawn; the committee's phone is light and
 // the provider's dark (parts/screens.js, bezelOf); and a scene that `continues` the one before it on the same device has no whip.
 import { useMemo } from 'react'
-import { AbsoluteFill, Html5Audio, Img, Sequence, staticFile, useCurrentFrame } from 'remotion'
+import { Html5Audio, Img, Sequence, staticFile, useCurrentFrame } from 'remotion'
 import { DRAWN } from '../script/drawn.js'
 import { CameraScene } from '../src/Screens.jsx'
 import { COLORS, FONT_FAMILY } from '../src/theme.js'
 import { volumeAt } from './fade.js'
+import { VERTICAL } from './format.js'
 import { useClock } from './parts/clock.jsx'
 import { ClosingScene } from './parts/closing.jsx'
 import { AgentChat, CheckMark, PrintedSign } from './parts/drawn.jsx'
+import { FormatFrame, useFormat } from './parts/format.jsx'
 import { Inset } from './parts/inset.jsx'
 import { LaptopScene } from './parts/laptop.jsx'
-import { LAPTOP, LONG_PHONE, stripOpacity } from './parts/moves.js'
+import { stripOpacity } from './parts/moves.js'
 import { CROSS_FADE_FRAMES, PhoneScene, SCREEN, signBeat } from './parts/phone.jsx'
 import { Ring } from './parts/ring.jsx'
 import { bezelOf, continuityOf, drawnPictures, pictureEnd, pictureTimeline, ringsOf, stageOf } from './parts/screens.js'
@@ -35,9 +37,9 @@ import { SceneTrack } from './parts/track.jsx'
 import { ZOOM_EASING } from './parts/zoom.jsx'
 import { LONG, LONG_LABELS } from './script/index.js'
 import { agentAnswer } from './stage.js'
-import { DEFAULT_TEMPO, FPS, HEIGHT, MIX_GAIN, WIDTH, burstFrame, planPromo, soundCues } from './timing.js'
+import { DEFAULT_TEMPO, FPS, MIX_GAIN, burstFrame, planPromo, soundCues } from './timing.js'
 
-export const PROMO_LONG = Object.freeze({ id: 'PromoLong', fps: FPS, width: WIDTH, height: HEIGHT })
+export const PROMO_LONG = Object.freeze({ id: 'PromoLong', fps: FPS, width: VERTICAL.width, height: VERTICAL.height })
 
 /** The words of the strip, large enough to read on a phone. */
 const STRIP_SIZE = 34
@@ -93,10 +95,11 @@ const Rings = ({ scene, frames, scale, line }) =>
  * with `continued`, where a scene that continues the one before it starts (continuityOf), made once for the plan in PromoLong.
  */
 function LongScene({ scene, stage, lang, frames, chat, keyword, burst, strings }) {
+  const format = useFormat()
   if (scene.picture === 'text') return <TextScene scene={scene} lang={lang} keyword={keyword} />
   if (scene.picture === 'closing') return <ClosingScene scene={scene} lang={lang} keyword={keyword} burst={burst} guide={LONG_LABELS.guide} large />
   if (scene.picture === 'camera') {
-    return <PhoneScene scene={scene} lang={lang} keyword={keyword} place={LONG_PHONE} screen={<CameraScreen scene={scene} strings={strings} />} punchFrame={scene.thenFrame} />
+    return <PhoneScene scene={scene} lang={lang} keyword={keyword} place={format.longPhone} screen={<CameraScreen scene={scene} strings={strings} />} punchFrame={scene.thenFrame} />
   }
   if (!stage) throw new Error(`Scene "${scene.id}" shows a recorded screen without a zoom: a whole screen is shown for a beat at most (decision D3).`)
   const { camera, area, continued } = stage
@@ -110,7 +113,7 @@ function LongScene({ scene, stage, lang, frames, chat, keyword, burst, strings }
         camera={camera}
         from={continued?.from}
         area={area}
-        overlay={<Rings scene={scene} frames={frames} scale={LAPTOP.screenWidth / camera.picture.width} line={7} />}
+        overlay={<Rings scene={scene} frames={frames} scale={format.laptop.screenWidth / camera.picture.width} line={7} />}
       />
     )
   }
@@ -122,7 +125,7 @@ function LongScene({ scene, stage, lang, frames, chat, keyword, burst, strings }
       scene={scene}
       lang={lang}
       keyword={keyword}
-      place={LONG_PHONE}
+      place={format.longPhone}
       area={area}
       camera={camera}
       from={continued?.from}
@@ -140,9 +143,9 @@ function LongScene({ scene, stage, lang, frames, chat, keyword, burst, strings }
 /**
  * @param {{ lang: string, bpm: number, firstBeat: number, music?: { file: string, startFrame: number } | null, sounds?: boolean,
  *   frames: { pictures: Record<string, object>, agentSample?: object, missingDay?: string } | null }} props
- * `frames` is the recorder's frames.json, checked by render.mjs (stage.js, checkFrames); `music` and `sounds` as in Promo.jsx.
+ * `frames` is the recorder's frames.json, checked by render.mjs (stage.js, checkFrames); `music`, `sounds` and `format` as in Promo.jsx.
  */
-export function PromoLong({ lang, bpm, firstBeat, music = null, sounds = false, frames }) {
+export function PromoLong({ lang, bpm, firstBeat, music = null, sounds = false, frames, format = VERTICAL }) {
   if (!frames) throw new Error('PromoLong needs the frames.json of the recorder as its `frames`: render it with node video/promo/render.mjs <language> --cut long.')
   // The plan and the chat depend on the props only: made once, not at every frame.
   const tempo = useMemo(() => ({ bpm, firstBeat }), [bpm, firstBeat])
@@ -152,16 +155,16 @@ export function PromoLong({ lang, bpm, firstBeat, music = null, sounds = false, 
   const stages = useMemo(
     () =>
       plan.scenes.map((scene, index) => {
-        const stage = stageOf(scene, frames)
-        return stage ? { ...stage, continued: continuityOf(plan.scenes, index, frames, tempo, ZOOM_EASING) } : null
+        const stage = stageOf(scene, frames, format)
+        return stage ? { ...stage, continued: continuityOf(plan.scenes, index, frames, tempo, ZOOM_EASING, format) } : null
       }),
-    [plan, frames, tempo],
+    [plan, frames, tempo, format],
   )
   const strings = DRAWN[lang] ?? DRAWN.en
   const keywords = LONG.keywords[lang] ?? {}
   const burst = burstFrame(plan, tempo)
   return (
-    <AbsoluteFill style={{ background: COLORS.groundTo, fontFamily: FONT_FAMILY, overflow: 'hidden' }}>
+    <FormatFrame format={format} style={{ background: COLORS.groundTo, fontFamily: FONT_FAMILY, overflow: 'hidden' }}>
       {music ? <Html5Audio src={staticFile(music.file)} trimBefore={music.startFrame} volume={(frame) => MIX_GAIN * volumeAt(frame, plan)} /> : null}
       {sounds
         ? soundCues(plan, LONG).map((cue) => (
@@ -178,7 +181,7 @@ export function PromoLong({ lang, bpm, firstBeat, music = null, sounds = false, 
         render={(scene, index) => <LongScene scene={scene} stage={stages[index]} lang={lang} frames={frames} chat={chat} keyword={keywords[scene.id]} burst={burst} strings={strings} />}
       />
       <TrackStrip plan={plan} lang={lang} />
-    </AbsoluteFill>
+    </FormatFrame>
   )
 }
 

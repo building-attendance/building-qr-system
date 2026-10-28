@@ -13,32 +13,35 @@
 //   it and is gone half a second before the end, so the code is clean again (parts/closing.jsx).
 // The track is staged by render.mjs when it is given one (music.js): started at the frame it names, faded in at the start and out over the
 // last second and a half. The effect sounds are quiet next to it and none plays in that last second and a half.
-import { AbsoluteFill, Html5Audio, Sequence, staticFile } from 'remotion'
+import { Html5Audio, Sequence, staticFile } from 'remotion'
 import { DRAWN } from '../script/drawn.js'
 import { COLORS, FONT_FAMILY } from '../src/theme.js'
 import { volumeAt } from './fade.js'
+import { VERTICAL } from './format.js'
 import { ClosingScene } from './parts/closing.jsx'
+import { FormatFrame } from './parts/format.jsx'
 import { PhoneScene } from './parts/phone.jsx'
 import { TextScene } from './parts/text.jsx'
 import { SceneTrack } from './parts/track.jsx'
 import { KEYWORDS } from './script/index.js'
-import { DEFAULT_TEMPO, FPS, HEIGHT, MIX_GAIN, WIDTH, burstFrame, planPromo, soundCues } from './timing.js'
+import { DEFAULT_TEMPO, FPS, MIX_GAIN, burstFrame, planPromo, soundCues } from './timing.js'
 
-export const PROMO = Object.freeze({ id: 'Promo', fps: FPS, width: WIDTH, height: HEIGHT })
+export const PROMO = Object.freeze({ id: 'Promo', fps: FPS, width: VERTICAL.width, height: VERTICAL.height })
 
 /**
  * @param {{ lang: string, bpm: number, firstBeat: number, music?: { file: string, startFrame: number } | null, sounds?: boolean }} props
  * `music` is the staged track and the frame of it where the music starts; without it there is no music. `sounds` plays the effect sounds
- * that render.mjs stages (make-sounds.mjs); off, the composition is silent apart from the track.
+ * that render.mjs stages (make-sounds.mjs); off, the composition is silent apart from the track. `format` is the frame and the layout that
+ * the parts read (format.js): VERTICAL, the only one so far.
  */
-export function Promo({ lang, bpm, firstBeat, music = null, sounds = false }) {
+export function Promo({ lang, bpm, firstBeat, music = null, sounds = false, format = VERTICAL }) {
   const tempo = { bpm, firstBeat }
   const plan = planPromo(lang, tempo)
   const strings = DRAWN[lang] ?? DRAWN.en
   const keywords = KEYWORDS[lang] ?? {}
   const burst = burstFrame(plan, tempo)
   return (
-    <AbsoluteFill style={{ background: COLORS.groundTo, fontFamily: FONT_FAMILY, overflow: 'hidden' }}>
+    <FormatFrame format={format} style={{ background: COLORS.groundTo, fontFamily: FONT_FAMILY, overflow: 'hidden' }}>
       {music ? <Html5Audio src={staticFile(music.file)} trimBefore={music.startFrame} volume={(frame) => MIX_GAIN * volumeAt(frame, plan)} /> : null}
       {sounds
         ? soundCues(plan).map((cue) => (
@@ -61,7 +64,7 @@ export function Promo({ lang, bpm, firstBeat, music = null, sounds = false }) {
           )
         }
       />
-    </AbsoluteFill>
+    </FormatFrame>
   )
 }
 

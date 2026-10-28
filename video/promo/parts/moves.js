@@ -11,40 +11,50 @@
 // keep the element that the caption names in view. It never holds still: after a move lands it drifts toward its element (DRIFT over the
 // rest of the hold), and the 2% pulse of the bar line (PULSE.phone) is on the view. A scene that continues the one before it starts
 // where that one's camera ended (liveView, `from`).
+//
+// Every size of the frame comes from a format (../format.js): a function that places a device or a picture in picture takes the format as
+// its last parameter, and one that frames a camera takes the area it frames (the format's picture area, or the band above a picture in
+// picture); either is VERTICAL's when not given. The constants below are VERTICAL's numbers under their old names, for the tests and for
+// laptop.jsx, which still reads them; every other part reads its format (format.jsx, useFormat).
 import { COLORS } from '../../src/theme.js'
 import { LAYOUT } from '../../src/timing.js'
+import { VERTICAL } from '../format.js'
 import { STAGES, STRIP_STAGES } from '../script/index.js'
-import { HEIGHT, PULSE, WHIP_FRAMES, WIDTH, beatFrame, beatFrames, pulseAt } from '../timing.js'
+import { PULSE, WHIP_FRAMES, beatFrame, beatFrames, pulseAt } from '../timing.js'
 
 /** The caption bar at the bottom of a scene with a picture is this tall, and the progress strip at the top this tall (strip.jsx). */
-export const BAR_HEIGHT = 400
-export const STRIP_HEIGHT = 84
+export const BAR_HEIGHT = VERTICAL.bar
+export const STRIP_HEIGHT = VERTICAL.strip
 /** The part of the frame where a zoomed picture is shown: between the strip and the caption bar. */
-export const PICTURE_AREA = Object.freeze({ top: STRIP_HEIGHT, width: WIDTH, height: HEIGHT - BAR_HEIGHT - STRIP_HEIGHT })
+export const PICTURE_AREA = VERTICAL.pictureArea
 
 // ---- The devices at rest (phone.jsx, laptop.jsx and inset.jsx draw them; the camera starts from here) ----
 
 /** The phone's screen and the phone with its bezel, in its own units, and where the short cut stands it and how large. */
 export const SCREEN = Object.freeze({ width: LAYOUT.screenWidth, height: LAYOUT.screenHeight })
-export const PHONE = Object.freeze({ scale: 1.5, top: 36, width: SCREEN.width + LAYOUT.bezel * 2, height: SCREEN.height + LAYOUT.bezel * 2 })
+export const PHONE = Object.freeze({ ...VERTICAL.phone, width: SCREEN.width + LAYOUT.bezel * 2, height: SCREEN.height + LAYOUT.bezel * 2 })
+/** The long cut's phone at rest (format.js, `longPhone`): the short cut's stands 48 px under where the strip would be. */
+export const LONG_PHONE = VERTICAL.longPhone
+
 /**
- * The long cut's phone at rest stands this far under the strip (the short cut's stands 48 px under where the strip would be), as large as
- * the space down to the caption bar allows: 973 units tall at this scale end 25 px above the bar.
+ * The phone at rest in the frame, its bezel included: its top left corner and its size in pixels of the frame, centred across the frame.
+ * @param {{ scale: number, top: number }} place where the phone stands
+ * @param {import('../format.js').Format} [format]
  */
-export const LONG_PHONE = Object.freeze({ scale: 1.43, top: STRIP_HEIGHT + 20 })
+export const phoneBox = (place, format = VERTICAL) => ({ left: (format.width - PHONE.width * place.scale) / 2, top: place.top, width: PHONE.width * place.scale, height: PHONE.height * place.scale })
 
 /**
  * Where a picture of `picture.width` pixels sits in the frame when the phone is at rest: its top left corner (the screen's, inside the
  * bezel) and the pixels of the frame per pixel of the picture. The zoom (zoom.jsx) starts from here.
  * @param {{ width: number }} picture
- * @param {{ scale: number, top: number }} [place] where the phone stands (PHONE when not given)
+ * @param {{ scale: number, top: number }} [place] where the phone stands (the format's `phone`, the short cut's, when not given)
+ * @param {import('../format.js').Format} [format]
  * @returns {Rest}
  */
-export const phoneRest = (picture, place = PHONE) => ({
-  x: (WIDTH - PHONE.width * place.scale) / 2 + LAYOUT.bezel * place.scale,
-  y: place.top + LAYOUT.bezel * place.scale,
-  scale: (SCREEN.width * place.scale) / picture.width,
-})
+export const phoneRest = (picture, place = undefined, format = VERTICAL) => {
+  const at = place ?? format.phone
+  return { x: phoneBox(at, format).left + LAYOUT.bezel * at.scale, y: at.top + LAYOUT.bezel * at.scale, scale: (SCREEN.width * at.scale) / picture.width }
+}
 
 /**
  * The bezel of a phone by whose app it shows (decision E2, "whose device"; screens.js, bezelOf): the provider's phone is dark, as in the
@@ -56,42 +66,58 @@ export const BEZELS = Object.freeze({
   committee: Object.freeze({ color: '#e4e0f2', ring: 'rgba(21, 18, 31, 0.35)', screen: 'rgba(21, 18, 31, 0.22)' }),
 })
 
+/** The laptop of the long cut (format.js, `laptop`): its screen's width in the frame at rest, its bezel, and its base. */
+export const LAPTOP = VERTICAL.laptop
 /**
- * The laptop of the long cut: its screen this wide in the frame at rest, its bezel, and the base under it, which overhangs the bezel on
- * each side. The whole laptop is 988 px wide, so that it can drift and pulse with both its sides in the frame (pushLimit).
+ * The width of a laptop in the frame at rest, its base included.
+ * @param {{ screenWidth: number, bezel: number, baseOverhang: number }} laptop
  */
-export const LAPTOP = Object.freeze({ screenWidth: 920, bezel: 18, baseHeight: 34, baseOverhang: 16 })
-/** The width of the laptop in the frame at rest, its base included. */
-export const LAPTOP_OUTLINE = LAPTOP.screenWidth + 2 * (LAPTOP.bezel + LAPTOP.baseOverhang)
+export const laptopOutline = (laptop) => laptop.screenWidth + 2 * (laptop.bezel + laptop.baseOverhang)
+export const LAPTOP_OUTLINE = laptopOutline(LAPTOP)
 
 /**
  * Where a picture of the computer sits in the frame when the laptop is at rest (its top left corner and the pixels of the frame per pixel
  * of the picture): the laptop in the middle of the picture area.
  * @param {{ width: number, height: number }} picture
+ * @param {import('../format.js').Format} [format]
  * @returns {Rest}
  */
-export function laptopRest(picture) {
-  const height = (LAPTOP.screenWidth * picture.height) / picture.width
-  const total = height + 2 * LAPTOP.bezel + LAPTOP.baseHeight
-  return { x: (WIDTH - LAPTOP.screenWidth) / 2, y: PICTURE_AREA.top + (PICTURE_AREA.height - total) / 2 + LAPTOP.bezel, scale: LAPTOP.screenWidth / picture.width }
+export function laptopRest(picture, format = VERTICAL) {
+  const { laptop, pictureArea: area } = format
+  const height = (laptop.screenWidth * picture.height) / picture.width
+  const total = height + 2 * laptop.bezel + laptop.baseHeight
+  return { x: (format.width - laptop.screenWidth) / 2, y: area.top + (area.height - total) / 2 + laptop.bezel, scale: laptop.screenWidth / picture.width }
 }
 
-/** The picture in picture (inset.jsx): its margin from the edges, its bezel, its width in the frame, and the room the camera leaves above it. */
-export const INSET = Object.freeze({ margin: 48, bezel: 10, width: Math.round(WIDTH / 3), gap: 24 })
+/** The picture in picture (format.js, `inset`): its margin from the edges, its bezel, its width in the frame, and the room the camera leaves above it. */
+export const INSET = VERTICAL.inset
 
-/** The height of an inset of `width` in the frame, with its bezel, for a picture of this shape. */
-export const insetHeight = (picture, width = INSET.width) => Math.round(((width - 2 * INSET.bezel) * picture.height) / picture.width) + 2 * INSET.bezel
+/**
+ * The height of an inset of `width` in the frame (the format's when not given), with its bezel, for a picture of this shape.
+ * @param {{ width: number, height: number }} picture
+ * @param {number} [width]
+ * @param {import('../format.js').Format} [format]
+ */
+export const insetHeight = (picture, width = undefined, format = VERTICAL) => {
+  const { bezel } = format.inset
+  return Math.round((((width ?? format.inset.width) - 2 * bezel) * picture.height) / picture.width) + 2 * bezel
+}
 
 /**
  * The top of an inset in a bottom corner, in pixels of the frame: the long cut frames its zoom above it, so that the picture in picture
  * never covers what the camera shows.
  * @param {{ width: number, height: number }} picture
  * @param {number} [width]
+ * @param {import('../format.js').Format} [format]
  */
-export const insetTop = (picture, width = INSET.width) => HEIGHT - BAR_HEIGHT - INSET.margin - insetHeight(picture, width)
+export const insetTop = (picture, width = undefined, format = VERTICAL) => format.height - format.bar - format.inset.margin - insetHeight(picture, width, format)
 
-/** The part of the frame that the camera frames in a scene with a picture in picture: above it, from the start of the scene. */
-export const insetArea = (picture) => Object.freeze({ top: STRIP_HEIGHT, width: WIDTH, height: insetTop(picture) - INSET.gap - STRIP_HEIGHT })
+/**
+ * The part of the frame that the camera frames in a scene with a picture in picture: above it, from the start of the scene.
+ * @param {{ width: number, height: number }} picture
+ * @param {import('../format.js').Format} [format]
+ */
+export const insetArea = (picture, format = VERTICAL) => Object.freeze({ top: format.strip, width: format.width, height: insetTop(picture, undefined, format) - format.inset.gap - format.strip })
 
 /**
  * @typedef {{ x: number, y: number, width: number, height: number }} Rect a rectangle in the picture's own pixels
@@ -127,7 +153,7 @@ export const EDGE = 16
  * @param {number} outline
  * @param {number} [width]
  */
-export function pushLimit(outline, width = WIDTH) {
+export function pushLimit(outline, width = VERTICAL.width) {
   const limit = Math.min(MAX_PUSH, (width - 2 * EDGE) / outline)
   if (limit < LIFE) throw new Error(`A device ${outline} px wide at rest cannot drift and pulse with its side edges ${EDGE} px inside a frame ${width} px wide: make it narrower.`)
   return limit

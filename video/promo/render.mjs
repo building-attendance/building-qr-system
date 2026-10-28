@@ -31,7 +31,8 @@ import { checkMusicNotCleared, checkMusicPath, checkMusicStart, stagedMusicFile,
 import { pictureTimeline } from './parts/screens.js'
 import { LANGUAGES, LONG } from './script/index.js'
 import { REPOSITORY_QR, SIGN, agentAnswer, checkFrames, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from './stage.js'
-import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, HEIGHT, WHIP_FRAMES, WIDTH, burstFrame, planPromo } from './timing.js'
+import { VERTICAL } from './format.js'
+import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, WHIP_FRAMES, burstFrame, planPromo } from './timing.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const videoDir = path.resolve(here, '..')
@@ -184,8 +185,10 @@ writeFileSync(path.join(publicDir, REPOSITORY_QR.file), await repositoryQrSvg())
 
 const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir, outDir: bundleDir })
 const composition = await selectComposition({ serveUrl, id: long ? 'PromoLong' : 'Promo', inputProps })
-if (composition.width !== WIDTH || composition.height !== HEIGHT || composition.durationInFrames !== plan.totalFrames) {
-  fail(`The composition is ${composition.width}x${composition.height} for ${composition.durationInFrames} frames, not the plan's ${WIDTH}x${HEIGHT} for ${plan.totalFrames}.`)
+// The frame of the format that the composition draws in (format.js): the vertical one, the only one so far.
+const format = VERTICAL
+if (composition.width !== format.width || composition.height !== format.height || composition.durationInFrames !== plan.totalFrames) {
+  fail(`The composition is ${composition.width}x${composition.height} for ${composition.durationInFrames} frames, not the ${format.name} format's ${format.width}x${format.height} for the plan's ${plan.totalFrames}.`)
 }
 
 let lastTenth = -1
