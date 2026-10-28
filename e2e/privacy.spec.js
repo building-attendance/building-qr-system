@@ -29,10 +29,13 @@ test('the sign-in screen gives the short notice and the way to the whole of it, 
   const scan = `/scan?code=${POINTS.lobby}`
   await page.goto(scan)
   await expect(page.getByRole('heading', { level: 1, name: he['login.title'] })).toBeVisible()
-  await expect(page.getByText(he['login.privacy'])).toBeVisible()
+  // The short notice opens in a sheet from above the list, as on home (owner, 28/10/2026), and the sheet leads to the whole of it.
+  await page.getByRole('button', { name: he['privacy.title'] }).click()
+  const sheet = page.getByRole('dialog', { name: he['privacy.title'] })
+  await expect(sheet.getByText(he['login.privacy'])).toBeVisible()
 
   const answered = buildingAnswer(page)
-  await page.getByRole('link', { name: he['privacy.open'] }).click()
+  await sheet.getByRole('link', { name: he['privacy.open'] }).click()
   await expect(page).toHaveURL(/\/privacy$/)
   await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeVisible()
   await expect(page.getByRole('heading', { level: 1, name: he['privacy.title'] })).toBeFocused()
@@ -110,7 +113,8 @@ test('is in the language the person chose, in each of the four', async ({ page }
     await page.getByLabel(shown['lang.label']).selectOption(code)
     shown = words
     await expect(page.locator('html')).toHaveAttribute('lang', code)
-    await page.getByRole('link', { name: words['privacy.open'] }).click()
+    await page.getByRole('button', { name: words['privacy.title'] }).click()
+    await page.getByRole('dialog', { name: words['privacy.title'] }).getByRole('link', { name: words['privacy.open'] }).click()
     await expect(page.getByRole('heading', { level: 1, name: words['privacy.title'] })).toBeVisible()
     await expect(page.getByRole('heading', { level: 2 })).toHaveCount(7)
     await page.getByRole('link', { name: words['privacy.back'] }).click()

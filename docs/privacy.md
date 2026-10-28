@@ -154,8 +154,10 @@ is changed to say so.
 ## The notice to the service providers
 
 The providers' app has a privacy notice, at `/privacy` (`src/worker/PrivacyView.jsx`, the words in `src/i18n/*.js`, the keys
-that start with `privacy.`, in the app's four languages). It is public, like the sign-in list, and it is linked from the
-sign-in screen (which also carries a short version, `login.privacy`, before the first scan) and from the home screen. It is a
+that start with `privacy.`, in the app's four languages). It is public, like the sign-in list. The sign-in
+screen and the home screen open it the same way: a "privacy notice" button beside the tutorial link (on the sign-in screen
+above the list of accounts, on the home screen under its card) opens a short version, `login.privacy`, in a sheet with the
+link to the whole notice. So the sign-in screen gives it before the first scan, in view however many names the list has. It is a
 proposed text, not legal advice: each committee has it checked by a lawyer (`docs/install.md`, section 3.7). Its date, shown
 at its foot as "Updated", is `PRIVACY_NOTICE_UPDATED` in `src/worker/PrivacyView.jsx`.
 

@@ -128,9 +128,9 @@
    `min-height: 100dvh` came out as 100dvh plus that padding, so every screen of the provider app was taller than the phone. */
 .w-app, .a-app, .w-app *, .w-app *::before, .w-app *::after, .a-app *, .a-app *::before, .a-app *::after { box-sizing: border-box; }
 /* Headings and paragraphs start with no margin, padding or edge. :where() gives this reset no specificity, so a class's own margin, padding
-   or border (the note under the list of names, the heads of the days, the title of a section) is never cancelled by it. With the plain
-   selectors (`.w-app p`, 0,1,1) it outranked any single class (0,1,0), and the privacy note of the sign-in screen came out with no padding
-   at all, its shield touching the edge of the box. tests/design-css.test.js fails on a reset that has any specificity. */
+   or border (the heads of the days, the title of a section) is never cancelled by it. With the plain selectors (`.w-app p`, 0,1,1) it
+   outranked any single class (0,1,0), and the privacy note that the sign-in screen had then came out with no padding at all, its shield
+   touching the edge of the box. tests/design-css.test.js fails on a reset that has any specificity. */
 :where(.w-app, .a-app) :where(h1, h2, h3, p) { margin: 0; padding: 0; border: 0; }
 /* Controls start from the surrounding type and colour. :where() gives this reset no specificity, so every class rule
    below (a button's weight, size and colour, a nav item's, a field's) applies as written. With the plain selectors it
@@ -227,7 +227,7 @@
 
 /* The same quiet link as an anchor (the tutorial video): a button centres its text in the 48px by itself, an anchor needs this. */
 a.w-link { display: inline-flex; align-items: center; text-align: center; }
-/* The two links of home to read (the video and the privacy notice): one line, centred, and one under the other when they do not fit. */
+/* The two links to read on the sign-in list and home (the video and the privacy notice): one line, centred, and one under the other when they do not fit. */
 .w-links { display: flex; flex-wrap: wrap; justify-content: center; column-gap: var(--w-space-2); }
 
 
@@ -315,16 +315,6 @@ a.w-link { display: inline-flex; align-items: center; text-align: center; }
 .w-person__sub { font-size: var(--w-font-md); color: var(--w-text-3); overflow-wrap: anywhere; }
 .w-person svg { flex: none; color: var(--w-text-3); }
 [dir='rtl'] .w-flip { transform: scaleX(-1); }
-/* The privacy line under the list: a tinted note with a shield, in the ink that is read on that tint. */
-.w-note { display: flex; align-items: flex-start; gap: var(--w-space-3); padding: var(--w-space-3-5) var(--w-space-4); border-radius: var(--w-radius-2xl); background: var(--w-tint-violet); color: var(--w-tint-violet-ink); font-size: var(--w-font-md); line-height: 1.55; }
-.w-note svg { flex: none; margin-block-start: var(--w-space-0-5); }
-.w-note > span { min-width: 0; overflow-wrap: anywhere; }
-/* The way to the whole notice, the last line of the note (the sign-in list): the note's own ink, which tests/contrast.test.js holds to AA
-   on its tint, underlined. A 44px target, given back to the note's padding under it so the box does not grow taller than its text. */
-.w-note__link {
-  display: flex; align-items: center; width: fit-content; min-height: 44px; margin-block-end: calc(-1 * var(--w-space-2-5));
-  color: inherit; font-weight: var(--w-weight-semibold); text-decoration: underline; text-underline-offset: 3px;
-}
 /* The name above the form (the password screen: avatar, name, company) and above the home screen (name and company). */
 .w-greet { display: flex; align-items: center; gap: var(--w-space-3-5); }
 .w-greet__text { min-width: 0; display: flex; flex-direction: column; gap: var(--w-space-1); }
