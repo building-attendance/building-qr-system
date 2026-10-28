@@ -1,10 +1,13 @@
 // Renders the promo video of one language: `node video/promo/render.mjs he`, from the root of the repository, at 120 bpm with only the effect sounds, or with the
 // owner's licensed track on its own beat:
-//   node video/promo/render.mjs he [--cut short|long] --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
+//   node video/promo/render.mjs he [--cut short|long] [--format vertical|wide] --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
+// `--format wide` draws the same plan on the 1920x1080 frame of a web screen (format.js, WIDE) and writes its own files, each name with
+// `-wide` (promo-<lang>-wide.mp4, promo-long-<lang>-wide.mp4, their posters, stills-wide/ and stills-long-wide/), whose poster is frame 0;
+// it refuses a wide short cut over 9.5 MB, the size that the README can take.
 // `--music` is a local .mp3, .wav or .m4a that is never committed (music.js refuses a path inside the repository except under video/out/);
 // `--bpm` and `--first-beat` (the second of the first beat after the start) are required with it and make the plan; `--start` is the second
 // of the file where the music starts (default 0). The track is copied into the staged public folder, faded in and out by music.js.
-// `--cut` is the short promo (34 s, the default, the approved video that does not change) or the long one (2:18, PromoLong.jsx).
+// `--cut` is the short promo (34 s, the default, the approved video that does not change) or the long one (1:56, PromoLong.jsx).
 //
 // Writes video/out/promo/promo-<lang>.mp4 (1080x1920 at 30 fps, H.264 and AAC), promo-<lang>.jpg (the poster) and, in stills/, one picture
 // per scene taken at its last frame (and, for a scene that changes its picture, one just before each change), for looking at each scene,
@@ -31,8 +34,9 @@ import { checkMusicNotCleared, checkMusicPath, checkMusicStart, stagedMusicFile,
 import { pictureTimeline } from './parts/screens.js'
 import { LANGUAGES, LONG } from './script/index.js'
 import { REPOSITORY_QR, SIGN, agentAnswer, checkFrames, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from './stage.js'
-import { VERTICAL } from './format.js'
+import { FORMATS, VERTICAL } from './format.js'
 import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, WHIP_FRAMES, burstFrame, planPromo } from './timing.js'
+import { captionLayout, inColumn } from './wide.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const videoDir = path.resolve(here, '..')
@@ -57,12 +61,13 @@ function numberOption(name, text) {
 
 let lang
 let cut = 'short'
+let format = VERTICAL // the frame that the composition draws in (format.js): `--format vertical` (the default) or `wide`
 let tempo = DEFAULT_TEMPO
 let music = null // { path, start } when a track is given
 try {
   const { positionals, values } = parseArgs({
     allowPositionals: true,
-    options: { cut: { type: 'string' }, music: { type: 'string' }, bpm: { type: 'string' }, 'first-beat': { type: 'string' }, start: { type: 'string' } },
+    options: { cut: { type: 'string' }, format: { type: 'string' }, music: { type: 'string' }, bpm: { type: 'string' }, 'first-beat': { type: 'string' }, start: { type: 'string' } },
     strict: true,
   })
   if (positionals.length !== 1) throw new Error('one language is needed')
@@ -71,6 +76,10 @@ try {
   if (values.cut !== undefined) {
     if (!CUTS.includes(values.cut)) throw new Error(`--cut is ${CUTS.join(' or ')}, not "${values.cut}"`)
     cut = values.cut
+  }
+  if (values.format !== undefined) {
+    if (!Object.hasOwn(FORMATS, values.format)) throw new Error(`--format is ${Object.keys(FORMATS).join(' or ')}, not "${values.format}"`)
+    format = FORMATS[values.format]
   }
   if (values.music === undefined) {
     if (values.bpm !== undefined || values['first-beat'] !== undefined || values.start !== undefined) throw new Error('--bpm, --first-beat and --start go with --music')
@@ -81,17 +90,25 @@ try {
   }
 } catch (error) {
   fail(
-    `${error.message}\nUsage: node video/promo/render.mjs <language> [--cut short|long] [--music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]]\n` +
+    `${error.message}\nUsage: node video/promo/render.mjs <language> [--cut short|long] [--format vertical|wide] [--music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]]\n` +
       `(from the root of the repository; the languages: ${LANGUAGES.join(', ')}; a track is a local .mp3, .wav or .m4a that is never committed)`,
   )
 }
 const long = cut === 'long'
+const wide = format !== VERTICAL
 
 let plan
 try {
   plan = long ? planPromo(lang, tempo, LONG) : planPromo(lang, tempo) // refuses a tempo at which a caption does not fit, naming its scene
 } catch (error) {
   fail(error.message)
+}
+// The wide frame's column holds a caption on three lines at most (wide.js, captionLayout): one that would take more is refused, by its scene.
+if (wide) {
+  for (const scene of plan.scenes.filter(inColumn)) {
+    const { size, lines } = captionLayout(scene.phrases.map((phrase) => phrase.text).join(' '), format)
+    if (lines.length > format.column.lines) fail(`The caption of scene "${scene.id}" takes ${lines.length} lines at ${size} px in the wide frame's column, more than ${format.column.lines}: shorten it.`)
+  }
 }
 
 // The long cut's pictures and their boxes: the recorder's folder, checked before anything is touched.
@@ -149,9 +166,11 @@ const started = hrtime.bigint()
 const elapsed = () => Number((hrtime.bigint() - started) / 1000000n) / 1000
 
 // staticFile('...') is read from a copy of what the composition needs, never from docs/screenshots/ or the recorder's folder itself.
-const name = long ? `promo-long-${lang}` : `promo-${lang}`
+// The wide format writes its own files (`-wide`), so that it never overwrites a vertical one.
+const suffix = wide ? '-wide' : ''
+const name = `${long ? `promo-long-${lang}` : `promo-${lang}`}${suffix}`
 const outDir = path.join(videoDir, 'out', 'promo')
-const stillsDir = path.join(outDir, long ? 'stills-long' : 'stills')
+const stillsDir = path.join(outDir, `${long ? 'stills-long' : 'stills'}${suffix}`)
 const publicDir = path.join(videoDir, 'out', `.public-${name}`)
 // The bundle copies the public folder, so it is written here too (not to the system's temp folder) and removed with it: the track is left nowhere.
 const bundleDir = path.join(videoDir, 'out', `.bundle-${name}`)
@@ -184,9 +203,8 @@ writeFileSync(path.join(publicDir, DEMO_QR.file), await demoQrSvg())
 writeFileSync(path.join(publicDir, REPOSITORY_QR.file), await repositoryQrSvg()) // from the repository's address, at every render
 
 const serveUrl = await bundle({ entryPoint: path.join(here, 'index.jsx'), publicDir, outDir: bundleDir })
-const composition = await selectComposition({ serveUrl, id: long ? 'PromoLong' : 'Promo', inputProps })
-// The frame of the format that the composition draws in (format.js): the vertical one, the only one so far.
-const format = VERTICAL
+const composition = await selectComposition({ serveUrl, id: `${long ? 'PromoLong' : 'Promo'}${wide ? 'Wide' : ''}`, inputProps })
+// The frame of the format that the composition draws in (format.js), checked against the composition's.
 if (composition.width !== format.width || composition.height !== format.height || composition.durationInFrames !== plan.totalFrames) {
   fail(`The composition is ${composition.width}x${composition.height} for ${composition.durationInFrames} frames, not the ${format.name} format's ${format.width}x${format.height} for the plan's ${plan.totalFrames}.`)
 }
@@ -216,8 +234,8 @@ await renderMedia({
   },
 })
 
-// The poster: the opening question, once its caption is in (the long cut: its frame 0, which is drawn settled for the thumbnail).
-await renderStill({ composition, serveUrl, inputProps, frame: long ? 0 : plan.scenes[0].phrases[0].frame + 24, imageFormat: 'jpeg', jpegQuality: 90, output: poster, overwrite: true })
+// The poster: the opening question, once its caption is in (the long cut and the wide format: frame 0, drawn settled for the thumbnail).
+await renderStill({ composition, serveUrl, inputProps, frame: long || wide ? 0 : plan.scenes[0].phrases[0].frame + 24, imageFormat: 'jpeg', jpegQuality: 90, output: poster, overwrite: true })
 
 // One still per scene at its last frame before the whip that takes it out (the last scene: its last frame), and one just before each change
 // of picture of a scene that has more than one.
@@ -259,4 +277,10 @@ for (const [effect, frame] of effects) {
 }
 
 const bytes = statSync(mp4).size
-say(`rendered in ${elapsed().toFixed(1)} s: ${path.relative(videoDir, mp4)} ${(plan.totalFrames / FPS).toFixed(1)} seconds, ${(bytes / 1024 / 1024).toFixed(2)} MB, ${path.relative(videoDir, poster)}, ${stills.length} stills in ${path.relative(videoDir, stillsDir)}`)
+const megabytes = (bytes / 1024 / 1024).toFixed(2)
+// The wide short cut is the README's video, and GitHub's free plan takes a video of 10 MB at most: it must stay under this.
+const README_MB = 9.5
+if (wide && !long && bytes > README_MB * 1024 * 1024) {
+  fail(`${path.relative(videoDir, mp4)} is ${megabytes} MB, over the ${README_MB} MB that the README can take (GitHub takes 10 MB at most on a free plan): it is left there to be looked at, not to be published.`)
+}
+say(`rendered in ${elapsed().toFixed(1)} s: ${path.relative(videoDir, mp4)} ${(plan.totalFrames / FPS).toFixed(1)} seconds, ${megabytes} MB, ${path.relative(videoDir, poster)}, ${stills.length} stills in ${path.relative(videoDir, stillsDir)}`)

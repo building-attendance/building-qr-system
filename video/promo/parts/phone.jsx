@@ -23,8 +23,9 @@ import { SIGN } from '../stage.js'
 import { FPS, GROOVE_SCENE, PULSE, beatFrames, pulseAt, punchAt } from '../timing.js'
 import { Caption, captionSize } from './caption.jsx'
 import { GROUND, Glow, clamp, useClock } from './clock.jsx'
-import { useFormat } from './format.jsx'
+import { Stage, stageFormat, useFormat } from './format.jsx'
 import { BEZELS, PHONE, SCREEN, phoneBox, phoneRest } from './moves.js'
+import { CaptionColumn } from './wide.jsx'
 import { Zoom } from './zoom.jsx'
 
 export { PHONE, SCREEN }
@@ -62,7 +63,8 @@ function PhoneScreen({ scene, strings }) {
 export function CaptionBar({ scene, lang, keyword }) {
   // At a boundary without a whip (a scene that the next one continues) the caption fades out over the frames where its whip would be.
   const { captionShown = 1 } = useClock()
-  const { bar } = useFormat()
+  const { bar, column } = useFormat()
+  if (column) return <CaptionColumn scene={scene} lang={lang} keyword={keyword} /> // the wide frame: the caption in its column (wide.jsx)
   const caption = <Caption scene={scene} lang={lang} size={captionSize(scene, 66, 84)} weight={500} color={COLORS.barText} keyword={keyword} />
   return (
     <div
@@ -93,11 +95,11 @@ export function CaptionBar({ scene, lang, keyword }) {
  *   from?: import('./moves.js').View | null, bezel?: { color: string, ring: string, screen?: string } }} props
  * `bezel` is the colour of the bezel, of the thin ring around the phone and of a line around its screen (none when not given).
  */
-export function PhoneScene({ scene, lang, strings, keyword, camera = null, from = null, screen, overlay, children, place = null, area = null, bezel = BEZELS.provider, punchFrame }) {
+export function PhoneScene({ scene, lang, strings, keyword, camera = null, from = null, screen, overlay, children, place = null, area = null, bezel = BEZELS.provider, punchFrame, caption = null }) {
   const { frame, global, tempo, settled, captionShown = 1 } = useClock()
   // At a boundary without a whip, what belongs to this scene alone (its rings, its picture in picture) fades out with its caption.
   const fading = (layer) => (captionShown < 1 && layer ? <div style={{ position: 'absolute', inset: 0, opacity: captionShown }}>{layer}</div> : layer)
-  const format = useFormat()
+  const format = stageFormat(useFormat()) // the phone stands on the stage of a wide frame (format.jsx, Stage)
   const at = place ?? format.phone
   const box = phoneBox(at, format)
   const hitFrame = punchFrame === undefined ? (scene.id === GROOVE_SCENE ? scene.startFrame : null) : punchFrame
@@ -152,16 +154,18 @@ export function PhoneScene({ scene, lang, strings, keyword, camera = null, from 
   return (
     <AbsoluteFill style={{ background: GROUND, perspective: PERSPECTIVE_PX, perspectiveOrigin: '50% 0%' }}>
       <Glow amount={Math.max(PULSE.ground * pulse, PULSE.punchGround * punch)} />
-      {camera ? (
-        // The camera's layer has no perspective of its own, so the tilt gets its perspective from a layer inside it, as at rest.
-        <Zoom scene={scene} moves={camera.moves} picture={camera.picture} rest={phoneRest(camera.picture, at, format)} outline={box.width} from={from} area={area ?? format.pictureArea}>
-          <AbsoluteFill style={{ perspective: PERSPECTIVE_PX, perspectiveOrigin: '50% 0%' }}>{phone}</AbsoluteFill>
-        </Zoom>
-      ) : (
-        phone
-      )}
-      {fading(children)}
-      <CaptionBar scene={scene} lang={lang} keyword={keyword} />
+      <Stage style={{ perspective: PERSPECTIVE_PX, perspectiveOrigin: '50% 0%' }}>
+        {camera ? (
+          // The camera's layer has no perspective of its own, so the tilt gets its perspective from a layer inside it, as at rest.
+          <Zoom scene={scene} moves={camera.moves} picture={camera.picture} rest={phoneRest(camera.picture, at, format)} outline={box.width} from={from} area={area ?? format.pictureArea}>
+            <AbsoluteFill style={{ perspective: PERSPECTIVE_PX, perspectiveOrigin: '50% 0%' }}>{phone}</AbsoluteFill>
+          </Zoom>
+        ) : (
+          phone
+        )}
+        {fading(children)}
+      </Stage>
+      {caption ?? <CaptionBar scene={scene} lang={lang} keyword={keyword} />}
     </AbsoluteFill>
   )
 }

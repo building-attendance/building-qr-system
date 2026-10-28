@@ -1,4 +1,4 @@
-// The composition of the long promo (1080x1920, 2:18 at 120 bpm): both sides of the app for a committee member who knows nothing about it
+// The composition of the long promo (1080x1920, or 1920x1080 as PromoLongWide; 1:56 at 120 bpm): both sides of the app for a committee member who knows nothing about it
 // (topic "promo-long", decisions D1 to D4 and D8). It plans the long script (script/long.js) with timing.js and draws each scene with the
 // parts that the short cut shares (parts/), under the progress strip of the four stages, which comes in after the title card and then
 // stays still over the rest of the track:
@@ -20,11 +20,11 @@ import { DRAWN } from '../script/drawn.js'
 import { CameraScene } from '../src/Screens.jsx'
 import { COLORS, FONT_FAMILY } from '../src/theme.js'
 import { volumeAt } from './fade.js'
-import { VERTICAL } from './format.js'
+import { VERTICAL, WIDE } from './format.js'
 import { useClock } from './parts/clock.jsx'
 import { ClosingScene } from './parts/closing.jsx'
 import { AgentChat, CheckMark, PrintedSign } from './parts/drawn.jsx'
-import { FormatFrame, useFormat } from './parts/format.jsx'
+import { FormatFrame, stageFormat, useFormat } from './parts/format.jsx'
 import { Inset } from './parts/inset.jsx'
 import { LaptopScene } from './parts/laptop.jsx'
 import { stripOpacity } from './parts/moves.js'
@@ -32,12 +32,14 @@ import { CROSS_FADE_FRAMES, PhoneScene, SCREEN, signBeat } from './parts/phone.j
 import { Ring } from './parts/ring.jsx'
 import { bezelOf, continuityOf, drawnPictures, pictureEnd, pictureTimeline, ringsOf, stageOf } from './parts/screens.js'
 import { ProgressStrip } from './parts/strip.jsx'
-import { TextScene } from './parts/text.jsx'
+import { TextScene, TitleCard } from './parts/text.jsx'
 import { SceneTrack } from './parts/track.jsx'
+import { StageLabel } from './parts/wide.jsx'
 import { ZOOM_EASING } from './parts/zoom.jsx'
 import { LONG, LONG_LABELS } from './script/index.js'
 import { agentAnswer } from './stage.js'
 import { DEFAULT_TEMPO, FPS, MIX_GAIN, burstFrame, planPromo, soundCues } from './timing.js'
+import { labelShown } from './wide.js'
 
 export const PROMO_LONG = Object.freeze({ id: 'PromoLong', fps: FPS, width: VERTICAL.width, height: VERTICAL.height })
 
@@ -50,12 +52,19 @@ const STRIP_SIZE = 34
  */
 function TrackStrip({ plan, lang }) {
   const frame = useCurrentFrame()
-  const opacity = stripOpacity(plan, frame)
+  const { column } = useFormat()
+  // The wide frame's name of the stage stands above the caption, so it is not over a card (wide.js, labelShown).
+  const opacity = column ? labelShown(plan, frame) : stripOpacity(plan, frame)
   if (opacity === 0) return null
   const scene = plan.scenes.find((one) => frame < one.endFrame) ?? plan.scenes[plan.scenes.length - 1]
   return (
     <div style={{ opacity }}>
-      <ProgressStrip stage={scene.stage} labels={LONG_LABELS.stages} lang={lang} size={STRIP_SIZE} />
+      {column ? (
+        // The wide frame: the name of the stage above the caption, instead of the strip (parts/wide.jsx).
+        <StageLabel stage={scene.stage} labels={LONG_LABELS.stages} lang={lang} />
+      ) : (
+        <ProgressStrip stage={scene.stage} labels={LONG_LABELS.stages} lang={lang} size={STRIP_SIZE} />
+      )}
     </div>
   )
 }
@@ -94,8 +103,10 @@ const Rings = ({ scene, frames, scale, line }) =>
  * What a scene of the long plan draws, by its first picture. `stage` is where it stands and what its camera frames (screens.js, stageOf),
  * with `continued`, where a scene that continues the one before it starts (continuityOf), made once for the plan in PromoLong.
  */
-function LongScene({ scene, stage, lang, frames, chat, keyword, burst, strings }) {
-  const format = useFormat()
+function LongScene({ scene, first, stage, lang, frames, chat, keyword, burst, strings }) {
+  const whole = useFormat()
+  const format = stageFormat(whole) // the devices stand on the stage of a wide frame (parts/format.jsx, Stage)
+  if (scene.picture === 'text' && first && whole.column) return <TitleCard scene={scene} lang={lang} keyword={keyword} strings={strings} />
   if (scene.picture === 'text') return <TextScene scene={scene} lang={lang} keyword={keyword} />
   if (scene.picture === 'closing') return <ClosingScene scene={scene} lang={lang} keyword={keyword} burst={burst} guide={LONG_LABELS.guide} large />
   if (scene.picture === 'camera') {
@@ -151,15 +162,14 @@ export function PromoLong({ lang, bpm, firstBeat, music = null, sounds = false, 
   const tempo = useMemo(() => ({ bpm, firstBeat }), [bpm, firstBeat])
   const plan = useMemo(() => planPromo(lang, tempo, LONG), [lang, tempo])
   const chat = useMemo(() => agentAnswer(frames), [frames]) // refuses a recording without the sample's counts
-  // Where each scene with a camera stands, and where a scene that continues the one before it starts.
-  const stages = useMemo(
-    () =>
-      plan.scenes.map((scene, index) => {
-        const stage = stageOf(scene, frames, format)
-        return stage ? { ...stage, continued: continuityOf(plan.scenes, index, frames, tempo, ZOOM_EASING, format) } : null
-      }),
-    [plan, frames, tempo, format],
-  )
+  // Where each scene with a camera stands, and where a scene that continues the one before it starts, in the format of the stage.
+  const stages = useMemo(() => {
+    const onStage = stageFormat(format)
+    return plan.scenes.map((scene, index) => {
+      const stage = stageOf(scene, frames, onStage)
+      return stage ? { ...stage, continued: continuityOf(plan.scenes, index, frames, tempo, ZOOM_EASING, onStage) } : null
+    })
+  }, [plan, frames, tempo, format])
   const strings = DRAWN[lang] ?? DRAWN.en
   const keywords = LONG.keywords[lang] ?? {}
   const burst = burstFrame(plan, tempo)
@@ -178,11 +188,15 @@ export function PromoLong({ lang, bpm, firstBeat, music = null, sounds = false, 
         lang={lang}
         tempo={tempo}
         firstFrameWhole
-        render={(scene, index) => <LongScene scene={scene} stage={stages[index]} lang={lang} frames={frames} chat={chat} keyword={keywords[scene.id]} burst={burst} strings={strings} />}
+        render={(scene, index) => <LongScene scene={scene} first={index === 0} stage={stages[index]} lang={lang} frames={frames} chat={chat} keyword={keywords[scene.id]} burst={burst} strings={strings} />}
       />
       <TrackStrip plan={plan} lang={lang} />
     </FormatFrame>
   )
 }
+
+/** The long cut on the wide frame (format.js, WIDE): the same plan and scenes, laid out for a web screen. */
+export const PROMO_LONG_WIDE = Object.freeze({ id: 'PromoLongWide', fps: FPS, width: WIDE.width, height: WIDE.height })
+export const PromoLongWide = (props) => <PromoLong {...props} format={WIDE} />
 
 export const promoLongDefaultProps = Object.freeze({ lang: 'he', bpm: DEFAULT_TEMPO.bpm, firstBeat: DEFAULT_TEMPO.firstBeat, music: null, sounds: false, frames: null })

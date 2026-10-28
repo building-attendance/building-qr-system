@@ -5,7 +5,7 @@
 // layer, so it drifts and pulses with the camera (zoom.jsx) like the rest. When one move follows another, the lens that is up lowers as the
 // next one lifts, and the dim stays. The arithmetic is plain functions (no Remotion), so that tests/video-promo.test.js holds it.
 import { Children, cloneElement, isValidElement } from 'react'
-import { WIDTH, beatFrames } from '../timing.js'
+import { beatFrames } from '../timing.js'
 import { useClock } from './clock.jsx'
 import { PICTURE_AREA } from './moves.js'
 
@@ -51,11 +51,12 @@ export function lensRect(box, picture, override = null) {
  * @param {{ top?: number, width: number, height: number }} [area]
  */
 export function liftedLens(rect, rest, limit, area = PICTURE_AREA) {
-  const scale = Math.min(LENS.maxScale, (WIDTH - 2 * LENS.margin) / (rect.width * limit))
+  const across = area.width // the frame's width, or the stage's on the wide frame: the camera centres the laptop across it
+  const scale = Math.min(LENS.maxScale, (across - 2 * LENS.margin) / (rect.width * limit))
   const width = rect.width * scale
   const height = rect.height * scale
-  const half = (WIDTH / 2 - LENS.margin) / limit // how far from the middle of the frame an edge may be, at the largest the camera is
-  const x = between(rest.x + rest.scale * (rect.x + rect.width / 2) - width / 2, WIDTH / 2 - half, WIDTH / 2 + half - width)
+  const half = (across / 2 - LENS.margin) / limit // how far from the middle of the frame an edge may be, at the largest the camera is
+  const x = between(rest.x + rest.scale * (rect.x + rect.width / 2) - width / 2, across / 2 - half, across / 2 + half - width)
   // The same upward and downward: the camera grows the layer about the middle of the picture area, so an edge may be this far from it.
   const middle = (area.top ?? 0) + area.height / 2
   const reach = (area.height / 2 - LENS.margin) / limit
@@ -102,11 +103,12 @@ export function lensAt(rect, rest, up, progress) {
  * @param {import('./moves.js').Rest} rest
  * @param {number} limit
  * @param {(import('./moves.js').Rect | null)[]} [overrides] by the order of the moves
+ * @param {{ top?: number, width: number, height: number }} [area] the area that the laptop's camera frames (the vertical frame's when not given)
  */
-export function lensesOf(camera, rest, limit, overrides = []) {
+export function lensesOf(camera, rest, limit, overrides = [], area = PICTURE_AREA) {
   return camera.moves.map((move, n) => {
     const rect = lensRect(move.box ?? { x: 0, y: 0, ...camera.picture }, camera.picture, overrides[n] ?? null)
-    return { frame: move.frame, rect, up: liftedLens(rect, rest, limit) }
+    return { frame: move.frame, rect, up: liftedLens(rect, rest, limit, area) }
   })
 }
 
