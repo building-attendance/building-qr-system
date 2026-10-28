@@ -36,6 +36,7 @@ import { LANGUAGES, LONG } from './script/index.js'
 import { REPOSITORY_QR, SIGN, agentAnswer, checkFrames, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from './stage.js'
 import { FORMATS, VERTICAL } from './format.js'
 import { DEFAULT_TEMPO, FPS, GROOVE_SCENE, WHIP_FRAMES, burstFrame, planPromo } from './timing.js'
+import { captionLayout, inColumn } from './wide.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const videoDir = path.resolve(here, '..')
@@ -101,6 +102,13 @@ try {
   plan = long ? planPromo(lang, tempo, LONG) : planPromo(lang, tempo) // refuses a tempo at which a caption does not fit, naming its scene
 } catch (error) {
   fail(error.message)
+}
+// The wide frame's column holds a caption on three lines at most (wide.js, captionLayout): one that would take more is refused, by its scene.
+if (wide) {
+  for (const scene of plan.scenes.filter(inColumn)) {
+    const { size, lines } = captionLayout(scene.phrases.map((phrase) => phrase.text).join(' '), format)
+    if (lines.length > format.column.lines) fail(`The caption of scene "${scene.id}" takes ${lines.length} lines at ${size} px in the wide frame's column, more than ${format.column.lines}: shorten it.`)
+  }
 }
 
 // The long cut's pictures and their boxes: the recorder's folder, checked before anything is touched.
@@ -269,7 +277,10 @@ for (const [effect, frame] of effects) {
 }
 
 const bytes = statSync(mp4).size
-say(`rendered in ${elapsed().toFixed(1)} s: ${path.relative(videoDir, mp4)} ${(plan.totalFrames / FPS).toFixed(1)} seconds, ${(bytes / 1024 / 1024).toFixed(2)} MB, ${path.relative(videoDir, poster)}, ${stills.length} stills in ${path.relative(videoDir, stillsDir)}`)
+const megabytes = (bytes / 1024 / 1024).toFixed(2)
 // The wide short cut is the README's video, and GitHub's free plan takes a video of 10 MB at most: it must stay under this.
 const README_MB = 9.5
-if (wide && !long && bytes > README_MB * 1024 * 1024) fail(`${path.relative(videoDir, mp4)} is over ${README_MB} MB, too large for the README (GitHub takes 10 MB at most on a free plan).`)
+if (wide && !long && bytes > README_MB * 1024 * 1024) {
+  fail(`${path.relative(videoDir, mp4)} is ${megabytes} MB, over the ${README_MB} MB that the README can take (GitHub takes 10 MB at most on a free plan): it is left there to be looked at, not to be published.`)
+}
+say(`rendered in ${elapsed().toFixed(1)} s: ${path.relative(videoDir, mp4)} ${(plan.totalFrames / FPS).toFixed(1)} seconds, ${megabytes} MB, ${path.relative(videoDir, poster)}, ${stills.length} stills in ${path.relative(videoDir, stillsDir)}`)

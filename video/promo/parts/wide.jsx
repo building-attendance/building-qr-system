@@ -28,7 +28,7 @@ export function CaptionColumn({ scene, lang, keyword }) {
   const text = scene.phrases.map((phrase) => phrase.text).join(' ')
   const { size, box } = captionLayout(text, format)
   return (
-    <WideBlock box={{ ...box, right: column.right }} width={column.right - column.left}>
+    <WideBlock box={box} width={column.right - column.left}>
       <div style={{ opacity: captionShown }}>
         <Caption scene={scene} lang={lang} size={size} weight={column.weight} color={COLORS.cardText} keyword={keyword} align="start" lineHeight={column.lineHeight} />
       </div>

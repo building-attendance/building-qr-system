@@ -54,7 +54,7 @@ function TrackStrip({ plan, lang }) {
   const frame = useCurrentFrame()
   const { column } = useFormat()
   // The wide frame's name of the stage stands above the caption, so it is not over a card (wide.js, labelShown).
-  const opacity = stripOpacity(plan, frame) * (column ? labelShown(plan, frame) : 1)
+  const opacity = column ? labelShown(plan, frame) : stripOpacity(plan, frame)
   if (opacity === 0) return null
   const scene = plan.scenes.find((one) => frame < one.endFrame) ?? plan.scenes[plan.scenes.length - 1]
   return (
@@ -104,9 +104,9 @@ const Rings = ({ scene, frames, scale, line }) =>
  * with `continued`, where a scene that continues the one before it starts (continuityOf), made once for the plan in PromoLong.
  */
 function LongScene({ scene, first, stage, lang, frames, chat, keyword, burst, strings }) {
-  const frame = useFormat()
-  const format = stageFormat(frame) // the devices stand on the stage of a wide frame (parts/format.jsx, Stage)
-  if (scene.picture === 'text' && first && frame.column) return <TitleCard scene={scene} lang={lang} keyword={keyword} strings={strings} />
+  const whole = useFormat()
+  const format = stageFormat(whole) // the devices stand on the stage of a wide frame (parts/format.jsx, Stage)
+  if (scene.picture === 'text' && first && whole.column) return <TitleCard scene={scene} lang={lang} keyword={keyword} strings={strings} />
   if (scene.picture === 'text') return <TextScene scene={scene} lang={lang} keyword={keyword} />
   if (scene.picture === 'closing') return <ClosingScene scene={scene} lang={lang} keyword={keyword} burst={burst} guide={LONG_LABELS.guide} large />
   if (scene.picture === 'camera') {
@@ -162,15 +162,14 @@ export function PromoLong({ lang, bpm, firstBeat, music = null, sounds = false, 
   const tempo = useMemo(() => ({ bpm, firstBeat }), [bpm, firstBeat])
   const plan = useMemo(() => planPromo(lang, tempo, LONG), [lang, tempo])
   const chat = useMemo(() => agentAnswer(frames), [frames]) // refuses a recording without the sample's counts
-  // Where each scene with a camera stands, and where a scene that continues the one before it starts.
-  const stages = useMemo(
-    () =>
-      plan.scenes.map((scene, index) => {
-        const stage = stageOf(scene, frames, stageFormat(format))
-        return stage ? { ...stage, continued: continuityOf(plan.scenes, index, frames, tempo, ZOOM_EASING, stageFormat(format)) } : null
-      }),
-    [plan, frames, tempo, format],
-  )
+  // Where each scene with a camera stands, and where a scene that continues the one before it starts, in the format of the stage.
+  const stages = useMemo(() => {
+    const onStage = stageFormat(format)
+    return plan.scenes.map((scene, index) => {
+      const stage = stageOf(scene, frames, onStage)
+      return stage ? { ...stage, continued: continuityOf(plan.scenes, index, frames, tempo, ZOOM_EASING, onStage) } : null
+    })
+  }, [plan, frames, tempo, format])
   const strings = DRAWN[lang] ?? DRAWN.en
   const keywords = LONG.keywords[lang] ?? {}
   const burst = burstFrame(plan, tempo)

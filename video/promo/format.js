@@ -85,7 +85,11 @@ export const VERTICAL = makeFormat({
 const STAGE_LAYOUT = Object.freeze({
   bar: 150,
   strip: 80,
-  /** Both cuts stand the phone 860 px tall (973 units at this scale), its top at y 70, so that its screen is inside y 80 to 930. */
+  /**
+   * Both cuts stand the phone 860 px tall (973 units at this scale), its top at y 70, so that its screen at rest is inside y 80 to 930. A
+   * recorded screen is a picture, not words that the frame places: pushed in (or, in the short cut, punched and pushed), the phone goes
+   * past the safe area, which holds every word that the frame draws (wide.js).
+   */
   phone: { scale: 0.884, top: 70 },
   longPhone: { scale: 0.884, top: 70 },
   /** The laptop 696 px wide with its base, the widest that can drift and pulse with both sides 16 px inside the stage (moves.js, pushLimit). */
