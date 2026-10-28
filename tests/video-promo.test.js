@@ -55,6 +55,7 @@ import {
   pulseAt,
   punchAt,
   readingSeconds,
+  screenOf,
   soundCues,
   wordFrames,
   wordsOf,
@@ -64,20 +65,47 @@ import { contrastRatio } from '../video/src/timing.js'
 import { REPOSITORY_QR, REPOSITORY_QR_OPTIONS, SIGN, agentAnswer, checkFrames, demoQrSvg, repositoryQrSvg, signSvg, stagedPictures } from '../video/promo/stage.js'
 import {
   BAR_HEIGHT,
-  MAX_ZOOM_SCALE,
+  DRIFT,
+  EDGE,
+  LAPTOP,
+  LAPTOP_OUTLINE,
+  LIFE,
+  LONG_PHONE,
+  MAX_PUSH,
+  PHONE,
   PICTURE_AREA,
   STRIP_HEIGHT,
   blendViews,
   cameraTransform,
-  capZoom,
+  driftView,
+  laptopRest,
+  lifeScale,
+  liveView,
+  moveViews,
+  phoneRest,
+  pushLimit,
+  pushView,
   restView,
+  sceneView,
   spanRect,
   stripOpacity,
   stripStates,
-  viewAt,
-  zoomView,
+  viewInArea,
 } from '../video/promo/parts/moves.js'
-import { OVER_FRAME, cameraOf, inDevice, pictureAt, pictureEnd, pictureTimeline, ringsOf } from '../video/promo/parts/screens.js'
+import {
+  BEZELS,
+  OVER_FRAME,
+  bezelOf,
+  cameraOf,
+  continuityOf,
+  drawnPictures,
+  inDevice,
+  pictureAt,
+  pictureEnd,
+  pictureTimeline,
+  ringsOf,
+  stageOf,
+} from '../video/promo/parts/screens.js'
 import { SHOWCASE, planShowcase, showcaseStills, walkingStage } from '../video/promo/parts/showcase.js'
 
 const SCREENSHOTS = fileURLToPath(new URL('../docs/screenshots/', import.meta.url))
@@ -654,6 +682,37 @@ describe('planPromo with the long script', () => {
     // A sound on a second picture that the scene does not have.
     expect(() => soundCues(planPromo('he', TRACK, script(base)), { ...SHORT, sounds: [{ kind: 'ding', scene: 'x', at: 'then' }] })).toThrow(/second picture/)
   })
+
+  it('knows the app and the device of a recorded screen by its name, and none for a drawn picture', () => {
+    expect(screenOf('provider-home.png')).toEqual({ app: 'provider', device: 'phone' })
+    expect(screenOf('committee-home.png')).toEqual({ app: 'committee', device: 'phone' })
+    expect(screenOf('computer-history.png')).toEqual({ app: 'committee', device: 'computer' })
+    for (const drawn of DRAWN_PICTURES) expect(screenOf(drawn), drawn).toBeNull()
+    for (const name of PROMO_PICTURES) expect(screenOf(name), name).not.toBeNull()
+  })
+
+  it('carries `continues` into the plan without a whoosh, and refuses it on the first scene and after another app or device', () => {
+    // No scene of today's long cut continues another: W2 writes the new edit.
+    expect(LONG.scenes.some((one) => one.continues)).toBe(false)
+    expect(plan.scenes.some((one) => 'continues' in one)).toBe(false)
+    const joined = (ids) => ({ ...LONG, scenes: LONG.scenes.map((one) => (ids.includes(one.id) ? { ...one, continues: true } : one)) })
+    // The same app on the same device: the committee's home after itself, the history after the history with its picture in picture,
+    // the provider's home after itself, and the provider's list after the password typed on it.
+    const ok = planPromo('he', TRACK, joined(['counts', 'late', 'languages', 'notice']))
+    const continuing = ok.scenes.filter((one) => one.continues).map((one) => one.id)
+    expect(continuing).toEqual(['notice', 'languages', 'counts', 'late'])
+    // Everything else about the plan is the same, the reading time included.
+    expect(ok.scenes.map((one) => Object.fromEntries(Object.entries(one).filter(([key]) => key !== 'continues')))).toEqual(plan.scenes)
+    const whooshes = soundCues(ok, LONG).filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)
+    expect(whooshes).toEqual(ok.scenes.slice(1).filter((one) => !one.continues).map((one) => one.startFrame))
+    // Refused: the first scene, a phone after the laptop, the provider's app after the committee's, after a text or the camera.
+    expect(() => planPromo('he', TRACK, joined(['question']))).toThrow(/scene "question" continues the scene before it, and it is the first/i)
+    expect(() => planPromo('he', TRACK, joined(['cancel']))).toThrow(/scene "cancel".*"computer-history.png".*same app on the same device/i)
+    expect(() => planPromo('he', TRACK, joined(['filters']))).toThrow(/scene "filters".*"committee-history-refused.png"/i)
+    expect(() => planPromo('he', TRACK, joined(['signin']))).toThrow(/scene "signin".*"committee-providers-password.png"/i)
+    expect(() => planPromo('he', TRACK, joined(['pays']))).toThrow(/scene "pays".*"text"/i)
+    expect(() => planPromo('he', TRACK, joined(['sees']))).toThrow(/scene "sees".*"camera-checked"/i)
+  })
 })
 
 describe('what the render stages (video/promo/stage.js)', () => {
@@ -752,63 +811,172 @@ describe('the camera of the zoom and the progress strip (video/promo/parts/moves
     expect(PICTURE_AREA).toEqual({ top: STRIP_HEIGHT, width: WIDTH, height: HEIGHT - BAR_HEIGHT - STRIP_HEIGHT })
   })
 
-  it('makes a 9:16 rectangle as wide as the picture area and keeps the whole element in view, inside the picture', () => {
+  // The long cut's phone at rest, and where a point of the picture (in its pixels) is on screen in a view.
+  const phone = phoneRest(picture, LONG_PHONE)
+  const phoneWidth = PHONE.width * LONG_PHONE.scale
+  const limit = pushLimit(phoneWidth)
+  const onScreen = (view, at, area = PICTURE_AREA) => {
+    const { scale, x, y } = cameraTransform(view, at, area)
+    return { x: (px) => x + scale * (at.x + at.scale * px), y: (py) => y + scale * (at.y + at.scale * py), push: scale }
+  }
+  /** The view at its most alive: drifted all the way toward its anchor, on the peak of a pulse. */
+  const mostAlive = (view, anchor) => {
+    const drifted = driftView(view, anchor, 1)
+    return { ...drifted, scale: drifted.scale * (1 + PULSE.phone) }
+  }
+
+  it('pushes the device in to MAX_PUSH at the most, its life included, centred across the frame with both side edges in it (E2)', () => {
+    expect(MAX_PUSH).toBe(1.5)
+    expect(DRIFT).toBe(0.03)
+    expect(LIFE).toBeCloseTo(1.03 * 1.02, 12)
+    expect(limit).toBe(MAX_PUSH) // the long cut's phone, 665 px wide at rest, could go further: the cap is the decision
     const rect = { x: 213, y: 850, width: 390, height: 693 }
-    const view = zoomView(rect, { x: 396, y: 1185, width: 24, height: 24 }, picture)
-    expect(view.scale).toBeCloseTo(WIDTH / 390, 9)
-    expect(view.cx).toBe(213 + 195)
-    // The picture's left edge of the rectangle lands on the frame's left edge, its right edge on the right one.
-    const { scale, x } = cameraTransform(view, rest)
-    expect(x + scale * (rest.x + rest.scale * rect.x)).toBeCloseTo(0, 6)
-    expect(x + scale * (rest.x + rest.scale * (rect.x + rect.width))).toBeCloseTo(WIDTH, 6)
-    // The window that the area shows starts just under the strip and ends on the caption bar.
-    const { y } = cameraTransform(view, rest)
-    const tallHere = PICTURE_AREA.height / view.scale
-    expect(y + scale * (rest.y + rest.scale * (view.cy - tallHere / 2))).toBeCloseTo(STRIP_HEIGHT, 6)
-    expect(y + scale * (rest.y + rest.scale * (view.cy + tallHere / 2))).toBeCloseTo(HEIGHT - BAR_HEIGHT, 6)
-    // A box near the bottom of a rectangle that the area cannot show whole moves the window down to it.
-    const tall = PICTURE_AREA.height / (WIDTH / 780)
-    const low = zoomView({ x: 0, y: 0, width: 780, height: 1387 }, { x: 40, y: 1250, width: 700, height: 130 }, picture)
-    expect(low.cy + tall / 2).toBeCloseTo(1380, 6)
-    // And the window never leaves the picture.
-    const top = zoomView({ x: 0, y: 0, width: 780, height: 1387 }, { x: 40, y: 0, width: 700, height: 10 }, picture)
+    const box = { x: 396, y: 1185, width: 24, height: 24 }
+    const view = pushView(rect, box, picture, phone, limit)
+    expect(view.scale / phone.scale).toBeCloseTo(MAX_PUSH / LIFE, 9)
+    expect(view.cx).toBeCloseTo(picture.width / 2, 9) // centred across, as at rest
+    for (const shown of [view, mostAlive(view, box.y + box.height / 2)]) {
+      const at = onScreen(shown, phone)
+      expect(at.push).toBeLessThanOrEqual(MAX_PUSH + 1e-9)
+      // The bezel's outer edges, at rest 14 units of the phone (LAYOUT.bezel) outside the screen on each side.
+      const left = at.x(0) - at.push * 14 * LONG_PHONE.scale
+      const right = at.x(picture.width) + at.push * 14 * LONG_PHONE.scale
+      expect(left).toBeGreaterThanOrEqual(EDGE - 1e-9)
+      expect(right).toBeLessThanOrEqual(WIDTH - EDGE + 1e-9)
+      expect((left + right) / 2).toBeCloseTo(WIDTH / 2, 6)
+      // The element is in the picture area.
+      expect(at.y(box.y)).toBeGreaterThanOrEqual(STRIP_HEIGHT - 1e-9)
+      expect(at.y(box.y + box.height)).toBeLessThanOrEqual(HEIGHT - BAR_HEIGHT + 1e-9)
+    }
+    // A box near the bottom of the picture moves the window down to it, with the room its life takes, and the window never leaves the picture.
+    const tall = PICTURE_AREA.height / view.scale
+    const low = pushView({ x: 0, y: 0, width: 780, height: 1387 }, { x: 40, y: 1450, width: 700, height: 130 }, picture, phone, limit)
+    expect(low.cy + tall / 2).toBeGreaterThan(1580)
+    expect(low.cy + tall / 2).toBeLessThanOrEqual(picture.height + 1e-9)
+    const top = pushView({ x: 0, y: 0, width: 780, height: 1387 }, { x: 40, y: 0, width: 700, height: 10 }, picture, phone, limit)
     expect(top.cy - tall / 2).toBeCloseTo(0, 6)
-    const bottom = zoomView({ x: 0, y: 301, width: 780, height: 1387 }, null, picture)
+    const bottom = pushView({ x: 0, y: 301, width: 780, height: 1387 }, null, picture, phone, limit)
     expect(bottom.cy + tall / 2).toBeLessThanOrEqual(picture.height + 1e-9)
+    // An element taller than the pushed-in window lowers the push until it fits, alive; never below the device at rest.
+    const big = { x: 40, y: 200, width: 700, height: 1300 }
+    const fitted = pushView({ x: 0, y: 150, width: 780, height: 1387 }, big, picture, phone, limit)
+    expect(fitted.scale * big.height * LIFE).toBeCloseTo(PICTURE_AREA.height, 6)
+    const short = { top: STRIP_HEIGHT, width: WIDTH, height: 600 }
+    expect(pushView(rect, { x: 0, y: 0, width: 780, height: 1688 }, picture, phone, limit, short).scale).toBe(phone.scale)
+  })
+
+  it('lets the laptop push in only as far as keeps its sides in the frame, and refuses a device too wide to drift and pulse', () => {
+    expect(LAPTOP_OUTLINE).toBe(LAPTOP.screenWidth + 2 * (LAPTOP.bezel + LAPTOP.baseOverhang))
+    const laptop = pushLimit(LAPTOP_OUTLINE)
+    expect(laptop).toBeLessThan(MAX_PUSH)
+    expect(laptop).toBeGreaterThanOrEqual(LIFE)
+    expect(LAPTOP_OUTLINE * laptop).toBeLessThanOrEqual(WIDTH - 2 * EDGE + 1e-9)
+    expect(() => pushLimit(1060)).toThrow(/cannot drift and pulse/)
+    // The computer's picture fits the window whole: the view keeps it where the rest view has it.
+    const computer = { width: 2560, height: 1600 }
+    const at = laptopRest(computer)
+    const view = pushView({ x: 56, y: 56, width: 1792, height: 635 }, { x: 1092, y: 276, width: 732, height: 391 }, computer, at, laptop)
+    close(view, { scale: (at.scale * laptop) / LIFE, cx: restView(at).cx, cy: restView(at).cy })
   })
 
   it('moves over its length from where the camera is, starts zoomed on the first frame of the scene, and a second move starts from the first', () => {
+    // Without the drift and the pulse (`drift: 0`), the camera moves as the long cut's camera always moved.
     const at = restView(rest)
-    const a = zoomView({ x: 0, y: 301, width: 780, height: 1387 }, null, picture)
-    const b = zoomView({ x: 213, y: 850, width: 390, height: 693 }, null, picture)
-    expect(viewAt(100, 90, at, [{ frame: 105, view: a }], 15)).toEqual(at)
-    expect(viewAt(105, 90, at, [{ frame: 105, view: a }], 15)).toEqual(at)
-    close(viewAt(120, 90, at, [{ frame: 105, view: a }], 15), a)
-    close(viewAt(500, 90, at, [{ frame: 105, view: a }], 15), a)
-    const half = viewAt(112.5, 90, at, [{ frame: 105, view: a }], 15)
+    const a = pushView({ x: 0, y: 301, width: 780, height: 1387 }, null, picture, rest, limit)
+    const b = pushView({ x: 213, y: 850, width: 390, height: 693 }, null, picture, rest, limit)
+    const still = (frame, moves) => liveView({ frame, start: 90, end: 500, rest: at, moves, length: 15, drift: 0 })
+    expect(still(100, [{ frame: 105, view: a }])).toEqual(at)
+    expect(still(105, [{ frame: 105, view: a }])).toEqual(at)
+    close(still(120, [{ frame: 105, view: a }]), a)
+    close(still(500, [{ frame: 105, view: a }]), a)
+    const half = still(112.5, [{ frame: 105, view: a }])
     expect(half.scale).toBeCloseTo(Math.sqrt(at.scale * a.scale), 9)
     // On the scene's first frame, and during the whip before it, the camera is there already.
-    close(viewAt(82, 90, at, [{ frame: 90, view: a }], 15), a)
-    close(viewAt(90, 90, at, [{ frame: 90, view: a }], 15), a)
+    close(still(82, [{ frame: 90, view: a }]), a)
+    close(still(90, [{ frame: 90, view: a }]), a)
     const moves = [{ frame: 90, view: a }, { frame: 150, view: b }]
-    close(viewAt(140, 90, at, moves, 15), a)
-    close(blendViews(a, b, 0.5), viewAt(157.5, 90, at, moves, 15))
-    close(viewAt(170, 90, at, moves, 15), b)
+    close(still(140, moves), a)
+    close(blendViews(a, b, 0.5), still(157.5, moves))
+    close(still(170, moves), b)
+    // A move that starts before the one before it has landed starts from where that one got to.
+    const early = [{ frame: 100, view: a }, { frame: 105, view: b }]
+    close(still(105, early), blendViews(at, a, 5 / 15))
   })
 
-  it('widens a zoom rectangle that would enlarge the picture beyond MAX_ZOOM_SCALE, around its centre and inside the picture, and leaves a wide one alone', () => {
-    expect(MAX_ZOOM_SCALE).toBeLessThan(2)
-    const wide = { x: 0, y: 301, width: 780, height: 1387 }
-    expect(capZoom(wide, picture)).toBe(wide)
-    const tight = capZoom({ x: 213, y: 500, width: 390, height: 693 }, picture)
-    expect(WIDTH / tight.width).toBeCloseTo(MAX_ZOOM_SCALE, 9)
-    expect(tight.width / tight.height).toBeCloseTo(9 / 16, 9)
-    expect(tight.x + tight.width / 2).toBeCloseTo(213 + 195, 9)
-    expect(tight.y + tight.height / 2).toBeCloseTo(500 + 693 / 2, 9)
-    // Near an edge it stays inside the picture.
-    const corner = capZoom({ x: 0, y: 1300, width: 200, height: 356 }, picture)
-    expect(corner.x).toBe(0)
-    expect(corner.y + corner.height).toBeCloseTo(picture.height, 9)
+  it('drifts toward its element over the rest of each hold, evenly and by DRIFT at the most, keeping the element where it is on screen', () => {
+    const at = restView(phone)
+    const box = { x: 40, y: 1000, width: 700, height: 200 }
+    const anchor = box.y + box.height / 2
+    const view = pushView({ x: 0, y: 301, width: 780, height: 1387 }, box, picture, phone, limit)
+    const moves = [{ frame: 105, view, anchor }]
+    const live = (frame) => liveView({ frame, start: 90, end: 210, rest: at, moves, length: 15 })
+    // Before the first move the device at rest drifts toward that move's element too, then the move starts from there.
+    expect(live(90).scale).toBe(at.scale)
+    expect(live(105).scale).toBeCloseTo(at.scale * (1 + DRIFT), 9)
+    close(live(120), view) // landed
+    let last = live(120).scale
+    for (let frame = 121; frame <= 210; frame += 1) {
+      const now = live(frame).scale
+      expect(now, `frame ${frame}`).toBeGreaterThan(last)
+      expect(now - last).toBeCloseTo((view.scale * DRIFT) / 90, 9) // evenly
+      last = now
+    }
+    expect(last / view.scale).toBeCloseTo(1 + DRIFT, 9)
+    expect(live(400).scale).toBe(last) // and no further after the end
+    // The element's centre stays on the same line of the frame while the camera drifts toward it.
+    const line = (frame) => onScreen(live(frame), phone).y(anchor)
+    for (const frame of [130, 170, 209]) expect(line(frame)).toBeCloseTo(line(120), 6)
+    expect(onScreen(live(209), phone).x(picture.width / 2)).toBeCloseTo(WIDTH / 2, 6)
+    // A view without an element pushes in on the centre of the area.
+    expect(driftView(view, null, 1)).toEqual({ ...view, scale: view.scale * (1 + DRIFT) })
+  })
+
+  it('pulses the view by PULSE.phone on the bar line, and not on the settled frame 0', () => {
+    const scene = { startFrame: 60, endFrame: 180 }
+    const camera = { picture, moves: [{ frame: 60, rect: { x: 0, y: 301, width: 780, height: 1387 }, box: { x: 40, y: 1000, width: 700, height: 200 } }] }
+    const base = { scene, camera, rest: phone, outline: phoneWidth, tempo: TRACK }
+    const bar = beatFrame(BEATS_PER_BAR, TRACK) // frame 60, a bar line
+    const calm = sceneView({ ...base, frame: bar, pulse: false })
+    expect(sceneView({ ...base, frame: bar }).scale / calm.scale).toBeCloseTo(1 + PULSE.phone, 9)
+    expect(sceneView({ ...base, frame: bar, settled: true }).scale).toBe(calm.scale)
+    expect(sceneView({ ...base, frame: bar + beatFrames(TRACK) }).scale).toBe(sceneView({ ...base, frame: bar + beatFrames(TRACK), pulse: false }).scale)
+    const peak = liveView({ frame: 0, start: 0, end: 10, rest: restView(phone), moves: [], length: 15, pulse: 1 })
+    expect(peak).toEqual({ ...restView(phone), scale: phone.scale * (1 + PULSE.phone) })
+  })
+
+  it('gives a picture drawn over the whole frame (the printed sign, the chat) the same life: a drift of DRIFT until it goes, and the pulse', () => {
+    // From the bar line of frame 60 at 120 bpm (the next one is frame 120) to frame 165.
+    expect(lifeScale(60, 60, 165, TRACK, true)).toBe(1)
+    expect(lifeScale(60, 60, 165, TRACK)).toBeCloseTo(1 + PULSE.phone, 12)
+    expect(lifeScale(60 + 15, 60, 165, TRACK)).toBeCloseTo(1 + (DRIFT * 15) / 105, 12)
+    expect(lifeScale(120, 60, 165, TRACK)).toBeCloseTo((1 + (DRIFT * 60) / 105) * (1 + PULSE.phone), 12)
+    expect(lifeScale(400, 60, 165, TRACK)).toBeCloseTo(1 + DRIFT, 12)
+    let last = 0
+    for (let frame = 121 + beatFrames(TRACK); frame < 165; frame += 1) {
+      expect(lifeScale(frame, 60, 165, TRACK)).toBeGreaterThan(last)
+      last = lifeScale(frame, 60, 165, TRACK)
+    }
+  })
+
+  it('starts a scene that continues the one before it where that camera ended, and glides to its first move over one beat', () => {
+    const at = restView(phone)
+    const from = pushView({ x: 0, y: 0, width: 780, height: 1387 }, { x: 40, y: 200, width: 700, height: 200 }, picture, phone, limit)
+    const to = pushView({ x: 0, y: 301, width: 780, height: 1387 }, { x: 40, y: 1300, width: 700, height: 200 }, picture, phone, limit)
+    const live = (frame) => liveView({ frame, start: 90, end: 210, rest: at, from, moves: [{ frame: 90, view: to, anchor: 1400 }], length: 15, drift: 0 })
+    close(live(90), from) // not at rest, and not there already
+    close(live(97.5), blendViews(from, to, 0.5))
+    close(live(105), to)
+    // A first move on a later beat glides from the scene's first frame too: `from` has drifted already, so it never drifts twice.
+    const later = (frame) => liveView({ frame, start: 90, end: 210, rest: at, from, moves: [{ frame: 150, view: to, anchor: 1400 }], length: 15 })
+    close(later(90), from)
+    expect(later(97.5).scale).toBeLessThan(Math.max(from.scale, to.scale) + 1e-9)
+    expect(later(105).scale).toBeCloseTo(to.scale, 9)
+    expect(later(209).scale / to.scale).toBeLessThanOrEqual(1 + DRIFT + 1e-9)
+    // The same place of the camera in another area keeps the device where it is on screen.
+    const small = { top: STRIP_HEIGHT, width: WIDTH, height: 600 }
+    const moved = viewInArea(from, PICTURE_AREA, small)
+    expect(onScreen(moved, phone, small).y(500)).toBeCloseTo(onScreen(from, phone).y(500), 6)
+    expect(onScreen(moved, phone, small).x(100)).toBeCloseTo(onScreen(from, phone).x(100), 6)
   })
 
   it('spans boxes side by side with a margin, inside the picture', () => {
@@ -912,12 +1080,18 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
     }
   })
 
-  it('zooms no tighter than MAX_ZOOM_SCALE, spans the filters to the Excel button, and keeps each ring to its picture', () => {
+  /** frames() with the filters of the computer at one end of the page and the Excel button at the other, as the recorder finds them. */
+  const recorded = () => {
     const f = frames()
-    // The filters of the computer at one end of the page and the Excel button at the other, as the recorder finds them.
     Object.assign(f.pictures['computer-history.png'].boxes, { filters: { x: 1092, y: 276, width: 732, height: 391 }, excel: { x: 80, y: 80, width: 88, height: 88 } })
+    return f
+  }
+
+  it('pushes no further than MAX_PUSH with its life, spans the filters to the Excel button, and keeps each ring to its picture', () => {
+    const f = recorded()
     for (const one of plan.scenes.filter((planned) => planned.zoom)) {
-      for (const move of cameraOf(one, f).moves) expect(WIDTH / move.rect.width, one.id).toBeLessThanOrEqual(MAX_ZOOM_SCALE + 1e-9)
+      const { camera, rest, outline, area } = stageOf(one, f)
+      for (const move of moveViews(camera.moves, camera.picture, rest, outline, area)) expect((move.view.scale / rest.scale) * LIFE, one.id).toBeLessThanOrEqual(MAX_PUSH + 1e-9)
     }
     for (const [picture, zooms] of Object.entries(WIDE_ZOOMS)) {
       for (const [box, boxes] of Object.entries(zooms)) for (const one of [box, ...boxes]) expect(BOXES[picture], `${picture} ${one}`).toContain(one)
@@ -946,6 +1120,115 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
     expect(late.id).toBe('pays')
     expect(late.ring[0].frame).toBe(12)
     expect(ringsOf(late, f)[0].frame).toBe(0)
+  })
+
+  // The long cut with four pairs of scenes on the same device joined, one of them on another picture and with its first move on beat 1 (W2
+  // writes the new edit; these prove the mechanism).
+  const joined = { ...LONG, scenes: LONG.scenes.map((one) => (['points', 'counts', 'late', 'languages'].includes(one.id) ? { ...one, continues: true } : one)) }
+
+  it.each([
+    ['the long cut', LONG],
+    ['the long cut with scenes that continue', joined],
+  ])('keeps both sides of the phone or the laptop in the frame at every frame of %s, pushes no further than MAX_PUSH, and lands on each element', (_, script) => {
+    const f = recorded()
+    const planned = planPromo('he', TRACK, script)
+    let checked = 0
+    planned.scenes.forEach((one, index) => {
+      const stage = stageOf(one, f)
+      if (!stage) return
+      const from = continuityOf(planned.scenes, index, f, TRACK)?.from ?? null
+      const lead = index > 0 && !one.continues ? WHIP_FRAMES : 0
+      for (let frame = one.startFrame - lead; frame < one.endFrame; frame += 1) {
+        const view = sceneView({ frame, scene: one, ...stage, from, tempo: TRACK })
+        const { scale, x } = cameraTransform(view, stage.rest, stage.area)
+        const left = x + scale * ((WIDTH - stage.outline) / 2)
+        const right = x + scale * ((WIDTH + stage.outline) / 2)
+        expect(scale, `${one.id} at ${frame}`).toBeLessThanOrEqual(MAX_PUSH + 1e-9)
+        expect(left, `${one.id} at ${frame}`).toBeGreaterThanOrEqual(EDGE - 1e-6)
+        expect(right, `${one.id} at ${frame}`).toBeLessThanOrEqual(WIDTH - EDGE + 1e-6)
+        checked += 1
+      }
+      // Where each move lands, its element is inside the area the camera frames.
+      stage.camera.moves.forEach((move, n) => {
+        const next = stage.camera.moves[n + 1]
+        const land = Math.min(Math.max(move.frame, one.startFrame) + beatFrames(TRACK), next ? next.frame : Infinity, one.endFrame - 1)
+        const view = sceneView({ frame: land, scene: one, ...stage, from, tempo: TRACK })
+        const { scale, y } = cameraTransform(view, stage.rest, stage.area)
+        const top = y + scale * (stage.rest.y + stage.rest.scale * move.box.y)
+        const bottom = y + scale * (stage.rest.y + stage.rest.scale * (move.box.y + move.box.height))
+        expect(top, `${one.id} move ${n}`).toBeGreaterThanOrEqual(stage.area.top - 1e-6)
+        expect(bottom, `${one.id} move ${n}`).toBeLessThanOrEqual(stage.area.top + stage.area.height + 1e-6)
+      })
+    })
+    expect(checked).toBeGreaterThan(3000)
+    // The laptop of the filters is one view: both moves keep the whole laptop, so the filters and the Excel button stay in view together.
+    const filters = stageOf(scene('filters'), f)
+    expect(filters.laptop).toBe(true)
+    const [first, second] = moveViews(filters.camera.moves, filters.camera.picture, filters.rest, filters.outline, filters.area)
+    for (const key of ['scale', 'cx', 'cy']) expect(first.view[key], key).toBeCloseTo(second.view[key], 9)
+  })
+
+  it('draws the first picture of a scene during the whip that brings it in, and each later one from its own frame', () => {
+    const fade = 6
+    const recordedScene = scene('recorded')
+    for (let frame = recordedScene.startFrame - WHIP_FRAMES; frame < recordedScene.startFrame + 3; frame += 1) {
+      expect(drawnPictures(recordedScene, frame, fade), `frame ${frame}`).toEqual([{ picture: 'provider-recorded.png', frame: recordedScene.startFrame, opacity: 1 }])
+    }
+    const languages = scene('languages')
+    expect(drawnPictures(languages, languages.startFrame - WHIP_FRAMES, fade).map((one) => one.picture)).toEqual(['provider-home.png'])
+    expect(drawnPictures(languages, languages.thenFrame - 1, fade).map((one) => one.picture)).toEqual(['provider-home.png'])
+    expect(drawnPictures(languages, languages.thenFrame + 3, fade)).toEqual([
+      { picture: 'provider-home.png', frame: languages.startFrame, opacity: 1 },
+      { picture: 'provider-lang-en.png', frame: languages.thenFrame, opacity: 0.5 },
+    ])
+    expect(drawnPictures(languages, languages.thenFrame + fade, fade).map((one) => one.picture)).toEqual(['provider-lang-en.png'])
+    // The printed sign and the chat are not drawn in the device: it keeps the picture before them.
+    const map = scene('map')
+    expect(drawnPictures(map, map.thenFrame + 20, fade).map((one) => one.picture)).toEqual(['committee-points-map.png'])
+    // A scene that continues on another picture cross-fades from the one the scene before ended on.
+    expect(drawnPictures(scene('notice'), scene('notice').startFrame + 3, fade, 'provider-password.png')).toEqual([
+      { picture: 'provider-password.png', frame: -Infinity, opacity: 1 },
+      { picture: 'provider-list.png', frame: scene('notice').startFrame, opacity: 0.5 },
+    ])
+    expect(drawnPictures(scene('notice'), scene('notice').startFrame, fade, 'provider-list.png').map((one) => one.picture)).toEqual(['provider-list.png'])
+  })
+
+  it('starts a scene that continues where the camera of the one before it ended, and refuses one after a scene it cannot continue', () => {
+    const f = recorded()
+    const planned = planPromo('he', TRACK, joined)
+    const at = (id) => planned.scenes.findIndex((one) => one.id === id)
+    expect(continuityOf(planned.scenes, at('visit'), f, TRACK)).toBeNull()
+    for (const id of ['points', 'counts', 'late', 'languages']) {
+      const index = at(id)
+      const before = planned.scenes[index - 1]
+      const [was, is] = [stageOf(before, f), stageOf(planned.scenes[index], f)]
+      const { from, picture } = continuityOf(planned.scenes, index, f, TRACK)
+      expect(picture, id).toBe(pictureAt(before, before.endFrame))
+      // The device is where the last frame of the scene before left it, the pulse aside.
+      const end = sceneView({ frame: before.endFrame - 1, scene: before, ...was, tempo: TRACK, pulse: false })
+      const [a, b] = [cameraTransform(end, was.rest, was.area), cameraTransform(from, is.rest, is.area)]
+      expect(b.scale, id).toBeCloseTo(a.scale, 2)
+      expect(b.y, id).toBeCloseTo(a.y, -1)
+      expect(b.x, id).toBeCloseTo(a.x, -1)
+    }
+    // After the camera of the sign, a scene ending on the printed sign or on the chat, there is no camera to continue.
+    const continuing = (id) => planned.scenes.map((one, index) => (index === at(id) ? { ...one, continues: true } : one))
+    expect(() => continuityOf(continuing('sees'), at('sees'), f, TRACK)).toThrow(/does not end on a zoomed screen/)
+    expect(() => continuityOf(continuing('access'), at('access'), f, TRACK)).toThrow(/"map"/)
+    expect(() => continuityOf(continuing('open'), at('open'), f, TRACK)).toThrow(/"agent"/)
+  })
+
+  it("gives the committee's phone a light bezel and the provider's a dark one, each one readable as a phone on the violet ground", () => {
+    expect(bezelOf('committee-home.png')).toBe(BEZELS.committee)
+    expect(bezelOf('committee-history-from-home.png')).toBe(BEZELS.committee)
+    expect(bezelOf('provider-recorded.png')).toBe(BEZELS.provider)
+    expect(bezelOf('camera')).toBe(BEZELS.provider)
+    expect(BEZELS.provider.color).toBe(COLORS.phone) // the short cut's phone
+    // WCAG 1.4.11: a part of a graphic that has to be seen stands out at 3:1 from what is next to it.
+    for (const ground of [COLORS.groundFrom, COLORS.groundTo]) {
+      expect(contrastRatio(BEZELS.committee.color, ground), ground).toBeGreaterThanOrEqual(3)
+      expect(contrastRatio(BEZELS.committee.color, BEZELS.provider.color)).toBeGreaterThanOrEqual(3)
+    }
   })
 
   it('answers the AI question from the sample: the cleaning provider, the days with a visit (not the check-ins) and the empty day as DD/MM/YYYY', () => {

@@ -6,7 +6,8 @@ import { DEFAULT_TEMPO } from '../timing.js'
 
 /**
  * The clock of a scene: its own frame (negative while the whip brings it in), the frame of the video, the tempo, and `settled`, true only
- * on frame 0 of a composition that asks for its first frame whole (the thumbnail that a platform takes from frame 0).
+ * on frame 0 of a composition that asks for its first frame whole (the thumbnail that a platform takes from frame 0). A scene that the next
+ * one continues without a whip also has `captionShown`, the opacity of its caption, which falls to 0 where its whip would be (whip.jsx).
  */
 export const Clock = createContext({ frame: 0, global: 0, tempo: DEFAULT_TEMPO, settled: false })
 export const useClock = () => useContext(Clock)

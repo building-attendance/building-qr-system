@@ -98,9 +98,18 @@ It writes `video/out/promo/promo-long-he.mp4`, `promo-long-he.jpg` (its frame 0,
 `stills-long/`, one picture per scene and one just before each change of picture. It reads the recorder's pictures and
 `frames.json` from `video/out/promo-frames/he/` and refuses to run, naming `npm run promo:frames`, when a picture, a box or the
 sample counts of the AI scene are missing. A screen is whole for a beat at most, then zoomed (`promo/parts/screens.js` and
-`moves.js`, never more than 1.7 pixels of the video per pixel of the picture); the printed sign shows the demo code over the
-sample point's code; the AI's answer is made of the agent API's counts of the sample week, under the tag that says it is an illustration
-("המחשה, נתוני דוגמה").
+`moves.js`); the printed sign shows the demo code over the sample point's code; the AI's answer is made of the agent API's counts of
+the sample week, under the tag that says it is an illustration ("המחשה, נתוני דוגמה").
+
+The device stays in the frame and the picture never stops moving, as in the short cut:
+
+- A zoom pushes the phone in to 1.5 times its size at rest at the most, centred, so that both its sides stay in the frame, and moves
+  only up and down to keep what the caption names in view. The laptop is narrow enough to keep both its sides in the frame, so its
+  scene shows the whole laptop, the filters and the Excel button together.
+- After a move lands, the camera drifts 3% toward its element over the rest of the hold, and every bar line pulses the view by 2%.
+- A whip brings the next screen in already drawn. The committee's phone has a light bezel and the provider's a dark one.
+- A scene with `continues: true` (`promo/script/long.js`) follows the one before it on the same app and device without a whip: the
+  camera goes on from where it was, and the caption changes on the bar line.
 
 ## Licence
 
