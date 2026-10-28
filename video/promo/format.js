@@ -5,7 +5,8 @@
 // W3b of the topic "promo-web-flow", decision E6) is a new object here and not a change to the parts. No import at all: timing.js, the
 // unit run and the render read it as they are.
 //
-// VERTICAL is the format of both cuts today (1080x1920), with the numbers they were drawn with before the format existed.
+// VERTICAL is the format of both vertical cuts (1080x1920), with the numbers they were drawn with before the format existed; WIDE, at the
+// end of the file, is the web screen's.
 
 /**
  * @typedef {{ top: number, width: number, height: number }} Area a band of the frame, from `top`, as wide as the frame
@@ -73,5 +74,55 @@ export const VERTICAL = makeFormat({
   chat: { side: 48, gap: 40 },
 })
 
+// WIDE is the web screen's frame (1920x1080, task W3b; committee/04-web-distribution.md, section 4): a new composition of the same
+// scenes, never a crop of the vertical one. The devices and the drawn pictures stand on a stage at the left (`stage`, x 96 to 861), a
+// format of its own that the parts draw in (format.jsx, Stage), so that they centre and push in on it as they do on the vertical frame;
+// the caption stands in a column at the right (`column`, where a reader of Hebrew starts), with the name of the stage above it (`label`)
+// instead of the progress strip; and no text leaves `safe`: the top 80 px stay free for an embed's overlays and the bottom 150 px for a
+// player's controls. Its own `bar`, `strip` and devices are its stage's, which the parts read through `stage`.
+
+/** The layout of the wide frame's stage: 150 px free at the bottom and 80 at the top, the devices and pictures sized to fit between. */
+const STAGE_LAYOUT = Object.freeze({
+  bar: 150,
+  strip: 80,
+  /** Both cuts stand the phone 860 px tall (973 units at this scale), its top at y 70, so that its screen is inside y 80 to 930. */
+  phone: { scale: 0.884, top: 70 },
+  longPhone: { scale: 0.884, top: 70 },
+  /** The laptop 696 px wide with its base, the widest that can drift and pulse with both sides 16 px inside the stage (moves.js, pushLimit). */
+  laptop: { screenWidth: 648, bezel: 13, baseHeight: 24, baseOverhang: 11 },
+  inset: { margin: 32, bezel: 8, gap: 20 },
+  /** The printed sign 640 px wide is 720 px tall, inside y 80 to 930 with its life. */
+  sheetWidth: 640,
+  /** The chat is drawn at 1/zoom of the room it has and scaled down to it (drawn.jsx), so that its words are 35 px. */
+  chat: { side: 32, gap: 28, zoom: 0.68 },
+})
+
+export const WIDE = (() => {
+  const frame = { width: 1920, height: 1080 }
+  const stage = makeFormat({ name: 'wide-stage', width: 765, height: frame.height, ...STAGE_LAYOUT, left: 96, frameWidth: frame.width })
+  const freeze = (object) => Object.freeze({ ...object })
+  return makeFormat({
+    name: 'wide',
+    ...frame,
+    ...STAGE_LAYOUT,
+    stage,
+    safe: freeze({ left: 96, right: 1824, top: 80, bottom: 930 }),
+    /**
+     * The caption: Rubik 600, 72 px, or 64 px for a caption that 72 px would put on a fourth line (wide.js, captionLayout), at most three
+     * lines, from the right edge of the column, the top of its first line at `top`. The words stop 32 px short of the safe area's right
+     * edge, the room that a landing keyword takes at the top of its spring.
+     */
+    column: freeze({ left: 1010, right: 1792, top: 395, sizes: Object.freeze([72, 64]), lineHeight: 1.25, lines: 3, weight: 600 }),
+    /** The name of the scene's stage, 32 px, above the caption, with the strip's yellow bar under it. */
+    label: freeze({ top: 316, size: 32, lineHeight: 1.2 }),
+    /** The title card's question in the column, beside the phone, in the middle of the safe area. */
+    title: freeze({ size: 120, weight: 700, lineHeight: 1.3 }),
+    /** A text card across the middle of the frame: a caption longer than 28 characters at the first size, a shorter one at the second. */
+    card: freeze({ width: 1400, sizes: Object.freeze([96, 120]), weight: 700, lineHeight: 1.3 }),
+    /** The closing card: the code on the stage, the caption and the address (three lines) in the column, the guide's label under the code. */
+    closing: freeze({ qr: 520, caption: 88, address: 64, gap: 48, guide: 34, lineHeight: 1.25 }),
+  })
+})()
+
 /** The formats by name. */
-export const FORMATS = Object.freeze({ [VERTICAL.name]: VERTICAL })
+export const FORMATS = Object.freeze({ [VERTICAL.name]: VERTICAL, [WIDE.name]: WIDE })
