@@ -29,6 +29,8 @@ import {
   STRIP_STAGES,
   agentChat,
 } from '../video/promo/script/index.js'
+import { LENSES, SPARE } from '../video/promo/script/long.js'
+import { LENS, dimAt, liftEase, liftProgress, lensAt, lensRect, lensesOf } from '../video/promo/parts/magnifier.jsx'
 import {
   BEATS_PER_BAR,
   DEFAULT_TEMPO,
@@ -440,11 +442,11 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
     return picture
   }
 
-  it('has the 28 scenes of the recommended script behind its title card, 29 in 69 bars, each with a caption and a keyword', () => {
-    expect(ids).toHaveLength(29)
-    expect(new Set(ids).size).toBe(29)
-    expect(LONG.scenes.reduce((sum, scene) => sum + scene.bars, 0)).toBe(69)
-    expect(LONG.scenes.map((scene) => scene.bars)).toEqual([2, 2, 2, 3, 2, 3, 2, 2, 2, 2, 3, 4, 3, 2, 2, 2, 2, 3, 2, 2, 2, 3, 2, 2, 2, 4, 2, 2, 3])
+  it("has the 21 scenes of the story editor's table behind its title card, in 58 bars, each with a caption and a keyword (E3)", () => {
+    expect(ids).toEqual(['question', 'pays', 'sign', 'sees', 'points', 'access', 'signin', 'far', 'recorded', 'offline', 'today', 'counts', 'visit', 'late', 'refused', 'filters', 'cancel', 'agent', 'open', 'install', 'closing'])
+    expect(new Set(ids).size).toBe(21)
+    expect(LONG.scenes.reduce((sum, scene) => sum + scene.bars, 0)).toBe(58)
+    expect(LONG.scenes.map((scene) => scene.bars)).toEqual([2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 3, 3, 2, 2, 2, 3, 3, 4, 2, 2, 3])
     expect(Object.keys(captions).sort()).toEqual([...ids].sort())
     expect(Object.keys(LONG.keywords.he).sort()).toEqual([...ids].sort())
   })
@@ -455,18 +457,19 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
     expect(LONG.keywords.he.question).toBe(SHORT.keywords.he.question)
   })
 
-  it('keeps the first bar of each part of the story where the plan puts it: the groove on bar 6, the quiet break on the offline scene, the AI on bar 59', () => {
+  it('keeps the first bar of each part of the story where the plan puts it: the groove on bar 6, the quiet break on the offline scene, the AI on bar 48', () => {
     const startBar = (id) => barsBefore(ids.indexOf(id)) + 1
     expect(startBar('question')).toBe(1) // the title card
     expect(startBar('pays')).toBe(3)
     expect(startBar('sign')).toBe(5) // one bar of the camera, then the check mark on bar 6
+    expect(startBar('sees')).toBe(7)
     expect(startBar('points')).toBe(10) // the committee prepares
-    expect(startBar('signin')).toBe(19) // the providers scan
-    expect(startBar('offline')).toBe(26) // the quiet break of the track is bars 26 and 27 (decision D4), the track started on its bar 1
-    expect(startBar('week')).toBe(39) // the committee sees
-    expect(startBar('agent')).toBe(59)
-    expect(startBar('open')).toBe(63) // what it takes
-    expect(startBar('closing')).toBe(67)
+    expect(startBar('signin')).toBe(16) // the providers scan
+    expect(startBar('offline')).toBe(26) // the quiet break of the track is bars 26 and 27 (decision D4, E3), the track started on its bar 1
+    expect(startBar('counts')).toBe(33) // the committee sees
+    expect(startBar('agent')).toBe(48)
+    expect(startBar('open')).toBe(52) // what it takes
+    expect(startBar('closing')).toBe(56)
   })
 
   it('marks every scene with a stage, in order, and labels the four stages of the progress strip', () => {
@@ -490,8 +493,8 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
         used.add(picture)
       }
     }
-    // The recorder is asked for nothing that no scene shows.
-    for (const name of PROMO_PICTURES) expect(used.has(name), name).toBe(true)
+    // The recorder is asked for nothing that no scene shows, but what the edit of E3 left out and the recorder still takes (SPARE).
+    for (const name of PROMO_PICTURES) expect(used.has(name) !== SPARE.pictures.includes(name), name).toBe(true)
     for (const drawn of DRAWN_PICTURES) expect(PROMO_PICTURES).not.toContain(drawn)
   })
 
@@ -509,12 +512,15 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
     }
     // The boxes of a picture drawn over the whole frame (the printed sign) are read by the composition, not by a zoom or a ring.
     for (const [picture, boxes] of Object.entries(SHEET_BOXES)) {
-      expect(LONG.scenes.some((scene) => scene.then === picture || scene.picture === picture), picture).toBe(true)
+      expect(LONG.scenes.some((scene) => scene.then === picture || scene.picture === picture || scene.later?.some((later) => later.picture === picture)), picture).toBe(true)
       for (const box of boxes) used.add(`${picture} ${box}`)
     }
     expect(SHEET_BOXES['committee-print-sign.png']).toEqual(['sign', 'qr'])
+    // Every box is used, but the ones of SPARE: what the edit of E3 left out and the recorder still takes.
+    const spare = Object.entries(SPARE.boxes).flatMap(([picture, boxes]) => boxes.map((box) => `${picture} ${box}`))
     const listed = Object.entries(BOXES).flatMap(([picture, boxes]) => boxes.map((box) => `${picture} ${box}`))
-    expect([...used].sort()).toEqual(listed.sort())
+    expect([...used].sort()).toEqual(listed.filter((one) => !spare.includes(one)).sort())
+    for (const one of spare) expect(listed, one).toContain(one)
   })
 
   it('writes the captions as plain text: no vowel points, no long dash, at most 11 words, and the fixed terms', () => {
@@ -555,13 +561,13 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
 describe('planPromo with the long script', () => {
   const plan = planPromo('he', TRACK, LONG)
 
-  it('plans 69 bars in 138 seconds at 120 bpm: 4140 frames, 60 frames a bar, ending on a bar', () => {
-    expect(plan.bars).toBe(69)
-    expect(plan.totalFrames).toBe(4140)
-    expect(plan.totalFrames).toBe(69 * 60)
-    expect(plan.totalFrames).toBe(beatFrame(69 * BEATS_PER_BAR, TRACK))
-    expect(plan.fadeOutFrame).toBe(4140 - Math.round(MUSIC_FADE_OUT_SECONDS * FPS))
-    expect(plan.scenes).toHaveLength(29)
+  it('plans 58 bars in 116 seconds at 120 bpm: 3480 frames, 60 frames a bar, ending on a bar (E3)', () => {
+    expect(plan.bars).toBe(58)
+    expect(plan.totalFrames).toBe(3480)
+    expect(plan.totalFrames).toBe(58 * 60)
+    expect(plan.totalFrames).toBe(beatFrame(58 * BEATS_PER_BAR, TRACK))
+    expect(plan.fadeOutFrame).toBe(3480 - Math.round(MUSIC_FADE_OUT_SECONDS * FPS))
+    expect(plan.scenes).toHaveLength(21)
     expect(plan.scenes[0].startFrame).toBe(0)
     plan.scenes.forEach((scene, index) => {
       expect(scene.startFrame, scene.id).toBe(LONG.scenes.slice(0, index).reduce((sum, one) => sum + one.bars, 0) * 60)
@@ -623,10 +629,10 @@ describe('planPromo with the long script', () => {
       if (scene.later) expect(scene.later.map((later) => later.picture)).toEqual(source.later.map((later) => later.picture))
       if (scene.thenFrame != null) expect(scene.thenFrame, scene.id).toBeGreaterThanOrEqual(scene.phrases.at(-1).frame)
     })
-    // The four languages swap on every second beat of their scene.
-    const languages = plan.scenes.find((scene) => scene.id === 'languages')
-    expect([languages.thenFrame, ...languages.later.map((later) => later.frame)].map((frame) => frame - languages.startFrame)).toEqual([30, 60, 90])
-    expect([languages.picture, languages.then, ...languages.later.map((later) => later.picture)]).toEqual(['provider-home.png', 'provider-lang-en.png', 'provider-lang-ru.png', 'provider-lang-ar.png'])
+    // The four languages swap on every second beat of the scene, once the caption has named them all.
+    const today = plan.scenes.find((scene) => scene.id === 'today')
+    expect([today.thenFrame, ...today.later.map((later) => later.frame)].map((frame) => frame - today.startFrame)).toEqual([60, 90, 120])
+    expect([today.picture, today.then, ...today.later.map((later) => later.picture)]).toEqual(['provider-home.png', 'provider-lang-en.png', 'provider-lang-ru.png', 'provider-lang-ar.png'])
   })
 
   it('puts the groove on bar 6 with the check mark, the quiet break on the offline scene and the visit sent on bar 28', () => {
@@ -644,9 +650,10 @@ describe('planPromo with the long script', () => {
     expect(grooveFrame(planPromo('he', TRACK))).toBe(240)
   })
 
-  it('plans a whoosh before every scene, the impact on bar 6, the ding when the recorded screen appears, none in the fade out', () => {
+  it('plans a whoosh before every scene but the one that continues, the impact on bar 6, the ding when the recorded screen appears, none in the fade out', () => {
     const cues = soundCues(plan, LONG)
-    expect(cues.filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)).toEqual(plan.scenes.slice(1).map((scene) => scene.startFrame))
+    expect(cues.filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)).toEqual(plan.scenes.slice(1).filter((scene) => !scene.continues).map((scene) => scene.startFrame))
+    expect(plan.scenes.filter((scene) => scene.continues).map((scene) => scene.id)).toEqual(['late'])
     expect(cues.filter((cue) => cue.kind === 'impact').map((cue) => cue.hit)).toEqual([300])
     expect(cues.filter((cue) => cue.kind === 'ding').map((cue) => cue.hit)).toEqual([plan.scenes.find((scene) => scene.id === 'recorded').startFrame])
     expect(plan.scenes.find((scene) => scene.id === 'recorded').picture).toBe('provider-recorded.png')
@@ -655,7 +662,17 @@ describe('planPromo with the long script', () => {
       expect(cue.frame).toBeGreaterThanOrEqual(0)
       expect(cue.frame + cue.frames, `${cue.kind} at ${cue.hit} plays into the fade out`).toBeLessThanOrEqual(plan.fadeOutFrame)
     }
-    expect(burstFrame(plan, TRACK)).toBe(68 * 60)
+    expect(burstFrame(plan, TRACK)).toBe(57 * 60)
+  })
+
+  it('never cuts from a recorded screen to the same screen without `continues` (E3): a whip only where the screen, the app or the place changes', () => {
+    const last = (scene) => scene.later?.at(-1)?.picture ?? scene.then ?? scene.picture
+    LONG.scenes.slice(1).forEach((scene, n) => {
+      const before = LONG.scenes[n]
+      if (screenOf(scene.picture) && last(before) === scene.picture) expect(scene.continues, `${before.id} to ${scene.id}`).toBe(true)
+    })
+    // The visit and the basement visit are the one pair that the edit joins: two scenes of one screen.
+    expect(LONG.scenes.find((scene) => scene.id === 'visit').picture).toBe(LONG.scenes.find((scene) => scene.id === 'late').picture)
   })
 
   it('is readable up to 124 bpm and refuses 125 bpm naming the first scene of nine words in two bars', () => {
@@ -692,17 +709,18 @@ describe('planPromo with the long script', () => {
   })
 
   it('carries `continues` into the plan without a whoosh, and refuses it on the first scene and after another app or device', () => {
-    // No scene of today's long cut continues another: W2 writes the new edit.
-    expect(LONG.scenes.some((one) => one.continues)).toBe(false)
-    expect(plan.scenes.some((one) => 'continues' in one)).toBe(false)
+    // The edit of E3 joins one boundary: the visit at 08:24 continues the one at 08:06, on the same screen of the committee's app.
+    expect(LONG.scenes.filter((one) => one.continues).map((one) => one.id)).toEqual(['late'])
+    expect(plan.scenes.filter((one) => 'continues' in one).map((one) => one.id)).toEqual(['late'])
     const joined = (ids) => ({ ...LONG, scenes: LONG.scenes.map((one) => (ids.includes(one.id) ? { ...one, continues: true } : one)) })
-    // The same app on the same device: the committee's home after itself, the history after the history with its picture in picture,
-    // the provider's home after itself, and the provider's list after the password typed on it.
-    const ok = planPromo('he', TRACK, joined(['counts', 'late', 'languages', 'notice']))
+    const plain = (scenes) => scenes.map((one) => Object.fromEntries(Object.entries(one).filter(([key]) => key !== 'continues')))
+    // The same app on the same device: the provider's too-far screen after the password typed, the provider's home after the sent
+    // visit, the history after the home, and the refused scan after the history.
+    const ok = planPromo('he', TRACK, joined(['far', 'today', 'visit', 'refused']))
     const continuing = ok.scenes.filter((one) => one.continues).map((one) => one.id)
-    expect(continuing).toEqual(['notice', 'languages', 'counts', 'late'])
+    expect(continuing).toEqual(['far', 'today', 'visit', 'late', 'refused'])
     // Everything else about the plan is the same, the reading time included.
-    expect(ok.scenes.map((one) => Object.fromEntries(Object.entries(one).filter(([key]) => key !== 'continues')))).toEqual(plan.scenes)
+    expect(plain(ok.scenes)).toEqual(plain(plan.scenes))
     const whooshes = soundCues(ok, LONG).filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)
     expect(whooshes).toEqual(ok.scenes.slice(1).filter((one) => !one.continues).map((one) => one.startFrame))
     // Refused: the first scene, a phone after the laptop, the provider's app after the committee's, after a text or the camera.
@@ -731,7 +749,7 @@ describe('what the render stages (video/promo/stage.js)', () => {
       'd.png',
       'e.png',
     ])
-    expect([...stagedPictures(LONG.scenes)].sort()).toEqual([...PROMO_PICTURES].sort())
+    expect([...stagedPictures(LONG.scenes)].sort()).toEqual(PROMO_PICTURES.filter((name) => !SPARE.pictures.includes(name)).sort())
   })
 
   it('makes the QR code of the closing card byte for byte from the repository address (no phone scan was done)', async () => {
@@ -1055,7 +1073,7 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
   })
 
   it('follows the pictures of a scene in order and knows until when each one shows', () => {
-    const languages = scene('languages')
+    const languages = scene('today')
     expect(pictureTimeline(languages).map((one) => one.picture)).toEqual(['provider-home.png', 'provider-lang-en.png', 'provider-lang-ru.png', 'provider-lang-ar.png'])
     expect(pictureAt(languages, languages.startFrame)).toBe('provider-home.png')
     expect(pictureAt(languages, languages.thenFrame)).toBe('provider-lang-en.png')
@@ -1102,8 +1120,8 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
     expect(filters.moves[0].rect).toEqual(spanRect([computer.boxes.filters, computer.boxes.excel], computer))
     expect(filters.moves[0].box).toEqual(computer.boxes.filters)
     // The ring around the map's circle goes when the printed sign comes in; the ring on the home row stays to the end of the AI scene.
-    const map = scene('map')
-    expect(ringsOf(map, f).map((ring) => ring.until)).toEqual([map.thenFrame])
+    const map = scene('points')
+    expect(ringsOf(map, f).map((ring) => ring.until)).toEqual([map.later[0].frame])
     const agent = scene('agent')
     expect(ringsOf(agent, f).map((ring) => [ring.picture, ring.until])).toEqual([
       ['committee-agent.png', agent.thenFrame],
@@ -1111,20 +1129,94 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
     ])
     expect(cameraOf(agent, f).moves.map((move) => move.box)).toEqual([f.pictures['committee-agent.png'].boxes['read-only'], f.pictures['committee-home.png'].boxes['provider-row']])
     // A zoom on what the device does not show, or pictures of two sizes in one device, are refused.
-    expect(() => cameraOf({ ...map, zoom: [{ box: 'qr', frame: map.thenFrame }] }, f)).toThrow(/does not show/)
+    expect(() => cameraOf({ ...map, zoom: [{ box: 'qr', frame: map.later[0].frame }] }, f)).toThrow(/does not show/)
     expect(() => cameraOf({ ...map, then: 'computer-history.png' }, f)).toThrow(/different sizes/)
     expect(cameraOf(scene('closing'), f)).toBeNull()
-    // A ring on the first beat starts with its scene: a cut that opens on a screen with a ring (the long cut without its title card)
+    // A ring on the first beat starts with its scene: a cut that opens on a screen with a ring (the long cut from its visit scene on)
     // has it whole on frame 0 when the track's first beat is late.
-    const late = planPromo('he', { bpm: 120, firstBeat: 0.4 }, { ...LONG, scenes: LONG.scenes.slice(1) }).scenes[0]
-    expect(late.id).toBe('pays')
+    const late = planPromo('he', { bpm: 120, firstBeat: 0.4 }, { ...LONG, scenes: LONG.scenes.slice(LONG.scenes.findIndex((one) => one.id === 'visit')) }).scenes[0]
+    expect(late.id).toBe('visit')
     expect(late.ring[0].frame).toBe(12)
     expect(ringsOf(late, f)[0].frame).toBe(0)
   })
 
-  // The long cut with four pairs of scenes on the same device joined, one of them on another picture and with its first move on beat 1 (W2
-  // writes the new edit; these prove the mechanism).
-  const joined = { ...LONG, scenes: LONG.scenes.map((one) => (['points', 'counts', 'late', 'languages'].includes(one.id) ? { ...one, continues: true } : one)) }
+  it('lifts the box of each move of the laptop scene out of its screen, at 2 pixels of the video per CSS pixel or more, inside the frame however the camera drifts and pulses', () => {
+    const f = recorded()
+    const filters = scene('filters')
+    expect(LENSES.filters).toHaveLength(filters.zoom.length)
+    expect(filters.zoom.map((move) => move.box)).toEqual(['filters', 'filters', 'filters', 'excel'])
+    const { camera, rest, area } = stageOf(filters, f)
+    const limit = pushLimit(LAPTOP_OUTLINE)
+    const lenses = lensesOf(camera, rest, limit, LENSES.filters)
+    expect(lenses).toHaveLength(4)
+    const computer = f.pictures['computer-history.png']
+    // What each lens lifts: the dates and the type (the recorder's box), the point and the provider (LENSES), then the Excel button.
+    const dates = LENSES.filters[0]
+    expect(lenses[0].rect).toEqual(dates)
+    for (const [key, edge] of [['x', dates.x], ['y', dates.y]]) expect(computer.boxes.filters[key], key).toBeGreaterThanOrEqual(edge) // the box is inside its lens
+    expect(computer.boxes.filters.x + computer.boxes.filters.width).toBeLessThanOrEqual(dates.x + dates.width)
+    expect(computer.boxes.filters.y + computer.boxes.filters.height).toBeLessThanOrEqual(dates.y + dates.height)
+    expect(lensRect(computer.boxes.excel, computer, null)).toEqual({ x: 52, y: 52, width: 144, height: 144 }) // a box with no lens of its own gets LENS.pad around it
+    expect(lenses[1].rect).toEqual(LENSES.filters[1]) // the point
+    expect(lenses[2].rect).toEqual(LENSES.filters[2]) // the provider
+    expect(lenses[3].rect).toEqual(lensRect(computer.boxes.excel, computer))
+    // The provider is at the left of the point, which is at the left of the dates, with no overlap.
+    expect(lenses[2].rect.x + lenses[2].rect.width).toBeLessThanOrEqual(lenses[1].rect.x)
+    expect(lenses[1].rect.x + lenses[1].rect.width).toBeLessThanOrEqual(computer.boxes.filters.x)
+    for (const lens of lenses) {
+      // A page recorded at twice its density: one unit of the picture is half a CSS pixel, so a scale of 1 is 2 video pixels per CSS pixel, and the
+      // 14 CSS pixel words of the filters are 28 pixels tall or more.
+      expect(lens.up.scale, `${lens.rect.x}`).toBeGreaterThanOrEqual(1)
+      expect(lens.up.scale).toBeLessThanOrEqual(LENS.maxScale + 1e-9)
+      expect(lens.rect.x).toBeGreaterThanOrEqual(0)
+      expect(lens.rect.y).toBeGreaterThanOrEqual(0)
+      expect(lens.rect.x + lens.rect.width).toBeLessThanOrEqual(computer.width)
+      expect(lens.rect.y + lens.rect.height).toBeLessThanOrEqual(computer.height)
+      // Both side edges stay LENS.margin inside the frame with the camera at its largest (its centre across does not move).
+      expect(WIDTH / 2 + limit * (lens.up.x - WIDTH / 2)).toBeGreaterThanOrEqual(LENS.margin - 1e-6)
+      expect(WIDTH / 2 + limit * (lens.up.x + lens.up.width - WIDTH / 2)).toBeLessThanOrEqual(WIDTH - LENS.margin + 1e-6)
+      // The same up and down, about the middle of the picture area, so that the strip and the caption bar never cover it.
+      const middle = area.top + area.height / 2
+      expect(middle + limit * (lens.up.y - middle)).toBeGreaterThanOrEqual(area.top + LENS.margin - 1e-6)
+      expect(middle + limit * (lens.up.y + lens.up.height - middle)).toBeLessThanOrEqual(area.top + area.height - LENS.margin + 1e-6)
+    }
+    // It lifts out of where the box is on the screen and ends where it is up, and the pictures it lifts are the screen's own.
+    const [first] = lenses
+    const from = lensAt(first.rect, rest, first.up, 0)
+    expect([from.x, from.y, from.width]).toEqual([rest.x + rest.scale * first.rect.x, rest.y + rest.scale * first.rect.y, rest.scale * first.rect.width])
+    expect(from.scale).toBeCloseTo(rest.scale, 9)
+    const up = lensAt(first.rect, rest, first.up, 1)
+    expect([up.x, up.y, up.width, up.height]).toEqual([first.up.x, first.up.y, first.up.width, first.up.height])
+    expect(up.scale).toBeCloseTo(first.up.scale, 9)
+  })
+
+  it('lifts a lens over one beat, lowers it as the next one lifts, and dims the screen by 30% all the while', () => {
+    const beat = beatFrames(TRACK)
+    const moves = [{ frame: 100 }, { frame: 100 + 4 * beat }, { frame: 100 + 8 * beat }]
+    expect(liftEase(0)).toBe(0)
+    expect(liftEase(1)).toBe(1)
+    expect(liftEase(0.5)).toBeCloseTo(0.5, 9)
+    expect(liftProgress(99, moves, beat)).toEqual([0, 0, 0])
+    expect(liftProgress(100 + beat, moves, beat)).toEqual([1, 0, 0])
+    expect(dimAt(liftProgress(99, moves, beat))).toBe(0)
+    expect(dimAt(liftProgress(100 + beat, moves, beat))).toBeCloseTo(0.3, 9)
+    // Between the first lift and the second: the first holds until the second move starts, then lowers as the second lifts.
+    expect(liftProgress(100 + 4 * beat - 1, moves, beat)).toEqual([1, 0, 0])
+    for (let frame = 100 + 4 * beat; frame <= 100 + 5 * beat; frame += 1) {
+      const progress = liftProgress(frame, moves, beat)
+      expect(progress[0] + progress[1], `frame ${frame}`).toBeCloseTo(1, 9)
+      expect(dimAt(progress), `frame ${frame}`).toBeCloseTo(LENS.dim, 9)
+    }
+    // The last lens stays up to the end of the scene, and the dim with it.
+    expect(liftProgress(100 + 20 * beat, moves, beat)).toEqual([0, 0, 1])
+    expect(dimAt([0, 0, 1])).toBeCloseTo(0.3, 9)
+    expect(LENS.dim).toBe(0.3)
+  })
+
+  // The edit joins the basement visit to the visit; these are the long cut with four more pairs of scenes on the same device joined, one of
+  // them on another picture and with its first move on beat 1 (the mechanism of W1, on the new edit).
+  const JOINED = ['far', 'today', 'visit', 'late', 'refused']
+  const joined = { ...LONG, scenes: LONG.scenes.map((one) => (JOINED.includes(one.id) ? { ...one, continues: true } : one)) }
 
   it.each([
     ['the long cut', LONG],
@@ -1160,12 +1252,13 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
         expect(bottom, `${one.id} move ${n}`).toBeLessThanOrEqual(stage.area.top + stage.area.height + 1e-6)
       })
     })
-    expect(checked).toBeGreaterThan(3000)
-    // The laptop of the filters is one view: both moves keep the whole laptop, so the filters and the Excel button stay in view together.
+    expect(checked).toBeGreaterThan(2800)
+    // The laptop of the filters is one view: every move keeps the whole laptop (the magnifier lifts what each move names out of it).
     const filters = stageOf(scene('filters'), f)
     expect(filters.laptop).toBe(true)
-    const [first, second] = moveViews(filters.camera.moves, filters.camera.picture, filters.rest, filters.outline, filters.area)
-    for (const key of ['scale', 'cx', 'cy']) expect(first.view[key], key).toBeCloseTo(second.view[key], 9)
+    const [first, ...others] = moveViews(filters.camera.moves, filters.camera.picture, filters.rest, filters.outline, filters.area)
+    expect(others.length).toBeGreaterThan(0)
+    for (const other of others) for (const key of ['scale', 'cx', 'cy']) expect(first.view[key], key).toBeCloseTo(other.view[key], 9)
   })
 
   it('draws the first picture of a scene during the whip that brings it in, and each later one from its own frame', () => {
@@ -1174,7 +1267,7 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
     for (let frame = recordedScene.startFrame - WHIP_FRAMES; frame < recordedScene.startFrame + 3; frame += 1) {
       expect(drawnPictures(recordedScene, frame, fade), `frame ${frame}`).toEqual([{ picture: 'provider-recorded.png', frame: recordedScene.startFrame, opacity: 1 }])
     }
-    const languages = scene('languages')
+    const languages = scene('today')
     expect(drawnPictures(languages, languages.startFrame - WHIP_FRAMES, fade).map((one) => one.picture)).toEqual(['provider-home.png'])
     expect(drawnPictures(languages, languages.thenFrame - 1, fade).map((one) => one.picture)).toEqual(['provider-home.png'])
     expect(drawnPictures(languages, languages.thenFrame + 3, fade)).toEqual([
@@ -1183,22 +1276,22 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
     ])
     expect(drawnPictures(languages, languages.thenFrame + fade, fade).map((one) => one.picture)).toEqual(['provider-lang-en.png'])
     // The printed sign and the chat are not drawn in the device: it keeps the picture before them.
-    const map = scene('map')
-    expect(drawnPictures(map, map.thenFrame + 20, fade).map((one) => one.picture)).toEqual(['committee-points-map.png'])
+    const map = scene('points')
+    expect(drawnPictures(map, map.later[0].frame + 20, fade).map((one) => one.picture)).toEqual(['committee-points-map.png'])
     // A scene that continues on another picture cross-fades from the one the scene before ended on.
-    expect(drawnPictures(scene('notice'), scene('notice').startFrame + 3, fade, 'provider-password.png')).toEqual([
+    expect(drawnPictures(scene('far'), scene('far').startFrame + 3, fade, 'provider-password.png')).toEqual([
       { picture: 'provider-password.png', frame: -Infinity, opacity: 1 },
-      { picture: 'provider-list.png', frame: scene('notice').startFrame, opacity: 0.5 },
+      { picture: 'provider-far.png', frame: scene('far').startFrame, opacity: 0.5 },
     ])
-    expect(drawnPictures(scene('notice'), scene('notice').startFrame, fade, 'provider-list.png').map((one) => one.picture)).toEqual(['provider-list.png'])
+    expect(drawnPictures(scene('far'), scene('far').startFrame, fade, 'provider-far.png').map((one) => one.picture)).toEqual(['provider-far.png'])
   })
 
   it('starts a scene that continues where the camera of the one before it ended, and refuses one after a scene it cannot continue', () => {
     const f = recorded()
     const planned = planPromo('he', TRACK, joined)
     const at = (id) => planned.scenes.findIndex((one) => one.id === id)
-    expect(continuityOf(planned.scenes, at('visit'), f, TRACK)).toBeNull()
-    for (const id of ['points', 'counts', 'late', 'languages']) {
+    expect(continuityOf(planned.scenes, at('counts'), f, TRACK)).toBeNull()
+    for (const id of JOINED) {
       const index = at(id)
       const before = planned.scenes[index - 1]
       const [was, is] = [stageOf(before, f), stageOf(planned.scenes[index], f)]
@@ -1214,7 +1307,7 @@ describe('what the long cut shows (video/promo/parts/screens.js, and the AI answ
     // After the camera of the sign, a scene ending on the printed sign or on the chat, there is no camera to continue.
     const continuing = (id) => planned.scenes.map((one, index) => (index === at(id) ? { ...one, continues: true } : one))
     expect(() => continuityOf(continuing('sees'), at('sees'), f, TRACK)).toThrow(/does not end on a zoomed screen/)
-    expect(() => continuityOf(continuing('access'), at('access'), f, TRACK)).toThrow(/"map"/)
+    expect(() => continuityOf(continuing('access'), at('access'), f, TRACK)).toThrow(/"points"/)
     expect(() => continuityOf(continuing('open'), at('open'), f, TRACK)).toThrow(/"agent"/)
   })
 
