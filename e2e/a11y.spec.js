@@ -61,6 +61,11 @@ test.describe('provider app', () => {
     await expect(page.getByRole('banner').getByText(BUILDING_NAME)).toBeVisible() // the header has its two lines: the name of the building above its address
     await scanBothThemes(page, 'provider he: sign-in list')
 
+    // The privacy notice opens from above the list too (owner, 28/10/2026): the same sheet as on home, over another screen.
+    await page.getByRole('button', { name: he['privacy.title'] }).click()
+    await expect(page.getByRole('dialog', { name: he['privacy.title'] })).toBeVisible()
+    await scanBothThemes(page, 'provider he: privacy sheet over the sign-in list')
+
     await page.goto(scanLink(POINTS.lobby))
     await expect(page.getByText(/נקודת סריקה/)).toContainText('לובי')
     await scanBothThemes(page, 'provider he: sign-in list with the scan point')

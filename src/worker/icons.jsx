@@ -43,6 +43,5 @@ export const IconLock =(p) => (
   <Svg {...p}><rect x="5" y="10.5" width="14" height="10" rx="2" /><path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" /></Svg>
 )
 export const IconSend =(p) => <Svg {...p}><path d="M21 3L10 14M21 3l-6.5 18-3.5-7.5L3.5 10 21 3z" /></Svg>
-export const IconShield = (p) => <Svg {...p}><path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z" /></Svg>
 export const IconPhoneCheck = (p) => <Svg {...p}><rect x="7" y="2" width="10" height="20" rx="2.5" /><path d="M9.5 12l2 2 3.5-4" /></Svg>
 export const IconWifiOff = (p) => <Svg {...p}><path d="M2 8.8a15 15 0 0 1 20 0M5 12.6a10 10 0 0 1 14 0M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18" /></Svg>
