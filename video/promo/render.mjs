@@ -7,7 +7,8 @@
 // `--music` is a local .mp3, .wav or .m4a that is never committed (music.js refuses a path inside the repository except under video/out/);
 // `--bpm` and `--first-beat` (the second of the first beat after the start) are required with it and make the plan; `--start` is the second
 // of the file where the music starts (default 0). The track is copied into the staged public folder, faded in and out by music.js.
-// `--cut` is the short promo (34 s, the default, the approved video that does not change) or the long one (1:56, PromoLong.jsx).
+// `--cut` is the short promo (34 s, the default, the approved plan of 27/10/2026, which does not change; its four screens are the
+// recorder's since decision E8) or the long one (1:56, PromoLong.jsx).
 //
 // Writes video/out/promo/promo-<lang>.mp4 (1080x1920 at 30 fps, H.264 and AAC), promo-<lang>.jpg (the poster) and, in stills/, one picture
 // per scene taken at its last frame (and, for a scene that changes its picture, one just before each change), for looking at each scene,
@@ -117,15 +118,18 @@ const RECORD = 'Run `npm run promo:frames` to record the pictures of the promo (
 const pictures = long ? stagedPictures(LONG.scenes) : stagedPictures()
 let frames = null
 if (!existsSync(framesDir)) fail(`No ${path.relative(videoDir, framesDir)}, the recorder's folder that the ${cut} cut takes its pictures from. ${RECORD}`)
-if (long) {
-  const framesFile = path.join(framesDir, 'frames.json')
-  if (!existsSync(framesFile)) fail(`No ${path.relative(videoDir, framesFile)}. ${RECORD}`)
-  try {
-    frames = checkFrames(readFileSync(framesFile, 'utf8'))
-    agentAnswer(frames) // the AI scene's answer is made of the sample's counts: refused here rather than in the browser
-  } catch (error) {
-    fail(error.message)
+// Both cuts check the whole recording (a run that failed writes no frames.json, and one from before the contract changed lacks a picture or
+// a box), so that neither renders from a half or an old set; only the long cut reads its boxes and counts.
+const framesFile = path.join(framesDir, 'frames.json')
+if (!existsSync(framesFile)) fail(`No ${path.relative(videoDir, framesFile)}. ${RECORD}`)
+try {
+  const checked = checkFrames(readFileSync(framesFile, 'utf8'))
+  if (long) {
+    agentAnswer(checked) // the AI scene's answer is made of the sample's counts: refused here rather than in the browser
+    frames = checked
   }
+} catch (error) {
+  fail(error.message)
 }
 for (const file of pictures) {
   if (!existsSync(path.join(framesDir, file))) fail(`No ${file} in ${path.relative(videoDir, framesDir)}. ${RECORD}`)

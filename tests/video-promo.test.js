@@ -110,7 +110,7 @@ import {
 } from '../video/promo/parts/screens.js'
 import { SHOWCASE, planShowcase, showcaseStills, walkingStage } from '../video/promo/parts/showcase.js'
 
-const SCREENSHOTS = fileURLToPath(new URL('../docs/screenshots/', import.meta.url))
+const RENDER = fs.readFileSync(fileURLToPath(new URL('../video/promo/render.mjs', import.meta.url)), 'utf8')
 const TRACK = { bpm: 120, firstBeat: 0 }
 // Tempos that the video may be planned at: the default, the chosen track (decision D17), the first track (D14), and a first beat that
 // is late in the bar.
@@ -155,7 +155,9 @@ describe('the promo script', () => {
       }
     }
     expect(recorded).toEqual(['provider-recorded.png', 'provider-queued.png', 'committee-home.png', 'committee-history.png'])
-    for (const picture of recorded) expect(fs.existsSync(SCREENSHOTS + picture), picture).toBe(false)
+    // The render copies every picture from the recorder's folder, and names no other folder of pictures.
+    expect(RENDER).toContain('for (const file of pictures) cpSync(path.join(framesDir, file), path.join(publicDir, file))')
+    expect(RENDER).not.toMatch(/'screenshots'|docs\/screenshots\/'|screenshotsDir/)
   })
 
   it('points the closing card at the public repository, never at the live app of a building', () => {
@@ -287,16 +289,19 @@ describe('the short promo is frozen (D7)', () => {
   })
 
   // The plan's prints changed once, with the names of its four pictures (E8, the recorder's instead of the README's): with the old names
-  // put back, each plan gives the print it had before, and the cues' prints did not change.
+  // put back, each plan gives the print it had before (the third column, the prints of 27/10/2026), and the cues' prints did not change.
+  const README_NAMES = { 'provider-recorded.png': 'provider-phone-check-in.png', 'provider-queued.png': 'provider-phone-saved-offline.png', 'committee-home.png': 'committee-phone-home.png', 'committee-history.png': 'committee-phone-history.png' }
+  const withReadmeNames = (plan) => JSON.parse(JSON.stringify(plan, (key, value) => (typeof value === 'string' && Object.hasOwn(README_NAMES, value) ? README_NAMES[value] : value)))
   it.each([
-    [{ bpm: 100, firstBeat: 0 }, '3e6ca2ecebbfdf41', '8a98ee7a651c70d1'],
-    [{ bpm: 120, firstBeat: 0 }, '7e5699818d6d8749', 'e6f9efb80fac27c2'],
-    [{ bpm: 122, firstBeat: 0 }, 'b948a9ecb57af9bf', '78efc752721d7840'],
-    [{ bpm: 122, firstBeat: 0.265 }, '115682110df76fd5', '3c549ef52a426f05'],
-    [{ bpm: 132, firstBeat: 0 }, '5758cc950714d7f7', 'a7fd44439397ca18'],
-  ])('plans and sounds the same at %o (fingerprints of the plan and of the cues)', (tempo, planPrint, cuesPrint) => {
+    [{ bpm: 100, firstBeat: 0 }, '3e6ca2ecebbfdf41', '303a2e9f94817609', '8a98ee7a651c70d1'],
+    [{ bpm: 120, firstBeat: 0 }, '7e5699818d6d8749', '5920d1df8896dab6', 'e6f9efb80fac27c2'],
+    [{ bpm: 122, firstBeat: 0 }, 'b948a9ecb57af9bf', '2f9b8777d80b1b75', '78efc752721d7840'],
+    [{ bpm: 122, firstBeat: 0.265 }, '115682110df76fd5', '4e602019439d3698', '3c549ef52a426f05'],
+    [{ bpm: 132, firstBeat: 0 }, '5758cc950714d7f7', '6c1d3c8d0dbb5018', 'a7fd44439397ca18'],
+  ])('plans and sounds the same at %o (fingerprints of the plan, of the plan with the old names, and of the cues)', (tempo, planPrint, oldPrint, cuesPrint) => {
     const plan = planPromo('he', tempo)
     expect(fingerprintOf(plan)).toBe(planPrint)
+    expect(fingerprintOf(withReadmeNames(plan))).toBe(oldPrint)
     expect(fingerprintOf(soundCues(plan))).toBe(cuesPrint)
   })
 

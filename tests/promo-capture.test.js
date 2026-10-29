@@ -321,7 +321,8 @@ describe('the privacy notice is recorded where the sign-in list has it now (#371
   }
 
   it('finds the button above the list by its role and its name, as the real component draws it, and no longer the note under the list', () => {
-    expect(components).toContain('<button type="button" className="w-link" aria-haspopup="dialog" onClick={() => setPrivacyOpen(true)}>{t(\'privacy.title\')}</button>')
+    // The component's button is named by the same line of the dictionary (its role and name are what the spec finds it by)
+    expect(components).toMatch(/<button\b[^\n]*>\{t\('privacy\.title'\)\}<\/button>/) // (its onClick holds an arrow, so not [^>]*)
     expect(heDict['privacy.title']).toBeTruthy()
     expect(spec).toContain("const privacy = page.getByRole('button', { name: he['privacy.title'] })")
     expect(linesBetween("await shot(page, 'provider-list.png', {", '})')).toContain('privacy,')
@@ -330,8 +331,9 @@ describe('the privacy notice is recorded where the sign-in list has it now (#371
   })
 
   it('takes the sheet open over the list, with the boxes of the sheet and of its link to the whole notice, and closes it before the sign-in', () => {
-    expect(components).toContain("<Sheet title={t('privacy.title')}")
-    expect(components).toContain('<a className="w-link" href="/privacy">{t(\'privacy.open\')}</a>')
+    // The sheet is a dialog named by its title (src/worker/Sheet.jsx), and its link is named by `privacy.open`
+    expect(components).toMatch(/<Sheet\b[^>]*\btitle=\{t\('privacy\.title'\)\}/)
+    expect(components).toMatch(/<a\b[^>]*\bhref="\/privacy"[^>]*>\{t\('privacy\.open'\)\}<\/a>/)
     expect(PROMO_PICTURES).toContain('provider-privacy-sheet.png')
     expect(BOXES['provider-privacy-sheet.png']).toEqual(['sheet', 'full-notice'])
     const steps = linesBetween("await shot(page, 'provider-list.png', {", 'await me.click()')
