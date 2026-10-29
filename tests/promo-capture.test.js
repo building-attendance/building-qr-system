@@ -16,6 +16,8 @@ import { LIVE, MISTAKE, NEW_PROVIDER, POINTS, PROVIDERS, weekVisits } from '../s
 import { SAMPLE_POINT } from '../scripts/sample-data.mjs'
 import { PASSWORD_ALPHABET } from '../src/admin/password.js'
 import { formatTime, isoDay } from '../shared/datetime.js'
+import heDict from '../src/i18n/he.js'
+import { BOXES, PROMO_PICTURES } from '../video/promo/script/long.js'
 
 const root = fileURLToPath(new URL('..', import.meta.url))
 const config = 'playwright.promo.config.js'
@@ -300,5 +302,52 @@ describe('the pictures leave the build label out', () => {
     expect(at, 'shot takes the picture').toBeGreaterThan(0)
     expect(lines[at - 1]).toMatch(/^await setBuildLabels\(page, 'hidden'\)/)
     expect(lines[at + 1]).toBe("await setBuildLabels(page, '')")
+  })
+})
+
+// ---- the privacy notice of the sign-in list -----------------------------------------------------------------------------------------
+
+describe('the privacy notice is recorded where the sign-in list has it now (#371)', () => {
+  const spec = fs.readFileSync(path.join(root, 'scripts/promo/capture.spec.mjs'), 'utf8')
+  const components = fs.readFileSync(path.join(root, 'src/worker/components.jsx'), 'utf8')
+  /** The trimmed lines of the spec from the first one that starts with `first` to the next one after it that starts with `last`. */
+  const linesBetween = (first, last) => {
+    const lines = spec.split('\n').map((line) => line.trim())
+    const from = lines.findIndex((line) => line.startsWith(first))
+    expect(from, first).toBeGreaterThan(-1)
+    const to = lines.findIndex((line, n) => n > from && line.startsWith(last))
+    expect(to, last).toBeGreaterThan(from)
+    return lines.slice(from, to + 1)
+  }
+
+  it('finds the button above the list by its role and its name, as the real component draws it, and no longer the note under the list', () => {
+    // The component's button is named by the same line of the dictionary (its role and name are what the spec finds it by)
+    expect(components).toMatch(/<button\b[^\n]*>\{t\('privacy\.title'\)\}<\/button>/) // (its onClick holds an arrow, so not [^>]*)
+    expect(heDict['privacy.title']).toBeTruthy()
+    expect(spec).toContain("const privacy = page.getByRole('button', { name: he['privacy.title'] })")
+    expect(linesBetween("await shot(page, 'provider-list.png', {", '})')).toContain('privacy,')
+    expect(spec).not.toContain("startOf(he['login.privacy'])") // the old box: the start of the note's text, under the list
+    expect(BOXES['provider-list.png']).toEqual(['list-top', 'name-row', 'privacy'])
+  })
+
+  it('takes the sheet open over the list, with the boxes of the sheet and of its link to the whole notice, and closes it before the sign-in', () => {
+    // The sheet is a dialog named by its title (src/worker/Sheet.jsx), and its link is named by `privacy.open`
+    expect(components).toMatch(/<Sheet\b[^>]*\btitle=\{t\('privacy\.title'\)\}/)
+    expect(components).toMatch(/<a\b[^>]*\bhref="\/privacy"[^>]*>\{t\('privacy\.open'\)\}<\/a>/)
+    expect(PROMO_PICTURES).toContain('provider-privacy-sheet.png')
+    expect(BOXES['provider-privacy-sheet.png']).toEqual(['sheet', 'full-notice'])
+    const steps = linesBetween("await shot(page, 'provider-list.png', {", 'await me.click()')
+    const order = [
+      'await privacy.click()',
+      "const sheet = page.getByRole('dialog', { name: he['privacy.title'] })",
+      "await expect(sheet.getByText(he['login.privacy'])).toBeVisible()",
+      "await shot(page, 'provider-privacy-sheet.png', { sheet, 'full-notice': sheet.getByRole('link', { name: he['privacy.open'] }) })",
+      "await page.keyboard.press('Escape')",
+      'await expect(sheet).toHaveCount(0)',
+    ].map((line) => steps.indexOf(line))
+    for (const index of order) expect(index).toBeGreaterThan(-1)
+    expect(order).toEqual([...order].sort((a, b) => a - b))
+    // The sheet is gone when the cleaner taps her name (nothing but a comment in between), so the pictures after it are taken as before.
+    expect(steps.slice(order.at(-1) + 1, -1).every((line) => line === '' || line.startsWith('//')), steps.join('\n')).toBe(true)
   })
 })

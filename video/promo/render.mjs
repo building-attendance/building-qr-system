@@ -7,7 +7,8 @@
 // `--music` is a local .mp3, .wav or .m4a that is never committed (music.js refuses a path inside the repository except under video/out/);
 // `--bpm` and `--first-beat` (the second of the first beat after the start) are required with it and make the plan; `--start` is the second
 // of the file where the music starts (default 0). The track is copied into the staged public folder, faded in and out by music.js.
-// `--cut` is the short promo (34 s, the default, the approved video that does not change) or the long one (1:56, PromoLong.jsx).
+// `--cut` is the short promo (34 s, the default, the approved plan of 27/10/2026, which does not change; its four screens are the
+// recorder's since decision E8) or the long one (1:56, PromoLong.jsx).
 //
 // Writes video/out/promo/promo-<lang>.mp4 (1080x1920 at 30 fps, H.264 and AAC), promo-<lang>.jpg (the poster) and, in stills/, one picture
 // per scene taken at its last frame (and, for a scene that changes its picture, one just before each change), for looking at each scene,
@@ -15,9 +16,10 @@
 // stills-long/, so the short cut's files are never overwritten. The sounds of the effects (make-sounds.mjs) are made at every render and
 // staged with the pictures. The plan is video/promo/timing.js at the tempo it is given (120 bpm without a track). The pictures that the
 // scenes name are copied into a staged public folder with the drawn sign and the two QR codes (stage.js), which is the only folder the
-// bundle reads: from docs/screenshots/ for the short cut, from the recorder's video/out/promo-frames/<lang>/ for the long one, whose
-// frames.json is checked first (stage.js, checkFrames and agentAnswer); the long cut refuses to run, naming `npm run promo:frames`,
-// when a picture or a box is missing.
+// bundle reads: from the recorder's video/out/promo-frames/<lang>/ for both cuts (decision E8 of the topic "promo-web-flow": the short
+// cut no longer reads docs/screenshots/), whose frames.json is checked first for the long one (stage.js, checkFrames and agentAnswer);
+// either cut refuses to run, naming `npm run promo:frames`, when that folder or a picture it needs is missing, and the long one when a
+// box is.
 //
 // Node built-ins, Remotion's bundler and renderer, and the pure modules of video/promo/. Nothing is sent anywhere: the browser that Remotion
 // renders with (Chrome Headless Shell) is downloaded by it, once, into video/node_modules/.remotion.
@@ -40,7 +42,6 @@ import { captionLayout, inColumn } from './wide.js'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const videoDir = path.resolve(here, '..')
-const screenshotsDir = path.resolve(videoDir, '..', 'docs', 'screenshots')
 
 const say = (line) => stdout.write(`${line}\n`)
 const fail = (line) => {
@@ -111,22 +112,27 @@ if (wide) {
   }
 }
 
-// The long cut's pictures and their boxes: the recorder's folder, checked before anything is touched.
+// The pictures of both cuts, and the long cut's boxes: the recorder's folder, checked before anything is touched.
 const framesDir = path.join(videoDir, 'out', 'promo-frames', lang)
-const RECORD = 'Run `npm run promo:frames` to record the pictures of the long promo.'
+const RECORD = 'Run `npm run promo:frames` to record the pictures of the promo (both cuts read them).'
+const pictures = long ? stagedPictures(LONG.scenes) : stagedPictures()
 let frames = null
-if (long) {
-  const framesFile = path.join(framesDir, 'frames.json')
-  if (!existsSync(framesFile)) fail(`No ${path.relative(videoDir, framesFile)}. ${RECORD}`)
-  try {
-    frames = checkFrames(readFileSync(framesFile, 'utf8'))
-    agentAnswer(frames) // the AI scene's answer is made of the sample's counts: refused here rather than in the browser
-  } catch (error) {
-    fail(error.message)
+if (!existsSync(framesDir)) fail(`No ${path.relative(videoDir, framesDir)}, the recorder's folder that the ${cut} cut takes its pictures from. ${RECORD}`)
+// Both cuts check the whole recording (a run that failed writes no frames.json, and one from before the contract changed lacks a picture or
+// a box), so that neither renders from a half or an old set; only the long cut reads its boxes and counts.
+const framesFile = path.join(framesDir, 'frames.json')
+if (!existsSync(framesFile)) fail(`No ${path.relative(videoDir, framesFile)}. ${RECORD}`)
+try {
+  const checked = checkFrames(readFileSync(framesFile, 'utf8'))
+  if (long) {
+    agentAnswer(checked) // the AI scene's answer is made of the sample's counts: refused here rather than in the browser
+    frames = checked
   }
-  for (const file of stagedPictures(LONG.scenes)) {
-    if (!existsSync(path.join(framesDir, file))) fail(`No ${file} in ${path.relative(videoDir, framesDir)}. ${RECORD}`)
-  }
+} catch (error) {
+  fail(error.message)
+}
+for (const file of pictures) {
+  if (!existsSync(path.join(framesDir, file))) fail(`No ${file} in ${path.relative(videoDir, framesDir)}. ${RECORD}`)
 }
 
 if (music) {
@@ -194,8 +200,7 @@ process.on('exit', cleanUp) // also when a step fails or fail() exits
 rmSync(stillsDir, { recursive: true, force: true })
 mkdirSync(publicDir, { recursive: true })
 mkdirSync(stillsDir, { recursive: true })
-if (long) for (const file of stagedPictures(LONG.scenes)) cpSync(path.join(framesDir, file), path.join(publicDir, file))
-else for (const file of stagedPictures()) cpSync(path.join(screenshotsDir, file), path.join(publicDir, file))
+for (const file of pictures) cpSync(path.join(framesDir, file), path.join(publicDir, file))
 if (music) cpSync(music.path, path.join(publicDir, inputProps.music.file)) // the staged folder is removed on exit, so the track stays only where it was
 writeSounds(publicDir) // the whoosh, the impact and the ding: made from code at every render, never committed
 writeFileSync(path.join(publicDir, SIGN.file), signSvg())

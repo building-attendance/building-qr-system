@@ -110,7 +110,7 @@ import {
 } from '../video/promo/parts/screens.js'
 import { SHOWCASE, planShowcase, showcaseStills, walkingStage } from '../video/promo/parts/showcase.js'
 
-const SCREENSHOTS = fileURLToPath(new URL('../docs/screenshots/', import.meta.url))
+const RENDER = fs.readFileSync(fileURLToPath(new URL('../video/promo/render.mjs', import.meta.url)), 'utf8')
 const TRACK = { bpm: 120, firstBeat: 0 }
 // Tempos that the video may be planned at: the default, the chosen track (decision D17), the first track (D14), and a first beat that
 // is late in the bar.
@@ -145,14 +145,19 @@ describe('the promo script', () => {
     expect(all).not.toMatch(/חינם|מוודא|מאמת|אימות/)
   })
 
-  it('names every picture that is a file of docs/screenshots/ by a file that exists, and the others by the fixed list', () => {
+  it("names every picture by a recorded screen of the recorder's list (E8), never a file of docs/screenshots/, and the others by the fixed list", () => {
+    const recorded = []
     for (const scene of SCENES) {
       for (const picture of [scene.picture, scene.then].filter(Boolean)) {
         if (DRAWN_PICTURES.includes(picture)) continue
-        expect(picture, scene.id).toMatch(/^[a-z0-9-]+\.png$/)
-        expect(fs.existsSync(SCREENSHOTS + picture), `${scene.id}: ${picture}`).toBe(true)
+        expect(PROMO_PICTURES, `${scene.id}: ${picture}`).toContain(picture)
+        recorded.push(picture)
       }
     }
+    expect(recorded).toEqual(['provider-recorded.png', 'provider-queued.png', 'committee-home.png', 'committee-history.png'])
+    // The render copies every picture from the recorder's folder, and names no other folder of pictures.
+    expect(RENDER).toContain('for (const file of pictures) cpSync(path.join(framesDir, file), path.join(publicDir, file))')
+    expect(RENDER).not.toMatch(/'screenshots'|docs\/screenshots\/'|screenshotsDir/)
   })
 
   it('points the closing card at the public repository, never at the live app of a building', () => {
@@ -223,12 +228,12 @@ describe('the short promo is frozen (D7)', () => {
             { text: 'סורקים את השלט עם המצלמה.', frame: 240 },
             { text: 'בלי להוריד אפליקציה.', frame: 255 },
           ],
-          then: 'provider-phone-check-in.png',
+          then: 'provider-recorded.png',
           thenFrame: 330,
         },
         {
           id: 'offline',
-          picture: 'provider-phone-saved-offline.png',
+          picture: 'provider-queued.png',
           startFrame: 420,
           endFrame: 540,
           phrases: [
@@ -238,14 +243,14 @@ describe('the short promo is frozen (D7)', () => {
         },
         {
           id: 'committee',
-          picture: 'committee-phone-home.png',
+          picture: 'committee-home.png',
           startFrame: 540,
           endFrame: 720,
           phrases: [
             { text: 'הוועד רואה מי הגיע,', frame: 540 },
             { text: 'מתי ולאיזו נקודה.', frame: 555 },
           ],
-          then: 'committee-phone-history.png',
+          then: 'committee-history.png',
           thenFrame: 630,
         },
         {
@@ -283,15 +288,20 @@ describe('the short promo is frozen (D7)', () => {
     expect(GROOVE_SCENE).toBe('scan')
   })
 
+  // The plan's prints changed once, with the names of its four pictures (E8, the recorder's instead of the README's): with the old names
+  // put back, each plan gives the print it had before (the third column, the prints of 27/10/2026), and the cues' prints did not change.
+  const README_NAMES = { 'provider-recorded.png': 'provider-phone-check-in.png', 'provider-queued.png': 'provider-phone-saved-offline.png', 'committee-home.png': 'committee-phone-home.png', 'committee-history.png': 'committee-phone-history.png' }
+  const withReadmeNames = (plan) => JSON.parse(JSON.stringify(plan, (key, value) => (typeof value === 'string' && Object.hasOwn(README_NAMES, value) ? README_NAMES[value] : value)))
   it.each([
-    [{ bpm: 100, firstBeat: 0 }, '303a2e9f94817609', '8a98ee7a651c70d1'],
-    [{ bpm: 120, firstBeat: 0 }, '5920d1df8896dab6', 'e6f9efb80fac27c2'],
-    [{ bpm: 122, firstBeat: 0 }, '2f9b8777d80b1b75', '78efc752721d7840'],
-    [{ bpm: 122, firstBeat: 0.265 }, '4e602019439d3698', '3c549ef52a426f05'],
-    [{ bpm: 132, firstBeat: 0 }, '6c1d3c8d0dbb5018', 'a7fd44439397ca18'],
-  ])('plans and sounds the same at %o (fingerprints of the plan and of the cues)', (tempo, planPrint, cuesPrint) => {
+    [{ bpm: 100, firstBeat: 0 }, '3e6ca2ecebbfdf41', '303a2e9f94817609', '8a98ee7a651c70d1'],
+    [{ bpm: 120, firstBeat: 0 }, '7e5699818d6d8749', '5920d1df8896dab6', 'e6f9efb80fac27c2'],
+    [{ bpm: 122, firstBeat: 0 }, 'b948a9ecb57af9bf', '2f9b8777d80b1b75', '78efc752721d7840'],
+    [{ bpm: 122, firstBeat: 0.265 }, '115682110df76fd5', '4e602019439d3698', '3c549ef52a426f05'],
+    [{ bpm: 132, firstBeat: 0 }, '5758cc950714d7f7', '6c1d3c8d0dbb5018', 'a7fd44439397ca18'],
+  ])('plans and sounds the same at %o (fingerprints of the plan, of the plan with the old names, and of the cues)', (tempo, planPrint, oldPrint, cuesPrint) => {
     const plan = planPromo('he', tempo)
     expect(fingerprintOf(plan)).toBe(planPrint)
+    expect(fingerprintOf(withReadmeNames(plan))).toBe(oldPrint)
     expect(fingerprintOf(soundCues(plan))).toBe(cuesPrint)
   })
 
@@ -299,9 +309,9 @@ describe('the short promo is frozen (D7)', () => {
     expect(SCENES.map((scene) => ({ ...scene }))).toEqual([
       { id: 'question', bars: 2, picture: 'text' },
       { id: 'providers', bars: 2, picture: 'text' },
-      { id: 'scan', bars: 3, picture: 'camera', then: 'provider-phone-check-in.png' },
-      { id: 'offline', bars: 2, picture: 'provider-phone-saved-offline.png' },
-      { id: 'committee', bars: 3, picture: 'committee-phone-home.png', then: 'committee-phone-history.png' },
+      { id: 'scan', bars: 3, picture: 'camera', then: 'provider-recorded.png' },
+      { id: 'offline', bars: 2, picture: 'provider-queued.png' },
+      { id: 'committee', bars: 3, picture: 'committee-home.png', then: 'committee-history.png' },
       { id: 'open', bars: 2, picture: 'text' },
       { id: 'closing', bars: 3, picture: 'closing' },
     ])
@@ -442,11 +452,11 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
     return picture
   }
 
-  it("has the 21 scenes of the story editor's table behind its title card, in 58 bars, each with a caption and a keyword (E3)", () => {
-    expect(ids).toEqual(['question', 'pays', 'sign', 'sees', 'points', 'access', 'signin', 'far', 'recorded', 'offline', 'today', 'counts', 'visit', 'late', 'refused', 'filters', 'cancel', 'agent', 'open', 'install', 'closing'])
-    expect(new Set(ids).size).toBe(21)
+  it("has the 21 scenes of the story editor's table and the privacy notice behind its title card, in 58 bars, each with a caption and a keyword (E3, E7)", () => {
+    expect(ids).toEqual(['question', 'pays', 'sign', 'sees', 'points', 'access', 'notice', 'signin', 'far', 'recorded', 'offline', 'today', 'counts', 'visit', 'late', 'refused', 'filters', 'cancel', 'agent', 'open', 'install', 'closing'])
+    expect(new Set(ids).size).toBe(22)
     expect(LONG.scenes.reduce((sum, scene) => sum + scene.bars, 0)).toBe(58)
-    expect(LONG.scenes.map((scene) => scene.bars)).toEqual([2, 2, 2, 3, 3, 3, 3, 3, 4, 4, 3, 3, 2, 2, 2, 3, 3, 4, 2, 2, 3])
+    expect(LONG.scenes.map((scene) => scene.bars)).toEqual([2, 2, 2, 3, 3, 3, 2, 2, 3, 3, 4, 3, 3, 2, 2, 2, 3, 3, 4, 2, 2, 3])
     expect(Object.keys(captions).sort()).toEqual([...ids].sort())
     expect(Object.keys(LONG.keywords.he).sort()).toEqual([...ids].sort())
   })
@@ -464,7 +474,8 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
     expect(startBar('sign')).toBe(5) // one bar of the camera, then the check mark on bar 6
     expect(startBar('sees')).toBe(7)
     expect(startBar('points')).toBe(10) // the committee prepares
-    expect(startBar('signin')).toBe(16) // the providers scan
+    expect(startBar('notice')).toBe(16) // the providers scan, from the privacy notice above the list (E7)
+    expect(startBar('signin')).toBe(18)
     expect(startBar('offline')).toBe(26) // the quiet break of the track is bars 26 and 27 (decision D4, E3), the track started on its bar 1
     expect(startBar('counts')).toBe(33) // the committee sees
     expect(startBar('agent')).toBe(48)
@@ -561,13 +572,13 @@ describe('the long promo script (video/promo/script/long.js, he-long.js)', () =>
 describe('planPromo with the long script', () => {
   const plan = planPromo('he', TRACK, LONG)
 
-  it('plans 58 bars in 116 seconds at 120 bpm: 3480 frames, 60 frames a bar, ending on a bar (E3)', () => {
+  it('plans 58 bars in 116 seconds at 120 bpm: 3480 frames, 60 frames a bar, ending on a bar (E3, E7)', () => {
     expect(plan.bars).toBe(58)
     expect(plan.totalFrames).toBe(3480)
     expect(plan.totalFrames).toBe(58 * 60)
     expect(plan.totalFrames).toBe(beatFrame(58 * BEATS_PER_BAR, TRACK))
     expect(plan.fadeOutFrame).toBe(3480 - Math.round(MUSIC_FADE_OUT_SECONDS * FPS))
-    expect(plan.scenes).toHaveLength(21)
+    expect(plan.scenes).toHaveLength(22)
     expect(plan.scenes[0].startFrame).toBe(0)
     plan.scenes.forEach((scene, index) => {
       expect(scene.startFrame, scene.id).toBe(LONG.scenes.slice(0, index).reduce((sum, one) => sum + one.bars, 0) * 60)
@@ -653,7 +664,7 @@ describe('planPromo with the long script', () => {
   it('plans a whoosh before every scene but the one that continues, the impact on bar 6, the ding when the recorded screen appears, none in the fade out', () => {
     const cues = soundCues(plan, LONG)
     expect(cues.filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)).toEqual(plan.scenes.slice(1).filter((scene) => !scene.continues).map((scene) => scene.startFrame))
-    expect(plan.scenes.filter((scene) => scene.continues).map((scene) => scene.id)).toEqual(['late'])
+    expect(plan.scenes.filter((scene) => scene.continues).map((scene) => scene.id)).toEqual(['signin', 'late'])
     expect(cues.filter((cue) => cue.kind === 'impact').map((cue) => cue.hit)).toEqual([300])
     expect(cues.filter((cue) => cue.kind === 'ding').map((cue) => cue.hit)).toEqual([plan.scenes.find((scene) => scene.id === 'recorded').startFrame])
     expect(plan.scenes.find((scene) => scene.id === 'recorded').picture).toBe('provider-recorded.png')
@@ -671,8 +682,12 @@ describe('planPromo with the long script', () => {
       const before = LONG.scenes[n]
       if (screenOf(scene.picture) && last(before) === scene.picture) expect(scene.continues, `${before.id} to ${scene.id}`).toBe(true)
     })
-    // The visit and the basement visit are the one pair that the edit joins: two scenes of one screen.
+    // The visit and the basement visit are a pair that the edit joins: two scenes of one screen.
     expect(LONG.scenes.find((scene) => scene.id === 'visit').picture).toBe(LONG.scenes.find((scene) => scene.id === 'late').picture)
+    // The privacy notice and the sign-in are the other (E7): the notice ends on its sheet over the list, and the sign-in continues on the list.
+    const [notice, signin] = ['notice', 'signin'].map((id) => LONG.scenes.find((scene) => scene.id === id))
+    expect([notice.picture, notice.then, signin.picture]).toEqual(['provider-list.png', 'provider-privacy-sheet.png', 'provider-list.png'])
+    expect(signin.continues).toBe(true)
   })
 
   it('is readable up to 124 bpm and refuses 125 bpm naming the first scene of nine words in two bars', () => {
@@ -709,16 +724,17 @@ describe('planPromo with the long script', () => {
   })
 
   it('carries `continues` into the plan without a whoosh, and refuses it on the first scene and after another app or device', () => {
-    // The edit of E3 joins one boundary: the visit at 08:24 continues the one at 08:06, on the same screen of the committee's app.
-    expect(LONG.scenes.filter((one) => one.continues).map((one) => one.id)).toEqual(['late'])
-    expect(plan.scenes.filter((one) => 'continues' in one).map((one) => one.id)).toEqual(['late'])
+    // The edit joins two boundaries: the sign-in continues the privacy notice on the provider's list (E7), and the visit at 08:24 the one at
+    // 08:06, on the same screen of the committee's app (E3).
+    expect(LONG.scenes.filter((one) => one.continues).map((one) => one.id)).toEqual(['signin', 'late'])
+    expect(plan.scenes.filter((one) => 'continues' in one).map((one) => one.id)).toEqual(['signin', 'late'])
     const joined = (ids) => ({ ...LONG, scenes: LONG.scenes.map((one) => (ids.includes(one.id) ? { ...one, continues: true } : one)) })
     const plain = (scenes) => scenes.map((one) => Object.fromEntries(Object.entries(one).filter(([key]) => key !== 'continues')))
     // The same app on the same device: the provider's too-far screen after the password typed, the provider's home after the sent
     // visit, the history after the home, and the refused scan after the history.
     const ok = planPromo('he', TRACK, joined(['far', 'today', 'visit', 'refused']))
     const continuing = ok.scenes.filter((one) => one.continues).map((one) => one.id)
-    expect(continuing).toEqual(['far', 'today', 'visit', 'late', 'refused'])
+    expect(continuing).toEqual(['signin', 'far', 'today', 'visit', 'late', 'refused'])
     // Everything else about the plan is the same, the reading time included.
     expect(plain(ok.scenes)).toEqual(plain(plan.scenes))
     const whooshes = soundCues(ok, LONG).filter((cue) => cue.kind === 'whoosh').map((cue) => cue.hit)
@@ -727,16 +743,16 @@ describe('planPromo with the long script', () => {
     expect(() => planPromo('he', TRACK, joined(['question']))).toThrow(/scene "question" continues the scene before it, and it is the first/i)
     expect(() => planPromo('he', TRACK, joined(['cancel']))).toThrow(/scene "cancel".*"computer-history.png".*same app on the same device/i)
     expect(() => planPromo('he', TRACK, joined(['filters']))).toThrow(/scene "filters".*"committee-history-refused.png"/i)
-    expect(() => planPromo('he', TRACK, joined(['signin']))).toThrow(/scene "signin".*"committee-providers-password.png"/i)
+    expect(() => planPromo('he', TRACK, joined(['notice']))).toThrow(/scene "notice".*"committee-providers-password.png"/i)
     expect(() => planPromo('he', TRACK, joined(['pays']))).toThrow(/scene "pays".*"text"/i)
     expect(() => planPromo('he', TRACK, joined(['sees']))).toThrow(/scene "sees".*"camera-checked"/i)
   })
 })
 
 describe('what the render stages (video/promo/stage.js)', () => {
-  it('stages each picture of docs/screenshots/ that the scenes name once, and none of the drawn ones', () => {
-    expect(stagedPictures()).toEqual(['provider-phone-check-in.png', 'provider-phone-saved-offline.png', 'committee-phone-home.png', 'committee-phone-history.png'])
-    for (const file of stagedPictures()) expect(fs.existsSync(SCREENSHOTS + file), file).toBe(true)
+  it("stages each recorded picture that the short cut's scenes name once, from the recorder's list (E8), and none of the drawn ones", () => {
+    expect(stagedPictures()).toEqual(['provider-recorded.png', 'provider-queued.png', 'committee-home.png', 'committee-history.png'])
+    for (const file of stagedPictures()) expect(PROMO_PICTURES, file).toContain(file)
     for (const drawn of DRAWN_PICTURES) expect(stagedPictures()).not.toContain(drawn)
     expect(stagedPictures([{ picture: 'a.png', then: 'b.png' }, { picture: 'a.png' }, { picture: 'text' }])).toEqual(['a.png', 'b.png'])
   })

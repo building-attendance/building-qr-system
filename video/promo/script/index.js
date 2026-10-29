@@ -5,12 +5,15 @@
 // the committee's AI agent (an optional scene, off by default).
 //
 // - A scene is measured in bars of four beats, so that every cut falls on a beat of the music.
-// - `picture` is what the scene shows first: a file name of docs/screenshots/, 'camera' (the drawn sign and camera scene), 'text'
-//   (words on the violet ground) or 'closing' (the card with the repository's address and its QR code). `then` is an optional second
-//   screenshot that replaces the first at the middle of the scene (timing.js plans that cut, on a beat).
+// - `picture` is what the scene shows first: a recorded screen (a name of PROMO_PICTURES in long.js, which the recorder writes into
+//   video/out/promo-frames/he/), 'camera' (the drawn sign and camera scene), 'text' (words on the violet ground) or 'closing' (the card
+//   with the repository's address and its QR code). `then` is an optional second screen that replaces the first at the middle of the
+//   scene (timing.js plans that cut, on a beat).
 //
 // The long promo (topic "promo-long") is a second script beside this one, LONG at the end of the file: its scenes are in long.js and its
-// captions in he-long.js. The short script above it does not change (decision D7): planPromo takes a script, and SHORT is its default.
+// captions in he-long.js. The short script above it keeps its scenes, bars, captions and keywords (decision D7); since decision E8 of
+// the topic "promo-web-flow" its four screens are the recorder's pictures of the same moments, the app of today in the long cut's
+// building, and no longer the README's (docs/screenshots/). planPromo takes a script, and SHORT is its default.
 import he, { keywords as heKeywords } from './he.js'
 import heLong, { keywords as heLongKeywords } from './he-long.js'
 import { LONG_DRAWN_PICTURES, LONG_SCENES } from './long.js'
@@ -32,7 +35,7 @@ export const LANGUAGES = Object.freeze(Object.keys(SCRIPTS))
 /** The public address that the closing card shows and encodes (a repository, never the live app of a building). */
 export const REPOSITORY_URL = 'https://github.com/building-attendance/building-qr-system'
 
-/** The pictures that are not a file (docs/screenshots/ for the short promo, the recorder's frames for the long one): drawn by the composition. */
+/** The pictures that are not a file of the recorder (video/out/promo-frames/he/, for both cuts): drawn by the composition. */
 export const DRAWN_PICTURES = Object.freeze([...new Set(['camera', 'text', 'closing', ...LONG_DRAWN_PICTURES])])
 
 /** @typedef {{ id: string, bars: number, picture: string, then?: string }} Scene */
@@ -42,9 +45,9 @@ export const SCENES = Object.freeze(
   [
     { id: 'question', bars: 2, picture: 'text' },
     { id: 'providers', bars: 2, picture: 'text' },
-    { id: 'scan', bars: 3, picture: 'camera', then: 'provider-phone-check-in.png' },
-    { id: 'offline', bars: 2, picture: 'provider-phone-saved-offline.png' },
-    { id: 'committee', bars: 3, picture: 'committee-phone-home.png', then: 'committee-phone-history.png' },
+    { id: 'scan', bars: 3, picture: 'camera', then: 'provider-recorded.png' },
+    { id: 'offline', bars: 2, picture: 'provider-queued.png' },
+    { id: 'committee', bars: 3, picture: 'committee-home.png', then: 'committee-history.png' },
     { id: 'open', bars: 2, picture: 'text' },
     { id: 'closing', bars: 3, picture: 'closing' },
   ].map((scene) => Object.freeze(scene)),
@@ -60,7 +63,7 @@ export { agentChat, labels as LONG_LABELS } from './he-long.js'
  * @typedef {{ name: string, scenes: readonly object[], scripts: Record<string, Record<string, string>>, keywords: Record<string, Record<string, string>>, sounds: readonly { kind: string, scene: string, at: 'start' | 'then' }[] }} PromoScript
  */
 
-/** The short promo (34 s): the approved video of 27/10/2026, which does not change. The impact is the first beat of the groove, the ding the check-in screen. */
+/** The short promo (34 s): the approved video of 27/10/2026, whose plan does not change (its screens are the recording's since E8). The impact is the first beat of the groove, the ding the check-in screen. */
 export const SHORT = Object.freeze({
   name: 'short',
   scenes: SCENES,
@@ -73,7 +76,7 @@ export const SHORT = Object.freeze({
 })
 
 /**
- * The long promo (2:18, 69 bars at 120 bpm), opening on a title card of two bars. The groove of the track enters on bar 6, where the
+ * The long promo (1:56, 58 bars at 120 bpm), opening on a title card of two bars. The groove of the track enters on bar 6, where the
  * check mark of the scan comes in (the impact); the ding is the first beat of the "recorded" screen; the track's quiet break (bars 26
  * and 27) is the offline scene.
  */
