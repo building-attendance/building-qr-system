@@ -60,12 +60,17 @@ pinned Remotion), the tutorial never reads it, and nothing is published by a wor
 
 ```
 npm --prefix video ci                     # once, as above
+npm run promo:frames                      # at the root: the screens of both apps, on invented sample data (needs .env.local, see docs/testing.md)
 node video/promo/render.mjs he            # silent, on a 120 bpm grid
 node video/promo/render.mjs he --music <file> --bpm <tempo> --first-beat <seconds> [--start <seconds>]
 ```
 
 It writes `video/out/promo/promo-he.mp4`, `promo-he.jpg` (the poster) and, in `stills/`, one picture per scene. The scenes are
-whole bars of the music, every cut falls on a beat and the video ends on a bar (`promo/timing.js`).
+whole bars of the music, every cut falls on a beat and the video ends on a bar (`promo/timing.js`). Both cuts show the recorder's
+pictures of the app as it is, of one invented building and one morning (`scripts/promo/`), so `npm run promo:frames` comes first:
+the short cut takes its four screens (the visit recorded, the visit saved without reception, the committee's home and its history)
+from `video/out/promo-frames/he/` and refuses to run, naming that command, when the folder or a picture is missing. It no longer
+reads the README's pictures in `docs/screenshots/`.
 
 - `--music` is a local `.mp3`, `.wav` or `.m4a`. `--bpm` and `--first-beat` (the second of the first beat after the start) are
   required with it, and the plan is made at that tempo: a tempo at which a caption cannot be read is refused with the scene's
@@ -86,11 +91,11 @@ A 1:56 cut of the same promo (58 bars at 120 bpm, `promo/PromoLong.jsx`, its scr
 `he-long.js`) shows both sides of the app, end to end, to a committee member who knows nothing about it: what the committee
 prepares, what a service provider does and sees, what the committee sees, its AI, and what it takes. It opens on the short cut's
 question alone on the violet ground, for two bars and without the progress strip, so that its poster and the thumbnail that a
-platform takes from its first frame are the same clean card as the short cut's. The short cut stays as it is: `--cut` is `short`
+platform takes from its first frame are the same clean card as the short cut's. The short cut keeps its own plan: `--cut` is `short`
 when it is not given.
 
 ```
-npm run promo:frames                      # records the screens of both apps, on invented sample data (scripts/promo/)
+npm run promo:frames                      # the same recording as the short cut's, if it is not there yet
 node video/promo/render.mjs he --cut long --music <file> --bpm 120 --first-beat 0 --start 0.435
 ```
 

@@ -286,12 +286,14 @@ describe('the short promo is frozen (D7)', () => {
     expect(GROOVE_SCENE).toBe('scan')
   })
 
+  // The plan's prints changed once, with the names of its four pictures (E8, the recorder's instead of the README's): with the old names
+  // put back, each plan gives the print it had before, and the cues' prints did not change.
   it.each([
-    [{ bpm: 100, firstBeat: 0 }, '303a2e9f94817609', '8a98ee7a651c70d1'],
-    [{ bpm: 120, firstBeat: 0 }, '5920d1df8896dab6', 'e6f9efb80fac27c2'],
-    [{ bpm: 122, firstBeat: 0 }, '2f9b8777d80b1b75', '78efc752721d7840'],
-    [{ bpm: 122, firstBeat: 0.265 }, '4e602019439d3698', '3c549ef52a426f05'],
-    [{ bpm: 132, firstBeat: 0 }, '6c1d3c8d0dbb5018', 'a7fd44439397ca18'],
+    [{ bpm: 100, firstBeat: 0 }, '3e6ca2ecebbfdf41', '8a98ee7a651c70d1'],
+    [{ bpm: 120, firstBeat: 0 }, '7e5699818d6d8749', 'e6f9efb80fac27c2'],
+    [{ bpm: 122, firstBeat: 0 }, 'b948a9ecb57af9bf', '78efc752721d7840'],
+    [{ bpm: 122, firstBeat: 0.265 }, '115682110df76fd5', '3c549ef52a426f05'],
+    [{ bpm: 132, firstBeat: 0 }, '5758cc950714d7f7', 'a7fd44439397ca18'],
   ])('plans and sounds the same at %o (fingerprints of the plan and of the cues)', (tempo, planPrint, cuesPrint) => {
     const plan = planPromo('he', tempo)
     expect(fingerprintOf(plan)).toBe(planPrint)
