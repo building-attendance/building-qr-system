@@ -1,6 +1,6 @@
-// The long promo's scenes: 21 scenes in 58 bars (1:56 at 120 bpm), the edit of the topic plan "promo-web-flow" (decision E3): the
-// morning of one cleaner, with a whip only where the app or the place changes, behind a title card (topic "promo-long", decisions D1
-// to D4 and D7, for the rest). Plain data, like index.js: video/promo/timing.js plans it (planPromo with this
+// The long promo's scenes: 22 scenes in 58 bars (1:56 at 120 bpm), the edit of the topic plan "promo-web-flow" (decision E3, and E7,
+// which brings the privacy notice back): the morning of one cleaner, with a whip only where the app or the place changes, behind a title
+// card (topic "promo-long", decisions D1 to D4 and D7, for the rest). Plain data, like index.js: video/promo/timing.js plans it (planPromo with this
 // script) and tests/video-promo.test.js holds its rules. The captions are in he-long.js, keyed by scene id.
 //
 // A scene is `{ id, bars, stage, picture, ... }` and may carry, all of them optional:
@@ -35,7 +35,8 @@ export const LONG_DRAWN_PICTURES = Object.freeze(['camera', 'camera-checked', 't
  */
 export const PROMO_PICTURES = Object.freeze([
   // The provider's app (phone)
-  'provider-list.png', // the login screen: the list of accounts, with the privacy notice under it
+  'provider-list.png', // the login screen: the list of accounts, with the button of the privacy notice above it
+  'provider-privacy-sheet.png', // the same list with the short privacy notice open in its sheet, and the link to the whole notice
   'provider-password.png', // a password typed (dots)
   'provider-recorded.png', // "the check-in was recorded", with "the location was verified: 7 m from the point"
   'provider-queued.png', // no connection: saved on the phone, waiting to be sent
@@ -74,6 +75,7 @@ export const SHEET_BOXES = Object.freeze({ 'committee-print-sign.png': Object.fr
 export const BOXES = Object.freeze({
   'committee-home.png': Object.freeze(['empty-day', 'provider-row', 'week']),
   'provider-list.png': Object.freeze(['list-top', 'name-row', 'privacy']),
+  'provider-privacy-sheet.png': Object.freeze(['sheet', 'full-notice']),
   'provider-password.png': Object.freeze(['password']), // the ring of the sign-in on the password field, beside the "stay signed in" tick that has no box of its own
   'committee-points-map.png': Object.freeze(['pin', 'circle']),
   'committee-providers-password.png': Object.freeze(['password']),
@@ -122,9 +124,10 @@ export const LENSES = Object.freeze({
 })
 
 /**
- * What the recorder still takes and no scene of the edit shows (the recorder's contract, PROMO_PICTURES and BOXES, is kept whole until
- * scripts/promo changes with it): the first history, which "sees" no longer opens on, and the members of the committee, whom the edit
- * leaves out. Each picture with its boxes, and the boxes that the edit leaves out of pictures that it still shows.
+ * What the recorder still takes and no scene of this edit shows (the recorder's contract, PROMO_PICTURES and BOXES, is kept whole until
+ * scripts/promo changes with it): the first history, which "sees" no longer opens on (the short cut shows it, index.js), and the members
+ * of the committee, whom the edit leaves out. Each picture with its boxes, and the boxes that the edit leaves out of pictures that it
+ * still shows.
  */
 export const SPARE = Object.freeze({
   pictures: Object.freeze(['committee-history.png', 'committee-admins.png']),
@@ -132,7 +135,6 @@ export const SPARE = Object.freeze({
     'committee-history.png': Object.freeze(['first-row']),
     'committee-admins.png': Object.freeze(['google-button']),
     'provider-home.png': Object.freeze(['tutorial-link']),
-    'provider-list.png': Object.freeze(['privacy']),
   }),
 })
 
@@ -184,19 +186,39 @@ export const LONG_SCENES = Object.freeze(
       ],
       ring: [{ box: 'password', beat: 5 }],
     },
-    // The providers scan (bars 16 to 32): the morning of one cleaner. She signs in, is too far, is recorded at 7 metres, loses the
-    // connection in the basement, and sees her day in four languages.
+    // The providers scan (bars 16 to 32): the morning of one cleaner. She reads the privacy notice above the list (topic "promo-web-flow",
+    // E7), signs in, is too far, is recorded at 7 metres, loses the connection in the basement, and sees her day in four languages. The
+    // notice and the sign-in are one screen in two scenes: the sign-in continues on the list, without a whip, as the sheet closes. The
+    // notice's two bars are taken from the sign-in and the recorded screen (two and three bars, as before #368), so that the quiet break
+    // of the track stays on the offline scene (bar 26).
     {
-      id: 'signin',
-      bars: 3,
+      id: 'notice',
+      bars: 2,
       stage: 'scan',
       picture: 'provider-list.png',
+      then: 'provider-privacy-sheet.png',
+      thenBeat: 3,
+      zoom: [
+        { box: 'privacy', beat: 0 },
+        { box: 'sheet', beat: 3 },
+      ],
+      ring: [
+        { box: 'privacy', beat: 1 },
+        { box: 'full-notice', beat: 5 },
+      ],
+    },
+    {
+      id: 'signin',
+      bars: 2,
+      stage: 'scan',
+      picture: 'provider-list.png',
+      continues: true,
       then: 'provider-password.png',
-      thenBeat: 5,
+      thenBeat: 4,
       zoom: [{ box: 'list-top', beat: 0 }],
       ring: [
         { box: 'name-row', beat: 2 },
-        { box: 'password', beat: 7 },
+        { box: 'password', beat: 5 },
       ],
     },
     {
@@ -209,8 +231,8 @@ export const LONG_SCENES = Object.freeze(
         { box: 'retry', beat: 6 },
       ],
     },
-    // The ding is the first beat of this screen; its last bar is a hold on it.
-    { id: 'recorded', bars: 4, stage: 'scan', picture: 'provider-recorded.png', zoom: [{ box: 'verified-line', beat: 1 }], ring: [{ box: 'verified-line', beat: 2 }] },
+    // The ding is the first beat of this screen.
+    { id: 'recorded', bars: 3, stage: 'scan', picture: 'provider-recorded.png', zoom: [{ box: 'verified-line', beat: 1 }], ring: [{ box: 'verified-line', beat: 2 }] },
     // The track's quiet break (bars 26 and 27) is the lost connection; the groove is back on bar 28, when the visit is sent.
     // The sent screen and the home and language screens below show the app's version at their bottom: they are never shown whole.
     {

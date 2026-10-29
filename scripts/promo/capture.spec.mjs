@@ -188,17 +188,27 @@ test.describe('the provider app, on a phone', () => {
     const cleaner = PROVIDERS.cleaner
     await context.setGeolocation(standing(LIVE_OFFSET_M))
 
-    // The list of accounts, the first time on this phone, with the privacy notice under it
+    // The list of accounts, the first time on this phone, with the button of the privacy notice above it (src/worker/components.jsx,
+    // ReadingLinks, beside the tutorial's link)
     await setClock(page, LIVE.lobby)
     await page.goto(`/scan?code=${POINTS.lobby.token}`)
     const title = page.getByRole('heading', { name: he['login.title'] })
     await expect(title).toBeVisible()
     const me = page.getByRole('button', { name: new RegExp(cleaner.contact) })
+    const privacy = page.getByRole('button', { name: he['privacy.title'] })
     await shot(page, 'provider-list.png', {
       'list-top': [title, page.getByRole('list')],
       'name-row': me,
-      privacy: page.getByText(startOf(he['login.privacy'])),
+      privacy,
     })
+
+    // The short notice, in its sheet over the list, with the link to the whole of it; closed again (Esc), so that the list is as it was
+    await privacy.click()
+    const sheet = page.getByRole('dialog', { name: he['privacy.title'] })
+    await expect(sheet.getByText(he['login.privacy'])).toBeVisible()
+    await shot(page, 'provider-privacy-sheet.png', { sheet, 'full-notice': sheet.getByRole('link', { name: he['privacy.open'] }) })
+    await page.keyboard.press('Escape')
+    await expect(sheet).toHaveCount(0)
 
     // The password, typed (dots)
     await me.click()

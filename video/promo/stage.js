@@ -11,7 +11,7 @@ import { BOXES, DRAWN_PICTURES, PROMO_PICTURES, REPOSITORY_URL, SCENES, agentCha
 
 /**
  * The picture files that the scenes name (the first, the second, the later ones and the picture in picture), each once, in the order of
- * the scenes: of docs/screenshots/ for the short cut, of the recorder's folder (video/out/promo-frames/he/) for the long one.
+ * the scenes: of the recorder's folder (video/out/promo-frames/he/), for both cuts (the short one's scenes when none are given).
  * @param {readonly { picture: string, then?: string, later?: readonly { picture: string }[], inset?: { picture: string } }[]} [scenes]
  */
 export function stagedPictures(scenes = SCENES) {
