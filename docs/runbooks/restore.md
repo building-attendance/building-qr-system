@@ -440,7 +440,8 @@ The steps:
    A copy that will serve with `DATABASE_URL_RUNTIME` set (the app as a login of its own, [install.md](../install.md),
    section 3.9) needs that login too, made once the grants are there (after the function above, or after that deployment
    for an older dump): make it in the Neon SQL Editor with `create role app_login login password '<new password>' in role
-   app_runtime` (never with the console's "Add role", which gives the role `neon_superuser`), and point
+   app_runtime` (never with the console's "Add role", which gives the role `neon_superuser`), delete that statement from the
+   editor's History right after Run ([secrets.md](secrets.md), "A password in the Neon SQL Editor"), and point
    `DATABASE_URL_RUNTIME` of the deployment at it. Until then, leave `DATABASE_URL_RUNTIME` unset on that deployment: without
    it the app connects with `DATABASE_URL`, as the owner.
 5. Check the copy with the queries of step 2 above (the counts of `scans`, `points` and `providers`, and `max(received_at)` of

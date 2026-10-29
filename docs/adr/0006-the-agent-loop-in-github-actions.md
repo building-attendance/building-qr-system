@@ -97,3 +97,8 @@ Bad:
   the point of the review.
 - **An agent that merges after green CI.** Rejected for the reasons in ADR 0003.
 - **Block the network now.** Not yet possible: the endpoints are not known, and a wrong list stops the loop.
+
+## Addendum (29/10/2026)
+
+This decision cuts the lethal trifecta for the runs in GitHub Actions only. A session on the owner's computer holds all
+three legs: ADR 0008 records what cuts them there and what stays open.
