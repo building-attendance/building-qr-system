@@ -30,3 +30,4 @@ can be fixed in place.
 | [0005](0005-local-tooling-never-touches-production.md) | Local tooling never touches the production database | Accepted |
 | [0006](0006-the-agent-loop-in-github-actions.md) | The agent loop runs in GitHub Actions: Claude implements agent tasks and reviews Codex pull requests | Accepted |
 | [0007](0007-observability-in-our-own-postgres.md) | Errors and field problems are recorded in our own Postgres, and healthchecks.io carries the alerts | Accepted, implemented |
+| [0008](0008-the-local-agent-works-with-least-privilege.md) | The local agent works with least privilege: its credentials, not deny rules, are the boundary | Accepted |

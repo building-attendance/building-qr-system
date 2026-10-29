@@ -479,8 +479,9 @@ The app runs as that role when it connects with a login of its own that is a mem
    ```
 
    Make it with SQL, never with **Add role** on the Roles page: a role made there gets `neon_superuser`, which can do far more
-   than the app needs. The password stays in the history of the SQL Editor, in your Neon account; whoever has that account
-   controls the database anyway.
+   than the app needs. Right after Run, delete the statement from the editor's History (its three dots, Delete) and clear
+   the editor: the editor keeps the password as plain text and opens the newest entry when it loads
+   ([secrets.md](runbooks/secrets.md), "A password in the Neon SQL Editor").
 2. In Vercel, Settings, Environment Variables, add `DATABASE_URL_RUNTIME` for **Production** only, with the Type Secret. Its
    value is your `DATABASE_URL` (the pooled string, host with `-pooler`) with `app_login` and the new password in place of the
    user name and the password before the `@`. Make it in your password manager, never in a chat or a file of the repository.

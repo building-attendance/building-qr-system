@@ -78,3 +78,11 @@ decision. It is written down here so that it stays narrow:
   the environment never silently wins over the command line.
 - A change that lets the backup write, or run without the read-only session, is P1 in the code review rules of
   `AGENTS.md`.
+
+## Addendum (29/10/2026): what the guard is not
+
+`server/dbGuard.js` keeps the project's own tools (the tests, the dev seed, the dev API server, `npm run db:migrate`) away
+from production by mistake. It is not a boundary against anyone who holds a production credential: `psql` and the Neon CLI
+never ask it. The gap is narrow: a real database has no marker only before its first production deployment marks it
+(`server/productionMigrate.js`), and a restore keeps the marker. The boundary against a production credential is that none
+is in the local agent's reach (ADR 0008, which also says what of that is not done yet).
