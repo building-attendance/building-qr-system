@@ -355,9 +355,10 @@ not say `nonprod`.
    and the periods are constants in `server/config.js`; this guide is not legal advice), and do the quick pass of the
    [iOS checklist](manual-ios-checklist.md) on a real iPhone (items 1, 4 and 8 are the quick pass).
 6. **The privacy notice: read it, and have it checked by a lawyer.** The providers' app has a privacy notice at
-   `https://<your-domain>/privacy`, in Hebrew, English, Russian and Arabic. It is linked from the sign-in screen and from
-   the home screen, and a short version stands on the sign-in list, before the first scan. It is built from the building's
-   name, address and contact that you typed in step 1, so it names your committee. Open it, with your contact filled in, in
+   `https://<your-domain>/privacy`, in Hebrew, English, Russian and Arabic. On the sign-in list, before the first scan, and
+   on the home screen, "Privacy notice" at the top opens a short version with the link to the whole notice. It is built
+   from the building's name, address and contact that you typed in step 1, so it names your committee. Open it, with your
+   contact filled in, in
    each language that your providers read, and check that every sentence is true for your copy: what is recorded, the
    periods, who sees it, the hosting in the United States, the backups, the AI service (which counts only if you use
    one). **The text is a proposal, not legal advice.** Have a lawyer check it before you give signs to the providers.
