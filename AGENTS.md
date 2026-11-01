@@ -48,12 +48,14 @@ A rule named in parentheses, such as (Safety), is spelled out in that section of
   token lookup that runs a query before the prefix and length check.
 - A change to a guarded file that loosens a condition its header lists, or drops one from the header:
   `scripts/backup-db.mjs` (the one local tool that may read production, because it cannot write: a read-only session,
-  the dump and the connection string only to the owner's folder); `scripts/vercel-build.mjs` and
-  `server/productionMigrate.js` (only the production build of a commit on the production branch from the Vercel Git
-  integration migrates, and a build whose environment is unknown is refused; the production branch is the default branch
-  as GitHub reports it during the build, never an environment variable, a file of the build or a name in the code; every
-  pending migration is byte-identical to its file on that branch on GitHub, checked against no other branch; no other
-  database is migrated); `server/firstAdmin.js` (`FIRST_ADMIN_EMAIL`, read only from the server's environment, adds a
+  the dump and the connection string only to the owner's folder); `scripts/vercel-build.mjs`,
+  `server/productionMigrate.js` and `server/previewMigrate.js` (only the production build of a commit on the production
+  branch from the Vercel Git integration migrates production, and a build whose environment is unknown is refused; the
+  production branch is the default branch as GitHub reports it during the build, never an environment variable, a file
+  of the build or a name in the code; every pending migration is byte-identical to its file on that branch on GitHub,
+  checked against no other branch; a preview build migrates only its own database, and only when every database its
+  environment names is marked `nonprod`; no other database is migrated); `server/firstAdmin.js`
+  (`FIRST_ADMIN_EMAIL`, read only from the server's environment, adds a
   member only while `admins` holds no row, active or not, only for the e-mail Google marked verified, under the lock
   that makes two first sign-ins wait for each other, in the sign-in's transaction, with its `audit_log` rows, and is
   never logged or returned); `.github/workflows/release.yml` and `scripts/release-notes.mjs` (a draft only, never
