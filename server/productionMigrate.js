@@ -70,7 +70,7 @@ export function buildFailureText(err) {
  */
 export function productionBuildDecision(env) {
   if (env.VERCEL_ENV === 'preview' || env.VERCEL_ENV === 'development') {
-    return { action: 'skip', reason: `a Vercel ${env.VERCEL_ENV} build, so no database is touched` }
+    return { action: 'skip', reason: `a Vercel ${env.VERCEL_ENV} build, so the production database is never touched` }
   }
   if (env.VERCEL_ENV === 'production') {
     const fromGit =
