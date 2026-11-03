@@ -26,25 +26,39 @@ const DOWN = fakeUrl('ep-down-000004')
 const PG_SET = { PGUSER: 'fake_user', PGPASSWORD: PASSWORD, PGDATABASE: 'fakedb' }
 
 describe('previewDatabases', () => {
-  it('finds every Postgres URL under any name and the PG* set, and reads an identical value once', () => {
+  it('finds every Postgres URL under any name and every host set, and reads a database once', () => {
     const env = {
       DATABASE_URL: NONPROD_POOLED,
       POSTGRES_URL: NONPROD_POOLED,
       DATABASE_URL_UNPOOLED: NONPROD,
+      DATABASE_URL_RUNTIME: NONPROD.replace('fake_user:', 'other_user:'),
       SOMETHING_ELSE: 'POSTGRES://fake_user@ep-unmarked-000003.example.test/fakedb',
       PGHOST: 'ep-prod-000002.example.test',
       ...PG_SET,
+      POSTGRES_HOST: 'ep-unmarked-000003.example.test',
       NOT_A_DATABASE: 'https://ep-prod-000002.example.test/',
     }
     const found = previewDatabases(env)
-    expect(found.map((d) => d.variables)).toEqual([['DATABASE_URL', 'POSTGRES_URL'], ['DATABASE_URL_UNPOOLED'], ['SOMETHING_ELSE'], ['PGHOST']])
-    expect(new URL(found[3].connectionString)).toMatchObject({ hostname: 'ep-prod-000002.example.test', username: 'fake_user' })
+    expect(found.map((d) => d.variables)).toEqual([
+      ['DATABASE_URL', 'POSTGRES_URL'],
+      ['DATABASE_URL_UNPOOLED', 'DATABASE_URL_RUNTIME'],
+      ['SOMETHING_ELSE'],
+      ['PGHOST'],
+      ['POSTGRES_HOST'],
+    ])
+    // Values that differ only in their credentials are one database, read through either of them.
+    expect(found[1].connectionStrings).toEqual([NONPROD, env.DATABASE_URL_RUNTIME])
+    expect(new URL(found[3].connectionStrings[0])).toMatchObject({ hostname: 'ep-prod-000002.example.test', username: 'fake_user' })
+    // With no database in the URL, pg takes the user's name for it, so another user is another database.
+    const noPath = (user) => `postgres://${user}@ep-fake-000000.example.test`
+    expect(previewDatabases({ A: noPath('one'), B: noPath('two') })).toHaveLength(2)
     expect(previewDatabases({ VERCEL_ENV: 'preview', PGUSER: 'fake_user' })).toEqual([])
   })
 
   it('refuses a value it cannot read, naming the variable and never the value', () => {
     const cases = [
-      [{ POSTGRES_URL: `postgresql://fake_user:${PASSWORD}@/fakedb` }, /POSTGRES_URL names a Postgres database, but no host/],
+      [{ POSTGRES_URL: `postgresql://fake_user:${PASSWORD}@/fakedb` }, /POSTGRES_URL names a Postgres database, but not as a valid URL/],
+      [{ POSTGRES_URL: ` ${NONPROD}` }, /POSTGRES_URL names/],
       [{ POSTGRES_URL: `postgres://fake_user:${PASSWORD}@ep-prod-000002.example.test:99999/fakedb` }, /POSTGRES_URL names/],
       [{ DATABASE_URL: `host=ep-prod-000002.example.test password=${PASSWORD}` }, /DATABASE_URL is set but is not a postgres/],
       [{ DATABASE_URL_RUNTIME: 'mysql://fake_user@ep-prod-000002.example.test/fakedb' }, /DATABASE_URL_RUNTIME is set/],
@@ -72,17 +86,18 @@ describe('migratePreview against a throwaway schema', () => {
   let tmpDir
   let markerTable
   let opened // the fake URLs that a pool was opened for
-  let migrationMarker // when set, what the connection that migrates reads as its marker
+  let migrationMarker // when set, what DATABASE_URL_UNPOOLED reads when it is opened again, to migrate
 
-  const openPool = (connectionString, extra = {}) => {
+  const openPool = (connectionString) => {
+    const again = opened.includes(connectionString)
     opened.push(connectionString)
-    const host = new URL(connectionString).hostname
-    const forMarker = 'query_timeout' in extra
-    const marker = !forMarker && migrationMarker ? migrationMarker : (host.match(/^ep-(nonprod|prod)-/)?.[1] ?? null)
+    const { hostname: host, username } = new URL(connectionString)
+    const marker = again && migrationMarker ? migrationMarker : (host.match(/^ep-(nonprod|prod)-/)?.[1] ?? null)
     const setting = marker ? ` -c app.preview_test_marker=${marker === 'prod' ? 'production' : marker}` : ''
     const options = encodeURIComponent(`-c search_path=${db.schema}${setting}`)
-    const real = host.startsWith('ep-down-') ? 'postgres://nobody:nothing@127.0.0.1:1/none' : `${raw}${raw.includes('?') ? '&' : '?'}options=${options}`
-    return guardPool(new pg.Pool({ connectionString: normalizeConnectionString(real), max: 1, connectionTimeoutMillis: 10_000, ...extra }))
+    const down = host.startsWith('ep-down-') || username === 'no_access'
+    const real = down ? 'postgres://nobody:nothing@127.0.0.1:1/none' : `${raw}${raw.includes('?') ? '&' : '?'}options=${options}`
+    return guardPool(new pg.Pool({ connectionString: normalizeConnectionString(real), max: 1, connectionTimeoutMillis: 10_000 }))
   }
   const run = (env) => {
     const lines = []
@@ -173,12 +188,19 @@ describe('migratePreview against a throwaway schema', () => {
   })
 
   it('migrates when every database is nonprod, says so without a URL or a password, and is up to date the second time', async () => {
-    const env = { DATABASE_URL: NONPROD_POOLED, DATABASE_URL_UNPOOLED: NONPROD, PGHOST: 'ep-nonprod-000001.example.test', ...PG_SET }
+    const env = {
+      DATABASE_URL: NONPROD_POOLED,
+      // The same database as DATABASE_URL_UNPOOLED, through a role that cannot read the marker: the next URL reads it.
+      DATABASE_URL_RUNTIME: NONPROD.replace('fake_user:', 'no_access:'),
+      DATABASE_URL_UNPOOLED: NONPROD,
+      PGHOST: 'ep-nonprod-000001.example.test',
+      ...PG_SET,
+    }
     const first = run(env)
     await expect(first.promise).resolves.toEqual(['pv_001_first.sql', 'pv_002_second.sql'])
     expect(await present(`${db.schema}.pv_first`)).toBe(true)
     const log = first.lines.join('\n')
-    expect(log).toContain(`Preview database: ${maskDatabaseHost(NONPROD)} (DATABASE_URL_UNPOOLED, PGHOST), marker nonprod`)
+    expect(log).toContain(`Preview database: ${maskDatabaseHost(NONPROD)} (DATABASE_URL_RUNTIME, DATABASE_URL_UNPOOLED, PGHOST), marker nonprod`)
     expect(log).toContain('Applied: pv_001_first.sql, pv_002_second.sql')
     const { username, password } = new URL(raw)
     for (const secret of [PASSWORD, 'fake_user', NONPROD, raw, username, password].filter(Boolean)) expect(log).not.toContain(secret)
