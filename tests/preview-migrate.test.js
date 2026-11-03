@@ -178,7 +178,7 @@ describe('migratePreview against a throwaway schema', () => {
     await expect(first.promise).resolves.toEqual(['pv_001_first.sql', 'pv_002_second.sql'])
     expect(await present(`${db.schema}.pv_first`)).toBe(true)
     const log = first.lines.join('\n')
-    expect(log).toContain(`Preview database: ${maskDatabaseHost(NONPROD)} (DATABASE_URL_UNPOOLED), marker nonprod`)
+    expect(log).toContain(`Preview database: ${maskDatabaseHost(NONPROD)} (DATABASE_URL_UNPOOLED, PGHOST), marker nonprod`)
     expect(log).toContain('Applied: pv_001_first.sql, pv_002_second.sql')
     const { username, password } = new URL(raw)
     for (const secret of [PASSWORD, 'fake_user', NONPROD, raw, username, password].filter(Boolean)) expect(log).not.toContain(secret)
