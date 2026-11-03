@@ -49,6 +49,9 @@ function target(connectionString) {
     const url = new URL(connectionString)
     const host = url.searchParams.get('host') || url.hostname
     if (!host) return null
+    // Neon can take an endpoint id from the user or the password (`endpoint=<id>;...`): such a URL keeps its credentials
+    // in the key, so it is a database of its own and its marker is read only through it.
+    if (/endpoint=/i.test(decodeURIComponent(`${url.username}:${url.password}`))) return { host, key: url.href }
     url.password = ''
     if (url.pathname.length > 1) url.username = ''
     return { host, key: url.href }

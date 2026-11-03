@@ -52,6 +52,9 @@ describe('previewDatabases', () => {
     // With no database in the URL, pg takes the user's name for it, so another user is another database.
     const noPath = (user) => `postgres://${user}@ep-fake-000000.example.test`
     expect(previewDatabases({ A: noPath('one'), B: noPath('two') })).toHaveLength(2)
+    // Neon can take an endpoint id from the password, so such a URL is a database of its own.
+    const viaEndpoint = NONPROD.replace(PASSWORD, encodeURIComponent(`endpoint=ep-prod-000002;${PASSWORD}`))
+    expect(previewDatabases({ A: NONPROD, B: viaEndpoint })).toHaveLength(2)
     expect(previewDatabases({ VERCEL_ENV: 'preview', PGUSER: 'fake_user' })).toEqual([])
   })
 
