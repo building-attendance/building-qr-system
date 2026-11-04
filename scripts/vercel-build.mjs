@@ -4,7 +4,12 @@
 //
 // 1. It builds the app exactly as `npm run build` does (`vite build`). A failed build stops here, nothing is migrated.
 // 2. It asks productionBuildDecision (server/productionMigrate.js) what to do about the database:
-//    - skip: a Vercel preview or development build. The app is built and no database is touched.
+//    - skip: a Vercel preview or development build. The production database is never touched, and a development build
+//      touches no database. A preview build whose environment names a Postgres database then runs migratePreview
+//      (server/previewMigrate.js, ADR 0009): it migrates only its own database (DATABASE_URL_UNPOOLED, a direct host),
+//      and only when every database its environment names (every Postgres URL under any name, and the PG* set) is
+//      marked nonprod; a production marker, no marker or a marker it cannot read fails the build before the deployment
+//      serves. A preview with no database touches nothing. No GitHub check: a preview runs its branch's own migrations.
 //    - migrate: the production build of a commit that the Vercel Git integration built. migrateProduction then asks
 //      GitHub for the default branch and refuses unless the commit is on it, before it connects to any database. Then the
 //      database in DATABASE_URL_UNPOOLED is migrated and, on the first deploy of a new installation, marked as production
@@ -29,12 +34,13 @@
 // characters of the commit), never any other variable. MIGRATION_GITHUB_TOKEN (optional) is read only to let a private
 // fork read its default branch and fetch its own migration files from GitHub; it is never printed.
 //
-// A failed migration is printed through buildFailureText (server/productionMigrate.js): the migration file and the SQLSTATE
+// A failed migration (production or preview) is printed through buildFailureText (server/productionMigrate.js): the migration file and the SQLSTATE
 // with its condition name, for example `Migration 012_x.sql failed: 23505 (unique_violation)`, and never the message of the
 // database, which can quote a row value of production. This log is read by more people than the owner. To read the database's
 // own message, run the file against the non-production database with `npm run db:migrate` (docs/runbooks/deploy-and-rollback.md).
 import { spawnSync } from 'node:child_process'
 import { productionBuildDecision, migrateProduction, buildFailureText } from '../server/productionMigrate.js'
+import { migratePreview } from '../server/previewMigrate.js'
 
 const build = spawnSync('npm run build', { stdio: 'inherit', shell: true })
 if (build.status !== 0) process.exit(build.status ?? 1)
@@ -64,6 +70,15 @@ if (action === 'migrate') {
     })
   } catch (err) {
     console.error(`Production migration failed: ${buildFailureText(err)}`)
+    process.exit(1)
+  }
+}
+
+if (action === 'skip' && env.VERCEL_ENV === 'preview') {
+  try {
+    await migratePreview({ env, log: console.log })
+  } catch (err) {
+    console.error(`Preview migration failed: ${buildFailureText(err)}`)
     process.exit(1)
   }
 }
