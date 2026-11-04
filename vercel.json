@@ -2,7 +2,7 @@
   "buildCommand": "node scripts/vercel-build.mjs",
   "ignoreCommand": "node scripts/vercel-ignore.mjs",
   "git": {
-    "deploymentEnabled": { "**": false, "master": true, "main": true }
+    "deploymentEnabled": { "**": false, "master": true, "main": true, "preview": true }
   },
   "regions": ["iad1"],
   "functions": {

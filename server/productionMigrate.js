@@ -57,7 +57,8 @@ export function buildFailureText(err) {
 /**
  * Decides what the build does about the database, from the build environment (the caller passes `process.env`).
  * Returns `{ action: 'migrate' | 'skip' | 'refuse', reason }`:
- * - `skip`: a Vercel preview or development build. It builds and never touches a database.
+ * - `skip`: a Vercel preview or development build. It never touches the production database (a preview build may then
+ *   migrate its own nonprod database: server/previewMigrate.js).
  * - `migrate`: a production build of a commit that the Vercel Git integration built (it sets the branch, the full commit
  *   hash and the repository only for a deployment triggered from Git). Whether that branch is the production branch is not
  *   decided here, because only GitHub can say which branch that is (its default branch) and asking is a network call:
@@ -70,7 +71,7 @@ export function buildFailureText(err) {
  */
 export function productionBuildDecision(env) {
   if (env.VERCEL_ENV === 'preview' || env.VERCEL_ENV === 'development') {
-    return { action: 'skip', reason: `a Vercel ${env.VERCEL_ENV} build, so no database is touched` }
+    return { action: 'skip', reason: `a Vercel ${env.VERCEL_ENV} build, so the production database is never touched` }
   }
   if (env.VERCEL_ENV === 'production') {
     const fromGit =
