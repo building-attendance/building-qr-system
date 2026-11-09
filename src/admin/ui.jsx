@@ -26,11 +26,22 @@ export function IconButton({ icon: Icon, label, onClick, size = 24, href, downlo
 }
 
 /**
- * The add button of a screen heading: a pill with the plus and the words for what it adds, the first action of its heading
- * (`a-head a-head--add` in admin.css). The words are on the button, so what a person reads and what a screen reader says are one thing.
+ * The add button of a screen: a pill with the plus and the words for what it adds. It is the first action of its heading (`a-head
+ * a-head--add` in admin.css), and the one button of the empty state while the list is empty (the heading has no add button then). The
+ * words are on the button, so what a person reads and what a screen reader says are one thing.
+ *
+ * It takes the focus as it opens its dialog, so that the dialog gives the focus back to it when it closes: Safari does not focus a button
+ * that is tapped or clicked, and the dialog (`Modal`) gives the focus back to whatever had it when it opened, which is then the page's body.
+ * The empty state's button is gone once the first item is saved (the list loads again under the dialog that follows the saving), and the
+ * dialog then puts the focus on the page's main, as it does for every opener that is gone: the top of the screen, whose heading holds the
+ * add button again by then.
  */
 export function AddButton({ label, onClick }) {
-  return <button type="button" className="w-btn w-btn--small" onClick={onClick}><IconPlus size={20} />{label}</button>
+  const add = (event) => {
+    event.currentTarget.focus()
+    onClick(event)
+  }
+  return <button type="button" className="w-btn w-btn--small" onClick={add}><IconPlus size={20} />{label}</button>
 }
 
 /* ------------------------------------------------------------ date field */
