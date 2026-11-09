@@ -81,14 +81,15 @@ export function TopBar({ name = '', address = '', adminEntry = false }) {
 function ReadingLinks() {
   const { t, lang } = useI18n()
   const [privacyOpen, setPrivacyOpen] = useState(false)
+  const privacyRef = useRef(null) // the sheet gives the focus back to this button: Safari does not focus it when it is tapped
   return (
     <>
       <div className="w-links">
         <a className="w-link" href={tutorialUrl(lang)} target="_blank" rel="noopener">{t('home.tutorial')}</a>
-        <button type="button" className="w-link" aria-haspopup="dialog" onClick={() => setPrivacyOpen(true)}>{t('privacy.title')}</button>
+        <button ref={privacyRef} type="button" className="w-link" aria-haspopup="dialog" onClick={() => setPrivacyOpen(true)}>{t('privacy.title')}</button>
       </div>
       {privacyOpen && (
-        <Sheet title={t('privacy.title')} closeLabel={t('common.close')} onClose={() => setPrivacyOpen(false)}>
+        <Sheet title={t('privacy.title')} closeLabel={t('common.close')} onClose={() => setPrivacyOpen(false)} opener={() => privacyRef.current}>
           <p>{t('login.privacy')}</p>
           <a className="w-link" href="/privacy">{t('privacy.open')}</a>
         </Sheet>
