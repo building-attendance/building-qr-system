@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { adminApi, errorText, copyText, providerDevices } from '../api.js'
 import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel, formatDateTime } from '../hooks.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { IconPlus, IconEdit, IconLockPlus, IconDevice, IconBan, IconCheck, IconCopy, IconRefresh, IconUsers, IconAlert, IconTrash } from '../icons.jsx'
+import { IconEdit, IconLockPlus, IconDevice, IconBan, IconCheck, IconCopy, IconRefresh, IconUsers, IconAlert, IconTrash } from '../icons.jsx'
 import { generatePassword } from '../password.js'
 import { PASSWORD_MIN_LENGTH, PASSWORD_MAX_LENGTH, NAME_MAX_LENGTH } from '../../../shared/contract.js'
 
@@ -275,7 +275,7 @@ export default function ProvidersView() {
       )}
       {empty && (
         <EmptyState icon={IconUsers} title="עוד אין נותני שירות"
-          action={<button className="w-btn w-btn--small" onClick={() => setEditing('new')}><IconPlus size={20} />הוסיפו נותן שירות</button>}>
+          action={<AddButton label="הוסיפו נותן שירות" onClick={() => setEditing('new')} />}>
           הוסיפו את חברת הניקיון והגנן, והגדירו לכל אחד סיסמה אישית.
         </EmptyState>
       )}
