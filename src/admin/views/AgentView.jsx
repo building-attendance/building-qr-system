@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { adminApi, errorText, copyText } from '../api.js'
 import { useLoad, LOAD_KEY, formatDateTime } from '../hooks.js'
 import { Modal, Field, Badge, EmptyState, Spinner, IconButton, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
-import { IconPlus, IconKey, IconCopy, IconBan, IconAlert, IconInfo, IconTrash } from '../icons.jsx'
+import { IconKey, IconCopy, IconBan, IconAlert, IconInfo, IconTrash } from '../icons.jsx'
 import { KEY_NAME_MAX_LENGTH } from '../../../shared/contract.js'
 import { agentPrompt } from '../agentPrompt.js'
 
@@ -112,7 +112,7 @@ export default function AgentView() {
         <EmptyState icon={IconAlert} title="לא הצלחנו לטעון את המפתחות" action={<button className="w-btn w-btn--small" onClick={keys.reload}>נסו שוב</button>} />
       )}
       {empty && (
-        <EmptyState icon={IconKey} title="עוד אין מפתחות" action={<button className="w-btn w-btn--small" onClick={() => setCreating(true)}><IconPlus size={20} />יצירת מפתח</button>}>
+        <EmptyState icon={IconKey} title="עוד אין מפתחות" action={<AddButton label="יצירת מפתח" onClick={() => setCreating(true)} />}>
           צרו מפתח ותנו אותו לאייג'נט שיקרא את הנתונים.
         </EmptyState>
       )}
