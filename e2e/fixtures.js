@@ -285,7 +285,69 @@ function settleBeforeNavigating(page, baseURL) {
   }
 }
 
+/**
+ * Safari's focus on a press, for WebKit: the init script of the `context` fixture below, in every page of a WebKit test (the
+ * `iphone-webkit` project), before the page's own scripts. Serialised by Playwright like `countFetches`: it uses nothing from this file.
+ *
+ * WHY. Safari does not focus a button that is clicked or tapped (MDN, <button>, "Clicking and focus"). WebKit decides it in
+ * `HTMLFormControlElement::isMouseFocusable()`: its Linux ports (GTK and WPE), the WebKit of CI, focus a pressed form control as Chromium
+ * does, and its other ports (Safari on iOS and macOS, and Playwright's WebKit for Windows) do not, unless the control has a tabindex. So a
+ * dialog that gives the focus back to whatever had it when it opened passed CI and gave it back to nothing on an iPhone (the provider
+ * app's privacy sheet, #385, found on Windows, and the committee app's add buttons, #386). This makes the WebKit of CI press as
+ * Safari does, so that CI sees that kind of bug.
+ *
+ * WHAT. Measured on Playwright's WebKit for Windows (26.6 on 08/11/2026, 27.2 on 09/11/2026), a click and a tap alike:
+ * - A press focuses a text field, a textarea, a select, a summary, an editable element, and any element with a tabindex attribute.
+ * - It does not focus a button, an input that is a button, a checkbox, a radio or a link when it has no tabindex: the focus goes to the
+ *   nearest of its ancestors that a press focuses (in the committee app the shell's `main`, which has tabindex -1, or the dialog the
+ *   button is in), and with none it goes nowhere (the element that had it loses it). No focus event reaches the button.
+ * In Chromium, which focuses a press as the Linux port does, this script gives the same element the focus as that WebKit in 30 of 32
+ * cases of a test page, and in that WebKit it changes nothing in all 32. The two it leaves: a press on a label, which focuses its
+ * checkbox after the click (Safari does not), and a range, which Safari does not focus either, but whose drag starts in the default of
+ * the press, so its press is left alone. A press that a listener stopped before it reached the window is left alone too.
+ *
+ * HOW. One listener on the window, in the bubbling phase, so that it runs after the page's own listeners (React's, on its root, and the
+ * document's), where the browser's default comes too. A press whose default the page prevented moves nothing, as in Safari. Otherwise it
+ * prevents the default, which is where the Linux port would focus the control, and moves the focus where Safari puts it.
+ */
+function safariPressFocus() {
+  const w = /** @type {any} */ (window)
+  if (w.__e2eSafariPress) return
+  w.__e2eSafariPress = true
+  const BUTTON_TYPES = new Set(['button', 'submit', 'reset', 'image', 'checkbox', 'radio'])
+  /** An element that the Linux port focuses on a press and Safari does not. */
+  const skippedBySafari = (/** @type {HTMLElement} */ el) => {
+    if (el.hasAttribute('tabindex') || el.matches(':disabled')) return false
+    if (el instanceof HTMLButtonElement) return true
+    if (el instanceof HTMLInputElement) return BUTTON_TYPES.has(el.type)
+    return (el instanceof HTMLAnchorElement || el instanceof HTMLAreaElement) && el.hasAttribute('href')
+  }
+  /** An element that a press focuses in Safari, as in the Linux port. */
+  const takesFocus = (/** @type {HTMLElement} */ el) => {
+    if (el.matches(':disabled')) return false
+    if (el.hasAttribute('tabindex') || el.isContentEditable || el.localName === 'summary') return true
+    if (el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement || el instanceof HTMLIFrameElement) return true
+    return el instanceof HTMLInputElement && !BUTTON_TYPES.has(el.type) && el.type !== 'hidden'
+  }
+  window.addEventListener('mousedown', (event) => {
+    if (event.defaultPrevented) return
+    const path = /** @type {HTMLElement[]} */ (event.composedPath().filter((node) => node instanceof HTMLElement))
+    const at = path.findIndex((el) => skippedBySafari(el) || takesFocus(el))
+    if (at < 0 || !skippedBySafari(path[at])) return // nothing takes the focus, or the same element does in both ports
+    event.preventDefault()
+    const next = path.slice(at + 1).find(takesFocus)
+    if (next) next.focus({ preventScroll: true })
+    else if (document.activeElement instanceof HTMLElement && document.activeElement !== document.body) document.activeElement.blur()
+  })
+}
+
 export const test = base.extend({
+  // Every page of a WebKit test presses as Safari does (see `safariPressFocus`). On the context, so that a page the test opens itself
+  // gets it too.
+  context: async ({ context, browserName }, use) => {
+    if (browserName === 'webkit') await context.addInitScript(safariPressFocus)
+    await use(context)
+  },
   page: async ({ page, baseURL }, use) => {
     const problems = []
     allowed.set(page, [])
