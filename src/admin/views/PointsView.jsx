@@ -5,7 +5,7 @@ import { useLoad, LOAD_KEY, SERVICE_TYPES, serviceLabel } from '../hooks.js'
 import { Modal, Field, Badge, Switch, EmptyState, Spinner, IconButton, AddButton, Menu, useToast, useConfirm, useAction, useDirty } from '../ui.jsx'
 import { downloadDataUrl, safeFileName, useQrImage } from '../qr.js'
 import PrintSheet from '../PrintSheet.jsx'
-import { IconPlus, IconEdit, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
+import { IconEdit, IconQr, IconPrinter, IconDownload, IconCopy, IconRefresh, IconLocate, IconPin, IconAlert, IconTrash, IconBan, IconCheck } from '../icons.jsx'
 import { GPS_MODE_LABELS } from '../auditLabels.js'
 import {
   GPS_MODE_REQUIRED,
@@ -396,7 +396,7 @@ export default function PointsView() {
       )}
       {empty && (
         <EmptyState icon={IconPin} title="עוד אין נקודות"
-          action={<button className="w-btn w-btn--small" onClick={() => setEditing('new')}><IconPlus size={20} />הוסיפו את הנקודה הראשונה</button>}>
+          action={<AddButton label="הוסיפו את הנקודה הראשונה" onClick={() => setEditing('new')} />}>
           לכל מקום שצריך לבדוק בו נוכחות (לובי, חדר מדרגות, גינה) מגדירים נקודה ומדפיסים לה שלט QR.
         </EmptyState>
       )}
