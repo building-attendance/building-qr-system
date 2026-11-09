@@ -49,7 +49,30 @@ function expectPrivacySheet(code) {
   }
   return opener
 }
-const ploni = { id: 'p1', contact_name: SAMPLE_PROVIDER_NAMES.cleaner, company: 'ניקיון' }
+
+/**
+ * The same sheet, opened as Safari opens it: a tapped or clicked button does not take the focus there (WebKit makes a button focusable
+ * by the mouse only in its Linux builds, and jsdom does not focus it either), so the page's body has the focus when the sheet opens.
+ * The close button, Esc and a tap outside still give the focus back to the button.
+ */
+function expectFocusBackWithoutClickFocus() {
+  const opener = screen.getByRole('button', { name: he['privacy.title'] })
+  const dismissals = [
+    ['the close button', () => fireEvent.click(screen.getByRole('button', { name: he['common.close'] }))],
+    ['Esc', () => fireEvent.keyDown(document, { key: 'Escape' })],
+    ['a tap outside', () => fireEvent.mouseDown(screen.getByRole('dialog').parentElement)],
+  ]
+  for (const [how, dismiss] of dismissals) {
+    /** @type {HTMLElement} */ (document.activeElement).blur()
+    expect(document.activeElement, 'nothing has the focus before the tap').toBe(document.body)
+    fireEvent.click(opener)
+    expect(document.activeElement, 'the focus is on the sheet').toBe(screen.getByRole('dialog', { name: he['privacy.title'] }))
+    dismiss()
+    expect(screen.queryByRole('dialog')).toBeNull()
+    expect(document.activeElement, `${how}: the focus is back on the button that opened the sheet`).toBe(opener)
+  }
+}
+const ploni ={ id: 'p1', contact_name: SAMPLE_PROVIDER_NAMES.cleaner, company: 'ניקיון' }
 const almoni = { id: 'p2', contact_name: SAMPLE_PROVIDER_NAMES.gardener, company: 'גינון' }
 
 describe('LoginView', () => {
@@ -100,6 +123,11 @@ describe('LoginView', () => {
         unmount()
       }
     }
+  })
+
+  it('gives the focus back to the privacy button when the tap did not focus it, as on an iPhone', () => {
+    withI18n(view())
+    expectFocusBackWithoutClickFocus()
   })
 
   it('has no committee link of its own (it is in the top bar)', () => {
@@ -348,6 +376,11 @@ describe('HomeView', () => {
         unmount()
       }
     }
+  })
+
+  it('gives the focus back to the privacy button when the tap did not focus it, as on an iPhone', () => {
+    show()
+    expectFocusBackWithoutClickFocus()
   })
 
   it('links to the whole tutorial video, as the sign-in screen does, in the language of the person, in a new tab, and falls back to Hebrew where a language has no video yet', () => {

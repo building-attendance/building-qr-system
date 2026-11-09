@@ -10,18 +10,25 @@ const FOCUSABLE = 'a[href], button:not([disabled]), input:not([disabled]), selec
  * (`closeLabel`, in the person's language), Esc and a tap outside close it, Tab stays inside it, the page under it does not scroll,
  * and the focus goes to the sheet when it opens (a screen reader reads its title) and back to what opened it when it closes.
  *
+ * `opener` is a function that gives the button that opened the sheet, and the focus goes back to it. Safari does not focus a button
+ * that is tapped or clicked (WebKit makes a button focusable by the mouse only in its Linux builds, which is why CI's WebKit does not
+ * show it), so on an iPhone the page's body had the focus when the sheet opened. Without `opener`, or when it gives nothing, the focus
+ * goes back to the element that had it when the sheet opened.
+ *
  * It is drawn inside the app's root, not in a portal: the colours are tokens of `.w-app` (src/ui/ui.css), and a fixed box needs no
  * other parent.
  */
-export function Sheet({ title, closeLabel, onClose, children }) {
+export function Sheet({ title, closeLabel, onClose, opener, children }) {
   const ref = useRef(null)
   const titleId = useId()
   const closeRef = useRef(onClose)
   closeRef.current = onClose
+  const openerRef = useRef(opener)
+  openerRef.current = opener
 
   useEffect(() => {
     const el = ref.current
-    const opener = /** @type {HTMLElement | null} */ (document.activeElement)
+    const focused = /** @type {HTMLElement | null} */ (document.activeElement)
     const overflow = document.body.style.overflow
     document.body.style.overflow = 'hidden'
     el.focus()
@@ -46,7 +53,8 @@ export function Sheet({ title, closeLabel, onClose, children }) {
     return () => {
       document.removeEventListener('keydown', onKey)
       document.body.style.overflow = overflow
-      if (opener && opener !== document.body && opener.isConnected) opener.focus()
+      const back = openerRef.current?.() ?? focused
+      if (back && back !== document.body && back.isConnected) back.focus()
     }
   }, [])
 
