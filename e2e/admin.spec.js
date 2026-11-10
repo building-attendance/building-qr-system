@@ -167,6 +167,71 @@ test('on a phone the focus goes from the account circle to the add button, and t
   await expect(page.getByRole('button', { name: 'הדפסת כל השלטים' })).toBeFocused()
 })
 
+// The add buttons give the focus back to themselves when their dialog closes (#386). The dialog gives it back to whatever had it when it opened,
+// and Safari does not focus a button that is pressed: the shell's main had it then, so the person was left at the top of the screen. The
+// WebKit project presses as Safari does (`safariPressFocus` in e2e/fixtures.js), so these fail there when that comes back; Chromium focuses
+// a pressed button by itself. The dialog that each button opens, and its first field, which has the focus once the dialog has opened.
+const ADD_DIALOGS = {
+  points: { dialog: 'נקודה חדשה', field: 'שם הנקודה' },
+  providers: { dialog: 'נותן שירות חדש', field: 'חברה' },
+  settings: { dialog: 'מנהל מערכת חדש', field: 'כתובת Gmail' },
+  agent: { dialog: 'מפתח גישה חדש', field: 'שם המפתח' },
+}
+const FOCUS_SIZES = [{ width: 360, height: 740 }, COMPUTER]
+
+/** Presses `button` and closes the dialog of `screen` in each of its three ways, and the button must have the focus after each. */
+async function expectFocusBack(page, button, screen, where) {
+  const { dialog: name, field } = ADD_DIALOGS[screen]
+  const closes = [
+    ['its close button', (dialog) => dialog.getByRole('button', { name: 'סגירה' }).click()],
+    ['Esc', () => page.keyboard.press('Escape')],
+    ['its Cancel button', (dialog) => dialog.getByRole('button', { name: 'ביטול' }).click()],
+  ]
+  for (const [way, close] of closes) {
+    await button.click()
+    const dialog = page.getByRole('dialog', { name })
+    // the dialog has taken the focus (its first field: the point's waits for the map's stylesheet first), so Esc lands in it
+    await expect(dialog.getByLabel(field, { exact: true }), `${where}: the dialog is open on its first field`).toBeFocused()
+    await close(dialog)
+    await expect(dialog, `${where}: closed by ${way}`).toBeHidden()
+    await expect(button, `${where}: the focus is back on the button after ${way}`).toBeFocused()
+  }
+}
+
+test('each add button of a heading has the focus back when its dialog closes, on a phone and on a computer', async ({ page }) => {
+  await adminSignIn(page, 'points')
+  // a list with nothing in it has no pill in its heading: the Agent screen needs a key
+  const key = (await (await page.request.post('/api/admin/api-keys', { data: { name: `מפתח ${randomUUID().slice(0, 6)}` } })).json()).api_key
+  try {
+    for (const [screen, label] of ADD_BUTTONS) {
+      if (!page.url().endsWith(`#${screen}`)) await page.goto(`/admin#${screen}`)
+      await expect(page.getByRole('heading', { level: 1, name: SCREEN_TITLES[screen], exact: true })).toBeVisible()
+      for (const size of FOCUS_SIZES) {
+        await page.setViewportSize(size)
+        await expectFocusBack(page, page.getByRole('button', { name: label, exact: true }), screen, `${screen} at ${size.width}`)
+      }
+    }
+  } finally {
+    await page.request.delete(`/api/admin/api-keys/${key.id}`, { data: {} })
+  }
+})
+
+test('each add button of an empty list has the focus back when its dialog closes, on a phone and on a computer', async ({ page }) => {
+  for (const { url, answer } of EMPTY_LISTS) {
+    await page.route(url, (route) => (route.request().method() === 'GET' ? route.fulfill({ json: answer }) : route.continue()))
+  }
+  await adminSignIn(page, 'points')
+  for (const { screen, title, own } of EMPTY_LISTS) {
+    // (not the address that the page is at: see the test of the empty lists above)
+    if (!page.url().endsWith(`#${screen}`)) await page.goto(`/admin#${screen}`)
+    await expect(page.getByRole('heading', { level: 2, name: title }), `${screen}: the empty state`).toBeVisible()
+    for (const size of FOCUS_SIZES) {
+      await page.setViewportSize(size)
+      await expectFocusBack(page, page.getByRole('main').getByRole('button', { name: own, exact: true }), screen, `${screen} at ${size.width}`)
+    }
+  }
+})
+
 // ---- the account menu ---------------------------------------------------------------------------------------------------------
 // The three icons of the old top bar (the provider app, light / dark, sign-out) are one account button: the member's initial in the top
 // bar of a phone, the name and the e-mail at the foot of the side rail on a computer. It opens a popover (a dialog that is not modal, see
