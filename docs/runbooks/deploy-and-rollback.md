@@ -43,8 +43,8 @@ installation, with its first deploy, starts at [the install guide](../install.md
      `preview` on purpose, and that preview build migrates its own non-production database and no other, only when every
      database its environment names is marked `nonprod` ([preview.md](preview.md), which also says how to read its log
      lines). A preview of another branch can still be made from the Vercel dashboard (Deployments, Create Deployment, the
-     branch); the Preview variables of a copy are scoped to the branch `preview`, so it has no database, builds, and touches
-     none.
+     branch); the Preview variables are scoped to the branch `preview` ([preview.md](preview.md)), so that deployment has no
+     database: it builds and touches none (`Preview build: no database in its environment, so none is touched.`).
      `vercel.json` lists `master` and `main` because those are the usual names of a default branch. JSON has no comments,
      so this is where the reason is written: a copy whose default branch has another name must add that name to
      `deploymentEnabled` (and make it the production branch in the settings of the Vercel project), or Vercel will not

@@ -186,8 +186,8 @@ touched. Once the database is connected, **Redeploy** **(check in the trial inst
    `DATABASE_URL` and `DATABASE_URL_UNPOOLED`. These two are what the first deploy needs. Each row has "Environments"
    (Production and Preview, Production, Preview, or Development; the default is "Production and Preview") and a
    "Sensitive value" switch. For both variables set Environments to **Production** and switch **Sensitive value** on. This
-   project builds no preview but the branch `preview` (`vercel.json`), so Preview has no use for them: the optional preview
-   of section 3.9 has its own database and its own variables.
+   project builds no preview here except the branch `preview` (`vercel.json`), which has its own database and variables
+   (section 3.9), so Preview has no use for these two.
 5. Fill in both variables first, then choose **Deploy**. Do not press it while you are still pasting: the build starts at
    once, with the variables that exist then, and a build without them is refused by the gate (below). The page that follows
    says "Congratulations! You just deployed a new project".

@@ -37,9 +37,12 @@ are in [ADR 0009](../adr/0009-a-preview-on-the-non-production-database.md). Prod
    - `DATABASE_URL`: the pooled string of the branch `preview`.
    - `DATABASE_URL_UNPOOLED`: its direct string. This is the one the build migrates; a pooled host (`-pooler`) is refused.
    - `GOOGLE_CLIENT_ID`: the same public value as production.
-   - `FIRST_ADMIN_EMAIL`: the e-mail of the person who will sign in. The first sign-in on the preview makes that person a
-     member, because its database holds no member yet ([install.md](../install.md), section 3.6). Keep it: it does the same
-     after every reset.
+   - `FIRST_ADMIN_EMAIL`: the e-mail of the person who will sign in, only that person's own. The first sign-in on the
+     preview makes that person a member, because its database holds no member yet ([install.md](../install.md), section
+     3.6). Production's copy is removed after the first sign-in, because it is personal data and has nothing left to do. The
+     preview's differs: a reset of its database empties `admins`, and this copy, scoped to the branch `preview`, makes that
+     person a member again at the next sign-in. The first installation keeps it on purpose. A copy that never resets can
+     remove it, as in install.md 3.6 ([secrets.md](secrets.md), `FIRST_ADMIN_EMAIL`).
 
    Switch "Sensitive value" on for the two connection strings and the e-mail.
 3. **What stays Production only.** `APP_BASE_URL`, `HEALTH_HEARTBEAT_URL`, `CRON_SECRET`, `DATABASE_URL_RUNTIME`, the
@@ -47,8 +50,7 @@ are in [ADR 0009](../adr/0009-a-preview-on-the-non-production-database.md). Prod
    production database). A preview build reads every variable of its environment that holds a Postgres URL, under any name,
    and the `PG*` set; one that names a database marked `production`, or with no marker, fails the build. Without
    `DATABASE_URL_RUNTIME` the preview connects as the role that owns the tables, which is fine for fake data.
-   [secrets.md](secrets.md) lists the secrets of production; the preview's are the two connection strings and the e-mail of
-   step 2, kept in Vercel only.
+   [secrets.md](secrets.md) lists the preview's two connection strings and the e-mail of step 2 too, kept in Vercel only.
 4. **Vercel, Settings, Deployment Protection:** Vercel Authentication on, Standard Protection. A provider who should try
    something gets the account's one Sharable Link; the Hobby plan allows one per account.
 5. **Google.** In the Google Cloud console, the OAuth client of the committee sign-in, Authorized JavaScript origins: add
