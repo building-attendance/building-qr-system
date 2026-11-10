@@ -1,6 +1,6 @@
 # 0009: A preview of one branch runs on its own non-production database
 
-Status: Accepted, not implemented yet
+Status: Accepted
 
 Date: 02/11/2026
 

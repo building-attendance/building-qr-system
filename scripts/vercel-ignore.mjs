@@ -10,7 +10,7 @@
 // The rule is one-sided on purpose. The commit is compared with the commit that production serves right now, as its own
 // GET /api/health says (`commit`, 7 characters), on the project's production domain (VERCEL_PROJECT_PRODUCTION_URL).
 // Never with the parent commit, and never with VERCEL_GIT_PREVIOUS_SHA: that is the last successful deployment of the
-// branch, which can be a preview made from the dashboard, and a preview never migrates. So a merge after a failed or a
+// branch, which can be a preview made from the dashboard, and a preview is not production. So a merge after a failed or a
 // rolled-back deployment deploys everything that production does not have. The deployment is skipped only when every
 // changed file is on the list below; anything else builds: a file that is not on the list, a migration, a build that is
 // not production, a production that does not answer or names no commit, a commit that git cannot find in Vercel's

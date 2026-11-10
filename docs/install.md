@@ -151,7 +151,8 @@ There are two ways. Take the first for your first install: it makes the first de
 variables, then connect the database in the project's Storage tab (Neon, from the Marketplace), or connect an existing
 Neon project from the Neon console, Integrations. Both integrations add `DATABASE_URL` and `DATABASE_URL_UNPOOLED` to the
 Vercel project by themselves (Neon's documentation), and those are the two names this app reads. Leave the option of a
-database branch for every preview deployment off, because this project builds no preview deployments. Choose the same
+database branch for every preview deployment off: it would copy your production data into a preview (the optional preview of
+section 3.9 has a database of its own, with fake data). Choose the same
 region as in the manual route, "AWS US East 1 (N. Virginia)" (the same reason: the privacy notice says that the data is kept
 in the United States). The first deploy
 then fails at the gate, with the message that `DATABASE_URL_UNPOOLED` is not set: that is expected, and nothing is
@@ -185,7 +186,8 @@ touched. Once the database is connected, **Redeploy** **(check in the trial inst
    `DATABASE_URL` and `DATABASE_URL_UNPOOLED`. These two are what the first deploy needs. Each row has "Environments"
    (Production and Preview, Production, Preview, or Development; the default is "Production and Preview") and a
    "Sensitive value" switch. For both variables set Environments to **Production** and switch **Sensitive value** on. This
-   project builds only the production branch (`vercel.json`), so Preview has no use for them.
+   project builds no preview here except the branch `preview` (`vercel.json`), which has its own database and variables
+   (section 3.9), so Preview has no use for these two.
 5. Fill in both variables first, then choose **Deploy**. Do not press it while you are still pasting: the build starts at
    once, with the variables that exist then, and a build without them is refused by the gate (below). The page that follows
    says "Congratulations! You just deployed a new project".
@@ -509,6 +511,13 @@ GitHub and off any folder that a service synchronises to the internet. Choose th
 `backup.log`, before you set it up. Everything (the Task Scheduler and cron lines, how to check a dump, how to restore
 one) is in [restore.md](runbooks/restore.md), "Daily backups". The command needs the `production` marker that your first
 deploy wrote. Without a backup your safety net is Neon's 6 hours.
+
+**A preview before production.** The branch `preview` is the one branch other than the production branch that Vercel builds
+by itself (`vercel.json`). It gives you one fixed address where a change that is not merged yet runs with both apps and a
+database of its own, with fake data only, so you see it before you merge it. It needs a second Neon project for
+non-production data (never a branch of your production project), four Preview variables scoped to that branch, and its
+address as an authorized origin in your Google client. Nothing of it is needed to run the app; the steps are in
+[preview.md](runbooks/preview.md).
 
 **The tutorial video.** The provider app's home screen links to a short tutorial video that this project publishes. It
 shows only the made-up sample building, so a copy needs to do nothing. The workflow that rebuilds the video is off in a

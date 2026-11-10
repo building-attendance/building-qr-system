@@ -36,11 +36,15 @@ installation, with its first deploy, starts at [the install guide](../install.md
      unknown (no `VERCEL_ENV`). The build exits 1 and the deployment fails. If the reason says the environment is unknown,
      open the Vercel project settings, Environment Variables, and switch on "Automatically expose System Environment
      Variables".
-   - `Deploy gate: skip (...)`: a Vercel preview or development build. It builds and touches no database.
-     Branches other than the production branch are not deployed by themselves (`git.deploymentEnabled` in `vercel.json`:
-     `"**": false, "master": true, "main": true`), so a pull request gets no automatic preview: the checks run in CI, and
-     the daily deployment quota of the Hobby plan stays for production. A preview of one branch can still be made on purpose
-     from the Vercel dashboard (Deployments, Create Deployment, the branch); it is a preview build and never migrates.
+   - `Deploy gate: skip (...)`: a Vercel preview or development build. It never touches production. Branches other than the
+     production branch are not deployed by themselves, except the branch `preview` (`git.deploymentEnabled` in `vercel.json`:
+     `"**": false, "master": true, "main": true, "preview": true`), so a pull request gets no automatic preview: the checks
+     run in CI, and the daily deployment quota of the Hobby plan stays for production. A change is put on the branch
+     `preview` on purpose, and that preview build migrates its own non-production database and no other, only when every
+     database its environment names is marked `nonprod` ([preview.md](preview.md), which also says how to read its log
+     lines). A preview of another branch can still be made from the Vercel dashboard (Deployments, Create Deployment, the
+     branch); the Preview variables are scoped to the branch `preview` ([preview.md](preview.md)), so that deployment has no
+     database: it builds and touches none (`Preview build: no database in its environment, so none is touched.`).
      `vercel.json` lists `master` and `main` because those are the usual names of a default branch. JSON has no comments,
      so this is where the reason is written: a copy whose default branch has another name must add that name to
      `deploymentEnabled` (and make it the production branch in the settings of the Vercel project), or Vercel will not
