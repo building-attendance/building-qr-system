@@ -47,7 +47,8 @@ are in [ADR 0009](../adr/0009-a-preview-on-the-non-production-database.md). Prod
    production database). A preview build reads every variable of its environment that holds a Postgres URL, under any name,
    and the `PG*` set; one that names a database marked `production`, or with no marker, fails the build. Without
    `DATABASE_URL_RUNTIME` the preview connects as the role that owns the tables, which is fine for fake data.
-   [secrets.md](secrets.md) lists where each secret lives.
+   [secrets.md](secrets.md) lists the secrets of production; the preview's are the two connection strings and the e-mail of
+   step 2, kept in Vercel only.
 4. **Vercel, Settings, Deployment Protection:** Vercel Authentication on, Standard Protection. A provider who should try
    something gets the account's one Sharable Link; the Hobby plan allows one per account.
 5. **Google.** In the Google Cloud console, the OAuth client of the committee sign-in, Authorized JavaScript origins: add
@@ -156,7 +157,7 @@ time. The entries below are the first installation's own record: a copy keeps it
 
 - `10/11/2026`: the first end-to-end run. The first preview was built on 07/11/2026 and migrated 006 to 017 (twelve
   files) on its own database; the log showed `Deploy gate: skip` and `Preview database: ... marker nonprod` for both
-  strings. The owner signed in with Google on the preview and became its first member. He made a point where he stood, a
+  strings. The owner signed in with Google on the preview and became its first member. He made a point, a
   provider, and one scan, accepted online at 6 m accuracy. Counts read back from the preview's database: 1 point, 1
   provider, 1 scan, 0 refusals. Production was checked by name and showed no trace: no such point, no such provider, no
   attendance in the range. The preview added to the Home Screen of his iPhone opened straight into the app after one Vercel
